@@ -5,7 +5,10 @@
     <h2 class="font-medium leading-tight text-2xl mt-0 mb-2 ">Subsystems</h2>
     <ul>
         {% for subsystem in subsystems %}
-        <li hx-get="/subsystems/{{ subsystem }}" hx-target="#requirements" hx-swap="innerHTML" hx-push-url="true">
+        <li class="subsystem-link" hx-get="/subsystems/{{ subsystem }}" hx-target="#requirements" hx-swap="innerHTML"
+            hx-push-url="true" _="on click 
+               remove .bg-blue-300 from <li.subsystem-link/>
+               add .bg-blue-300 to me">
             {{ subsystem }}
         </li>
         {% endfor %}
