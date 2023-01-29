@@ -2,7 +2,7 @@ import unittest
 import sqlite3
 import os
 
-from automationv2.repository.requirements import RequirementsRepository, Requirement
+from automationv2.repository import RequirementsRepository, Requirement
 
 class TestRequirementsRepository(unittest.TestCase):
     def setUp(self):

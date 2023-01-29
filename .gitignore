@@ -91,3 +91,6 @@ celerybeat-schedule
 *.pytest_cache/
 *.idea/
 *.DS_Store
+
+.venv/
+sample.db

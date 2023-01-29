@@ -20,11 +20,19 @@ class RequirementsRepository:
         self._conn.commit()
 
     def add(self, requirement):
-        self._conn.execute("""
-            INSERT INTO requirements (requirement_id, text, subsystem)
-            VALUES (?, ?, ?)
-        """, (requirement.requirement_id, requirement.text, requirement.subsystem))
+        cursor = self._conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO requirements (text, requirement_id, subsystem) VALUES (?, ?, ?)",
+                (requirement.text, requirement.requirement_id, requirement.subsystem)
+            )
+        except sqlite3.IntegrityError:
+            cursor.execute(
+                "UPDATE requirements SET text = ?, subsystem = ? WHERE requirement_id = ?",
+                (requirement.text, requirement.subsystem, requirement.requirement_id)
+            )
         self._conn.commit()
+        cursor.close()
 
     def get(self, requirement_id):
         cursor = self._conn.execute("""
