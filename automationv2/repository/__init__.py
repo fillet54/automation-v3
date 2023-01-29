@@ -8,6 +8,6 @@ def import_requirements_from_file(file_path, repository):
             requirement_text = line[:idx].strip()
             requirement_id = line[idx + 1:-2].strip()
             subsystem = requirement_id.split("VMC")[1].split("0")[0].strip()
-            requirement = Requirement(requirement_text, requirement_id, subsystem)
+            requirement = Requirement(requirement_id, requirement_text, subsystem)
             print(requirement_text, requirement_id, subsystem)
             repository.add(requirement)
