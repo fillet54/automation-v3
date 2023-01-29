@@ -1,0 +1,60 @@
+<html>
+
+<head>
+    <title>My App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="/static/js/tailwindcss/tailwindcss.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ngblue: "#00269a"
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+        .content-auto {
+          content-visibility: auto;
+        }
+      }
+    </style>
+</head>
+
+<body>
+    <div>
+        <div class="h-screen flex flex-col bg-gray-50">
+            <div class="bg-ngblue p-2">
+                <img src="/static/img/automation-logo.png" class="h-8"></img>
+            </div>
+            <div class="flex-grow flex flex-row overflow-hidden justify-center">
+                <!-- lhs -->
+                <div class="flex-shrink-0 w-1/4 p-4">
+                    {% block menucontent %} {% endblock %}
+                </div>
+                <!-- center -->
+                <div class="flex-1 flex flex-col bg-white">
+                    <main class="flex-1 overflow-y-auto p-4">
+                        <div class="relative">
+                            {% block content %} {% endblock %}
+                        </div>
+                </div>
+                </main>
+            </div>
+            <!-- footer -->
+            <div class="p-2 text-center text-xs text-gray-500">
+                Copyright 2023
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/htmx/htmx.min.js" defer></script>
+    <script src="/static/js/_hyperscript/_hyperscript.min.js" defer></script>
+</body>
+
+</html>

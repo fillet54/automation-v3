@@ -8,6 +8,16 @@ def get_db():
         g.db = RequirementsRepository("requirements.db")
     return g.db
 
+@app.route('/')
+def index():
+    repository = get_db()
+    subsystems = repository.get_subsystems()
+    return render_template('index.html', subsystems=subsystems)
+
+@app.route("/static/<path:filename>")
+def serve_static(filename):
+    return app.send_static_file(filename)
+
 @app.route("/requirements/<requirement_id>", methods=["GET"])
 def get_requirement_by_id(requirement_id):
     repository = get_db()
