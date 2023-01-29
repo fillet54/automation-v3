@@ -34,7 +34,7 @@ class RequirementsRepository:
         self._conn.commit()
         cursor.close()
 
-    def get(self, requirement_id):
+    def get_by_id(self, requirement_id):
         cursor = self._conn.execute("""
             SELECT requirement_id, text, subsystem
             FROM requirements
@@ -43,12 +43,22 @@ class RequirementsRepository:
         row = cursor.fetchone()
         return Requirement(*row) if row else None
 
+    def get_by_subsystem(self, subsystem):
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT * FROM requirements WHERE subsystem=?", (subsystem,))
+        return [Requirement(*row) for row in cursor.fetchall()]
+
     def get_all(self):
         cursor = self._conn.execute("""
             SELECT requirement_id, text, subsystem
             FROM requirements
         """)
         return [Requirement(*row) for row in cursor.fetchall()]
+
+    def get_subsystems(self):
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT DISTINCT subsystem FROM requirements")
+        return [row[0] for row in cursor.fetchall()]
 
     def remove(self, requirement_id):
         self._conn.execute("""

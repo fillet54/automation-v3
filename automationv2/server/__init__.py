@@ -11,8 +11,7 @@ def get_db():
 @app.route("/requirements/<requirement_id>", methods=["GET"])
 def get_requirement_by_id(requirement_id):
     repository = get_db()
-    print("ID", f"'{requirement_id}'")
-    requirement = repository.get(requirement_id)
+    requirement = repository.get_by_id(requirement_id)
     if requirement is None:
         return "Requirement not found", 404
     return render_template("requirement.html", requirement=requirement)
@@ -24,6 +23,19 @@ def get_requirements():
     if requirements is None:
         return "Requirement not found", 404
     return [r.text for r in requirements]
-    #return render_template("requirement.html", requirement=requirement)
+
+
+@app.route("/subsystems", methods=["GET"])
+def subsystems():
+    repository = get_db()
+    subsystems = sorted(repository.get_subsystems())
+    return render_template("subsystems.html", subsystems=subsystems)
+
+@app.route("/subsystems/<subsystem_id>", methods=["GET"])
+def get_requirements_by_subsystem(subsystem_id):
+    repository = get_db()
+    requirements = repository.get_by_subsystem(subsystem_id)
+    return render_template("requirements.html", requirements=requirements)
+
 if __name__ == "__main__":
     app.run()

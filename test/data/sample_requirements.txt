@@ -4,7 +4,7 @@ The software shall provide real-time monitoring of communication links and autom
 The software shall support data compression and encryption to ensure secure transmission of sensitive information [VMCCOMM00004].
 The software shall have a configurable and adaptive communication strategy to support different missions and environments [VMCCOMM00005].
 The software shall support communication redundancy and fault tolerance to ensure mission continuity in case of failures [VMCCOMM00006].
-The software shall provide reliable and efficient data transfer and storage for post-mission analysis [VMC00007].
+The software shall provide reliable and efficient data transfer and storage for post-mission analysis [VMCCOMM00007].
 The software shall comply with relevant aerospace communication standards and regulations [VMCCOMM00008].
 The software shall provide a user-friendly interface for mission planning and execution [VMCMP00001].
 The software shall allow for flexible and configurable mission planning, including route definition, waypoint management, and payload operations [VMCMP00002].

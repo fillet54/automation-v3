@@ -1,5 +1,5 @@
 <div>
-    <strong>Requirement ID:</strong> {{ requirement.requirement_id }}<br>
-    <strong>Requirement Text:</strong> {{ requirement.text }}<br>
-    <strong>Subsystem:</strong> {{ requirement.subsystem }}
+    {{ requirement.text.split('shall')[0] }}
+    <strong>shall [{{ requirement.requirement_id }}] </strong>
+    {{ requirement.text.split('shall')[1] }}
 </div>
