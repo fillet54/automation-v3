@@ -1,3 +1,4 @@
 from . import app
+from waitress import serve
 
-app.run()
+serve(app, port=5000)

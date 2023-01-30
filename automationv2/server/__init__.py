@@ -1,4 +1,4 @@
-from flask import Flask, render_template, g
+from flask import Flask, render_template, request, g
 from ..repository import RequirementsRepository
 
 app = Flask(__name__)
@@ -12,7 +12,7 @@ def get_db():
 def index():
     repository = get_db()
     subsystems = repository.get_subsystems()
-    return render_template('index.html', subsystems=subsystems)
+    return render_template('requirements.html', subsystems=subsystems)
 
 @app.route("/static/<path:filename>")
 def serve_static(filename):
@@ -24,28 +24,26 @@ def get_requirement_by_id(requirement_id):
     requirement = repository.get_by_id(requirement_id)
     if requirement is None:
         return "Requirement not found", 404
-    return render_template("requirement.html", requirement=requirement)
+    return render_template("partial/requirement.html", requirement=requirement)
 
 @app.route("/requirements", methods=["GET"])
 def get_requirements():
     repository = get_db()
-    requirements = repository.get_all()
-    if requirements is None:
-        return "Requirement not found", 404
-    return [r.text for r in requirements]
+    hx_request = request.headers.get('HX-Request', False)
+    subsystem = request.args.get('subsystem')
+    subsystems = sorted(repository.get_subsystems())
+    if subsystem is not None:
+        requirements = repository.get_by_subsystem(subsystem)
+    else:
+        requirements = repository.get_all()
+    return render_template("requirements.html", requirements=requirements, hx_request=hx_request, selected_subsystem=subsystem, subsystems=subsystems)
 
 
 @app.route("/subsystems", methods=["GET"])
 def subsystems():
     repository = get_db()
     subsystems = sorted(repository.get_subsystems())
-    return render_template("subsystems.html", subsystems=subsystems)
-
-@app.route("/subsystems/<subsystem_id>", methods=["GET"])
-def get_requirements_by_subsystem(subsystem_id):
-    repository = get_db()
-    requirements = repository.get_by_subsystem(subsystem_id)
-    return render_template("requirements.html", requirements=requirements)
+    return render_template("partials/subsystems.html", subsystems=subsystems)
 
 if __name__ == "__main__":
     app.run()
