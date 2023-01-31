@@ -1,14 +1,10 @@
 
-from flask import Blueprint, current_app, render_template, request, g
-from ..repository import RequirementsRepository
+from flask import Blueprint, render_template, request
+
+from .models import get_db
 
 requirements = Blueprint('requirements', __name__,
                         template_folder='templates')
-def get_db():
-    if 'db' not in g:
-        g.db = RequirementsRepository(current_app.config['DB_PATH'])
-    return g.db
-
 @requirements.route("/", methods=["GET"])
 def list():
     repository = get_db()

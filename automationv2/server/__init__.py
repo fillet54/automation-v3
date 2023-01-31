@@ -1,20 +1,14 @@
-from flask import Flask, render_template, request, g
-from ..repository import RequirementsRepository
+from flask import Flask, render_template
 
+from .models import get_db
 from .requirement_views import requirements
 
 app = Flask(__name__)
 app.register_blueprint(requirements, url_prefix='/requirements')
 
-def get_db():
-    if 'db' not in g:
-        g.db = RequirementsRepository(app.config['DB_PATH'])
-    return g.db
-
 @app.route('/')
 def index():
-    repository = get_db()
-    subsystems = repository.get_subsystems()
+    subsystems = get_db().get_subsystems()
     return render_template('requirements.html', subsystems=subsystems)
 
 @app.route("/static/<path:filename>")
