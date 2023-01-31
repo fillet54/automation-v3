@@ -9,8 +9,8 @@
     <ul>
         {% for subsystem in subsystems %}
         <li class="subsystem-link {{'bg-blue-300' if subsystem == selected_subsystem }}"
-            hx-get="/requirements?subsystem={{ subsystem }}" hx-target="#requirements" hx-swap="innerHTML"
-            hx-push-url="true" _="on click 
+            hx-get="{{ url_for('requirements.list', subsystem=subsystem) }}" hx-target="#requirements"
+            hx-swap="innerHTML" hx-push-url="true" _="on click 
                remove .bg-blue-300 from <li.subsystem-link/>
                add .bg-blue-300 to me">
             {{ subsystem }}
