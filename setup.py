@@ -21,6 +21,6 @@ setuptools.setup(
     python_requires='>=3.10',
     include_package_data=True,
     entry_points = {
-        'console_scripts': ['automation-v3=automationv3.manager:main'],
+        'console_scripts': ['automation-v3=automationv3.server.__main__:main'],
     }
 )
