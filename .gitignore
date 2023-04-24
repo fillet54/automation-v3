@@ -94,3 +94,4 @@ celerybeat-schedule
 
 .venv/
 sample.db
+requirements.db
