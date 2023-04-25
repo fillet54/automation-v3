@@ -1,0 +1,34 @@
+{% set is_open = node == root or node in opened %}
+<div hx-post="/workspace/{{ id }}/tree/{{ node.relative_to(root)}}"
+     hx-target="#node-{{ node.relative_to(root) | as_id }}"
+     class="flex">
+  {%- if is_open %}
+  <img class="h-5 w-5" src="{{ url_for('static', filename='img/icons/chevron-down.svg') }}"></img>
+  <img class="h-5 w-5" src="{{ url_for('static', filename='img/icons/solid/folder-open.svg') }}"></img>
+  {%- else %}
+  <img class="h-5 w-5" src="{{ url_for('static', filename='img/icons/chevron-right.svg') }}"></img>
+  <img class="h-5 w-5 mr-1" src="{{ url_for('static', filename='img/icons/solid/folder.svg') }}"></img>
+  {%- endif %}
+  <span class="mx-1 font-medium whitespace-nowrap">{{ node.name }}</span>
+</div>
+
+{%- if is_open %}
+<ul>
+    {%- for dir in node.iterdir() | is_dir %}
+    <li class="ml-5" id="node-{{ dir.relative_to(root) | as_id }}">
+      {%- with node=dir %}
+        {%- filter indent(8, True) %}
+          {%- include "partials/treeitem.html" %}
+        {%- endfilter %}
+      {%- endwith %}
+    </li>
+    {%-endfor %}
+
+    {% for file in node.iterdir() | is_file %}
+    <li class="ml-5 flex">
+      <img class="h-5 w-5 mr-1 whitespace-nowrap" src="{{ url_for('static', filename='img/icons/document.svg') }}"></img>
+      {{ file.name }}
+    </li>
+    {% endfor %}
+</ul>
+{%- endif %}

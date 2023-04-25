@@ -7,7 +7,8 @@ from . import app
 @click.command()
 @click.option('--port', default=8080, help="HTTP port number")
 @click.option('--dbpath', default='./requirements.db', help="HTTP port number")
-def start_server(port, dbpath):
+@click.option('--workspace_path', default='./', help="HTTP port number")
+def start_server(port, dbpath, workspace_path):
     print(f"""\
                 _                        _   _              __      ______  
      /\        | |                      | | (_)             \ \    / /___ \ 
@@ -24,6 +25,7 @@ def start_server(port, dbpath):
     """)
 
     app.config['DB_PATH'] = Path(dbpath).resolve()
+    app.config['WORKSPACE_PATH'] = Path(workspace_path).resolve()
     serve(app, port=port)
 
 

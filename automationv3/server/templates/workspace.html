@@ -1,0 +1,12 @@
+{% extends "layout.html" %}
+
+{% block menucontent %}
+<div id="treeview"
+     hx-get="{{ url_for('workspace.tree', id=id) }}"
+     hx-trigger="load">
+</div>
+{% endblock %}
+
+{% block content %}
+<div></div>
+{% endblock %}

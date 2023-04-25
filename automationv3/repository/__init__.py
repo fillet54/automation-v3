@@ -1,4 +1,5 @@
 from .requirements import *
+from .workspace import *
 
 def import_requirements_from_file(file_path, repository):
     with open(file_path, 'r') as file:

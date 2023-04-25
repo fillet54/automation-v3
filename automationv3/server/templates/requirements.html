@@ -7,7 +7,7 @@
 <div class="subsystems">
     <h2 class="font-medium leading-tight text-2xl mt-0 mb-2 ">Subsystems</h2>
     <ul>
-        {% for subsystem in subsystems %}
+        {% for subsystem in subsystems|sort() %}
         <li class="subsystem-link {{'bg-blue-300' if subsystem == selected_subsystem }}"
             hx-get="{{ url_for('requirements.list', subsystem=subsystem) }}" hx-target="#requirements"
             hx-swap="innerHTML" hx-push-url="true" _="on click 
