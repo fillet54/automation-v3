@@ -1,7 +1,7 @@
 
 from flask import Blueprint, render_template, request
 
-from .models import get_db
+from ..models import get_db
 
 requirements = Blueprint('requirements', __name__,
                         template_folder='templates')

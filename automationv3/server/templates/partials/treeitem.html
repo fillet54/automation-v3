@@ -25,7 +25,10 @@
     {%-endfor %}
 
     {% for file in node.iterdir() | is_file %}
-    <li class="ml-5 flex">
+    <li class="ml-5 flex"
+        hx-get="{{ url_for('workspace.content', id=id, path=file.relative_to(root)) }}"
+        hx-target="#content"
+        hx-swap="innerHTML">
       <img class="h-5 w-5 mr-1 whitespace-nowrap" src="{{ url_for('static', filename='img/icons/document.svg') }}"></img>
       {{ file.name }}
     </li>

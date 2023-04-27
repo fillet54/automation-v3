@@ -1,0 +1,29 @@
+
+{% set active_classnames = "flex max-w-xs flex-grow p-1 border justify-between border-b-white relative overflow-ellipsis" %}
+{% set classnames = "flex max-w-xs flex-grow p-1 border justify-between relative hover:bg-gray-100 overflow-ellipsis bg-gray-200 text-gray-500" %}
+
+<div class="flex flex-wrap">
+  {% for path, active in tabs %}
+  <div class="{{ active_classnames if active else classnames }} group/tabitem" style="top: 1px">
+    <span class="flex-grow"
+      {% if not active %}
+         hx-get="{{ url_for('workspace.content', id=id, path=path) }}"
+         hx-target="#content"
+         hx-swap="innerHTML"
+      {% endif %}
+      >
+      {{ path }}
+    </span>
+      <img class="w-5 h-5 transition ease-in {{ 'opacity-0 group-hover/tabitem:opacity-100' if not active else '' }}" src="{{ url_for('static', filename='img/icons/solid/x-circle.svg') }}"
+         hx-delete="{{ url_for('workspace.content', id=id, path=path) }}"
+         hx-target="#content"
+         hx-trigger="click"
+         hx-swap="innerHTML">
+    </img>
+  </div>
+  {% endfor %}
+  <div class="flex flex-grow-0 flex-shrink-0 basis-full border overflow-auto"
+         style="height: calc( 100vh - 150px )">
+    <div class="whitespace-pre font-mono p-2">{{ content }}</div>
+  </div>
+</div>
