@@ -1,3 +1,8 @@
+{% macro icon(path, classname) %}
+  {% set classname = classname|default('h-5 w-5') %}
+  {% include "icons/" + path  + '.svg' %}
+{% endmacro %}
+
 <html>
 
 <head>
@@ -6,6 +11,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <script src="{{ url_for('static', filename='js/tailwindcss/tailwindcss.js') }}"></script>
+    <script src="/static/js/codemirror/codemirror.js"></script>
+
     <script>
         tailwind.config = {
             theme: {
@@ -24,6 +31,7 @@
         }
       }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='js/codemirror/codemirror.css') }}">
 </head>
 
 <body>
@@ -47,7 +55,7 @@
                 </main>
             </div>
             <!-- footer -->
-            <div class="p-2 text-center text-xs text-gray-500">
+            <div class="p-2 text-center text-xs text-gray-500 border">
                 Copyright 2023
             </div>
         </div>

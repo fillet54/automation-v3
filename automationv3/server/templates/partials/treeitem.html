@@ -1,13 +1,15 @@
+{% import "icons/icon.j2" as icon %}
+
 {% set is_open = node == root or node in opened %}
 <div hx-post="/workspace/{{ id }}/tree/{{ node.relative_to(root)}}"
      hx-target="#node-{{ node.relative_to(root) | as_id }}"
      class="flex">
   {%- if is_open %}
-  <img class="h-5 w-5" src="{{ url_for('static', filename='img/icons/chevron-down.svg') }}"></img>
-  <img class="h-5 w-5" src="{{ url_for('static', filename='img/icons/solid/folder-open.svg') }}"></img>
+  {{ icon.outline('chevron-down', 'h-5 w-5') }}
+  {{ icon.solid('folder-open', 'h-5 w-5') }}
   {%- else %}
-  <img class="h-5 w-5" src="{{ url_for('static', filename='img/icons/chevron-right.svg') }}"></img>
-  <img class="h-5 w-5 mr-1" src="{{ url_for('static', filename='img/icons/solid/folder.svg') }}"></img>
+  {{ icon.outline('chevron-right', 'h-5 w-5') }}
+  {{ icon.solid('folder', 'h-5 w-5') }}
   {%- endif %}
   <span class="mx-1 font-medium whitespace-nowrap">{{ node.name }}</span>
 </div>

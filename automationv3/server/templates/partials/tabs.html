@@ -1,3 +1,4 @@
+{% import "icons/icon.j2" as icon %}
 
 {% set active_classnames = "flex max-w-xs flex-grow p-1 border justify-between border-b-white relative overflow-ellipsis" %}
 {% set classnames = "flex max-w-xs flex-grow p-1 border justify-between relative hover:bg-gray-100 overflow-ellipsis bg-gray-200 text-gray-500" %}
@@ -14,16 +15,39 @@
       >
       {{ path }}
     </span>
-      <img class="w-5 h-5 transition ease-in {{ 'opacity-0 group-hover/tabitem:opacity-100' if not active else '' }}" src="{{ url_for('static', filename='img/icons/solid/x-circle.svg') }}"
+    <button class="transition ease-in {{ 'opacity-0 group-hover/tabitem:opacity-100' if not active else '' }}"
          hx-delete="{{ url_for('workspace.content', id=id, path=path) }}"
          hx-target="#content"
          hx-trigger="click"
          hx-swap="innerHTML">
-    </img>
+      {{ icon.solid('x-circle', 'h-5 w-5 fill-gray-700') }}
+    </button>
   </div>
   {% endfor %}
-  <div class="flex flex-grow-0 flex-shrink-0 basis-full border overflow-auto"
-         style="height: calc( 100vh - 150px )">
-    <div class="whitespace-pre font-mono p-2">{{ content }}</div>
+
+  {# toolbar #}
+  <div class="flex flex-shrink-0 basis-full py-1 px-2 border">
+      <button class="group/icon" title="Save">
+        {{ icon.outline('floppy-disk', 'h-5 w-5 fill-gray-500 group-hover/icon:hidden') }}
+        {{ icon.solid('floppy-disk', 'h-5 w-5 fill-gray-600 hidden group-hover/icon:block') }}
+      </button>
+  </div>
+
+  {# editor #}
+  <div class="flex flex-grow-0 flex-shrink-0 basis-full border border-b-0 overflow-auto"
+       style="height: calc( 100vh - 145px )">
+    <textarea id="editor">{{ content }}</textarea>
   </div>
 </div>
+
+
+{# code editor #}
+<script>
+  var editordiv = document.getElementById("editor");
+  var editor = CodeMirror.fromTextArea(editordiv, {
+    lineNumbers: true,
+    gutter: true,
+    autofocus: true
+  });
+  editor.setSize("100%", "100%");
+</script>

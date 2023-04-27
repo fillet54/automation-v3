@@ -11,10 +11,9 @@ def table_exists(conn, table_name):
 
 
 class TreeviewRepository:
-    def __init__(self, workspace_id, dbpath):
+    def __init__(self, conn, workspace_id):
         self.workspace_id = workspace_id
-        self._dbpath = dbpath
-        self._conn = sqlite3.connect(dbpath)
+        self._conn = conn
 
         if not table_exists(self._conn, 'workspace_treeview_open'):
             self._conn.execute("""
@@ -75,10 +74,10 @@ class TreeviewRepository:
         cursor.close()
 
 class WorkspaceTabRepository:
-    def __init__(self, workspace_id, dbpath):
+    def __init__(self, conn, workspace_id):
         self.workspace_id = workspace_id
-        self._dbpath = dbpath
-        self._conn = sqlite3.connect(dbpath)
+        self._conn = conn
+
         if not table_exists(self._conn, 'workspace_tabs'):
             self._conn.execute("""
                 CREATE TABLE IF NOT EXISTS workspace_tabs (
@@ -176,9 +175,10 @@ class WorkspaceRepository:
     def __init__(self, id, dbpath):
         self.id = id
         self._dbpath = dbpath
+        self._conn = sqlite3.connect(dbpath)
 
-        self.treeview = TreeviewRepository(id, dbpath)
-        self.tabs = WorkspaceTabRepository(id, dbpath)
+        self.treeview = TreeviewRepository(self._conn, id)
+        self.tabs = WorkspaceTabRepository(self._conn, id)
 
 
 
