@@ -4,19 +4,23 @@
 {% set classnames = "flex max-w-xs flex-grow p-1 border justify-between relative hover:bg-gray-100 overflow-ellipsis bg-gray-200 text-gray-500" %}
 
 <div class="flex flex-wrap">
-  {% for path, active in tabs %}
+  {% for doc in documents %}
+  {% set active = doc == active_document %}
   <div class="{{ active_classnames if active else classnames }} group/tabitem" style="top: 1px">
-    <span class="flex-grow"
+    <span class="flex flex-grow items-center"
       {% if not active %}
-         hx-get="{{ url_for('workspace.content', id=id, path=path) }}"
+         hx-get="{{ url_for('workspace.content', id=id, path=doc.path) }}"
          hx-target="#content"
          hx-swap="innerHTML"
       {% endif %}
       >
-      {{ path }}
+      {% if doc.is_modified() %}
+      {{ icon.solid('circle', "h-2 w-2 fill-gray-500 mr-1") }}
+      {% endif %}
+      {{ doc.path }}
     </span>
     <button class="transition ease-in {{ 'opacity-0 group-hover/tabitem:opacity-100' if not active else '' }}"
-         hx-delete="{{ url_for('workspace.content', id=id, path=path) }}"
+         hx-delete="{{ url_for('workspace.content', id=id, path=doc.path) }}"
          hx-target="#content"
          hx-trigger="click"
          hx-swap="innerHTML">
@@ -27,7 +31,7 @@
 
   {# toolbar #}
   <div class="flex flex-shrink-0 basis-full py-1 px-2 border">
-      <button class="group/icon" title="Save">
+      <button class="group/icon" title="Save" id="editor-save-button">
         {{ icon.outline('floppy-disk', 'h-5 w-5 fill-gray-500 group-hover/icon:hidden') }}
         {{ icon.solid('floppy-disk', 'h-5 w-5 fill-gray-600 hidden group-hover/icon:block') }}
       </button>
@@ -36,7 +40,14 @@
   {# editor #}
   <div class="flex flex-grow-0 flex-shrink-0 basis-full border border-b-0 overflow-auto"
        style="height: calc( 100vh - 145px )">
-    <textarea id="editor">{{ content }}</textarea>
+    <textarea id="editor"
+              hx-post="{{ url_for('workspace.content', id=id, path=active_document.path) }}" 
+              hx-trigger="click from:#editor-save-button"
+              hx-target="#content"
+              hx-swap="innerHTML"
+              hx-vals="js:{'value':editor.getValue()}"
+      {# Important that there is no space between textarea tags #}
+      >{{ active_document.content }}</textarea>
   </div>
 </div>
 
@@ -50,4 +61,17 @@
     autofocus: true
   });
   editor.setSize("100%", "100%");
+
+  // Autosave after 1 second of no activity
+  editor.on('changes', debounce(function() {
+    let formData = new FormData();
+    formData.append('value', editor.getValue())
+    formData.append('autosave', true);
+
+    fetch("{{ url_for('workspace.content', id=id,  path=active_document.path) }}", {
+      body: formData,
+      method: 'post'
+    });
+    console.log("AUTOSAVE");
+  }, 1000));
 </script>

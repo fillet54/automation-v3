@@ -1,12 +1,12 @@
 import unittest
 import os
 
-from automationv2.repository import RequirementsRepository, Requirement
+from automationv2.models import Requirements, Requirement
 
-class TestRequirementsRepository(unittest.TestCase):
+class TestRequirements(unittest.TestCase):
     def setUp(self):
         self.db_file = "test_requirements.db"
-        self.repo = RequirementsRepository(self.db_file)
+        self.repo = Requirements(self.db_file)
 
     def tearDown(self):
         self.repo._conn.close()

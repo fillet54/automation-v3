@@ -1,15 +1,17 @@
 import os
 import unittest
+import sqlite3
 
 from automationv2.server import app
-from automationv2.repository import Requirement, RequirementsRepository
+from automationv2.models import Requirements, Requirement
 
 class TestRequirementHandler(unittest.TestCase):
     def setUp(self):
 
         # Sample DB
         self.db_file = "test_requirements.db"
-        self.repo = RequirementsRepository(self.db_file)
+        self.conn = sqlite3.connect(self.db_file)
+        self.repo = Requirements(self.conn)
         requirement1 = Requirement("R1", "Test requirement 1", "Test subsystem 1")
         requirement2 = Requirement("R2", "Test requirement 2", "Test subsystem 2")
         self.repo.add(requirement1)

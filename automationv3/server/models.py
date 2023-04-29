@@ -1,27 +1,18 @@
 from flask import  current_app, g
-from ..repository import RequirementsRepository, WorkspaceRepository
+import sqlite3
 
-class Models:
-    def __init__(self, config):
-        self.config = config
-
-        self.__requirements = None
-        self.__workspaces = {} 
-
-    @property
-    def requirements(self):
-        if not self.__requirements:
-            self.__requirements = RequirementsRepository(self.config['DB_PATH'])
-        return self.__requirements
-    
-    def workspace(self, id=0):
-        if id not in self.__workspaces:
-            self.__workspaces[id] = WorkspaceRepository(id, self.config['DB_PATH'])
-        return self.__workspaces[id]
+from ..models import Requirements, Workspace
 
 def get_db():
-    if 'models' not in g:
-        g.models = Models(current_app.config)
-    return g.models
+    if 'sqlite_db' not in g:
+        g.sqlite_db = sqlite3.connect(current_app.config['DB_PATH'])
+    return g.sqlite_db
 
+def get_requirements():
+    conn = get_db()
+    return Requirements(conn)
 
+def get_workspace():
+    conn = get_db()
+    root = current_app.config['WORKSPACE_PATH']
+    return Workspace(conn, root)

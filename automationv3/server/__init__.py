@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, g
 
 from .views.requirement_views import requirements
 from .views.workspace_views import workspace, index as workspace_index 
@@ -14,3 +14,11 @@ def index():
 @app.route("/static/<path:filename>")
 def serve_static(filename):
     return app.send_static_file(filename)
+
+
+# cleanup database connection
+@app.teardown_appcontext
+def close_db(error):
+    """Closes the database again at the end of the request."""
+    if hasattr(g, 'sqlite_db'):
+        g.sqlite_db.close()

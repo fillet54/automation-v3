@@ -6,10 +6,9 @@ class Requirement:
         self.text = text
         self.subsystem = subsystem
 
-class RequirementsRepository:
-    def __init__(self, db_file):
-        self._db_file = db_file
-        self._conn = sqlite3.connect(db_file)
+class Requirements:
+    def __init__(self, conn):
+        self._conn = conn 
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS requirements (
                 requirement_id TEXT PRIMARY KEY,
