@@ -15,17 +15,6 @@ def is_binary(path, sample_length=8000):
         pass
     return True
 
-
-
-    low_chars = sample_block.translate(None, _printable_ascii)
-    nontext_ratio1 = float(len(low_chars)) / float(len(bytes_to_check))
-    
-    high_chars = sample_block.translate(None, _printable_high_ascii)
-    nontext_ratio2 = float(len(high_chars)) / float(len(sample_block))
-
-
-
-
 def table_exists(conn, table_name):
     cursor = conn.execute("""
         SELECT name
@@ -312,7 +301,6 @@ class Editor:
         # clean up documents
         for document in self.documents():
             if not document.path_on_disk.exists():
-                print("DELETE", document.path)
                 document.close()
 
     def documents(self, path=None):

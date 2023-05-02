@@ -32,14 +32,11 @@ def update_tabs(id, path):
 
     if action in ['open', 'select']:
         if not document.is_opened:
-            print("OPEN START")
             document.open()
-            print("OPEN END")
         if editor.active_document != document:
             triggers['editor-content-update'] = True
         editor.select_document(document) 
     elif action == 'close':
-        print(editor.active_document, document)
         if editor.active_document == document:
             triggers['editor-content-update'] = True
         document.close()
