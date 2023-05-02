@@ -1,0 +1,45 @@
+{% import "icons/icon.j2" as icon %}
+
+<div class="flex flex-wrap">
+  {# toolbar #}
+  <div class="flex flex-shrink-0 basis-full py-1 px-2 border">
+      <button class="group/icon" title="Save" id="editor-save-button"
+              hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='save') }}"
+              hx-vals="js:{'value':editor.getValue()}"
+              hx-swap="none"
+      >
+        {{ icon.outline('floppy-disk', 'h-5 w-5 fill-gray-500 group-hover/icon:hidden') }}
+        {{ icon.solid('floppy-disk', 'h-5 w-5 fill-gray-600 hidden group-hover/icon:block') }}
+      </button>
+  </div>
+
+  {# editor #}
+  <div class="flex flex-grow-0 flex-shrink-0 basis-full border border-b-0 overflow-auto"
+       style="height: calc( 100vh - 145px )">
+    <textarea id="editor_active_content"
+              hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='save-draft') }}"
+              hx-vals="js:{'value':editor.getValue()}"
+              hx-trigger="autosave from:#editor_active_content"
+              hx-swap="none"
+      >{{ active_document.content }}</textarea>
+  </div>
+</div>
+
+
+{# code editor #}
+<script>
+    var editordiv = document.getElementById("editor_active_content");
+    var editor = CodeMirror.fromTextArea(editordiv, {
+      lineNumbers: true,
+      gutter: true,
+      autofocus: true
+    });
+    editor.setSize("100%", "100%");
+
+    // Autosave after 250 ms of no activity
+    editor.on('changes', debounce(function() {
+      const event = new Event('autosave')
+      const editordiv = document.getElementById("editor_active_content");
+      editordiv.dispatchEvent(event);
+    }, 250));
+</script>

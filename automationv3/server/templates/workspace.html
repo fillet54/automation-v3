@@ -8,7 +8,16 @@
 {% endblock %}
 
 {% block content %}
+  {# only support single editor for now #}
+  {% set editor_id = 0 %}
   <div id="content">
-  {% include "partials/tabs.html" %}
+    <div id="tabs"
+         hx-get="{{ url_for('editor.tabs', id=editor_id) }}"
+         hx-trigger="load, tab-action from:body">
+    </div>
+    <div id="editor"
+         hx-get="{{ url_for('editor.content', id=editor_id) }}"
+         hx-trigger="load, editor-content-update from:body">
+    </div>
   </div>
 {% endblock %}

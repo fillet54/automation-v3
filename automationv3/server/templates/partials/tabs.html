@@ -9,9 +9,8 @@
   <div class="{{ active_classnames if active else classnames }} group/tabitem" style="top: 1px">
     <span class="flex flex-grow items-center"
       {% if not active %}
-         hx-get="{{ url_for('workspace.content', id=id, path=doc.path) }}"
-         hx-target="#content"
-         hx-swap="innerHTML"
+         hx-post="{{ url_for('editor.update_tabs', id=id, path=doc.path, action='select') }}"
+         hx-swap="none"
       {% endif %}
       >
       {% if doc.is_modified() %}
@@ -20,58 +19,10 @@
       {{ doc.path }}
     </span>
     <button class="transition ease-in {{ 'opacity-0 group-hover/tabitem:opacity-100' if not active else '' }}"
-         hx-delete="{{ url_for('workspace.content', id=id, path=doc.path) }}"
-         hx-target="#content"
-         hx-trigger="click"
-         hx-swap="innerHTML">
+         hx-post="{{ url_for('editor.update_tabs', id=id, path=doc.path, action='close') }}"
+         hx-swap="none">
       {{ icon.solid('x-circle', 'h-5 w-5 fill-gray-700') }}
     </button>
   </div>
   {% endfor %}
-
-  {# toolbar #}
-  <div class="flex flex-shrink-0 basis-full py-1 px-2 border">
-      <button class="group/icon" title="Save" id="editor-save-button">
-        {{ icon.outline('floppy-disk', 'h-5 w-5 fill-gray-500 group-hover/icon:hidden') }}
-        {{ icon.solid('floppy-disk', 'h-5 w-5 fill-gray-600 hidden group-hover/icon:block') }}
-      </button>
-  </div>
-
-  {# editor #}
-  <div class="flex flex-grow-0 flex-shrink-0 basis-full border border-b-0 overflow-auto"
-       style="height: calc( 100vh - 145px )">
-    <textarea id="editor"
-              hx-post="{{ url_for('workspace.content', id=id, path=active_document.path) }}" 
-              hx-trigger="click from:#editor-save-button"
-              hx-target="#content"
-              hx-swap="innerHTML"
-              hx-vals="js:{'value':editor.getValue()}"
-      {# Important that there is no space between textarea tags #}
-      >{{ active_document.content }}</textarea>
-  </div>
 </div>
-
-
-{# code editor #}
-<script>
-  var editordiv = document.getElementById("editor");
-  var editor = CodeMirror.fromTextArea(editordiv, {
-    lineNumbers: true,
-    gutter: true,
-    autofocus: true
-  });
-  editor.setSize("100%", "100%");
-
-  // Autosave after 1 second of no activity
-  editor.on('changes', debounce(function() {
-    let formData = new FormData();
-    formData.append('value', editor.getValue())
-    formData.append('autosave', true);
-
-    fetch("{{ url_for('workspace.content', id=id,  path=active_document.path) }}", {
-      body: formData,
-      method: 'post'
-    });
-    console.log("AUTOSAVE");
-  }, 1000));
-</script>

@@ -26,11 +26,10 @@
     </li>
     {%-endfor %}
 
-    {% for file in node.iterdir() | is_file %}
+    {% for file in node | iterdir_with_opened(opened_documents) %}
     <li class="ml-5 flex"
-        hx-get="{{ url_for('workspace.content', id=id, path=file.relative_to(root)) }}"
-        hx-target="#content"
-        hx-swap="innerHTML">
+        hx-post="{{ url_for('editor.update_tabs', id=id, path=file.relative_to(root), action='open') }}"
+        hx-swap="none">
       <img class="h-5 w-5 mr-1 whitespace-nowrap" src="{{ url_for('static', filename='img/icons/document.svg') }}"></img>
       {{ file.name }}
     </li>

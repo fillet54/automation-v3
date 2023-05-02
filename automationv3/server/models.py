@@ -12,7 +12,7 @@ def get_requirements():
     conn = get_db()
     return Requirements(conn)
 
-def get_workspace():
+def get_workspace(id=0):
     conn = get_db()
     root = current_app.config['WORKSPACE_PATH']
-    return Workspace(conn, root)
+    return Workspace(id, conn, root)

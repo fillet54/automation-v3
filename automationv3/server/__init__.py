@@ -2,10 +2,12 @@ from flask import Flask, render_template, g
 
 from .views.requirement_views import requirements
 from .views.workspace_views import workspace, index as workspace_index 
+from .views.editor_views import editor
 
 app = Flask(__name__)
 app.register_blueprint(requirements, url_prefix='/requirements')
 app.register_blueprint(workspace, url_prefix='/workspace')
+app.register_blueprint(editor, url_prefix='/editor')
 
 @app.route('/')
 def index():

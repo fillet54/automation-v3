@@ -3,6 +3,29 @@ import json
 from pathlib import Path
 from functools import wraps
 
+# Helpers
+
+def is_binary(path, sample_length=8000):
+    '''Simplistic Git method. Basically read checking for NUL'''
+    try:
+        with path.open(mode='r') as f:
+            f.read(sample_length)
+        return False
+    except UnicodeDecodeError:
+        pass
+    return True
+
+
+
+    low_chars = sample_block.translate(None, _printable_ascii)
+    nontext_ratio1 = float(len(low_chars)) / float(len(bytes_to_check))
+    
+    high_chars = sample_block.translate(None, _printable_high_ascii)
+    nontext_ratio2 = float(len(high_chars)) / float(len(sample_block))
+
+
+
+
 def table_exists(conn, table_name):
     cursor = conn.execute("""
         SELECT name
@@ -99,7 +122,7 @@ def when_open(f):
     @wraps(f)
     def wrapper(self, *args, **kwargs):
         if not self.is_opened:
-            print(f"WARNING: Trying to call {f.__name__} when Document is open")
+            print(f"WARNING: Trying to call {f.__name__} when Document is closed")
             return
         f(self, *args, **kwargs)
     return wrapper
@@ -108,7 +131,7 @@ def when_closed(f):
     @wraps(f)
     def wrapper(self, *args, **kwargs):
         if self.is_opened:
-            print(f"WARNING: Trying to call {f.__name__} when Document is closed")
+            print(f"WARNING: Trying to call {f.__name__} when Document is open")
             return
         f(self, *args, **kwargs)
     return wrapper
@@ -173,12 +196,12 @@ class Document:
         st_mtime = self.path_on_disk.stat().st_mtime
 
         # TODO: Improve
-        try:
-            content = self.path_on_disk.read_text()
-            mime = 'text/plain'
-        except:
-            content = None 
+        if is_binary(self.path_on_disk):
             mime = 'application/octet-stream'
+            content = 'BINARY FILE'
+        else:
+            mime = 'text/plain'
+            content = self.path_on_disk.read_text()
 
         cursor = self.conn.cursor()
         cursor.execute(""" 
@@ -198,7 +221,8 @@ class Document:
         if isinstance(content, str):
             self.path_on_disk.write_text(content)
         else:
-            self.path_on_disk.write_bytes(content)
+            # Nothing to save for now
+            pass
         
         st_mtime = self.path_on_disk.stat().st_mtime
         
@@ -232,12 +256,11 @@ class Document:
         if self.draft is not None:
             return self.draft
 
-        # else read from disk
-        if self.mime == 'application/octet-stream':
-            return 'BINARY CONTENT'
-        else:
+        if self.mime == 'text/plain':
             return self.path_on_disk.read_text()
-
+        else:
+            return 'BINARY CONTENT'
+            
     def is_modified(self):
         return self.draft is not None
 
@@ -271,17 +294,26 @@ class Editor:
                 CREATE TABLE IF NOT EXISTS documents(
                     path TEXT PRIMARY_KEY,
                     draft TEXT,
-                    mime TEXT,
+                    mime TEXT NOT NULL,
                     st_mtime REAL, 
                     rank INTEGER NOT NULL
                 )
             """)
             conn.commit()
 
-    def __init__(self, conn, state):
+    def __init__(self, id, conn, state):
+        self.id = id
         self._conn = conn
-        self.state = state 
+        self.state = state
 
+        # need to figure out what to do about
+        # deleted files
+
+        # clean up documents
+        for document in self.documents():
+            if not document.path_on_disk.exists():
+                print("DELETE", document.path)
+                document.close()
 
     def documents(self, path=None):
         cursor = self._conn.execute("""
@@ -300,18 +332,30 @@ class Editor:
             is_opened = path in document_paths
             return Document(self._conn, path, root, is_opened)
 
+    @property
     def active_document(self):
         active = self.state.get('active_document')
         if active is not None:
-            return self.documents(Path(active))
+            document = self.documents(Path(active))
+            if document.is_opened and document.path_on_disk.exists():
+                return document
+            else: # just return the first document
+                documents = self.documents()
+                if len(documents) > 0:
+                    self.select_document(documents[0])
+                    return documents[0]
         return None
 
     def select_document(self, document):
-        self.state.put('active_document', str(document.path))
+        if document is not None:
+            self.state.put('active_document', str(document.path))
+        else:
+            self.state.put('active_document', None)
 
 class Workspace:
-    def __init__(self, conn, workspace_root):
+    def __init__(self, id, conn, workspace_root):
         self._conn = conn
+        self.id = id
 
         # Initialize DBs
         WorkspaceState.ensure_db(conn)
@@ -321,8 +365,12 @@ class Workspace:
         self.state.put('root', str(workspace_root))
 
         self.treeview = Treeview(self._conn, self.state)
-        self.editor = Editor(conn, self.state)
+        self._editors = {}
 
+    def editors(self, id=0):
+        if id not in self._editors:
+            self._editors[id] = Editor(id, self._conn, self.state)
+        return self._editors[id]
 
 
 
