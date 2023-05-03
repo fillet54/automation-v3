@@ -4,7 +4,7 @@
   {# toolbar #}
   <div class="flex flex-shrink-0 basis-full py-1 px-2 border">
       <button class="group/icon" title="Save" id="editor-save-button"
-              hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='save') }}"
+              hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='save', workspace_id=workspace.id) }}"
               hx-vals="js:{'value':editor.getValue()}"
               hx-swap="none"
       >
@@ -17,7 +17,7 @@
   <div class="flex flex-grow-0 flex-shrink-0 basis-full border border-b-0 overflow-auto"
        style="height: calc( 100vh - 145px )">
     <textarea id="editor_active_content"
-              hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='save-draft') }}"
+              hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='save-draft', workspace_id=workspace.id) }}"
               hx-vals="js:{'value':editor.getValue()}"
               hx-trigger="autosave from:#editor_active_content"
               hx-swap="none"

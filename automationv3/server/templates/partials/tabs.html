@@ -9,7 +9,7 @@
   <div class="{{ active_classnames if active else classnames }} group/tabitem" style="top: 1px">
     <span class="flex flex-grow items-center"
       {% if not active %}
-         hx-post="{{ url_for('editor.update_tabs', id=id, path=doc.path, action='select') }}"
+         hx-post="{{ url_for('editor.update_tabs', id=id, path=doc.path, action='select', workspace_id=workspace.id) }}"
          hx-swap="none"
       {% endif %}
       >
@@ -19,7 +19,7 @@
       {{ doc.path }}
     </span>
     <button class="transition ease-in {{ 'opacity-0 group-hover/tabitem:opacity-100' if not active else '' }}"
-         hx-post="{{ url_for('editor.update_tabs', id=id, path=doc.path, action='close') }}"
+         hx-post="{{ url_for('editor.update_tabs', id=id, path=doc.path, action='close', workspace_id=workspace.id) }}"
          hx-swap="none">
       {{ icon.solid('x-circle', 'h-5 w-5 fill-gray-700') }}
     </button>

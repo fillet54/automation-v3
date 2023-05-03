@@ -95,3 +95,5 @@ celerybeat-schedule
 .venv/
 sample.db
 requirements.db
+
+test/data/git_repos/

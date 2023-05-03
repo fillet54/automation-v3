@@ -5,11 +5,12 @@ import sqlite3
 
 from . import app
 
+from ..models.workspace import Workspace
 
 @click.command()
 @click.option('--port', default=8080, help="HTTP port number")
 @click.option('--dbpath', default='./requirements.db', help="HTTP port number")
-@click.option('--workspace_path', default='./', help="HTTP port number")
+@click.option('--workspace_path', default='./', help="Should point to git repo")
 def start_server(port, dbpath, workspace_path):
     print(f"""\
                 _                        _   _              __      ______  
@@ -33,6 +34,10 @@ def start_server(port, dbpath, workspace_path):
     # Create DB and enable WAL
     sqlite_conn = sqlite3.connect(app.config['DB_PATH'])
     sqlite_conn.execute('PRAGMA journal_mode=WAL')
+
+    # Initialize/Create DBs
+    Workspace.ensure_db(sqlite_conn)
+
 
 
     serve(app, port=port)

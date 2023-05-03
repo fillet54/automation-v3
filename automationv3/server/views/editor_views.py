@@ -3,20 +3,22 @@ import re
 import json
 from flask import Blueprint, render_template, request, abort, current_app, make_response
 
-from ..models import get_workspace
+from ..models import get_workspaces
 
 editor = Blueprint('editor', __name__,
                         template_folder='templates')
 
 @editor.route("<id>/tabs", methods=["GET"])
 def tabs(id):
-    editor = get_workspace().editors(id)
+    workspace = get_workspaces(request.args.get('workspace_id'))
+    editor = workspace.editors(id)
     documents = editor.documents()
     active_document = editor.active_document
     
     resp = make_response(
             render_template('partials/tabs.html', 
                             id=id,
+                            workspace=workspace,
                             documents=documents,
                             active_document=active_document))
     return resp
@@ -27,14 +29,15 @@ def update_tabs(id, path):
     action = request.args.get('action')
     triggers = {'tab-action': action}
 
-    editor = get_workspace().editors(id)
+    workspace = get_workspaces(request.args.get('workspace_id'))
+    editor = workspace.editors(id)
     document = editor.documents(path)
 
     if action in ['open', 'select']:
-        if not document.is_opened:
-            document.open()
         if editor.active_document != document:
             triggers['editor-content-update'] = True
+        if not document.is_opened:
+            document.open()
         editor.select_document(document) 
     elif action == 'close':
         if editor.active_document == document:
@@ -49,12 +52,14 @@ def update_tabs(id, path):
 
 @editor.route("<id>/content", methods=["GET"])
 def content(id):
-    editor = get_workspace().editors(id)
+    workspace = get_workspaces(request.args.get('workspace_id'))
+    editor = workspace.editors(id)
     documents = editor.documents()
     active_document = editor.active_document
     
     return render_template('partials/editor.html', 
                            id=id,
+                           workspace=workspace,
                            documents=documents,
                            active_document=active_document)
 
@@ -63,7 +68,8 @@ def update_content(id, path):
     path = Path(path)
     action = request.args.get('action')
     
-    editor = get_workspace().editors(id)
+    workspace = get_workspaces(request.args.get('workspace_id'))
+    editor = workspace.editors(id)
     document = editor.documents(path)
     
     if action == 'save':

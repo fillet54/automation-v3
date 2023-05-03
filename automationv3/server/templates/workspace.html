@@ -1,22 +1,26 @@
 {% extends "layout.html" %}
 
+{% set editor_id = workspace.editors().id %}
+
 {% block menucontent %}
+<div>
+  {% include "partials/workspace_select.html" %}
+</div>
 <div id="treeview"
-     hx-get="{{ url_for('workspace.tree', id=id) }}"
+     hx-get="{{ url_for('workspace.tree', workspace_id=workspace.id) }}"
      hx-trigger="load">
 </div>
 {% endblock %}
 
 {% block content %}
-  {# only support single editor for now #}
-  {% set editor_id = 0 %}
+{# only support single editor for now #}
   <div id="content">
     <div id="tabs"
-         hx-get="{{ url_for('editor.tabs', id=editor_id) }}"
+         hx-get="{{ url_for('editor.tabs', id=editor_id, workspace_id=workspace.id) }}"
          hx-trigger="load, tab-action from:body">
     </div>
     <div id="editor"
-         hx-get="{{ url_for('editor.content', id=editor_id) }}"
+         hx-get="{{ url_for('editor.content', id=editor_id, workspace_id=workspace.id) }}"
          hx-trigger="load, editor-content-update from:body">
     </div>
   </div>
