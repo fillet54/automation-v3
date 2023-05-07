@@ -1,15 +1,17 @@
 import unittest
+import sqlite3
 import os
 
-from automationv2.models import Requirements, Requirement
+from automationv3.models import Requirements, Requirement
 
 class TestRequirements(unittest.TestCase):
     def setUp(self):
         self.db_file = "test_requirements.db"
-        self.repo = Requirements(self.db_file)
+        self.conn = sqlite3.connect(self.db_file)
+        self.repo = Requirements(self.conn)
 
     def tearDown(self):
-        self.repo._conn.close()
+        self.conn.close()
         os.remove(self.db_file)
 
     def test_add_and_get(self):

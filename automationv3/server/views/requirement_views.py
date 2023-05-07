@@ -1,10 +1,11 @@
-
+from pathlib import Path
 from flask import Blueprint, render_template, request
 
+from ..templates import template_root
 from ..models import get_requirements
 
 requirements = Blueprint('requirements', __name__,
-                        template_folder='templates')
+                         template_folder=template_root)
 
 @requirements.route("/", methods=["GET"])
 def list():

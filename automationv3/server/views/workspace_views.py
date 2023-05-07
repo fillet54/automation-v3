@@ -1,7 +1,10 @@
 from pathlib import Path
 import re
-from flask import Blueprint, render_template, request, abort, current_app, make_response, redirect
-
+from flask import (
+        Blueprint, render_template, request, 
+        abort, current_app, make_response, 
+        redirect, url_for
+)
 from ..models import get_workspaces
 
 workspace = Blueprint('workspace', __name__,
@@ -9,14 +12,15 @@ workspace = Blueprint('workspace', __name__,
 
 @workspace.route("/<path:path>", methods=["GET"])
 def index(path):
-    workspace = get_workspaces(path)
     workspaces = get_workspaces()
+    workspace = get_workspaces(path)
     editor = workspace.editors()
 
     return render_template('workspace.html', 
                            workspaces=workspaces,
                            workspace=workspace,
                            editor=editor)
+
 
 # TreeView 
 @workspace.app_template_filter()

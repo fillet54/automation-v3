@@ -20,7 +20,7 @@
 
 {%- if is_open %}
 <ul class="{{ 'ml-5' if not is_root else ''}}" >
-    {%- for dir in (workspace.root / node).iterdir() | is_dir %}
+    {%- for dir in (workspace.root / node).iterdir() | is_dir | sort %}
     <li id="node-{{ dir.relative_to(workspace.root) | as_id }}">
       {%- with node=dir.relative_to(workspace.root) %}
         {%- filter indent(8, True) %}
@@ -30,7 +30,7 @@
     </li>
     {%-endfor %}
 
-    {% for file in (workspace.root / node).iterdir() | is_file %}
+    {% for file in (workspace.root / node).iterdir() | is_file | sort %}
     <li class="ml-5 flex"
         hx-post="{{ url_for('editor.update_tabs', id=workspace.editors().id, path=file.relative_to(workspace.root), workspace_id=workspace.id, action='open') }}"
         hx-swap="none">

@@ -1,6 +1,7 @@
 {% if hx_request %}
 {% include "partials/requirements.html" %}
 {% else %}
+{% import "icons/icon.j2" as icon %}
 {% extends "layout.html" %}
 
 {% block menucontent %}
@@ -8,12 +9,15 @@
     <h2 class="font-medium leading-tight text-2xl mt-0 mb-2 ">Subsystems</h2>
     <ul>
         {% for subsystem in subsystems|sort() %}
-        <li class="subsystem-link {{'bg-blue-300' if subsystem == selected_subsystem }}"
+        <li class="flex subsystem-link {{'bg-blue-300' if subsystem == selected_subsystem }}"
             hx-get="{{ url_for('requirements.list', subsystem=subsystem) }}" hx-target="#requirements"
-            hx-swap="innerHTML" hx-push-url="true" _="on click 
+            hx-swap="innerHTML" 
+            hx-push-url="true"
+            _="on click 
                remove .bg-blue-300 from <li.subsystem-link/>
                add .bg-blue-300 to me">
-            {{ subsystem }}
+          {{ icon.solid('rectangle-group', 'h-5 w-5 mr-1') }}
+          {{ subsystem }}
         </li>
         {% endfor %}
     </ul>
@@ -21,7 +25,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="requirements" id="requirements">
+<div class="requirements p-2 max-w-prose" id="requirements">
     {% include "partials/requirements.html" %}
 </div>
 {% endblock %}

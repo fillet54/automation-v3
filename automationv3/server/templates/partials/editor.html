@@ -1,5 +1,8 @@
 {% import "icons/icon.j2" as icon %}
 
+{% if not active_document %}
+<h1>Open a document</h1>
+{% else %}
 <div class="flex flex-wrap">
   {# toolbar #}
   <div class="flex flex-shrink-0 basis-full py-1 px-2 border">
@@ -43,3 +46,6 @@
       editordiv.dispatchEvent(event);
     }, 250));
 </script>
+
+
+{% endif %}
