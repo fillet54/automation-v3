@@ -1,0 +1,36 @@
+<div class="flex flex-wrap">
+  {% include "partials/editor_toolbar.html" %}
+
+  <div>
+    {% for section in ['title', 'description'] %}
+    <div 
+       hx-get="{{ url_for('editor.section', section=section, id=editor.id, workspace_id=workspace.id) }}"
+       hx-trigger="load"
+       hx-swap="outerHTML">
+    </div>
+    {% endfor %}
+
+    
+    <h2 class="text-xl font-bold">Requirements</h2>
+    {% if 'requirements' not in testcase.errors %}
+    <ul>
+    {% for id in testcase.requirements %}
+    <li hx-get="{{ url_for('requirements.by_id', requirement_id=id) }}"
+         hx-trigger="load">
+    </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-red-500">Error! Requirements should be a list of strings. (ex. ["REQ123" "REQ456"])</p>
+    <p class="text-red-600">{{ testcase.requirements }}
+    {% endif %}
+
+    <h2>Setup</h2>
+
+    <h2>Preconditions</h2>
+
+    <h2>Steps</h2>
+    
+  </div>
+
+</div>

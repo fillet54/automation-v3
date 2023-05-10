@@ -1,0 +1,39 @@
+{% import "icons/icon.j2" as icon %}
+
+
+
+<div class="flex flex-shrink-0 basis-full py-1 px-2 border justify-between">
+
+  {# Left #}
+  <div class="flex">
+    <button class="group/icon" title="Save" id="editor-save-button"
+            hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='save', workspace_id=workspace.id) }}"
+            hx-swap="none"
+    >
+      {{ icon.outline('floppy-disk', 'h-5 w-5 fill-gray-500 group-hover/icon:hidden') }}
+      {{ icon.solid('floppy-disk', 'h-5 w-5 fill-gray-600 hidden group-hover/icon:block') }}
+    </button>
+  </div>
+  
+  {# Right #}
+  <div class="flex">
+    {% if supports_visual %}
+      {% if raw %}
+      <button hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='view-visual', workspace_id=workspace.id) }}"
+              hx-swap="none"
+              class="border rounded border-gray-300 text-gray-500 hover:bg-gray-500 hover:text-white px-2"
+      >
+        View Visual 
+      </button>
+      {% else %}
+      <button hx-post="{{ url_for('editor.update_content', id=id, path=active_document.path, action='view-raw', workspace_id=workspace.id) }}"
+              hx-swap="none"
+              class="border rounded border-gray-300 text-gray-500 hover:bg-gray-500 hover:text-white px-2"
+      >
+        View Raw
+      </button>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+

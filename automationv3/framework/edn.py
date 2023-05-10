@@ -1,10 +1,12 @@
 import re
-from collections.abc import Iterator
+import io
+
+from collections import abc 
 
 # Helper
 class PushBackCharStream:
     def __init__(self, chars):
-        self.iterator = chars if isinstance(chars, Iterator) else iter(chars)
+        self.iterator = chars if isinstance(chars, abc.Iterator) else iter(chars)
         self.pushed_back = []
         self.line = 0
         self.col = 0
@@ -107,15 +109,16 @@ class Symbol(str):
         return hash(str(self))
 
 class Keyword(Symbol):
-    pass
-
     def __repr__(self):
-        return ':' + str(self)
+        return ':' + super().__repr__() 
 
 class List(list):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.meta = {}
+
+    def __hash__(self):
+        return hash(tuple(self))
 
 class Vector(list):
     def __init__(self, *args, **kwargs):
@@ -483,6 +486,7 @@ macros = {
     "'": read_quote,
     "#": read_dispatch
 }
+
 dispatch_macros = {
     '{': read_set
 }
@@ -517,3 +521,131 @@ def read(stream_or_str, sentinel=None):
                 return form
         else: 
             return read_symbol(stream, ch)
+
+# Write functions
+# This is trickier than it looks to get it to output
+# clean looking code. 
+def complex_type(obj):
+    return type(obj) in [List, Vector, list, Map, dict, Set, set]
+
+def write_indent(s, indent_level):
+    if indent_level is None:
+        return
+    else:
+        s.write(' ' * indent_level)
+
+def write_map(obj, s, indent_level=0):
+    s.write('{')
+
+    if any(complex_type(o) for o in obj.values()):
+        s.write('\n')
+        item_indent = indent_level + 2
+        write_indent(s, item_indent)
+    else:
+        item_indent = None
+
+    for i, kv, in enumerate(obj.items()):
+        k,v = kv
+        if i != 0:
+            s.write('\n') if item_indent is not None else s.write(' ')
+            write_indent(s, item_indent)
+
+        write(k, s, item_indent)
+        s.write(' ')
+        write(v, s, item_indent)
+
+    if item_indent is not None:
+        s.write('\n')
+        write_indent(s, indent_level)
+    s.write('}')
+
+def write_sequence(obj, s, chars, indent_level=0):
+    start, end = chars
+
+    s.write(start)
+    if any(complex_type(o) for o in obj):
+        s.write('\n')
+        item_indent = indent_level + 2
+        write_indent(s, item_indent)
+    else:
+        item_indent = None
+
+    for i, v, in enumerate(obj):
+        if i != 0:
+            if item_indent is not None:
+                s.write('\n')
+                write_indent(s, item_indent)
+            else:
+                s.write(' ')
+        write(v, s, item_indent)
+
+    if item_indent is not None:
+        s.write('\n')
+        write_indent(s, indent_level)
+
+    s.write(end)
+
+def write_list(obj, s, indent_level=0):
+    # There are a few special cases to eventually handle
+    # 1. function def
+    # 2. quote
+    # 3. Simple types no indent
+    write_sequence(obj, s, chars=('(', ')'), indent_level=indent_level)
+
+def write_vector(obj, s, indent_level=0):
+    write_sequence(obj, s, chars=('[', ']'), indent_level=indent_level)
+
+def write_set(obj, s, indent_level=0):
+    write_sequence(obj, s, chars=('#{', '}'), indent_level=indent_level)
+
+escape_chars_reverse =  {v:k for k,v in escape_chars.items()}
+def write_char(obj, s, indent_level=0):
+    # Common escapes
+    if obj in escape_chars_reverse:
+        s.write('\\')
+        s.write(escape_chars_reverse[obj])
+    else: 
+        # handle \x escapes and convert to \u0000
+        x = obj.encode('unicode_escape')
+        if x.startswith(b'\\x'):
+            s.write('\\u00')
+            s.write(x[2:].decode('utf-8'))
+        else:
+            # Everything else
+            s.write(obj)
+
+def write_string(obj, s, indent_level=0):
+    s.write('"')
+    for char in obj:
+        write_char(char, s, indent_level)
+    s.write('"')
+
+def write(obj, stream, indent_level=0):
+    '''Writes obj in edn'''
+    if obj is None:
+        stream.write('nil')
+    elif isinstance(obj, (Map, dict)):
+        write_map(obj, stream, indent_level)
+    elif isinstance(obj, List):
+        write_list(obj, stream, indent_level)
+    elif isinstance(obj, (Vector, list)):
+        write_vector(obj, stream, indent_level)
+    elif isinstance(obj, (Set, set)):
+        write_set(obj, stream, indent_level)
+    elif isinstance(obj, bool):
+        stream.write(str(obj).lower())
+    elif isinstance(obj, Keyword):
+        stream.write(repr(obj))
+    elif isinstance(obj, Symbol):
+        stream.write(repr(obj))
+    elif isinstance(obj, str):
+        write_string(obj, stream, indent_level)
+    else:
+        # Try our best
+        stream.write(repr(obj))
+
+def writes(obj, indent_level=0):
+    stream = io.StringIO('')
+    write(obj, stream, indent_level)
+    return stream.getvalue()
+

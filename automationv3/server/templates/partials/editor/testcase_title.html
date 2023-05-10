@@ -1,0 +1,26 @@
+<div class="m-2" hx-target="this" hx-swap="outerHTML">
+{% if not edit %}
+<h1 id="testcase-title"
+    class="text-2xl font-bold"
+    hx-get="{{ url_for('editor.edit', section='title', workspace_id=workspace.id, id=editor.id) }}"
+    hx-trigger="dblclick"
+>{{ testcase.title }}</h1>
+{% else %}
+<input id="testcase-title" 
+       class="text-2xl font-bold bg-gray-200" 
+       value="{{ testcase.title }}"
+       hx-patch="{{ url_for('editor.update_testcase', path=active_document.path, section='title', workspace_id=workspace.id, id=editor.id) }}"
+       hx-trigger="blur, keyup[key=='Enter']"
+       hx-vals="js:{'value':document.getElementById('testcase-title').value}"
+       />
+<script>
+  (function() {
+    const el = document.getElementById('testcase-title')
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+    el.focus()
+  })()
+</script>
+{% endif %}
+</div>
+

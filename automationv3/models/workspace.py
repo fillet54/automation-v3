@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from functools import wraps
 
+from ..framework import edn
+
 # Helpers
 
 def is_binary(path, sample_length=8000):
@@ -98,6 +100,7 @@ class Document:
         self._mime = None
         self._draft = None
         self._rank = None
+        self._meta = None
 
     @when_open
     def read_db(self):
@@ -105,14 +108,15 @@ class Document:
             return
 
         cursor = self.conn.execute("""
-            SELECT draft, mime, st_mtime, rank
+            SELECT draft, mime, st_mtime, rank, meta
             FROM documents
             WHERE path = ? and editor_id = ?
         """, (str(self.path), self.editor_id))
         row = cursor.fetchone()
-        draft, mime, st_mtime, rank = row
-        self._draft, self._mime, self._st_mtime, self._rank = row
-        self._read = True
+        draft, mime, st_mtime, rank, meta = row
+        self._draft, self._mime, self._st_mtime, self._rank, self._meta = row
+        self._read = True,
+        self._meta = json.loads(self._meta)
 
     @property
     def st_mtime(self):
@@ -133,6 +137,25 @@ class Document:
     def rank(self):
         self.read_db()
         return self._rank
+    
+    @property
+    def meta(self):
+        self.read_db()
+        return self._meta
+
+    def set_meta(self, key, val):
+        meta = self.meta
+        meta[key] = val
+
+        cursor = self.conn.cursor()
+        cursor.execute(""" 
+            UPDATE documents
+            SET meta = ?
+            WHERE path = ? and editor_id = ?
+        """, (json.dumps(meta), str(self.path), self.editor_id))
+        self.conn.commit()
+        cursor.close()
+
 
     @property
     def path_on_disk(self):
@@ -143,20 +166,32 @@ class Document:
         '''Opens document into workspace'''
 
         st_mtime = self.path_on_disk.stat().st_mtime
+        meta = json.dumps({})
 
         # TODO: Improve
         if is_binary(self.path_on_disk):
             mime = 'application/octet-stream'
             content = 'BINARY FILE'
+        elif self.path.suffix == '.rvt':
+            content = self.path_on_disk.read_text()
+            try:
+                parsed_content = edn.read(content)
+                if isinstance(parsed_content, edn.Map):
+                    mime = 'application/rvt+edn'
+                else:
+                    mime = 'application/rvt'
+            except:
+                mime = 'application/rvt'
         else:
             mime = 'text/plain'
             content = self.path_on_disk.read_text()
+            raw_content = content
 
         cursor = self.conn.cursor()
         cursor.execute(""" 
-            INSERT INTO documents(path, mime, st_mtime, rank, editor_id) 
-            VALUES (?, ?, ?, (SELECT IFNULL(MAX(rank),0)+1 FROM documents), ?)
-        """, (str(self.path), mime, st_mtime, self.editor_id))
+            INSERT INTO documents(path, mime, st_mtime, rank, meta, editor_id) 
+            VALUES (?, ?, ?, (SELECT IFNULL(MAX(rank),0)+1 FROM documents), ?, ?)
+        """, (str(self.path), mime, st_mtime, meta, self.editor_id))
         self.conn.commit()
         cursor.close()
         
@@ -164,14 +199,12 @@ class Document:
         return content
 
     @when_open
-    def save(self, content):
+    def save(self):
         '''Writes content to disk, clears draft and updates st_mtime'''
-        
-        if isinstance(content, str):
-            self.path_on_disk.write_text(content)
-        else:
-            # Nothing to save for now
-            pass
+
+        if self.mime != 'application/octet-stream':
+            self.path_on_disk.write_text(self.content)
+
         
         st_mtime = self.path_on_disk.stat().st_mtime
         
@@ -205,10 +238,10 @@ class Document:
         if self.draft is not None:
             return self.draft
 
-        if self.mime == 'text/plain':
-            return self.path_on_disk.read_text()
-        else:
+        if self.mime == 'application/octet-stream':
             return 'BINARY CONTENT'
+        else:
+            return self.path_on_disk.read_text()
             
     def is_modified(self):
         return self.draft is not None
@@ -256,6 +289,7 @@ class Editor:
                     draft TEXT,
                     mime TEXT NOT NULL,
                     st_mtime REAL, 
+                    meta TEXT NOT NULL,
                     rank INTEGER NOT NULL,
                     editor_id INTEGER NOT NULL,
                     UNIQUE(path, editor_id),

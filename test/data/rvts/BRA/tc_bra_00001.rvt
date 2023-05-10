@@ -1,0 +1,8 @@
+{
+  :rvt/title "Brake Monitoring"
+  :rvt/description "Brake parameters are read at 10hz"
+  :rvt/requirements ["VMCBRA00001"]
+  :rvt/setup []
+  :rvt/preconditions []
+  :rvt/steps []
+}

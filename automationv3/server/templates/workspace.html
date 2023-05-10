@@ -21,7 +21,7 @@
     </div>
     <div id="editor"
          hx-get="{{ url_for('editor.content', id=editor_id, workspace_id=workspace.id) }}"
-         hx-trigger="load, editor-content-update from:body">
+         hx-trigger="load, editor-content-update from:body, resize from:window delay:0.250s">
     </div>
   </div>
 {% endblock %}

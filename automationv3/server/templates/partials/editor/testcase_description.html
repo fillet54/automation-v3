@@ -1,0 +1,32 @@
+
+<div class="w-full px-2"
+     hx-swap="outerHTML"
+     hx-target="this"
+>
+
+{% if not edit %}
+<div class="prose"
+    hx-get="{{ url_for('editor.edit', section='description', workspace_id=workspace.id, id=editor.id) }}"
+    hx-trigger="dblclick"
+  >
+  <p class="whitespace-pre">{{ testcase.description }}</p>
+</div>
+{% else %}
+<textarea
+       id="testcase-description"
+       class="font-mono w-full"
+       hx-patch="{{ url_for('editor.update_testcase', section='description', path=active_document.path, workspace_id=workspace.id, id=editor.id) }}"
+       hx-trigger="blur"
+       hx-vals="js:{'value':document.getElementById('testcase-description').value}"
+>{{ testcase.description }}</textarea>
+<script>
+  (function() {
+    const el = document.getElementById('testcase-description')
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+    el.focus()
+  })()
+</script>
+{% endif %}
+
+</div>
