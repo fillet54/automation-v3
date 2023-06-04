@@ -88,6 +88,11 @@ class Testcase:
     @property
     def requirements(self):
         return self._map[REQS]
+    
+    @requirements.setter
+    def requirements(self, value):
+        self._map[REQS] = value
+        self.save()
 
     @property
     def errors(self):

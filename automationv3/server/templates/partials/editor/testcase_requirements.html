@@ -1,0 +1,38 @@
+<div class="m-2" hx-target="this" hx-swap="outerHTML">
+{% if not edit %}
+  <h2 class="text-xl font-bold mt-5">Requirements</h2>
+  {% if 'requirements' not in testcase.errors %}
+  <ul id="testcase-requirements"
+      class="list-disc pl-5 space-y-3 marker:text-gray-400"
+      hx-get="{{ url_for('editor.section', section='requirements', edit=True, id=editor.id) }}"
+      hx-trigger="dblclick">
+  {% for id in testcase.requirements %}
+  <li hx-get="{{ url_for('requirements.by_id', requirement_id=id) }}"
+       hx-trigger="load",
+       hx-target="this">
+  </li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-red-500">Error! Requirements should be a list of strings. (ex. ["REQ123" "REQ456"])</p>
+  <p class="text-red-600">{{ testcase.requirements }}
+  {% endif %}
+
+{% else %}
+<input id="testcase-requirements" 
+       class="bg-gray-100 w-full" 
+       value="{{ testcase.requirements | join(' ') }}"
+       hx-patch="{{ url_for('editor.update_testcase', document_id=document.id, section='requirements',id=editor.id) }}"
+       hx-trigger="blur, keyup[key=='Enter']"
+       hx-vals="js:{'value':document.getElementById('testcase-requirements').value}"
+       />
+<script>
+  (function() {
+    const el = document.getElementById('testcase-requirements')
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+    el.focus()
+  })()
+</script>
+{% endif %}
+</div>

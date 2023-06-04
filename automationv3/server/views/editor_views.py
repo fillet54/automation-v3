@@ -168,6 +168,8 @@ def update_testcase(id, document_id):
        testcase.title = value
     elif section == 'description':
         testcase.description = value
+    elif section == 'requirements':
+        testcase.requirements = [r.strip(',') for r in value.split()]
 
     template = f'partials/editor/testcase_{section}.html'
     resp = make_response(render_template(template, 

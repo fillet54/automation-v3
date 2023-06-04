@@ -1,6 +1,8 @@
 from pathlib import Path
 from flask import Blueprint, render_template, request
 
+from automationv3.models import Requirement 
+
 from ..templates import template_root
 from ..models import get_requirements
 
@@ -23,6 +25,8 @@ def list():
 def by_id(requirement_id):
     requirement = get_requirements().get_by_id(requirement_id)
     if requirement is None:
-        return "Requirement not found", 404
+        requirement = Requirement(requirement_id,
+                                  text=f"Unknown Requirement {requirement_id}",
+                                  subsystem='Unknown')
     return render_template("partials/requirement.html", requirement=requirement)
 

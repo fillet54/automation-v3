@@ -2,26 +2,13 @@
   {% include "partials/editor_toolbar.html" %}
 
   <div>
-    {% for section in ['title', 'description'] %}
+    {% for section in ['title', 'description', 'requirements'] %}
     <div 
        hx-get="{{ url_for('editor.section', section=section, id=editor.id) }}"
        hx-trigger="load"
        hx-swap="outerHTML">
     </div>
     {% endfor %}
-    <h2 class="text-xl font-bold mt-5">Requirements</h2>
-    {% if 'requirements' not in testcase.errors %}
-    <ul class="list-disc pl-5 space-y-3 marker:text-gray-400">
-    {% for id in testcase.requirements %}
-    <li hx-get="{{ url_for('requirements.by_id', requirement_id=id) }}"
-         hx-trigger="load">
-    </li>
-    {% endfor %}
-    </ul>
-    {% else %}
-    <p class="text-red-500">Error! Requirements should be a list of strings. (ex. ["REQ123" "REQ456"])</p>
-    <p class="text-red-600">{{ testcase.requirements }}
-    {% endif %}
 
     <h2>Setup</h2>
 
