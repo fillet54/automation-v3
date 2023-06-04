@@ -1,14 +1,17 @@
 from pathlib import Path
 import re
+import json
 from flask import (
         Blueprint, render_template, request, 
         abort, current_app, make_response, 
         redirect, url_for
 )
+
+from ..templates import template_root
 from ..models import get_workspaces
 
 workspace = Blueprint('workspace', __name__,
-                        template_folder='templates')
+                        template_folder=template_root)
 
 @workspace.route("/<path:path>", methods=["GET"])
 def index(path):
@@ -40,22 +43,42 @@ def as_id(path):
 def tree(path):
     workspace_id = request.args.get('workspace_id')
     workspace = get_workspaces(workspace_id)
-    path = (workspace.root / path).absolute()
-    
+    fstree = workspace.filesystem_tree() 
+
+    if path == '':
+        path = workspace.root
+
     # ensure path is relative to our root
-    if not path.is_relative_to(workspace.root):
+    if not (workspace.root / path).resolve().is_relative_to(workspace.root):
         abort(404)
-        
-    path = path.relative_to(workspace.root)
 
-    if request.method == 'POST':
-        opened = workspace.treeview.toggle_node(path)
-    else:
-        opened = workspace.treeview.opened
-
+    path = (workspace.root / path).resolve().relative_to(workspace.root)
     
+    if request.method == 'POST':
+        fstree.toggle(path)
+
     return render_template('partials/treeitem.html', 
                            workspace=workspace,
-                           node=path,
-                           opened=opened)
+                           node=fstree.node(path),
+                           opened=fstree.opened)
 
+@workspace.route("<id>/open", methods=["GET", "POST"])
+def open_or_select_document(id):
+    if request.args.get('path') is None:
+        abort(404)
+
+    path = Path(request.args.get('path')).resolve()
+    ws = get_workspaces(id)
+    editor = ws.active_editor()
+
+    # path must be within our workspace
+    if not path.is_relative_to(ws.root):
+        abort(404)
+
+    document = editor.open(path)
+    editor.select_document(document)
+
+    resp = make_response("Success")
+    resp.headers['Hx-Trigger'] = json.dumps({'tab-action': 'open',
+                                             'editor-content-update': True})
+    return resp

@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 import subprocess
 
-from ..models import Requirements, Workspace
+from ..models import Requirements, Workspace, Editor, Document
 
 def get_db():
     if 'sqlite_db' not in g:
@@ -38,3 +38,14 @@ def get_workspaces(id=None):
 
     abort(404)
 
+def get_editor(id):
+    if id is not None:
+        conn = get_db()
+        return Editor(conn, id)
+    return None
+
+def get_document(id):
+    if id is not None:
+        conn = get_db()
+        return Document(conn, id)
+    return None

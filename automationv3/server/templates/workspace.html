@@ -1,7 +1,5 @@
 {% extends "layout.html" %}
 
-{% set editor_id = workspace.editors().id %}
-
 {% block menucontent %}
 <div>
   {% include "partials/workspace_select.html" %}
@@ -13,15 +11,16 @@
 {% endblock %}
 
 {% block content %}
-{# only support single editor for now #}
+  {% for editor in workspace.editors() %}
   <div id="content">
     <div id="tabs"
-         hx-get="{{ url_for('editor.tabs', id=editor_id, workspace_id=workspace.id) }}"
+         hx-get="{{ url_for('editor.tabs', id=editor.id) }}"
          hx-trigger="load, tab-action from:body">
     </div>
     <div id="editor"
-         hx-get="{{ url_for('editor.content', id=editor_id, workspace_id=workspace.id) }}"
+         hx-get="{{ url_for('editor.content', id=editor.id) }}"
          hx-trigger="load, editor-content-update from:body, resize from:window delay:0.250s">
     </div>
   </div>
+  {% endfor %}
 {% endblock %}

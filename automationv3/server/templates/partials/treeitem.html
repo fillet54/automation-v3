@@ -1,11 +1,10 @@
 {% import "icons/icon.j2" as icon %}
 
-{% set is_root = node.name == '' %}
-{% set is_open = is_root or node in opened %}
+{% set is_open = node.is_root or node in opened %}
 
-{% if not is_root %}
-<div hx-post="{{ url_for('workspace.tree', path=node, workspace_id=workspace.id) }}"
-     hx-target="#node-{{ node | as_id }}"
+{% if not node.is_root %}
+<div hx-post="{{ url_for('workspace.tree', path=node.relative_path, workspace_id=workspace.id) }}"
+     hx-target="#node-{{ node.relative_path | as_id }}"
      class="flex">
   {%- if is_open %}
   {{ icon.outline('chevron-down', 'h-5 w-5') }}
@@ -19,10 +18,10 @@
 {% endif %}
 
 {%- if is_open %}
-<ul class="{{ 'ml-5' if not is_root else ''}}" >
-    {%- for dir in (workspace.root / node).iterdir() | is_dir | sort %}
-    <li id="node-{{ dir.relative_to(workspace.root) | as_id }}">
-      {%- with node=dir.relative_to(workspace.root) %}
+<ul class="{{ 'ml-5' if not node.is_root else ''}}" >
+    {%- for dir in node.children() | is_dir | sort %}
+    <li id="node-{{ dir.relative_path | as_id }}">
+      {%- with node=dir %}
         {%- filter indent(8, True) %}
           {%- include "partials/treeitem.html" %}
         {%- endfilter %}
@@ -30,12 +29,12 @@
     </li>
     {%-endfor %}
 
-    {% for file in (workspace.root / node).iterdir() | is_file | sort %}
+    {% for file in node.children() | is_file | sort %}
     <li class="ml-5 flex"
-        hx-post="{{ url_for('editor.update_tabs', id=workspace.editors().id, path=file.relative_to(workspace.root), workspace_id=workspace.id, action='open') }}"
+        hx-post="{{ url_for('workspace.open_or_select_document', id=workspace.id, path=file, action='open') }}"
         hx-swap="none">
       <img class="h-5 w-5 mr-1 whitespace-nowrap" src="{{ url_for('static', filename='img/icons/document.svg') }}"></img>
-      {{ file.name }}
+      {{ file.path.name }}
     </li>
     {% endfor %}
 </ul>

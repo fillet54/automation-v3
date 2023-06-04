@@ -6,7 +6,7 @@
 
 {% if not edit %}
 <div class="prose"
-    hx-get="{{ url_for('editor.edit', section='description', workspace_id=workspace.id, id=editor.id) }}"
+    hx-get="{{ url_for('editor.section', section='description', edit=True, id=editor.id) }}"
     hx-trigger="dblclick"
   >
   <p class="whitespace-pre">{{ testcase.description }}</p>
@@ -15,7 +15,7 @@
 <textarea
        id="testcase-description"
        class="font-mono w-full"
-       hx-patch="{{ url_for('editor.update_testcase', section='description', path=active_document.path, workspace_id=workspace.id, id=editor.id) }}"
+       hx-patch="{{ url_for('editor.update_testcase', document_id=document.id, section='description', id=editor.id) }}"
        hx-trigger="blur"
        hx-vals="js:{'value':document.getElementById('testcase-description').value}"
 >{{ testcase.description }}</textarea>

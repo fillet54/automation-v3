@@ -15,31 +15,40 @@ This scripts takes the sample RVTs in ./rvts and creates 3 worktrees
 import sys
 import shutil
 from pathlib import Path
+from functools import partial
 import subprocess
 
-data_dir = Path(__file__).resolve().parent
-rvt_src_dir = data_dir / 'rvts'
-worktree_dir = data_dir / 'git_repos'
-main_git_dir = worktree_dir / 'master'
 
-if main_git_dir.exists():
-    print(f"Files already exist!!!\nPlease delete {str(main_git_dir)} to recreate")
-    sys.exit(-1) 
+check_output_no_stderr = partial(subprocess.check_output, stderr=subprocess.DEVNULL)
 
-subprocess.check_output(['git', 'init', str(main_git_dir)])
+def create_repo(path):
+    check_output_no_stderr(['git', 'init', path])
+    check_output_no_stderr(['git', 'add', '--all'], cwd=path)
+    check_output_no_stderr(['git', 'commit', '-m', "Initial Commit"], cwd=path)
+    
 
-# Copy files for master
-shutil.copytree(rvt_src_dir, main_git_dir / 'rvts')
-subprocess.check_output(['git', 'add', '--all'], cwd=main_git_dir)
-subprocess.check_output(['git', 'commit', '-m', "Initial Commit"], cwd=main_git_dir)
+def create_worktree(gitdir, workdir):
+    worktree = workdir.name
+    check_output_no_stderr(['git', 'branch', worktree], cwd=gitdir)
+    check_output_no_stderr(['git', 'worktree', 'add', workdir, worktree], cwd=gitdir)
+
+if __name__ == '__main__':
+    datadir = Path(__file__).resolve().parent
+    rvtdir = datadir / 'rvts'
+    gitdir = datadir / 'git_repos' / 'master'
+
+    if gitdir.exists():
+        print(f"Files already exist!!!\nPlease delete {str(gitdir)} to recreate")
+        sys.exit(-1) 
+
+    # Setup initial master branch with content
+    shutil.copytree(rvtdir, gitdir / 'rvts')
+    create_repo(gitdir)
 
 
-worktrees = ['branch1', 'branch2', 'branch3']
-for worktree in worktrees:
-    worktree_path = worktree_dir / worktree
-    subprocess.check_output(['git', 'branch', worktree], cwd=main_git_dir)
-    subprocess.check_output(['git', 'worktree', 'add', worktree_path, worktree], cwd=main_git_dir)
-
-
+    worktrees = ['branch1', 'branch2', 'branch3']
+    for worktree in worktrees:
+        workdir = gitdir.parent / worktree
+        create_worktree(gitdir, workdir)
 
 
