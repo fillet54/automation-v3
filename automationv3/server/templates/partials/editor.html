@@ -36,7 +36,7 @@
     editor.setSize(0,0)
 
     const container = document.getElementById("editor-container");
-    editor.setSize(container.clientWidth, "100%");
+    editor.setSize(container.clientWidth-2, "100%");
 
     // Autosave after 250 ms of no activity
     editor.on('changes', debounce(function() {
