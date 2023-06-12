@@ -1,15 +1,16 @@
 <div class="m-2" hx-target="this" hx-swap="outerHTML">
+<h2 class="text-2xl font-bold mt-5">Requirements</h2>
 {% if not edit %}
-  <h2 class="text-xl font-bold mt-5">Requirements</h2>
   {% if 'requirements' not in testcase.errors %}
   <ul id="testcase-requirements"
-      class="list-disc pl-5 space-y-3 marker:text-gray-400"
+      class="prose"
       hx-get="{{ url_for('editor.section', section='requirements', edit=True, id=editor.id) }}"
       hx-trigger="dblclick">
   {% for id in testcase.requirements %}
   <li hx-get="{{ url_for('requirements.by_id', requirement_id=id) }}"
        hx-trigger="load",
-       hx-target="this">
+       hx-target="this"
+       hx-swap="innerHTML">
   </li>
   {% endfor %}
   </ul>

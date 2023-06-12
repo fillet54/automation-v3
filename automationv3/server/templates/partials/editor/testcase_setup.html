@@ -1,0 +1,38 @@
+<div class="border m-2 p-1"
+     hx-swap="outerHTML"
+     hx-target="this"
+>
+
+{% if not edit %}
+<div hx-get="{{ url_for('editor.section', 
+                         id=editor.id,
+                         section='setup', 
+                         section_index=index, 
+                         edit=True) }}"
+    hx-trigger="dblclick"
+  >
+  <p class="font-mono whitespace-pre">{{ testcase.setup[index] | repr_html | safe }}</p>
+</div>
+{% else %}
+<textarea
+       id="testcase-setup-{{ index }}"
+       class="font-mono w-full"
+       hx-patch="{{ url_for('editor.update_testcase', 
+                            id=editor.id,
+                            document_id=document.id, 
+                            section='setup', 
+                            section_index=index) }}"
+       hx-trigger="blur"
+       hx-vals="js:{'value':document.getElementById('testcase-setup-{{ index }}').value}"
+>{{ testcase.setup[index] | edn_str }}</textarea>
+<script>
+  (function() {
+    const el = document.getElementById('testcase-setup-{{ index }}')
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+    el.focus()
+  })()
+</script>
+{% endif %}
+
+</div>

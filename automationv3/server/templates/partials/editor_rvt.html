@@ -1,7 +1,7 @@
 <div class="flex flex-wrap">
   {% include "partials/editor_toolbar.html" %}
 
-  <div>
+  <div class="w-full overflow-y-auto" style="height: calc( 100vh - 151px )">
     {% for section in ['title', 'description', 'requirements'] %}
     <div 
        hx-get="{{ url_for('editor.section', section=section, id=editor.id) }}"
@@ -10,7 +10,16 @@
     </div>
     {% endfor %}
 
-    <h2>Setup</h2>
+    <h2 class="text-2xl font-bold mt-5">Setup</h2>
+    {% for _ in testcase.setup %}
+    <div hx-get="{{ url_for('editor.section', 
+                            id=editor.id,
+                            section='setup', 
+                            section_index=loop.index-1) }}"
+         hx-trigger="load"
+         hx-swap="outerHTML">
+    </div>
+    {% endfor %}
 
     <h2>Preconditions</h2>
 

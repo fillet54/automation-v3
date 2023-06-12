@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 import json
+from itertools import groupby
 from flask import Blueprint, render_template, request, abort, current_app, make_response
 
 from automationv3.framework import edn
@@ -98,11 +99,12 @@ def content(id):
                            supports_visual=supports_visual,
                            testcase=testcase)
 
-testcase_sections = ['title', 'description', 'requirements']
+testcase_sections = ['title', 'description', 'requirements', 'setup']
 
 @editor.route("<id>/content-section", methods=["GET"])
 def section(id):
     section = request.args.get('section')
+    section_index = int(request.args.get('section_index', -1))
 
     editor = get_editor(id)
     document = editor.active_document
@@ -118,6 +120,7 @@ def section(id):
                            editor=editor,
                            testcase=testcase,
                            document=document,
+                           index=section_index,
                            edit=edit)
 
 
@@ -153,6 +156,7 @@ def update_content(id, document_id):
 @editor.route("<id>/content/<document_id>", methods=["PATCH"])
 def update_testcase(id, document_id):
     section = request.args.get('section')
+    section_index = int(request.args.get('section_index', -1))
     value = request.form.get('value')
 
     editor = get_editor(id)
@@ -170,6 +174,14 @@ def update_testcase(id, document_id):
         testcase.description = value
     elif section == 'requirements':
         testcase.requirements = [r.strip(',') for r in value.split()]
+    elif section == 'setup':
+        value = edn.read(value)
+
+        if section_index < 0:
+            abort(500)
+
+        testcase.setup[section_index] = value
+        testcase.save()
 
     template = f'partials/editor/testcase_{section}.html'
     resp = make_response(render_template(template, 
@@ -177,9 +189,78 @@ def update_testcase(id, document_id):
                            testcase=testcase,
                            editor=editor,
                            document=document,
+                           index=section_index,
                            edit=False))
     resp.headers['Hx-Trigger'] = json.dumps(triggers)
     return resp
 
+@editor.app_template_filter()
+def edn_str(d):
+    return edn.writes(d)
 
+@editor.app_template_filter()
+def repr_html(step):
+    '''Simple demo of how we could provide html representations for blocks'''
+
+
+    # imagine a way to get a block 
+    # block = find_block(step[0])
+    # if block and hasattr('_repr_html_', block):
+    #   return block._repr_html_(d)
+    # else:
+    #   return d
+    if step[0] == 'SetupSimulation':
+        pairs = zip(step[1::2], step[2::2])
+        pairs = sorted(pairs, key=lambda x: x[0].namespace)
+        groups = {}
+        for k, g in groupby(pairs, lambda x: x[0].namespace):
+            groups[k] = list(g)
+
+        html = f'<h3 class="text-lg font-bold underline">Simulation</h3>'
+        for g in groups:
+            html += '<div class="ml-10">'
+            html += f'<h4 class="text-lg font-medium">{g}:</h4>'
+            html += '<ul class="ml-5">'
+            for k,v in groups[g]:
+                html += f"<li>{k} -> {v}</li>"
+            html += "</ul></div>"
+        return html
+    else:
+        return edn.writes(step)
+
+
+##### restructuredText
+
+import docutils.core
+from docutils.writers import html4css1
+
+class HtmlWriter(html4css1.Writer):
+    def __init__(self):
+        html4css1.Writer.__init__(self)
+        self.translator_class = HtmlTranslator
+
+class HtmlTranslator(html4css1.HTMLTranslator):
+    documenttag_args = {'tagname': 'div', 'CLASS': 'document prose prose-li:mt-0 prose-li:mb-0 prose-p:mb-1 prose-p:mt-1 prose-headings:mb-2 prose-headings:mt-5'}
+    
+    def __init__(self, document):
+        html4css1.HTMLTranslator.__init__(self, document)
+
+@editor.app_template_filter()
+def repr_rst(text):
+    parts = docutils.core.publish_parts(text, 
+                                        writer=HtmlWriter(),
+                                        settings_overrides={'initial_header_level':'2'})
+
+    # sort of a hack for now
+    # cannot for some reason figure out how to
+    # change the h1 and h2 levels but can change level 3 and on
+    # so lets just replace <h1 amd <h2 with h2 and h3 
+    html = parts['html_body']
+    if '<h1' in html:
+        parts = docutils.core.publish_parts(text, 
+                                            writer=HtmlWriter(),
+                                            settings_overrides={'initial_header_level':'4'})
+        html = parts['html_body'].replace('<h2', '<h3').replace('h2>', 'h3>')
+        html = html.replace('<h1', '<h2').replace('h1>', 'h2>')
+    return html
 

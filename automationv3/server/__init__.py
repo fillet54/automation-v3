@@ -1,8 +1,6 @@
 from flask import Flask, render_template, g, redirect, url_for
 
-from .views.requirement_views import requirements
-from .views.workspace_views import workspace, index as workspace_index 
-from .views.editor_views import editor
+from .views import requirements, editor, workspace
 from .models import get_workspaces
 
 app = Flask(__name__)

@@ -561,12 +561,12 @@ def write_map(obj, s, indent_level=0):
 
 def write_sequence(obj, s, chars, indent_level=0):
     start, end = chars
+    is_list =  chars == ('(', ')')
+    indent_amount = 4 if is_list else 1
 
     s.write(start)
     if any(complex_type(o) for o in obj):
-        s.write('\n')
-        item_indent = indent_level + 2
-        write_indent(s, item_indent)
+        item_indent = indent_level + indent_amount
     else:
         item_indent = None
 
@@ -578,10 +578,6 @@ def write_sequence(obj, s, chars, indent_level=0):
             else:
                 s.write(' ')
         write(v, s, item_indent)
-
-    if item_indent is not None:
-        s.write('\n')
-        write_indent(s, indent_level)
 
     s.write(end)
 

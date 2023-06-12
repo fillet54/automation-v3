@@ -1,4 +1,6 @@
 '''This model represents a test case'''
+import textwrap
+
 from ..framework import edn
 
 
@@ -38,7 +40,7 @@ def read_testcase(stream_or_str, sentinel=None):
         if part.strip() == '':
             continue
 
-        name, section_text = part.split(' ', maxsplit=1)
+        name, section_text = part.split(maxsplit=1)
         fqname = edn.Keyword(name, namespace='rvt')
         try:
             # TODO: Maintain lineinfo metadata
@@ -54,6 +56,7 @@ def read_testcase(stream_or_str, sentinel=None):
 TITLE = edn.Keyword('title', namespace='rvt')
 DESC = edn.Keyword('description', namespace='rvt')
 REQS = edn.Keyword('requirements', namespace='rvt')
+SETUP = edn.Keyword('setup', namespace='rvt')
 
 class Testcase:
     def __init__(self, document):
@@ -61,7 +64,24 @@ class Testcase:
         self._map, self._errors = read_testcase(document.content)
 
     def save(self):
-        self.document.save_draft(edn.writes(self._map))
+        '''Saves a testcase out to an edn'''
+
+        # To maintain styling we will write out each section
+
+        lines = ['{']
+        lines.append(f'{repr(TITLE)} {edn.writes(self._map[TITLE])}')
+
+        lines.append(f'{repr(DESC)}')
+        lines.append(edn.writes(self._map[DESC]).replace('\\n', '\n'))
+
+        lines.append(f'{repr(REQS)} {edn.writes(self._map[REQS])}')
+        lines.append(f'{repr(SETUP)} {edn.writes(self._map[SETUP])}')
+        lines.append(f':rvt/preconditions {edn.writes([])}')
+        lines.append(f':rvt/steps {edn.writes("")}')
+
+        lines.append('}')
+
+        self.document.save_draft('\n'.join(lines))
     
     @property
     def title(self):
@@ -95,5 +115,15 @@ class Testcase:
         self.save()
 
     @property
+    def setup(self):
+        return self._map[SETUP]
+    
+    @setup.setter
+    def setup(self, value):
+        self._map[SETUP] = value
+        self.save()
+
+    @property
     def errors(self):
         return self._errors
+

@@ -40,7 +40,7 @@ def start_server(port, dbpath, workspace_path):
 
 
 
-    serve(app, port=port)
+    serve(app, port=port, threads=8)
 
 
 start_server()
