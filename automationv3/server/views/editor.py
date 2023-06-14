@@ -103,25 +103,24 @@ testcase_sections = ['title', 'description', 'requirements', 'setup']
 
 @editor.route("<id>/content-section", methods=["GET"])
 def section(id):
-    section = request.args.get('section')
-    section_index = int(request.args.get('section_index', -1))
+    section = int(request.args.get('section', -1))
+    edit = bool(request.args.get('edit', False))
 
     editor = get_editor(id)
     document = editor.active_document
     testcase = Testcase(document)
-    edit = request.args.get('edit', False)
 
-    if section not in testcase_sections:
-        abort(404)
+    if edit:
+        template = 'partials/editor_rvt_section_edit.html'
+    else:
+        template = 'partials/editor_rvt_section.html'
 
-    template = f'partials/editor/testcase_{section}.html'
     return render_template(template, 
                            id=id,
                            editor=editor,
                            testcase=testcase,
                            document=document,
-                           index=section_index,
-                           edit=edit)
+                           section=section)
 
 
 @editor.route("<id>/content/<document_id>", methods=["POST"])
@@ -155,112 +154,24 @@ def update_content(id, document_id):
 
 @editor.route("<id>/content/<document_id>", methods=["PATCH"])
 def update_testcase(id, document_id):
-    section = request.args.get('section')
-    section_index = int(request.args.get('section_index', -1))
+    section = int(request.args.get('section'))
     value = request.form.get('value')
 
     editor = get_editor(id)
     document = get_document(document_id)
     testcase = Testcase(document)
     
-    if section not in testcase_sections:
-        abort(404)
-
     triggers = {'tab-action': 'save-draft'}
 
-    if section == 'title':
-       testcase.title = value
-    elif section == 'description':
-        testcase.description = value
-    elif section == 'requirements':
-        testcase.requirements = [r.strip(',') for r in value.split()]
-    elif section == 'setup':
-        value = edn.read(value)
+    testcase.update_statement(section, value)
 
-        if section_index < 0:
-            abort(500)
-
-        testcase.setup[section_index] = value
-        testcase.save()
-
-    template = f'partials/editor/testcase_{section}.html'
+    template = 'partials/editor_rvt_section.html'
     resp = make_response(render_template(template, 
-                           id=id,
-                           testcase=testcase,
-                           editor=editor,
-                           document=document,
-                           index=section_index,
-                           edit=False))
+                                         id=id,
+                                         editor=editor,
+                                         testcase=testcase,
+                                         document=document,
+                                         section=section))
     resp.headers['Hx-Trigger'] = json.dumps(triggers)
     return resp
-
-@editor.app_template_filter()
-def edn_str(d):
-    return edn.writes(d)
-
-@editor.app_template_filter()
-def repr_html(step):
-    '''Simple demo of how we could provide html representations for blocks'''
-
-
-    # imagine a way to get a block 
-    # block = find_block(step[0])
-    # if block and hasattr('_repr_html_', block):
-    #   return block._repr_html_(d)
-    # else:
-    #   return d
-    if step[0] == 'SetupSimulation':
-        pairs = zip(step[1::2], step[2::2])
-        pairs = sorted(pairs, key=lambda x: x[0].namespace)
-        groups = {}
-        for k, g in groupby(pairs, lambda x: x[0].namespace):
-            groups[k] = list(g)
-
-        html = f'<h3 class="text-lg font-bold underline">Simulation</h3>'
-        for g in groups:
-            html += '<div class="ml-10">'
-            html += f'<h4 class="text-lg font-medium">{g}:</h4>'
-            html += '<ul class="ml-5">'
-            for k,v in groups[g]:
-                html += f"<li>{k} -> {v}</li>"
-            html += "</ul></div>"
-        return html
-    else:
-        return edn.writes(step)
-
-
-##### restructuredText
-
-import docutils.core
-from docutils.writers import html4css1
-
-class HtmlWriter(html4css1.Writer):
-    def __init__(self):
-        html4css1.Writer.__init__(self)
-        self.translator_class = HtmlTranslator
-
-class HtmlTranslator(html4css1.HTMLTranslator):
-    documenttag_args = {'tagname': 'div', 'CLASS': 'document prose prose-li:mt-0 prose-li:mb-0 prose-p:mb-1 prose-p:mt-1 prose-headings:mb-2 prose-headings:mt-5'}
-    
-    def __init__(self, document):
-        html4css1.HTMLTranslator.__init__(self, document)
-
-@editor.app_template_filter()
-def repr_rst(text):
-    parts = docutils.core.publish_parts(text, 
-                                        writer=HtmlWriter(),
-                                        settings_overrides={'initial_header_level':'2'})
-
-    # sort of a hack for now
-    # cannot for some reason figure out how to
-    # change the h1 and h2 levels but can change level 3 and on
-    # so lets just replace <h1 amd <h2 with h2 and h3 
-    html = parts['html_body']
-    if '<h1' in html:
-        parts = docutils.core.publish_parts(text, 
-                                            writer=HtmlWriter(),
-                                            settings_overrides={'initial_header_level':'4'})
-        html = parts['html_body'].replace('<h2', '<h3').replace('h2>', 'h3>')
-        html = html.replace('<h1', '<h2').replace('h1>', 'h2>')
-    return html
 

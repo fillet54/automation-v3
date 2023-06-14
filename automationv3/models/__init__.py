@@ -1,6 +1,6 @@
 from .requirements import *
 from .workspace import *
-from .testcase import *
+from .testcase import Testcase
 from .treeviews import *
 from .editor import *
 

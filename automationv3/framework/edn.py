@@ -502,8 +502,8 @@ def read(stream_or_str, sentinel=None):
         stream = stream_or_str
     
     for ch in stream:
-        if is_whitespace(ch): continue
         if ch is None: return READ_EOF
+        if is_whitespace(ch): continue
         if ch == sentinel: return READ_FINISHED
         
         # Possibly need 1 lookahead

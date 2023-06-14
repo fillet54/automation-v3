@@ -1,30 +1,17 @@
 <div class="flex flex-wrap">
   {% include "partials/editor_toolbar.html" %}
 
-  <div class="w-full overflow-y-auto" style="height: calc( 100vh - 151px )">
-    {% for section in ['title', 'description', 'requirements'] %}
-    <div 
-       hx-get="{{ url_for('editor.section', section=section, id=editor.id) }}"
-       hx-trigger="load"
-       hx-swap="outerHTML">
-    </div>
-    {% endfor %}
+  <div class="w-full prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1">
+  {% for statement in testcase.statements %}
 
-    <h2 class="text-2xl font-bold mt-5">Setup</h2>
-    {% for _ in testcase.setup %}
-    <div hx-get="{{ url_for('editor.section', 
-                            id=editor.id,
-                            section='setup', 
-                            section_index=loop.index-1) }}"
-         hx-trigger="load"
-         hx-swap="outerHTML">
-    </div>
-    {% endfor %}
+  <div
+      hx-get="{{ url_for('editor.section', 
+                        id=editor.id, 
+                        section=loop.index-1) }}"
+      hx-swap="outerHTML"
+      hx-trigger="load"></div>
 
-    <h2>Preconditions</h2>
-
-    <h2>Steps</h2>
-    
+  {% endfor %}
   </div>
 
 </div>

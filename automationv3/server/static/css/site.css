@@ -69,3 +69,14 @@
 .error .admonition-title {
   background-image: url("/static/img/icons/information-circle.svg");
 }
+
+.gutter {
+  background: #333;
+  opacity: 0.0;
+  transition: opacity .25s ease-in-out;
+}
+
+.gutter:hover {
+  opacity: 1.0;
+  transition: opacity .55s ease-in-out;
+}
