@@ -69,6 +69,7 @@
 					'data-loading-class',
 					'data-loading-class-remove',
 					'data-loading-disable',
+					'data-loading-aria-busy',
 				]
 
 				let loadingStateEltsByType = {}
@@ -77,7 +78,7 @@
 					loadingStateEltsByType[type] = getLoadingStateElts(
 						container,
 						type,
-						evt.detail.pathInfo.path
+						evt.detail.pathInfo.requestPath
 					)
 				})
 
@@ -153,9 +154,22 @@
 						})
 					}
 				)
+
+				loadingStateEltsByType['data-loading-aria-busy'].forEach(
+					(sourceElt) => {
+						getLoadingTarget(sourceElt).forEach((targetElt) => {
+							queueLoadingState(
+								sourceElt,
+								targetElt,
+								() => (targetElt.setAttribute("aria-busy", "true")),
+								() => (targetElt.removeAttribute("aria-busy"))
+							)
+						})
+					}
+				)
 			}
 
-			if (name === 'htmx:afterOnLoad') {
+			if (name === 'htmx:beforeOnLoad') {
 				while (loadingStatesUndoQueue.length > 0) {
 					loadingStatesUndoQueue.shift()()
 				}

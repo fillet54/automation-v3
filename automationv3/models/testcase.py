@@ -172,6 +172,7 @@ class Testcase:
                       for stmt in read_edn_statements(value)]
 
         all_statements = self.statements
+        original_len = len(all_statements)
         all_statements[index:index+1] = statements
 
         # Now we need to just write out each sections
@@ -184,7 +185,11 @@ class Testcase:
         # if statements read is of len == 1 then its only this index
         # otherwise its current index until the end
         if len(statements) <= 1:
-            return [index]
+            modifed = [index]
+            shifted = []
         else:
-            return list(range(index, len(all_statements)))
+            modifed = [i for i in range(index, index+len(statements))] 
+            shifted = [(i, i+len(statements)-1)
+                       for i in range(index+1, original_len)]
 
+        return modifed, shifted

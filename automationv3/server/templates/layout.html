@@ -97,6 +97,36 @@
         })
       })();
     </script>
+
+    <script>
+      // Prevent any events for steps that havent been updated
+      document.body.addEventListener('htmx:confirm', function(evt){
+        var triggeringEvent = evt.detail.triggeringEvent;
+        if (triggeringEvent && triggeringEvent.type === 'updated-section')
+        {
+          var url = new URL('http://example.com/' + evt.detail.path);
+          if (!(url.searchParams.get('section') in triggeringEvent.detail.updated))
+          {
+            evt.preventDefault();
+          }
+        }
+      });
+
+      document.body.addEventListener('htmx:configRequest', function(evt){
+        var triggeringEvent = evt.detail.triggeringEvent;
+        if (triggeringEvent && triggeringEvent.type === 'updated-section')
+        {
+          console.log(evt)
+          var url = new URL('http://example.com/' + evt.detail.path);
+          if (url.searchParams.get('section') in triggeringEvent.detail.updated)
+          {
+            var new_section = triggeringEvent.detail.updated[url.searchParams.get('section')];
+            evt.detail.parameters['updated'] = new_section
+          }
+        }
+      });
+
+    </script>
 </body>
 
 </html>

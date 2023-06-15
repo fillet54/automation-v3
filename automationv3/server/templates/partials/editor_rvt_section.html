@@ -1,14 +1,24 @@
 
-<div
-    class="border-2 border-transparent hover:border-blue-200 mx-1 my-1"
-    hx-get="{{ url_for('editor.section', 
+{% for section in sections %}
+<div hx-get="{{ url_for('editor.section', 
                         id=editor.id, 
-                        section=section,
-                        edit=True) }}"
-    hx-swap="outerHTML"
-    hx-trigger="dblclick"
-    >
+                        section=section) }}"
+       hx-swap="outerHTML"
+       hx-trigger="updated-section from:body">
+
+  <div class="border-2 border-transparent hover:border-blue-200 mx-1 my-1"
+       hx-get="{{ url_for('editor.section', 
+                          id=editor.id, 
+                          section=section,
+                          edit=True) }}"
+       hx-swap="outerHTML"
+       hx-trigger="dblclick"
+       >
+    
+      {{ testcase.statements[section]._repr_html_() | safe }}
   
-    {{ testcase.statements[section]._repr_html_() | safe }}
+  </div>
 
 </div>
+
+{% endfor %}

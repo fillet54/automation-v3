@@ -1,17 +1,19 @@
 <div class="flex flex-wrap">
   {% include "partials/editor_toolbar.html" %}
 
-  <div class="w-full prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1">
-  {% for statement in testcase.statements %}
+  <div class="w-full overflow-auto"
+       style="height: calc( 100vh - 151px )">
+    <div class="w-full prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1">
+    {% for statement in testcase.statements %}
 
-  <div
-      hx-get="{{ url_for('editor.section', 
-                        id=editor.id, 
-                        section=loop.index-1) }}"
-      hx-swap="outerHTML"
-      hx-trigger="load"></div>
+    <div
+        hx-get="{{ url_for('editor.section', 
+                          id=editor.id, 
+                          section=loop.index-1) }}"
+        hx-swap="outerHTML"
+        hx-trigger="load"></div>
 
-  {% endfor %}
+    {% endfor %}
+    </div>
   </div>
-
 </div>

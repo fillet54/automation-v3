@@ -104,6 +104,7 @@ testcase_sections = ['title', 'description', 'requirements', 'setup']
 @editor.route("<id>/content-section", methods=["GET"])
 def section(id):
     section = int(request.args.get('section', -1))
+    updated = int(request.args.get('updated', -1))
     edit = bool(request.args.get('edit', False))
 
     editor = get_editor(id)
@@ -120,7 +121,8 @@ def section(id):
                            editor=editor,
                            testcase=testcase,
                            document=document,
-                           section=section)
+                           section=section,
+                           sections=[section if updated == -1 else updated])
 
 
 @editor.route("<id>/content/<document_id>", methods=["POST"])
@@ -163,7 +165,8 @@ def update_testcase(id, document_id):
     
     triggers = {'tab-action': 'save-draft'}
 
-    testcase.update_statement(section, value)
+    modified, shifted = testcase.update_statement(section, value)
+    triggers[f'updated-section'] = {'updated': {o:n for o,n in shifted}}
 
     template = 'partials/editor_rvt_section.html'
     resp = make_response(render_template(template, 
@@ -171,7 +174,7 @@ def update_testcase(id, document_id):
                                          editor=editor,
                                          testcase=testcase,
                                          document=document,
-                                         section=section))
+                                         sections=modified))
     resp.headers['Hx-Trigger'] = json.dumps(triggers)
     return resp
 
