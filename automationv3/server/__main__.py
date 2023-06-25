@@ -11,7 +11,8 @@ from ..models.workspace import Workspace
 @click.option('--port', default=8080, help="HTTP port number")
 @click.option('--dbpath', default='./requirements.db', help="HTTP port number")
 @click.option('--workspace_path', default='./', help="Should point to git repo")
-def start_server(port, dbpath, workspace_path):
+@click.option('--debug', is_flag=True, help="Run in debug mode")
+def start_server(port, dbpath, workspace_path, debug):
     print(f"""\
                 _                        _   _              __      ______  
      /\        | |                      | | (_)             \ \    / /___ \ 
@@ -24,6 +25,7 @@ def start_server(port, dbpath, workspace_path):
 ----------------------------------------------------------------------------
 
     Server started: http://localhost:{port}/
+
 
     """)
 
@@ -39,10 +41,10 @@ def start_server(port, dbpath, workspace_path):
     Workspace.ensure_db(sqlite_conn)
 
 
+    if debug:
+        app.run(port=port, debug=True)
+    else:
+        serve(app, port=port, threads=8)
 
-    serve(app, port=port, threads=8)
-
-
-start_server()
 
 

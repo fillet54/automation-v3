@@ -2,10 +2,10 @@
      hx-target="this"
 >
 
+
 <textarea
        id="testcase-section-edit-{{ section }}"
        class="font-mono w-full"
-       style="max-height: 500px"
        hx-patch="{{ url_for('editor.update_testcase', 
                             id=editor.id,
                             document_id=document.id,
@@ -13,15 +13,24 @@
        hx-trigger="blur"
        hx-swap="outerHTML"
        hx-vals="js:{'value':document.getElementById('testcase-section-edit-{{ section }}').value}"
->{{ testcase.statements[section].__str__() }}</textarea>
+>
+  {{ testcase.statements[section].__str__() }}
+</textarea>
+
 <script>
   (function() {
-    const el = document.getElementById("testcase-section-edit-{{ section }}")
-    const end = el.value.length;
-    el.setSelectionRange(end, end);
-    el.focus()
+    const editordiv = document.getElementById("testcase-section-edit-{{ section }}")
+    var editor = CodeMirror.fromTextArea(editordiv, {
+     lineNumbers: true,
+     gutter: true,
+     autofocus: true
+   });
+   editor.on("blur", function() {
+     const evt = new Event("blur")
+     editordiv.dispatchEvent(evt);
+   });
 
-    autosize(document.querySelectorAll('textarea'));
+    //autosize(document.querySelectorAll('textarea'));
   })()
 </script>
 
