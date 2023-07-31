@@ -1,10 +1,10 @@
 from pathlib import Path
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, abort
 
-from automationv3.models import Requirement 
+from automationv3.models import Requirement
 
 from ..templates import template_root
-from ..models import get_requirements
+from ..models import db
 
 requirements = Blueprint('requirements', __name__,
                          template_folder=template_root)
@@ -12,21 +12,30 @@ requirements = Blueprint('requirements', __name__,
 @requirements.route("/", methods=["GET"])
 def list():
     subsystem = request.args.get('subsystem')
-    subsystems = get_requirements().get_subsystems()
-    requirements = get_requirements().get_by_subsystem(subsystem) if subsystem else get_requirements().get_all()
+
+    subsystems = [r.subsystem
+                  for r in db.query(Requirement.subsystem).distinct()]
+
+    query = db.query(Requirement)
+    if subsystem:
+        query = query.filter(Requirement.subsystem == subsystem)
+    reqs = query.all()
+
     return render_template("requirements.html", 
-                           requirements=requirements, 
+                           requirements=reqs, 
                            hx_request=request.headers.get('HX-Request', False),
                            selected_subsystem=subsystem, 
                            subsystems=subsystems)
 
 
-@requirements.route("/<requirement_id>", methods=["GET"])
-def by_id(requirement_id):
-    requirement = get_requirements().get_by_id(requirement_id)
+@requirements.route("/<id>", methods=["GET"])
+def by_id(id):
+    requirement = db.query(Requirement).filter(Requirement.id == id).one()
+
     if requirement is None:
-        requirement = Requirement(requirement_id,
-                                  text=f"Unknown Requirement {requirement_id}",
-                                  subsystem='Unknown')
-    return render_template("partials/requirement.html", requirement=requirement)
+        abort(404)
+
+    return render_template("partials/requirement.html",
+                           requirement=requirement)
+
 

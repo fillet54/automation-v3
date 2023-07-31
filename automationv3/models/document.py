@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from automationv3.framework import edn
+from .testcase import read_edn_statements
 
 def table_exists(conn, table_name):
     cursor = conn.execute("""

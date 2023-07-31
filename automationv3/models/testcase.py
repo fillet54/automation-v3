@@ -105,13 +105,22 @@ class Statement:
         # always be raw RST so just clean it up for
         # consistency in the edn file
         if isinstance(self.statement, str):
-            # newlines as real newlines
-            text = text.replace('\\n', '\n')
-            # leading and trailing double-quote on ownline
-            if not text.startswith('"\n'):
-                text = f'"\n{text[1:]}'
-            if not text.endswith('\n"'):
-                text = f'{text[:-1]}\n"'
+            # turn escaped newlines to actual newlines and remove whitespace
+            text = text.replace('\\n', '\n').strip()
+            #strip off quotes
+            text = text.strip('"')
+            # strip any other whitespace
+            text = text.strip()
+            # add back in quotes
+            text = f'"\n{text}\n"'
+            
+            ## newlines as real newlines
+            #text = text.replace('\\n', '\n')
+            ## leading and trailing double-quote on ownline
+            #if not text.startswith('"\n'):
+            #    text = f'"\n{text[1:]}'
+            #if not text.endswith('\n"'):
+            #    text = f'{text[:-1]}\n"'
         return text + '\n'
 
 

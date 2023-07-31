@@ -93,7 +93,8 @@ celerybeat-schedule
 *.DS_Store
 
 .venv/
-sample.db
-requirements.db
+*.db
+*.db-wal
+*.db-shm
 
 test/data/git_repos/

@@ -1,11 +1,11 @@
 <div class="mb-2">
   {% if 'shall' in requirement.text %}
     {{ requirement.text.split('shall')[0] }}
-    <strong>shall [{{ requirement.requirement_id }}] </strong>
+    <strong>shall [{{ requirement.id }}] </strong>
     {{ requirement.text.split('shall')[1] }}
   {% else %}
-    {{ requirement.text.split(requirement.requirement_id)[0] }}
-    <strong> [{{ requirement.requirement_id }}] </strong>
-    {{ requirement.text.split(requirement.requirement_id)[1] }}
+    {{ requirement.text.split(requirement.id)[0] }}
+    <strong> [{{ requirement.id }}] </strong>
+    {{ requirement.text.split(requirement.id)[1] }}
   {% endif %}
 </div>

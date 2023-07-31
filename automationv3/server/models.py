@@ -2,17 +2,26 @@ from flask import  current_app, g, abort
 import sqlite3
 from pathlib import Path
 import subprocess
+from sqlalchemy import select 
+from ..models import Workspace, Editor, Document
 
-from ..models import Requirements, Workspace, Editor, Document
+
+class DatabaseHelper:
+    @property
+    def session(self):
+        if 'session' not in g:
+            g.session = current_app.config['DB_SESSION_MAKER']()
+        return g.session
+
+    def query(self, *args):
+        return self.session.query(*args)
+
+db = DatabaseHelper()
 
 def get_db():
     if 'sqlite_db' not in g:
         g.sqlite_db = sqlite3.connect(current_app.config['DB_PATH'])
     return g.sqlite_db
-
-def get_requirements():
-    conn = get_db()
-    return Requirements(conn)
 
 def get_workspaces(id=None):
     conn = get_db()

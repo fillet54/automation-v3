@@ -2,6 +2,8 @@ import click
 from pathlib import Path
 from waitress import serve
 import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from . import app
 
@@ -9,7 +11,7 @@ from ..models.workspace import Workspace
 
 @click.command()
 @click.option('--port', default=8080, help="HTTP port number")
-@click.option('--dbpath', default='./requirements.db', help="HTTP port number")
+@click.option('--dbpath', default='./automationv3.db', help="HTTP port number")
 @click.option('--workspace_path', default='./', help="Should point to git repo")
 @click.option('--debug', is_flag=True, help="Run in debug mode")
 def start_server(port, dbpath, workspace_path, debug):
@@ -31,6 +33,10 @@ def start_server(port, dbpath, workspace_path, debug):
 
     app.config['DB_PATH'] = Path(dbpath).resolve()
     app.config['WORKSPACE_PATH'] = Path(workspace_path).resolve()
+
+    engine = create_engine(f"sqlite:///{app.config['DB_PATH']}")
+    app.config['DB_ENGINE'] = engine
+    app.config['DB_SESSION_MAKER'] = sessionmaker(engine)
 
 
     # Create DB and enable WAL

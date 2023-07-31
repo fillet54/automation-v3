@@ -3,32 +3,39 @@ import unittest
 import sqlite3
 from pathlib import Path
 from flask import Flask
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from automationv3.server.views.requirement_views import requirements
-from automationv3.models import Requirements, Requirement
+from automationv3.server.views.requirement import requirements
+from automationv3.models import ModelBase, Requirement
 
 class TestRequirementHandler(unittest.TestCase):
     def setUp(self):
+        
+        self.db_file = "test_requirements.db"
+        engine = create_engine(f"sqlite:///{self.db_file}")
+        self.sessionmaker = sessionmaker(engine) 
+        self.session = self.sessionmaker()
 
-        # Sample DB
-        self.db_file = Path("test_requirements.db").resolve()
-        self.conn = sqlite3.connect(self.db_file)
-        self.repo = Requirements(self.conn)
-        requirement1 = Requirement("R1", "Test requirement 1", "Test-subsystem-1")
-        requirement2 = Requirement("R2", "Test requirement 2", "Test-subsystem-2")
-        self.repo.add(requirement1)
-        self.repo.add(requirement2)
+        ModelBase.metadata.create_all(engine)
+
+        # Sample DB Data
+        req1 = Requirement(id="R1", text="Test requirement 1", subsystem="Test-subsystem-1")
+        req2 = Requirement(id="R2", text="Test requirement 2", subsystem="Test-subsystem-2")
+        self.session.add_all([req1, req2])
+        self.session.commit()
 
         # Setup a test app
         app = Flask(__name__)
         app.register_blueprint(requirements, url_prefix='/requirements')
 
         app.config['DB_PATH'] = self.db_file
+        app.config['DB_SESSION_MAKER'] = self.sessionmaker
         app.testing = True
         self.client = app.test_client()
 
     def tearDown(self):
-        self.repo._conn.close()
+        self.session.close()
         os.remove(self.db_file)
 
     def test_requirements_handler(self):

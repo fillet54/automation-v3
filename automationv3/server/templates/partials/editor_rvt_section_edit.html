@@ -13,9 +13,7 @@
        hx-trigger="blur"
        hx-swap="outerHTML"
        hx-vals="js:{'value':document.getElementById('testcase-section-edit-{{ section }}').value}"
->
-  {{ testcase.statements[section].__str__() }}
-</textarea>
+>{{ testcase.statements[section].__str__().strip() }}</textarea>
 
 <script>
   (function() {

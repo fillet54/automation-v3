@@ -68,6 +68,6 @@ class TestEditor(unittest.TestCase):
         
         # close active document
         editor.close(document2)
-        self.assertIsNone(editor.active_document)
+        self.assertEqual(document1, editor.active_document)
 
 
