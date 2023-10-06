@@ -12,8 +12,8 @@
                             section=section) }}"
        hx-trigger="blur"
        hx-swap="outerHTML"
-       hx-vals="js:{'value':document.getElementById('testcase-section-edit-{{ section }}').value}"
->{{ testcase.statements[section].__str__().strip() }}</textarea>
+       hx-vals="js:{'value':document.querySelector('#testcase-section-edit-{{ section }} + .CodeMirror').CodeMirror.getValue()}"
+>{{ testcase.statements[section].__str__().strip() if section != -1 else '' }}</textarea>
 
 <script>
   (function() {

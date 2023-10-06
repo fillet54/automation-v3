@@ -1,6 +1,53 @@
+'''
+==========
+The Reader
+==========
+This section will go over building a reader for the Extensible Data Notation (EDN). 
+Most of the descriptions on this page are directly from 
+`edn-format spec<https://github.com/edn-format/edn>` While the 
+spec itself is pretty informal it looks to provide enough detail to implement a 
+satisfactory reader.
+
+    **edn** is an extensible data notation. A superset of edn is used by Clojure to
+    represent programs, and it is used by Datomic and other applications as a
+    data transfer format. This spec describes edn in isolation from those and
+    other specific use cases, to help facilitate implementation of readers and
+    writers in other languages, and for other uses.
+    
+    edn supports a rich set of built-in elements, and the definition of
+    extension elements in terms of the others. Users of data formats without
+    such facilities must rely on either convention or context to convey
+    elements not included in the base set. This greatly complicates application
+    logic, betraying the apparent simplicity of the format. edn is simple, yet
+    powerful enough to meet the demands of applications without convention or
+    complex context-sensitive logic.
+    
+    edn is a system for the conveyance of values. It is not a type system, and
+    has no schemas. Nor is it a system for representing objects - there are no
+    reference types, nor should a consumer have an expectation that two
+    equivalent elements in some body of edn will yield distinct object
+    identities when read, unless a reader implementation goes out of its way to
+    make such a promise. Thus the resulting values should be considered
+    immutable, and a reader implementation should yield values that ensure
+    this, to the extent possible.
+    
+    edn is a set of definitions for acceptable elements. A use of edn might be
+    a stream or file containing elements, but it could be as small as the
+    conveyance of a single element in e.g. an HTTP query param.
+    
+    There is no enclosing element at the top level. Thus edn is suitable for
+    streaming and interactive applications.
+    
+    The base set of elements in edn is meant to cover the basic set of data
+    structures common to most programming languages. While edn specifies how
+    those elements are formatted in text, it does not dictate the
+    representation that results on the consumer side. A well behaved reader
+    library should endeavor to map the elements to programming language types
+    with similar semantics
+'''
+
 import re
 import io
-
 from collections import abc 
 
 # Helper
@@ -77,6 +124,11 @@ class PushBackCharStream:
     def ending_line_col_info(self):
         return (self.line, self.col)
 
+'''
+Classes
+=======
+The classes
+'''
 class Symbol(str):
     def __new__(cls, val, *args, **kwargs):
         return str.__new__(cls, val)
@@ -564,6 +616,9 @@ def write_sequence(obj, s, chars, indent_level=0):
     is_list =  chars == ('(', ')')
     indent_amount = 4 if is_list else 1
 
+    stemp = s
+    s = io.StringIO('')
+
     s.write(start)
     if any(complex_type(o) for o in obj):
         item_indent = indent_level + indent_amount
@@ -581,12 +636,82 @@ def write_sequence(obj, s, chars, indent_level=0):
 
     s.write(end)
 
+    if len(s.getvalue()) <= (100 - indent_level):
+        s = ' '.join(s.getvalue().split())
+    else:
+        s = s.getvalue()
+
+    stemp.write(s)
+
 def write_list(obj, s, indent_level=0):
     # There are a few special cases to eventually handle
     # 1. function def
     # 2. quote
     # 3. Simple types no indent
-    write_sequence(obj, s, chars=('(', ')'), indent_level=indent_level)
+    if obj[0] in ['fn', 'defn', 'if', 'if-not']:
+        parts = iter(obj)
+        s.write(' '*indent_level + '(') # indent
+        write(next(parts), s)          # fn or defn 
+        s.write(' ')
+        if obj[0] == 'defn':
+            write(next(parts), s)          # name
+            s.write(' ')
+        write(next(parts), s)          # arguments
+        s.write('\n')
+        count = 0
+        for x in parts:         # body
+            write_indent(s, indent_level+2)
+            write(x, s, indent_level=indent_level+2)
+            s.write('\n')
+        s.seek(s.tell()-1)
+        s.write(')')
+    elif obj[0] in ['StartSimulation']:
+        s.write(' '*indent_level + '(') # indent
+        write(obj[0], s)          # fn or defn 
+        s.write('\n')
+        # write pairs
+        count = 0
+        for l,r in zip(obj[1::2], obj[2::2]):
+            write_indent(s, indent_level+2)
+            write(l, s, indent_level=indent_level+2)
+            s.write(' ')
+            write(r, s)
+            count += 1
+            if count < len(obj[1:])//2:
+                s.write('\n')
+        s.write(')')
+    elif obj[0] in ['Table-Driven']:
+        write_indent(s, indent_level+2)
+        s.write('(Table-Driven\n')
+
+        # find column widths
+        headers = obj[1]
+        rows = obj[2]
+        widths = [len(h) for h in headers]
+
+        # header row
+        row_str = ''
+        for header, width in zip(headers, widths):
+            row_str += header
+            row_str += ' '
+        write_indent(s, indent_level+2)
+        s.write(f'[{row_str.strip()}]\n')
+
+        write_indent(s, indent_level+2)
+        s.write('[')
+        for i, row in enumerate(rows):
+            row_str = ''
+            for col, width in zip(row, widths):
+                col_str = writes(col).strip()
+                row_str += col_str + (' ' * (width - len(col_str)))
+                print("ROW", row, row_str)
+            if i != 0:
+                write_indent(s, indent_level+3)
+            s.write(f'[{row_str}]\n')
+        s.seek(s.tell()-1)
+        s.write('])')
+    else:
+        write_sequence(obj, s, chars=('(', ')'), indent_level=indent_level)
 
 def write_vector(obj, s, indent_level=0):
     write_sequence(obj, s, chars=('[', ']'), indent_level=indent_level)
@@ -645,3 +770,10 @@ def writes(obj, indent_level=0):
     write(obj, stream, indent_level)
     return stream.getvalue()
 
+if __name__ == '__main__':
+
+
+    s = read('''(abc 123 [3 4 5])''')
+
+    print(s.meta)
+    print(s[2].meta)

@@ -6,7 +6,7 @@ from sqlalchemy import pool
 from alembic import context
 
 from automationv3.models.base import ModelBase
-from automationv3.models.requirements2 import Requirement
+from automationv3.models.requirements import Requirement
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

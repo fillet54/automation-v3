@@ -1,16 +1,35 @@
+import io
 import functools
 import docutils.core
-from docutils.nodes import TextElement, Inline
-from docutils.parsers.rst import Directive, directives
+from docutils.nodes import TextElement, Inline, container, Text
+from docutils.parsers.rst import Directive, directives, roles
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
+from .requirements import Requirement 
 from ..framework import edn
+
+from flask import g, current_app
+import sqlite3
 
 ENDSTATEMENT_RST = '\n.. endstatement::\n\n'
 ENDSTATEMENT_DIV = '<splitter id="1234567890!!!!"/>'
 
+
+def requirement_reference_role(role, rawtext, text, lineno, inliner, options=None, content=None):
+    try:
+        node = requirement(text)
+        return [node], []
+    except Exception as e:
+        print(e)
+    return [], []
+
 class endstatement(Inline, TextElement):
     pass
+
+class requirement(Inline, TextElement):
+    def __init__(self, id):
+        super().__init__()
+        self.req_id = id
 
 class EndStatement(Directive):
     '''This `Directive` will split up statements
@@ -47,13 +66,34 @@ class TestcaseHTMLTranslator(HTMLTranslator):
         
     def depart_endstatement(self, node): pass
 
+    def visit_requirement(self, node):
+        try:
+            id = node.req_id
+
+            if 'session' not in g:
+                g.session = current_app.config['DB_SESSION_MAKER']()
+            session = g.session
+            requirement = session.query(Requirement).filter(Requirement.id == id).one()
+
+
+            if 'shall' in requirement.text:
+              div = f'<div>{requirement.text.split("shall")[0]}<strong>{requirement.id}</strong>{requirement.text.split("shall")[1]}</div>'
+            else:
+              div = f'<div>{requirement.text.split(requirement.id)[0]}<strong>{requirement.id}</strong>{requirement.text.split(requirement.id)[1]}</div>'
+            self.body.append(div)
+        except Exception as e:
+            print(e)
+    def depart_requirement(self, node):
+        pass
+
 class TestcaseHTMLWriter(Writer):
     def __init__(self):
         Writer.__init__(self)
         self.translator_class = TestcaseHTMLTranslator
 
-#register directive
+#register directives and roles
 directives.register_directive('endstatement', EndStatement)
+roles.register_canonical_role('REQ', requirement_reference_role)
 
 def rst_codeblock(src):
     return '\n'.join([
@@ -79,12 +119,81 @@ def _repr_rst_(obj):
     else:
         return rst_codeblock(edn.writes(obj))
 
+def edn_writes(stmt, indent=0):
+    try:
+        s = edn.writes(stmt).strip()
+        prefix = ' ' * indent
+        return ''.join(f'{prefix}{line}\n' for line in s.splitlines()).strip('\n')
+    except Exception as e:
+        print(e)
+
+def if_special_form_html(stmt):
+    body = f'''\
+<strong class="text-white">{stmt[0]}:</strong>\n<span class="text-blue-500">{edn_writes(stmt[1], 2)}</span>
+<strong class="text-white">then:</strong>\n{edn_writes(stmt[2], 2)}'''
+
+    if len(stmt) == 4:
+        body += '\n<strong class="text-white">else:\n  ' + edn_writes(stmt[3], 2)
+
+    return f"<pre>{body}</pre>"
+
+def startsimulation_html(stmt):
+    body = f'''<strong class="text-white">StartSimuation</strong>\n'''
+    pairs = [(edn.writes(k).strip(), edn.writes(v).strip())
+             for k,v in zip(stmt[1::2], stmt[2::2])]
+
+    max_k_len = max(len(k) for k,v in pairs)
+    
+    for k,v in pairs:
+        body += '   ' + k + ' '*(max_k_len - len(k)) + ' ' + v + '\n'
+
+    return f"<pre>{body}</pre>"
+
+def tabledriven_html(stmt):
+    _, headers, rows = stmt
+
+    s = io.StringIO('')
+    s.write('<div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">')
+    s.write('<div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">')
+    s.write('<div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">')
+    s.write('<table class="my-0 min-w-full divide-y divide-gray-300">')
+    s.write('<thead class="bg-gray-50"><tr class="divide-x divide-gray-200">')
+    s.write('\n'.join(f'<td class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">{header}</td>' for header in headers))
+    s.write('</tr></thead>')
+    s.write('<tbody>')
+    for row in rows:
+        s.write('<tr class="divide-x divide-gray-200">')
+        s.write(''.join(f'<td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{data}</td>' for data in row))
+        s.write('</tr>')
+    s.write('</tbody>')
+    s.write('</table>')
+    s.write('</div>')
+    s.write('</div>')
+    s.write('</div>')
+
+    return s.getvalue()
+
+
+html_repr = {
+    #'if': if_special_form_html,
+    'if-not': if_special_form_html,
+    'StartSimulation': startsimulation_html,
+    'Table-Driven': tabledriven_html
+}
+
 class Statement:
 
     def __init__(self, statement, html=None, rst=None):
         self.statement = statement
         self.html = html or ''
         self.rst = rst or ''
+
+
+        # TODO: This is just for quick examples
+        # special lookups
+        if len(statement) > 0 and statement[0] in html_repr:
+            self.html = html_repr[statement[0]](statement)
+        
 
     def __str__(self):
         return edn.writes(self.statement).replace('\\n', '\n').strip('"')
@@ -182,7 +291,12 @@ class Testcase:
 
         all_statements = self.statements
         original_len = len(all_statements)
-        all_statements[index:index+1] = statements
+
+        if index != -1:
+            all_statements[index:index+1] = statements
+        else:
+            all_statements += statements
+            
 
         # Now we need to just write out each sections
         content = '\n'.join([stmt._repr_edn_()
@@ -193,12 +307,15 @@ class Testcase:
         # return the sections updated
         # if statements read is of len == 1 then its only this index
         # otherwise its current index until the end
-        if len(statements) <= 1:
-            modifed = [index]
+        if index == -1: # added at end
+            modified = list(range(original_len, original_len+len(statements)))
+            shifted = []
+        elif len(statements) <= 1:
+            modified = [index]
             shifted = []
         else:
-            modifed = [i for i in range(index, index+len(statements))] 
+            modified = [i for i in range(index, index+len(statements))] 
             shifted = [(i, i+len(statements)-1)
                        for i in range(index+1, original_len)]
 
-        return modifed, shifted
+        return modified, shifted
