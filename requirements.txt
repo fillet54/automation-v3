@@ -3,3 +3,7 @@ jinja2
 waitress
 click
 docutils
+
+Sphinx
+sphinx-rtd-theme
+sphinx-tabs
