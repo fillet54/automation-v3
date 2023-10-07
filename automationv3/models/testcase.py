@@ -5,7 +5,7 @@ from docutils.nodes import TextElement, Inline, container, Text
 from docutils.parsers.rst import Directive, directives, roles
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
-from .requirements import Requirement 
+from ..requirements.models import Requirement 
 from ..framework import edn
 
 from flask import g, current_app
@@ -75,7 +75,7 @@ class TestcaseHTMLTranslator(HTMLTranslator):
             session = g.session
             requirement = session.query(Requirement).filter(Requirement.id == id).one()
 
-
+            # Should extract this from the requirement view/template
             if 'shall' in requirement.text:
               div = f'<div>{requirement.text.split("shall")[0]}<strong>{requirement.id}</strong>{requirement.text.split("shall")[1]}</div>'
             else:

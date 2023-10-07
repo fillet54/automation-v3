@@ -23,6 +23,7 @@ class TestEditor(unittest.TestCase):
         self.conn.close()
         os.remove(self.db_file)
         self.temp_file.unlink()
+        self.temp_file2.unlink()
 
 
     def test_create(self):

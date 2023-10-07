@@ -1,7 +1,8 @@
 from flask import Flask, render_template, g, redirect, url_for
 
 from ..runner import runner
-from .views import requirements, editor, workspace
+from ..requirements.views import requirements
+from .views import editor, workspace
 from .models import get_workspaces
 
 app = Flask(__name__)

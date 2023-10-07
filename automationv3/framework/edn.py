@@ -704,7 +704,6 @@ def write_list(obj, s, indent_level=0):
             for col, width in zip(row, widths):
                 col_str = writes(col).strip()
                 row_str += col_str + (' ' * (width - len(col_str)))
-                print("ROW", row, row_str)
             if i != 0:
                 write_indent(s, indent_level+3)
             s.write(f'[{row_str}]\n')

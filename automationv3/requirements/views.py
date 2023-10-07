@@ -1,13 +1,12 @@
 from pathlib import Path
 from flask import Blueprint, render_template, request, abort
 
-from automationv3.models import Requirement
+from .models import Requirement
 
-from ..templates import template_root
-from ..models import db
+from ..server.models import db
 
 requirements = Blueprint('requirements', __name__,
-                         template_folder=template_root)
+                         template_folder=Path(__file__).resolve().parent / 'templates')
 
 @requirements.route("/", methods=["GET"])
 def list():
