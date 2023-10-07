@@ -1,5 +1,5 @@
 <ul>
     {% for requirement in requirements %}
-    {% include "partials/requirement.html" %}
+      {{ requirement.__repr_html__() | safe }}
     {% endfor %}
 </ul>

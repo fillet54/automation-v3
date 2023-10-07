@@ -6,8 +6,9 @@ from flask import Flask
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from automationv3.server.views.requirement import requirements
-from automationv3.models import ModelBase, Requirement
+from automationv3 import server
+from automationv3.requirements.views import requirements
+from automationv3.requirements.models import Requirement
 
 class TestRequirementHandler(unittest.TestCase):
     def setUp(self):
@@ -17,7 +18,7 @@ class TestRequirementHandler(unittest.TestCase):
         self.sessionmaker = sessionmaker(engine) 
         self.session = self.sessionmaker()
 
-        ModelBase.metadata.create_all(engine)
+        Requirement.metadata.create_all(engine)
 
         # Sample DB Data
         req1 = Requirement(id="R1", text="Test requirement 1", subsystem="Test-subsystem-1")
@@ -26,7 +27,7 @@ class TestRequirementHandler(unittest.TestCase):
         self.session.commit()
 
         # Setup a test app
-        app = Flask(__name__)
+        app = Flask(__name__, template_folder=Path(server.__file__).parent / 'templates')
         app.register_blueprint(requirements, url_prefix='/requirements')
 
         app.config['DB_PATH'] = self.db_file

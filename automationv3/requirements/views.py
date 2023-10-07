@@ -34,7 +34,6 @@ def by_id(id):
     if requirement is None:
         abort(404)
 
-    return render_template("partials/requirement.html",
-                           requirement=requirement)
+    return requirement.__repr_html__()
 
 

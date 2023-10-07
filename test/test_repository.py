@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session 
 import os
 
-from automationv3.models import Requirement, ModelBase
+from automationv3.requirements.models import Requirement
 
 class TestRequirements(unittest.TestCase):
     def setUp(self):
@@ -11,7 +11,7 @@ class TestRequirements(unittest.TestCase):
         engine = create_engine(f"sqlite:///{self.db_file}")
         self.session = Session(engine) 
 
-        ModelBase.metadata.create_all(engine)
+        Requirement.metadata.create_all(engine)
 
         reqs = [
             Requirement(id="R1", text="Test requirement 1", subsystem="Test subsystem 1"),
@@ -54,7 +54,7 @@ class TestRequirements(unittest.TestCase):
         result = self.session.query(Requirement).filter(Requirement.id == 'R1').one()
         self.session.delete(result)
         self.session.commit()
-        result = self.session.query(Requirement).filter(Requirement.id == 'R1').one()
+        result = self.session.query(Requirement).filter(Requirement.id == 'R1').first()
         self.assertIsNone(result)
 
 if __name__ == "__main__":

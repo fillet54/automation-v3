@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy import String, select, delete
 from sqlalchemy.orm import Mapped, mapped_column, Session
 from sqlalchemy.exc import NoResultFound
@@ -13,3 +15,10 @@ class Requirement(ModelBase):
     text: Mapped[str] = mapped_column(String(1024))
     subsystem: Mapped[str] = mapped_column(String(20))
 
+    @classmethod
+    def find_by_id(cls, session, id):
+        return session.query(cls).filter_by(id=id).first()
+
+    def __repr_html__(self):
+        markup = re.sub(r'\s+shall\s+', f' <strong>shall [{self.id}]</strong> ', self.text)
+        return f'<div class="mb-2">{markup}</div>'

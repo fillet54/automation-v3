@@ -547,6 +547,7 @@ READ_EOF = 'READ_EOF'
 READ_FINISHED = 'READ_FINISHED'
 
 def read(stream_or_str, sentinel=None):
+    '''Reads a stream or string of EDN and converts to python datastructures'''
     
     if isinstance(stream_or_str, str):
         stream = PushBackCharStream(stream_or_str)

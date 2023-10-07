@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, abort
 from datetime import datetime 
 
 from . import sqlqueue
-from ..server.models import get_db
+from ..database import get_db
 
 runner = Blueprint('runner', __name__, 
                    template_folder=Path(__file__).resolve().parent / 'templates')

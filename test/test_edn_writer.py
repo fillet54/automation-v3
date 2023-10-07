@@ -71,14 +71,8 @@ class TestEdnWriter(unittest.TestCase):
     def test_list_basic(self):
         self.assertEqual('(1 2 3)', writes(read('(1 2 3)')))
     
-    def test_list_with_complex_will_indent_each(self):
-        self.assertEqual('''\
-((1 2)
-    3)''', writes(read('((1 2) 3)')))
-
-    # TODO: Round-trip user style. 
-    # We can possibly use meta data to figure out
-    # if the original list spanned multiple lines or not
+    def test_list_with_complex_will_not_indent_if_len_less_than_100(self):
+        self.assertEqual('((1 2) 3)', writes(read('((1 2) 3)')))
 
     # Vector
     def test_vector_basic(self):
@@ -108,10 +102,8 @@ class TestEdnWriter(unittest.TestCase):
     def test_set_basic(self):
         self.assertEqual('#{1 2 3}', writes(read('#{1 2 3}')))
     
-    def test_set_with_complex_will_indent_each(self):
-        self.assertEqual('''\
-#{3
- (1 2)}''', writes(read('#{(1 2) 3}')))
+    def test_set_with_complex_will_not_indent_if_len_less_than_100(self):
+        self.assertEqual('#{3 (1 2)}', writes(read('#{(1 2) 3}')))
 
     # TODO: maintain set order
 

@@ -5,11 +5,7 @@ from docutils.nodes import TextElement, Inline, container, Text
 from docutils.parsers.rst import Directive, directives, roles
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
-from ..requirements.models import Requirement 
 from ..framework import edn
-
-from flask import g, current_app
-import sqlite3
 
 ENDSTATEMENT_RST = '\n.. endstatement::\n\n'
 ENDSTATEMENT_DIV = '<splitter id="1234567890!!!!"/>'
@@ -67,29 +63,28 @@ class TestcaseHTMLTranslator(HTMLTranslator):
     def depart_endstatement(self, node): pass
 
     def visit_requirement(self, node):
-        try:
-            id = node.req_id
-
-            if 'session' not in g:
-                g.session = current_app.config['DB_SESSION_MAKER']()
-            session = g.session
-            requirement = session.query(Requirement).filter(Requirement.id == id).one()
-
-            # Should extract this from the requirement view/template
-            if 'shall' in requirement.text:
-              div = f'<div>{requirement.text.split("shall")[0]}<strong>{requirement.id}</strong>{requirement.text.split("shall")[1]}</div>'
+        if self.requirement_by_id is not None:
+            req = self.requirement_by_id(node.req_id)
+            if req is not None:
+                return self.body.append(req.__repr_html__())
             else:
-              div = f'<div>{requirement.text.split(requirement.id)[0]}<strong>{requirement.id}</strong>{requirement.text.split(requirement.id)[1]}</div>'
-            self.body.append(div)
-        except Exception as e:
-            print(e)
+                return self.body.append(f'<div>{node.req_id}</div>')
+
     def depart_requirement(self, node):
         pass
 
 class TestcaseHTMLWriter(Writer):
-    def __init__(self):
+    def __init__(self, requirement_by_id=None):
         Writer.__init__(self)
-        self.translator_class = TestcaseHTMLTranslator
+
+        # Got to be a better way
+        class MyHTMLTranslator(TestcaseHTMLTranslator):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.requirement_by_id = requirement_by_id
+
+        self.translator_class = MyHTMLTranslator
+        #self.translator_class = lambda *args, **kwargs: TestcaseHTMLTranslator(*args, requirement_by_id=requirement_by_id, **kwargs)
 
 #register directives and roles
 directives.register_directive('endstatement', EndStatement)
@@ -239,7 +234,7 @@ class Statement:
 # required reparsing everything. Now we only reparse on
 # change of text content
 @functools.lru_cache(maxsize=128)
-def get_statements(content):
+def get_statements(content, requirement_by_id=None):
     statements = read_edn_statements(content)
     
     # At this point we can assume all of our statements
@@ -250,7 +245,7 @@ def get_statements(content):
     rst_statements = [_repr_rst_(stmt)
                       for stmt in statements]
     html = docutils.core.publish_parts(ENDSTATEMENT_RST.join(rst_statements),
-                                       writer=TestcaseHTMLWriter(),
+                                       writer=TestcaseHTMLWriter(requirement_by_id),
                                        settings_overrides={'initial_header_level':'3'})
     
     # Now we should be able to split the HTML on
@@ -266,16 +261,17 @@ def get_statements(content):
     
     return statements
 
-
+## This should be moved to the editor. The rest above is probably useful within the framework
 class Testcase:
 
-    def __init__(self, document):
+    def __init__(self, document, requirement_by_id=None):
         self.document = document
+        self.requirement_by_id = requirement_by_id
 
     @property
     def statements(self):
         # Always return a copy so the cache doesnt get messed up
-        return list(get_statements(self.document.content))
+        return list(get_statements(self.document.content, self.requirement_by_id))
 
     def update_statement(self, index, value):
         # simple detection of rst or code
