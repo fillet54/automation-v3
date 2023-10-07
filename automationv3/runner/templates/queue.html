@@ -1,0 +1,13 @@
+{% import "icons/icon.j2" as icon %}
+{% extends "layout.html" %}
+
+{% block content %}
+<h1>Job Queue</h1>
+Size: {{ queue.qsize() }}
+
+{% for msg in queue.get() %}
+  <ul>
+    {% include "partials/queued_item.html" %}
+  </ul>
+{% endfor %}
+{% endblock %}
