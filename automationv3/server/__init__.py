@@ -1,6 +1,6 @@
 from flask import Flask, render_template, g, redirect, url_for
 
-from ..runner import runner
+from ..jobqueue import jobqueue 
 from ..requirements.views import requirements
 from .views import editor, workspace
 from .models import get_workspaces
@@ -9,7 +9,7 @@ app = Flask(__name__)
 app.register_blueprint(requirements, url_prefix='/requirements')
 app.register_blueprint(workspace, url_prefix='/workspace')
 app.register_blueprint(editor, url_prefix='/editor')
-app.register_blueprint(runner, url_prefix='/runner')
+app.register_blueprint(jobqueue, url_prefix='/runner')
 
 @app.route('/')
 def index():

@@ -1,7 +1,7 @@
 import unittest
 import os
 
-from automationv3.runner.sqlqueue import *
+from automationv3.jobqueue.sqlqueue import *
 
 
 class TestSqlPriorityQueue(unittest.TestCase):

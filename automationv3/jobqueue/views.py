@@ -1,3 +1,5 @@
+'''Job Runner / Queue'''
+
 from pathlib import Path
 from flask import Blueprint, render_template, request, abort
 from datetime import datetime 
@@ -5,10 +7,10 @@ from datetime import datetime
 from . import sqlqueue
 from ..database import get_db
 
-runner = Blueprint('runner', __name__, 
+jobqueue = Blueprint('jobqueue', __name__, 
                    template_folder=Path(__file__).resolve().parent / 'templates')
 
-@runner.route("/", methods=["GET"])
+@jobqueue.route("/", methods=["GET"])
 def list():
     q = sqlqueue.SQLPriorityQueue(get_db())
 
@@ -16,7 +18,7 @@ def list():
 
     return render_template("queue.html", queue=q)
 
-@runner.app_template_filter()
+@jobqueue.app_template_filter()
 def humanize_ts(timestamp=False):
     """
     Get a datetime object or a int() Epoch timestamp and return a

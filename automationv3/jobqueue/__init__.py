@@ -38,4 +38,4 @@ node which can distribute to workers.
 
 '''
 
-from .views import runner
+from .views import jobqueue

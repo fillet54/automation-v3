@@ -8,9 +8,10 @@ from automationv3.framework import edn
 from automationv3.models import Testcase, Document
 
 from automationv3.requirements.models import Requirement 
+from automationv3.jobqueue import sqlqueue
+from automationv3.database import get_db
 
 from ..models import db, get_workspaces, get_editor, get_document
-
 
 editor = Blueprint('editor', __name__,
                         template_folder='templates')
@@ -187,3 +188,23 @@ def update_testcase(id, document_id):
     resp.headers['Hx-Trigger'] = json.dumps(triggers)
     return resp
 
+@editor.route("<id>/run_test/<document_id>", methods=["POST"])
+def run_test(id, document_id):
+    q = sqlqueue.SQLPriorityQueue(get_db())
+    document = get_document(document_id)
+
+    # This is where we would actually create a job
+    # jobqueue.Job(client_id, body)
+    # framework.TestJob(body, client_id=None, content_type='automationv3/edn')
+    # framework.BatchTestJob(
+    #    [TestJob(body1), 
+    #     TestJob(body2),
+    #     TestJob(body3)], client_id=client_id, content_type='automationv3/edn')
+    job = {
+            "Content-Type": edn.Keyword('edn', namespace='automationv3'),
+            "body": document.content
+    }
+
+    q.put(edn.writes(job))
+
+    return make_response('SUCCESS', 200)
