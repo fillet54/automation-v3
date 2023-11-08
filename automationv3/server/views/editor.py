@@ -4,8 +4,8 @@ import json
 from itertools import groupby
 from flask import Blueprint, render_template, request, abort, current_app, make_response
 
-from automationv3.framework import edn
-from automationv3.models import Testcase, Document
+from automationv3.framework import edn, EdnTestCase
+from automationv3.models import Document
 
 from automationv3.requirements.models import Requirement 
 from automationv3.jobqueue import sqlqueue
@@ -15,9 +15,6 @@ from ..models import db, get_workspaces, get_editor, get_document
 
 editor = Blueprint('editor', __name__,
                         template_folder='templates')
-
-def requirement_by_id(id):
-    return Requirement.find_by_id(db.session, id)
 
 @editor.route("<id>/tabs", methods=["GET"])
 def tabs(id):
@@ -93,7 +90,7 @@ def content(id):
         template = 'partials/editor.html'
     elif active_document.mime == 'application/rvt':
         template = visual_editors[active_document.mime]
-        testcase = Testcase(active_document, requirement_by_id=requirement_by_id)
+        testcase = EdnTestCase(active_document.path.name, active_document.content)
     else:
         template = 'partials/editor.html'
 
@@ -116,7 +113,7 @@ def section(id):
 
     editor = get_editor(id)
     document = editor.active_document
-    testcase = Testcase(document, requirement_by_id=requirement_by_id)
+    testcase = EdnTestCase(document.path.name, document.content)
 
     if section == -1: # add new section
         testcase.statements.append('')
@@ -171,11 +168,13 @@ def update_testcase(id, document_id):
 
     editor = get_editor(id)
     document = get_document(document_id)
-    testcase = Testcase(document, requirement_by_id=requirement_by_id)
+    testcase = EdnTestCase(document.path.name, document.content)
     
     triggers = {'tab-action': 'save-draft'}
 
     modified, shifted = testcase.update_statement(section, value)
+    document.save_draft(testcase.text)
+
     triggers[f'updated-section'] = {'updated': {o:n for o,n in shifted}}
 
     template = 'partials/editor_rvt_section.html'

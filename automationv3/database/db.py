@@ -1,10 +1,27 @@
-from flask import  current_app, g, abort
+import sys
 import sqlite3
+from flask import  current_app, g, abort
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 class DatabaseHelper:
+    def __init__(self):
+        self._engine = None
+        self._sessionmaker = None
+
+    @property
+    def engine(self):
+        if g:
+            if 'engine' not in g:
+                g.engine = current_app.config['DB_ENGINE']()
+            return g.engine
+        else:
+            if self._engine is None or 'unittest' in sys.modules:
+                conn_str = f'sqlite:///{self.get_connection_str()}'
+                self._engine = create_engine(conn_str)
+            return self._engine
+
     @property
     def session(self):
         if g:
@@ -12,16 +29,22 @@ class DatabaseHelper:
                 g.session = current_app.config['DB_SESSION_MAKER']()
             return g.session
         else:
-            return sessionmaker(create_engine(f'sqlite:///{get_connection_str()}')) 
+            if self._sessionmaker is None or 'unittest' in sys.modules:
+                self._sessionmaker = sessionmaker(self.engine)
+            return self._sessionmaker()
 
     def query(self, *args):
         return self.session.query(*args)
 
-db = DatabaseHelper()
+    def get_connection_str(self):
+        # TODO: somehow get path to db. For now just hardcode
+        if 'unittest' in sys.modules:
+            return 'test.db'
+        else:
+            return './automationv3.db'
 
-def get_connnection_str():
-    # somehow get path to db. For now just hardcode
-    return './automationv3.db'
+
+db = DatabaseHelper()
 
 def get_db():
     if g:
@@ -29,4 +52,4 @@ def get_db():
             g.sqlite_db = sqlite3.connect(current_app.config['DB_PATH'])
         return g.sqlite_db
     else:
-        return sqlite3.connect(get_connnection_str())
+        return sqlite3.connect(db.get_connection_str())

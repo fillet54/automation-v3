@@ -547,7 +547,7 @@ READ_EOF = 'READ_EOF'
 READ_FINISHED = 'READ_FINISHED'
 
 def read(stream_or_str, sentinel=None):
-    '''Reads a stream or string of EDN and converts to python datastructures'''
+    '''Reads EDN returning the first form as a python datastructure'''
     
     if isinstance(stream_or_str, str):
         stream = PushBackCharStream(stream_or_str)
@@ -574,6 +574,14 @@ def read(stream_or_str, sentinel=None):
                 return form
         else: 
             return read_symbol(stream, ch)
+
+def read_all(text):
+    '''Reads EDN returning the all forms'''
+
+    stream = PushBackCharStream(text)
+    while (statement := read(stream)) != READ_EOF:
+        yield statement
+
 
 # Write functions
 # This is trickier than it looks to get it to output
