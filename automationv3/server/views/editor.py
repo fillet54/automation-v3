@@ -93,7 +93,7 @@ def content(id):
         template = 'partials/editor.html'
     elif active_document.mime == 'application/rvt':
         template = visual_editors[active_document.mime]
-        testcase = Testcase(active_document, requirement_by_id=requirement_by_id)
+        testcase = Testcase(active_document.content, requirement_by_id=requirement_by_id)
     else:
         template = 'partials/editor.html'
 
@@ -116,7 +116,7 @@ def section(id):
 
     editor = get_editor(id)
     document = editor.active_document
-    testcase = Testcase(document, requirement_by_id=requirement_by_id)
+    testcase = Testcase(document.content, requirement_by_id=requirement_by_id)
 
     if section == -1: # add new section
         testcase.statements.append('')
@@ -171,11 +171,13 @@ def update_testcase(id, document_id):
 
     editor = get_editor(id)
     document = get_document(document_id)
-    testcase = Testcase(document, requirement_by_id=requirement_by_id)
+    testcase = Testcase(document.content, requirement_by_id=requirement_by_id)
     
     triggers = {'tab-action': 'save-draft'}
 
     modified, shifted = testcase.update_statement(section, value)
+    document.save_draft(testcase.content)
+
     triggers[f'updated-section'] = {'updated': {o:n for o,n in shifted}}
 
     template = 'partials/editor_rvt_section.html'

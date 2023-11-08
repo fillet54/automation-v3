@@ -1,7 +1,7 @@
 import unittest
 import os
 
-from automationv3.framework.edn import read, Symbol, Keyword, List, Vector, Map, Set
+from automationv3.framework.edn import read, read_all, Symbol, Keyword, List, Vector, Map, Set
 
 
 class TestEdnReader(unittest.TestCase):
@@ -12,7 +12,6 @@ class TestEdnReader(unittest.TestCase):
 
     def test_symbol_with_namespace(self):
         self.assertEqual(read('ns/my-name'), Symbol('my-name', namespace='ns'))
-
     def test_symbol_true(self):
         self.assertEqual(read('true'), True)
     
@@ -186,6 +185,19 @@ class TestEdnReader(unittest.TestCase):
     # Quote
     def test_quote_shorthand(self):
         self.assertEqual(read(r"'(1 2 3)"), ['quote', [1, 2, 3]])
+
+
+    def test_read_all(self):
+        forms = read_all('''
+            (form1 x y z)
+
+            (form2 a b c)''')
+        forms = list(forms) 
+        
+
+        self.assertEqual(len(forms), 2)
+        self.assertEqual(forms[0][0], 'form1')
+        self.assertEqual(forms[1][0], 'form2')
 
 if __name__ == '__main__':
     unittest.main()

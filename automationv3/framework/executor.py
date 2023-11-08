@@ -19,3 +19,16 @@ discovered_plugins = {
 def execute_text(text, observer):
     observer.on_test_begin()
     observer.on_test_end()
+
+
+if __name__ == '__main__':
+
+    for name in discovered_plugins.keys():
+        print(name)
+
+    for block in BuildingBlock.__subclasses__():
+        b = block()
+        print(dir(b))
+        print(b.__module__)
+
+        print(b.name())

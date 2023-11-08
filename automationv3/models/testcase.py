@@ -1,7 +1,10 @@
+'''Testcase and Methods'''
+
 import io
 import functools
 import docutils.core
-from docutils.nodes import TextElement, Inline, container, Text
+from docutils import nodes
+from docutils.nodes import TextElement, Inline, container, Text, SparseNodeVisitor
 from docutils.parsers.rst import Directive, directives, roles
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
@@ -36,6 +39,21 @@ class EndStatement(Directive):
     def run(self):
         thenode = endstatement()
         return [thenode]
+
+class TestcaseFieldsExtractor(HTMLTranslator):
+    def __init__(self, document):
+        HTMLTranslator.__init__(self, document)
+
+    def visit_title(self, node):
+        if isinstance(node.parent, nodes.document):
+            print("TITLE: ", node, node.astext())
+    def depart_title(self, node): pass
+    
+    def visit_requirement(self, node):
+        pass
+
+    def depart_requirement(self, node):
+        pass
 
 class TestcaseHTMLTranslator(HTMLTranslator):
     documenttag_args = {'tagname': 'div', 
@@ -264,14 +282,21 @@ def get_statements(content, requirement_by_id=None):
 ## This should be moved to the editor. The rest above is probably useful within the framework
 class Testcase:
 
-    def __init__(self, document, requirement_by_id=None):
-        self.document = document
+    def __init__(self, content, requirement_by_id=None):
+        self.content = content
         self.requirement_by_id = requirement_by_id
+
+        statements = read_edn_statements(content)
+        rst_statements = [_repr_rst_(stmt)
+                          for stmt in statements]
+        writer = Writer()
+        writer.translator_class = TestcaseFieldsExtractor
+        docutils.core.publish_parts('\n'.join(rst_statements), writer=writer)
 
     @property
     def statements(self):
         # Always return a copy so the cache doesnt get messed up
-        return list(get_statements(self.document.content, self.requirement_by_id))
+        return list(get_statements(self.content, self.requirement_by_id))
 
     def update_statement(self, index, value):
         # simple detection of rst or code
@@ -297,7 +322,7 @@ class Testcase:
         # Now we need to just write out each sections
         content = '\n'.join([stmt._repr_edn_()
                              for stmt in all_statements])
-        self.document.save_draft(content)
+        self.content = content
 
         # Still not sure how I handle this.
         # return the sections updated

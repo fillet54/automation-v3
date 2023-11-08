@@ -1,0 +1,155 @@
+'''Utilities for reStructuredText
+
+'''
+#from docutils import nodes
+#from docutils.nodes import TextElement, Inline, container, Text, SparseNodeVisitor
+#from docutils.parsers.rst import Directive, directives, roles
+#from docutils.writers.html4css1 import Writer, HTMLTranslator
+#
+#from ..framework import edn
+#
+#ENDSTATEMENT_RST = '\n.. endstatement::\n\n'
+#ENDSTATEMENT_DIV = '<splitter id="1234567890!!!!"/>'
+#
+#
+#def requirement_reference_role(role, rawtext, text, lineno, inliner, options=None, content=None):
+#    try:
+#        node = requirement(text)
+#        return [node], []
+#    except Exception as e:
+#        print(e)
+#    return [], []
+#
+#class endstatement(Inline, TextElement):
+#    pass
+#
+#class requirement(Inline, TextElement):
+#    def __init__(self, id):
+#        super().__init__()
+#        self.req_id = id
+#
+#class EndStatement(Directive):
+#    '''This `Directive` will split up statements
+#    '''
+#    required_arguments = 0
+#    optional_arguments = 0
+#    has_content = False
+#    def run(self):
+#        thenode = endstatement()
+#        return [thenode]
+#
+#class TestcaseFieldsExtractor(HTMLTranslator):
+#    def __init__(self, document):
+#        HTMLTranslator.__init__(self, document)
+#
+#    def visit_title(self, node):
+#        if isinstance(node.parent, nodes.document):
+#            print("TITLE: ", node, node.astext())
+#    def depart_title(self, node): pass
+#    
+#    def visit_requirement(self, node):
+#        pass
+#
+#    def depart_requirement(self, node):
+#        pass
+#
+#class TestcaseHTMLTranslator(HTMLTranslator):
+#    documenttag_args = {'tagname': 'div', 
+#                        'CLASS': 'document prose prose-li:mt-0 prose-li:mb-0 prose-p:mb-1 prose-p:mt-1 prose-headings:mb-2 prose-headings:mt-5'}
+#    
+#    def __init__(self, document):
+#        HTMLTranslator.__init__(self, document)
+#
+#    def visit_document(self, node):
+#        super().visit_document(node)
+#        self.body.append(ENDSTATEMENT_DIV)
+#
+#    def depart_document(self, node):
+#        self.body.append(ENDSTATEMENT_DIV)
+#        super().depart_document(node)
+#
+#    # Don't want nested sections since we might split
+#    # a section 
+#    def visit_section(self, node): pass
+#    def depart_section(self, node): pass
+#
+#    def visit_endstatement(self, node):
+#        self.body.append(ENDSTATEMENT_DIV)
+#        
+#    def depart_endstatement(self, node): pass
+#
+#    def visit_requirement(self, node):
+#        if self.requirement_by_id is not None:
+#            req = self.requirement_by_id(node.req_id)
+#            if req is not None:
+#                return self.body.append(req.__repr_html__())
+#            else:
+#                return self.body.append(f'<div>{node.req_id}</div>')
+#
+#    def depart_requirement(self, node):
+#        pass
+#
+#class TestcaseHTMLWriter(Writer):
+#    def __init__(self, requirement_by_id=None):
+#        Writer.__init__(self)
+#
+#        # Got to be a better way
+#        class MyHTMLTranslator(TestcaseHTMLTranslator):
+#            def __init__(self, *args, **kwargs):
+#                super().__init__(*args, **kwargs)
+#                self.requirement_by_id = requirement_by_id
+#
+#        self.translator_class = MyHTMLTranslator
+#        #self.translator_class = lambda *args, **kwargs: TestcaseHTMLTranslator(*args, requirement_by_id=requirement_by_id, **kwargs)
+
+
+
+
+
+import docutils.core
+from docutils import writers, nodes
+
+
+class TestCaseWriter(writers.Writer):
+    def __init__(self):
+        writers.Writer.__init__(self)
+        self.translator_class = TestCaseTranslator
+        self.visitor = None
+
+    def translate(self):
+        self.visitor = visitor = self.translator_class(self.document)
+        self.document.walkabout(visitor)
+        self.output = visitor.output
+
+
+class TestCaseTranslator(nodes.GenericNodeVisitor):
+    def __init__(self, document):
+        nodes.NodeVisitor.__init__(self, document)
+        self.output = {}
+
+    # GenericNodeVisitor methods
+    def default_visit(self, node):
+        """Default node visit method."""
+        pass
+
+    def default_departure(self, node):
+        """Default node depart method."""
+        pass
+
+    def visit_title(self, node):
+        if isinstance(node.parent, nodes.document):
+            self.output['title'] = node.astext()
+
+    # NodeVisitor methods
+    def unknown_departure(self, node):
+        pass
+
+    def unknown_visit(self, node):
+        pass
+
+
+def extract_testcase_fields(text):
+    '''Extracts testcase fields from rst'''
+    writer = TestCaseWriter()
+    parts = docutils.core.publish_parts(text, writer=writer)
+    return parts['whole']
