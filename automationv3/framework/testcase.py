@@ -64,7 +64,7 @@ class EdnTestCase(TestCase):
 
     @property
     def requirements(self):
-        pass
+        return list(self.fields['requirements'])
 
 
     def __repr_rst__(self):

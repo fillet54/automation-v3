@@ -1,9 +1,13 @@
 '''Utilities for reStructuredText
 
 '''
+
+import docutils.core
+from docutils import writers, nodes
+from docutils.parsers.rst import roles #Directive, directives
+
 #from docutils import nodes
 #from docutils.nodes import TextElement, Inline, container, Text, SparseNodeVisitor
-#from docutils.parsers.rst import Directive, directives, roles
 #from docutils.writers.html4css1 import Writer, HTMLTranslator
 #
 #from ..framework import edn
@@ -12,22 +16,26 @@
 #ENDSTATEMENT_DIV = '<splitter id="1234567890!!!!"/>'
 #
 #
-#def requirement_reference_role(role, rawtext, text, lineno, inliner, options=None, content=None):
-#    try:
-#        node = requirement(text)
-#        return [node], []
-#    except Exception as e:
-#        print(e)
-#    return [], []
-#
+def requirement_reference_role(role, rawtext, text, lineno, inliner, options=None, content=None):
+    try:
+        node = requirement(text)
+        return [node], []
+    except Exception as e:
+        print(e)
+    return [], []
+
+class requirement(nodes.Inline, nodes.TextElement):
+    def __init__(self, id):
+        super().__init__()
+        self.req_id = id
+
+# Register requirement role 
+roles.register_canonical_role('REQ', requirement_reference_role)
+
 #class endstatement(Inline, TextElement):
 #    pass
 #
-#class requirement(Inline, TextElement):
-#    def __init__(self, id):
-#        super().__init__()
-#        self.req_id = id
-#
+
 #class EndStatement(Directive):
 #    '''This `Directive` will split up statements
 #    '''
@@ -106,11 +114,10 @@
 
 
 
-import docutils.core
-from docutils import writers, nodes
 
 
-class TestCaseWriter(writers.Writer):
+class TestCaseFieldWriter(writers.Writer):
+    '''Writes test case fields to a dictionary'''
     def __init__(self):
         writers.Writer.__init__(self)
         self.translator_class = TestCaseTranslator
@@ -125,7 +132,10 @@ class TestCaseWriter(writers.Writer):
 class TestCaseTranslator(nodes.GenericNodeVisitor):
     def __init__(self, document):
         nodes.NodeVisitor.__init__(self, document)
-        self.output = {}
+        self.output = {
+            'title': '',
+            'requirements': set()
+        }
 
     # GenericNodeVisitor methods
     def default_visit(self, node):
@@ -136,9 +146,6 @@ class TestCaseTranslator(nodes.GenericNodeVisitor):
         """Default node depart method."""
         pass
 
-    def visit_title(self, node):
-        if isinstance(node.parent, nodes.document):
-            self.output['title'] = node.astext()
 
     # NodeVisitor methods
     def unknown_departure(self, node):
@@ -147,9 +154,17 @@ class TestCaseTranslator(nodes.GenericNodeVisitor):
     def unknown_visit(self, node):
         pass
 
+    # Test case fields
+    def visit_title(self, node):
+        if isinstance(node.parent, nodes.document):
+            self.output['title'] = node.astext()
+
+    def visit_requirement(self, node):
+        self.output['requirements'].add(node.req_id)
+
 
 def extract_testcase_fields(text):
-    '''Extracts testcase fields from rst'''
-    writer = TestCaseWriter()
+    '''Extracts testcase fields from reStructuredText'''
+    writer = TestCaseFieldWriter()
     parts = docutils.core.publish_parts(text, writer=writer)
     return parts['whole']
