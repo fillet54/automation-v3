@@ -26,13 +26,73 @@ class TestCase(ABC):
     @abstractmethod
     def requirements(self):
         pass
+    
+    @property
+    @abstractmethod
+    def statements(self):
+        pass
+
+class TestCaseStatement:
+    '''Statement of a test case
+
+    This class essentially wraps a test case statement's
+    various representations. '''
+
+    def __init__(self, statement, html=None, rst=None):
+        self.statement = statement
+        self.html = html or ''
+        self.rst = rst or ''
+
+
+        # TODO: This is just for quick examples
+        #       In the future we will look up `BuildingBlockInst` and
+        #       if it exists then delegate to that for reprenstations
+        # special lookups
+        #if len(statement) > 0 and statement[0] in html_repr:
+        #    self.html = html_repr[statement[0]](statement)
+        
+
+    def __str__(self):
+        return edn.writes(self.statement).replace('\\n', '\n').strip('"')
+
+    def __repr__(self):
+        return str(self)
+
+    def _repr_html_(self):
+        return self.html
+
+    def _repr_rst_(self):
+        return self.rst
+
+    def _repr_edn_(self):
+        text = edn.writes(self.statement).strip()
+
+        # Clean up string formatting. This should
+        # always be raw RST so just clean it up for
+        # consistency in the edn file
+        if isinstance(self.statement, str):
+            # turn escaped newlines to actual newlines and remove whitespace
+            text = text.replace('\\n', '\n').strip()
+            #strip off quotes
+            text = text.strip('"')
+            # strip any other whitespace
+            text = text.strip()
+            # add back in quotes
+            text = f'"\n{text}\n"'
+            
+            ## newlines as real newlines
+            #text = text.replace('\\n', '\n')
+            ## leading and trailing double-quote on ownline
+            #if not text.startswith('"\n'):
+            #    text = f'"\n{text[1:]}'
+            #if not text.endswith('\n"'):
+            #    text = f'{text[:-1]}\n"'
+        return text + '\n'
 
 
 class EdnTestCase(TestCase):
     '''Test case represented in edn
-
-    An edn test case consist of a sequence of edn forms. The forms are 
-    limited to the types of `edn.List` and `edn.String`. All other 
+An edn test case consist of a sequence of edn forms. The forms are limited to the types of `edn.List` and `edn.String`. All other 
     forms are ignored/skipped.
 
     Forms of type `edn.List` are interpreted as representing building 
@@ -64,8 +124,11 @@ class EdnTestCase(TestCase):
 
     @property
     def requirements(self):
-        return list(self.fields['requirements'])
+        return self.fields['requirements']
 
+    @property
+    def statements(self):
+        pass
 
     def __repr_rst__(self):
         return edn_to_rst(self.text)

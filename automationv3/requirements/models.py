@@ -4,6 +4,8 @@ from sqlalchemy import String, select, delete
 from sqlalchemy.orm import Mapped, mapped_column, Session
 from sqlalchemy.exc import NoResultFound
 
+from ..database import db
+
 # TODO: Move to a database package
 from sqlalchemy.ext import declarative
 ModelBase = declarative.declarative_base()
@@ -16,8 +18,24 @@ class Requirement(ModelBase):
     subsystem: Mapped[str] = mapped_column(String(20))
 
     @classmethod
-    def find_by_id(cls, session, id):
-        return session.query(cls).filter_by(id=id).first()
+    def find_by_id(cls, id, session=None):
+        if session is not None:
+            return session.query(cls).filter_by(id=id).first()
+        else:
+            with db.session() as session:
+                req = session.query(cls).filter_by(id=id).first()
+                if req:
+                    session.expunge(req)
+                return req
+
+    def __eq__(self, other):
+        return (self.id, self.text, self.subsystem) == (other.id, other.text, other.subsystem)
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def __repr__(self):
+        return f'<Requirement: id={self.id}>'
 
     def __repr_html__(self):
         markup = re.sub(r'\s+shall\s+', f' <strong>shall [{self.id}]</strong> ', self.text)

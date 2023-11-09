@@ -4,7 +4,9 @@
 
 import docutils.core
 from docutils import writers, nodes
-from docutils.parsers.rst import roles #Directive, directives
+from docutils.parsers.rst import roles, Directive, directives
+
+from ..requirements.models import Requirement
 
 #from docutils import nodes
 #from docutils.nodes import TextElement, Inline, container, Text, SparseNodeVisitor
@@ -17,6 +19,7 @@ from docutils.parsers.rst import roles #Directive, directives
 #
 #
 def requirement_reference_role(role, rawtext, text, lineno, inliner, options=None, content=None):
+    '''rst role to support software requirement references'''
     try:
         node = requirement(text)
         return [node], []
@@ -27,7 +30,10 @@ def requirement_reference_role(role, rawtext, text, lineno, inliner, options=Non
 class requirement(nodes.Inline, nodes.TextElement):
     def __init__(self, id):
         super().__init__()
-        self.req_id = id
+        self.req = Requirement.find_by_id(id)
+        if self.req is None:
+            self.req = Requirement(id=id)
+
 
 # Register requirement role 
 roles.register_canonical_role('REQ', requirement_reference_role)
@@ -35,7 +41,6 @@ roles.register_canonical_role('REQ', requirement_reference_role)
 #class endstatement(Inline, TextElement):
 #    pass
 #
-
 #class EndStatement(Directive):
 #    '''This `Directive` will split up statements
 #    '''
@@ -46,34 +51,24 @@ roles.register_canonical_role('REQ', requirement_reference_role)
 #        thenode = endstatement()
 #        return [thenode]
 #
-#class TestcaseFieldsExtractor(HTMLTranslator):
-#    def __init__(self, document):
-#        HTMLTranslator.__init__(self, document)
-#
-#    def visit_title(self, node):
-#        if isinstance(node.parent, nodes.document):
-#            print("TITLE: ", node, node.astext())
-#    def depart_title(self, node): pass
-#    
-#    def visit_requirement(self, node):
-#        pass
-#
-#    def depart_requirement(self, node):
-#        pass
 #
 #class TestcaseHTMLTranslator(HTMLTranslator):
 #    documenttag_args = {'tagname': 'div', 
 #                        'CLASS': 'document prose prose-li:mt-0 prose-li:mb-0 prose-p:mb-1 prose-p:mt-1 prose-headings:mb-2 prose-headings:mt-5'}
+#
+#    # Delimiters for endstatement directives
+#    ENDSTATEMENT_RST = '\n.. endstatement::\n\n'
+#    ENDSTATEMENT_DIV = '<splitter id="1234567890!!!!"/>'
 #    
 #    def __init__(self, document):
 #        HTMLTranslator.__init__(self, document)
 #
 #    def visit_document(self, node):
 #        super().visit_document(node)
-#        self.body.append(ENDSTATEMENT_DIV)
+#        self.body.append(self.ENDSTATEMENT_DIV)
 #
 #    def depart_document(self, node):
-#        self.body.append(ENDSTATEMENT_DIV)
+#        self.body.append(self.ENDSTATEMENT_DIV)
 #        super().depart_document(node)
 #
 #    # Don't want nested sections since we might split
@@ -82,7 +77,7 @@ roles.register_canonical_role('REQ', requirement_reference_role)
 #    def depart_section(self, node): pass
 #
 #    def visit_endstatement(self, node):
-#        self.body.append(ENDSTATEMENT_DIV)
+#        self.body.append(self.ENDSTATEMENT_DIV)
 #        
 #    def depart_endstatement(self, node): pass
 #
@@ -101,14 +96,13 @@ roles.register_canonical_role('REQ', requirement_reference_role)
 #    def __init__(self, requirement_by_id=None):
 #        Writer.__init__(self)
 #
-#        # Got to be a better way
-#        class MyHTMLTranslator(TestcaseHTMLTranslator):
-#            def __init__(self, *args, **kwargs):
-#                super().__init__(*args, **kwargs)
-#                self.requirement_by_id = requirement_by_id
+#        #class TestCaseHTMLTranslator(TestcaseHTMLTranslator):
+#        #    '''
+#        #    def __init__(self, *args, **kwargs):
+#        #        super().__init__(*args, **kwargs)
+#        #        self.requirement_by_id = requirement_by_id
 #
-#        self.translator_class = MyHTMLTranslator
-#        #self.translator_class = lambda *args, **kwargs: TestcaseHTMLTranslator(*args, requirement_by_id=requirement_by_id, **kwargs)
+#        self.translator_class = TestcaseHTMLTranslator
 
 
 
@@ -160,7 +154,7 @@ class TestCaseTranslator(nodes.GenericNodeVisitor):
             self.output['title'] = node.astext()
 
     def visit_requirement(self, node):
-        self.output['requirements'].add(node.req_id)
+        self.output['requirements'].add(node.req)
 
 
 def extract_testcase_fields(text):

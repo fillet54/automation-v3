@@ -106,7 +106,7 @@ class TestcaseHTMLWriter(Writer):
 
 #register directives and roles
 directives.register_directive('endstatement', EndStatement)
-roles.register_canonical_role('REQ', requirement_reference_role)
+#roles.register_canonical_role('REQ', requirement_reference_role)
 
 def rst_codeblock(src):
     return '\n'.join([
