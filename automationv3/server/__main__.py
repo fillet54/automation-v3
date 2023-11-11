@@ -1,21 +1,23 @@
-import click
-from pathlib import Path
-from waitress import serve
-import sqlite3
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+#!/usr/bin/python3 
 
-from . import app
+"""Automation Framework
 
-from ..models.workspace import Workspace
+Usage:
+    automationv3 [--port PORT] [--dbpath PATH]
+                 [--workspace_path PATH] [--debug]
+    automationv3 (-h | --help)
 
-@click.command()
-@click.option('--port', default=8080, help="HTTP port number")
-@click.option('--dbpath', default='./automationv3.db', help="HTTP port number")
-@click.option('--workspace_path', default='./', help="Should point to git repo")
-@click.option('--debug', is_flag=True, help="Run in debug mode")
-def start_server(port, dbpath, workspace_path, debug):
-    print(f"""\
+Options:
+    -h --help              show this help message and exit
+    --port=PORT            tcp port to bind to [default: 8080]
+    --dbpath=PATH          path to application database file 
+                           [default: ./automationv3.db]
+    --workspace_path=PATH  path to git repo [default: ./]
+    --debug                enables autoload [default: false]
+
+"""
+__version__ = '3.0.0'
+__banner__ = f"""\
                 _                        _   _              __      ______  
      /\        | |                      | | (_)             \ \    / /___ \ 
     /  \  _   _| |_ ___  _ __ ___   __ _| |_ _  ___  _ __    \ \  / /  __) |
@@ -23,21 +25,39 @@ def start_server(port, dbpath, workspace_path, debug):
   / ____ \ |_| | || (_) | | | | | | (_| | |_| | (_) | | | |    \  /   ___) |
  /_/    \_\__,_|\__\___/|_| |_| |_|\__,_|\__|_|\___/|_| |_|     \/   |____/ 
 
-                                                             Version: 3.0.0
+{'Version: ' + __version__ : >75} 
 ----------------------------------------------------------------------------
+"""
 
-    Server started: http://localhost:{port}/
+import sqlite3
+from pathlib import Path
 
+from docopt import docopt
+from waitress import serve
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-    """)
+from . import app
+from ..models.workspace import Workspace
 
-    app.config['DB_PATH'] = Path(dbpath).resolve()
-    app.config['WORKSPACE_PATH'] = Path(workspace_path).resolve()
+def start_server():
+    
+    arguments = docopt(__doc__, version=__version__)
+
+    # TODO: Maybe use schema?
+    port = int(arguments['--port'])
+    workspace_path = Path(arguments['--workspace_path']).resolve()
+    dbpath = Path(arguments['--dbpath']).resolve()
+    debug = arguments['--debug'] 
+    
+    print(__banner__)
+    
+    app.config['DB_PATH'] = dbpath 
+    app.config['WORKSPACE_PATH'] = workspace_path
 
     engine = create_engine(f"sqlite:///{app.config['DB_PATH']}")
     app.config['DB_ENGINE'] = engine
     app.config['DB_SESSION_MAKER'] = sessionmaker(engine)
-
 
     # Create DB and enable WAL
     sqlite_conn = sqlite3.connect(app.config['DB_PATH'])
@@ -46,10 +66,16 @@ def start_server(port, dbpath, workspace_path, debug):
     # Initialize/Create DBs
     Workspace.ensure_db(sqlite_conn)
 
+    if debug:
+        app.run(port=port, debug=True)
+    else:
+        print(f'   Server started: http://localhost:{port}/')
+        serve(app, port=port, threads=8)
 
     if debug:
         app.run(port=port, debug=True)
     else:
+        print(f'   Server started: http://localhost:{port}/')
         serve(app, port=port, threads=8)
 
 

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="automation-v3", # Replace with your own username
-    version="0.0.1",
+    version="3.0.0",
     author="Phillip Gomez",
     author_email="phillip.gomez@ngc.com",
     description="An automation test framework",

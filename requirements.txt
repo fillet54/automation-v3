@@ -1,8 +1,8 @@
 flask
 jinja2
 waitress
-click
 docutils
+docopt
 
 Sphinx
 sphinx-rtd-theme
