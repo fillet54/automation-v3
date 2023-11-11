@@ -29,10 +29,12 @@ __banner__ = f"""\
 ----------------------------------------------------------------------------
 """
 
+import os
 import sqlite3
 from pathlib import Path
 
 from docopt import docopt
+from schema import Schema, And, Use, SchemaError
 from waitress import serve
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -42,18 +44,28 @@ from ..models.workspace import Workspace
 
 def start_server():
     
-    arguments = docopt(__doc__, version=__version__)
+    args = docopt(__doc__, version=__version__)
 
-    # TODO: Maybe use schema?
-    port = int(arguments['--port'])
-    workspace_path = Path(arguments['--workspace_path']).resolve()
-    dbpath = Path(arguments['--dbpath']).resolve()
-    debug = arguments['--debug'] 
+    # arguments/options schema
+    schema = Schema({
+        '--port': And(Use(int), lambda p: 0 < p <= 65535,
+                      error="--port=PORT should be positive integer < 65535"),
+        '--dbpath': And(os.path.exists, error='--dbpath=PATH should exists'),
+        '--workspace_path': And(os.path.exists, 
+                                error='--workspace_path=PATH should exists'),
+        '--debug': bool,
+        '--help': bool
+    })
     
+    try:
+        args = schema.validate(args)
+    except SchemaError as e:
+        exit(e)
+
     print(__banner__)
     
-    app.config['DB_PATH'] = dbpath 
-    app.config['WORKSPACE_PATH'] = workspace_path
+    app.config['DB_PATH'] = Path(args['--dbpath']).resolve()
+    app.config['WORKSPACE_PATH'] = Path(args['--workspace_path']).resolve()
 
     engine = create_engine(f"sqlite:///{app.config['DB_PATH']}")
     app.config['DB_ENGINE'] = engine
@@ -66,17 +78,12 @@ def start_server():
     # Initialize/Create DBs
     Workspace.ensure_db(sqlite_conn)
 
-    if debug:
-        app.run(port=port, debug=True)
+    if args['--debug']:
+        app.run(port=args['--port'], debug=True)
     else:
-        print(f'   Server started: http://localhost:{port}/')
-        serve(app, port=port, threads=8)
+        print(f'   Server started: http://localhost:{args["--port"]}/')
+        serve(app, port=args['--port'], threads=8)
 
-    if debug:
-        app.run(port=port, debug=True)
-    else:
-        print(f'   Server started: http://localhost:{port}/')
-        serve(app, port=port, threads=8)
 
 
 

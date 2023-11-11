@@ -3,6 +3,7 @@ jinja2
 waitress
 docutils
 docopt
+schema 
 
 Sphinx
 sphinx-rtd-theme
