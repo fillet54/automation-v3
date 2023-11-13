@@ -3,7 +3,7 @@ from flask import Flask, render_template, g, redirect, url_for
 from ..jobqueue import jobqueue 
 from ..requirements.views import requirements
 from .views import editor, workspace
-from .models import get_workspaces
+from .workspace import get_workspaces
 
 app = Flask(__name__)
 app.register_blueprint(requirements, url_prefix='/requirements')

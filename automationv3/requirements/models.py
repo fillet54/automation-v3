@@ -5,10 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, Session
 from sqlalchemy.exc import NoResultFound
 
 from ..database import db
-
-# TODO: Move to a database package
-from sqlalchemy.ext import declarative
-ModelBase = declarative.declarative_base()
+from ..database.base import ModelBase
 
 class Requirement(ModelBase):
     __tablename__ = 'Requirement'

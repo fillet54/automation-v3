@@ -3,9 +3,9 @@
 """Automation Framework
 
 Usage:
-    automationv3 [--port PORT] [--dbpath PATH]
-                 [--workspace_path PATH] [--debug]
-    automationv3 (-h | --help)
+    automation-v3 [--port PORT] [--dbpath PATH]
+                  [--workspace_path PATH] [--debug]
+    automation-v3 (-h | --help)
 
 Options:
     -h --help              show this help message and exit
@@ -40,7 +40,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from . import app
-from ..models.workspace import Workspace
+from .workspace import Workspace
 
 def start_server():
     

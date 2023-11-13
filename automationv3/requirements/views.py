@@ -2,8 +2,7 @@ from pathlib import Path
 from flask import Blueprint, render_template, request, abort
 
 from .models import Requirement
-
-from ..server.models import db
+from ..database import db
 
 requirements = Blueprint('requirements', __name__,
                          template_folder=Path(__file__).resolve().parent / 'templates')
@@ -12,13 +11,14 @@ requirements = Blueprint('requirements', __name__,
 def list():
     subsystem = request.args.get('subsystem')
 
-    subsystems = [r.subsystem
-                  for r in db.query(Requirement.subsystem).distinct()]
+    with db.session as session:
+        subsystems = [r.subsystem
+                      for r in session.query(Requirement.subsystem).distinct()]
 
-    query = db.query(Requirement)
-    if subsystem:
-        query = query.filter(Requirement.subsystem == subsystem)
-    reqs = query.all()
+        query = session.query(Requirement)
+        if subsystem:
+            query = query.filter(Requirement.subsystem == subsystem)
+        reqs = query.all()
 
     return render_template("requirements.html", 
                            requirements=reqs, 
@@ -29,7 +29,8 @@ def list():
 
 @requirements.route("/<id>", methods=["GET"])
 def by_id(id):
-    requirement = db.query(Requirement).filter(Requirement.id == id).one()
+    with db.session as session:
+        requirement = Requirement.find_by_id(session, id)
 
     if requirement is None:
         abort(404)

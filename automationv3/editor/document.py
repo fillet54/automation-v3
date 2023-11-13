@@ -3,7 +3,8 @@ import hashlib
 import json
 from pathlib import Path
 
-from automationv3.framework import edn
+from ..framework import edn
+from ..database import get_db
 
 def table_exists(conn, table_name):
     cursor = conn.execute("""
@@ -226,3 +227,8 @@ class Document:
     def __hash__(self):
         return hash(self.path)
 
+def get_document(id):
+    if id is not None:
+        conn = get_db()
+        return Document(conn, id)
+    return None

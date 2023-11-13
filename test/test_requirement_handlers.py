@@ -6,7 +6,7 @@ from flask import Flask
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from automationv3 import server
+from automationv3 import editor 
 from automationv3.requirements.views import requirements
 from automationv3.requirements.models import Requirement
 
@@ -27,7 +27,7 @@ class TestRequirementHandler(unittest.TestCase):
         self.session.commit()
 
         # Setup a test app
-        app = Flask(__name__, template_folder=Path(server.__file__).parent / 'templates')
+        app = Flask(__name__, template_folder=Path(editor.__file__).parent / 'templates')
         app.register_blueprint(requirements, url_prefix='/requirements')
 
         app.config['DB_PATH'] = self.db_file

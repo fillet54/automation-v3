@@ -3,7 +3,7 @@ import sqlite3
 import os
 from pathlib import Path
 
-from automationv3.models import Treeview, FilesystemTreeNode 
+from automationv3.editor.models import Treeview, FilesystemTreeNode 
 
 class TestTreeview(unittest.TestCase):
     def setUp(self):

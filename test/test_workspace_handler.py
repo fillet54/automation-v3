@@ -5,8 +5,8 @@ import sqlite3
 from pathlib import Path
 from flask import Flask, url_for
 
-from automationv3.server.views.workspace import workspace
-from automationv3.models import Workspace 
+from automationv3.editor.views.workspace import workspace
+from automationv3.editor.models import Workspace 
 
 
 class TestWorkspaceHandler(unittest.TestCase):

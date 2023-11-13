@@ -4,7 +4,7 @@ import sqlite3
 import os
 from pathlib import Path
 
-from automationv3.models import Document 
+from automationv3.editor.models import Document 
 
 class TestDocument(unittest.TestCase):
     def setUp(self):

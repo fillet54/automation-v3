@@ -33,15 +33,12 @@ class DatabaseHelper:
                 self._sessionmaker = sessionmaker(self.engine)
             return self._sessionmaker()
 
-    def query(self, *args):
-        return self.session.query(*args)
-
     def get_connection_str(self):
         # TODO: somehow get path to db. For now just hardcode
         if 'unittest' in sys.modules:
             return 'test.db'
         else:
-            return './automationv3.db'
+            return current_app.config['DB_PATH']
 
 
 db = DatabaseHelper()
@@ -49,7 +46,7 @@ db = DatabaseHelper()
 def get_db():
     if g:
         if 'sqlite_db' not in g:
-            g.sqlite_db = sqlite3.connect(current_app.config['DB_PATH'])
+            g.sqlite_db = sqlite3.connect(db.get_connection_str())
         return g.sqlite_db
     else:
         return sqlite3.connect(db.get_connection_str())

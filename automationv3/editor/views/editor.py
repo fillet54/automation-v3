@@ -4,14 +4,14 @@ import json
 from itertools import groupby
 from flask import Blueprint, render_template, request, abort, current_app, make_response
 
-from automationv3.framework import edn, EdnTestCase
-from automationv3.models import Document
+from ..editor import get_editor
+from ..workspace import get_workspaces
+from ..document import Document, get_document
 
+from automationv3.framework import edn, EdnTestCase
+from automationv3.database import db, get_db
 from automationv3.requirements.models import Requirement 
 from automationv3.jobqueue import sqlqueue
-from automationv3.database import get_db
-
-from ..models import db, get_workspaces, get_editor, get_document
 
 editor = Blueprint('editor', __name__,
                         template_folder='templates')

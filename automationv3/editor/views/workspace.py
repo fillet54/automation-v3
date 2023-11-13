@@ -8,7 +8,7 @@ from flask import (
 )
 
 from ..templates import template_root
-from ..models import get_workspaces
+from ..workspace import get_workspaces
 
 workspace = Blueprint('workspace', __name__,
                         template_folder=template_root)
@@ -53,7 +53,7 @@ def tree(path):
         abort(404)
 
     path = (workspace.root / path).resolve().relative_to(workspace.root)
-    
+    print(path) 
     if request.method == 'POST':
         fstree.toggle(path)
 

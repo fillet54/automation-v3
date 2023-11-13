@@ -1,5 +1,7 @@
-from .document import Document
 from contextlib import closing
+
+from .document import Document
+from ..database import get_db
 
 # Helpers
 def table_exists(conn, table_name):
@@ -120,3 +122,9 @@ class Editor:
         if change_active:
             documents = self.documents()
             self.select_document(documents[-1] if len(documents) > 0 else None)
+
+def get_editor(id):
+    if id is not None:
+        conn = get_db()
+        return Editor(conn, id)
+    return None

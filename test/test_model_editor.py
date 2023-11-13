@@ -3,7 +3,7 @@ import sqlite3
 import os
 from pathlib import Path
 
-from automationv3.models import Editor
+from automationv3.editor.models import Editor
 
 class TestEditor(unittest.TestCase):
     def setUp(self):
