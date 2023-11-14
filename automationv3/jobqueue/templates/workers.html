@@ -1,0 +1,11 @@
+{% import "icons/icon.j2" as icon %}
+{% extends "layout.html" %}
+
+{% block content %}
+<h1>Workers</h1>
+{% for worker in workers %}
+  <ul>
+    {% include "partials/worker_item.html" %}
+  </ul>
+{% endfor %}
+{% endblock %}

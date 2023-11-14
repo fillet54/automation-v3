@@ -23,3 +23,17 @@ python test/data/makeworspaces.py
 ```
 automation-v3 --workspace_path ./test/data/git_repos/master
 ```
+
+
+## Generating Migrations
+
+```
+alembic revision -m "Add Worker"
+```
+
+Go edit migration in automationv3/database/migrations/versions. Then to
+migrate run the following command:
+
+```
+alembic upgrade head
+```
