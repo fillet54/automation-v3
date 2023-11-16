@@ -2,7 +2,7 @@ import click
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from pathlib import Path
-from automationv3.models.requirements import Requirement
+from automationv3.requirements.models import Requirement
 
 SAMPLE_DATA_PATH = Path(__file__).resolve().parent / 'sample_requirements.txt'
 

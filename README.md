@@ -1,6 +1,7 @@
 
-# DEMO
+# Automation-v3
 
+## Quick Start
 1. Create virtual env
 ```
 python -m venv .venv
@@ -13,6 +14,7 @@ python setup.py develop
 ```
 3. Create sample db
 ```
+alembic upgrade head
 python test/data/load_sample.py
 ```
 4. Create sample workspace
@@ -21,7 +23,7 @@ python test/data/makeworspaces.py
 ```
 5. Run!
 ```
-automation-v3 --workspace_path ./test/data/git_repos/master
+automation-v3 server --workspace-path ./test/data/git_repos/master
 ```
 
 

@@ -4,6 +4,7 @@ waitress
 docutils
 docopt
 schema 
+alembic
 
 Sphinx
 sphinx-rtd-theme

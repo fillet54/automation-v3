@@ -150,12 +150,15 @@ class Symbol(str):
     @property
     def name(self):
         return self
-    
+
+    def __str__(self):
+        return self.__repr__()
+
     def __repr__(self):
         if self.namespace is None:
-            return self
+            return super().__str__()
         else:
-            return f"{self.namespace}/{self}"
+            return f"{self.namespace}/{super().__str__()}"
         
     def __hash__(self):
         return hash(str(self))

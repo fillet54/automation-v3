@@ -8,6 +8,7 @@ from docutils.parsers.rst import roles, Directive, directives
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
 from .                     import edn
+from .block                import find_block
 from ..database            import db
 from ..requirements.models import Requirement
 
@@ -97,12 +98,14 @@ def rst_codeblock(src):
     ]) + '\n\n'
 
 
-def repr_rst(obj):
+def repr_rst(form):
     '''Convert object to RST'''
-    if isinstance(obj, str):
-        return obj
+    if isinstance(form, str):
+        return form
+    elif block := find_block(form):
+        return block.__repr_rst__()
     else:
-        return rst_codeblock(edn.writes(obj))
+        return rst_codeblock(edn.writes(form))
 
 
 def write_html_parts(rst_statements):
