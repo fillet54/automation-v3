@@ -3,22 +3,25 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="flex justify-center"> 
-  <div class="max-w-4xl">
-     <h2 class="text-2xl font-bold mb-4">Registered Workers</h2>
-     <table class="table-auto w-full border-collapse border border-gray-200">
-         <thead>
-             <tr>
-                 <th class="border border-gray-300 px-4 py-2 text-gray-600">URL</th>
-                 <th class="border border-gray-300 px-4 py-2 text-gray-600">Status</th>
-                 <th class="border border-gray-300 px-4 py-2 text-gray-600">Last Heard From</th>
+<div class="flex justify-center w-full">
+  <div class="prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1"> 
+  <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8" style='width: 900px'>
+     <h2>Registered Workers</h2>
+
+    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+     <table class="my-0 min-w-full divide-y divide-gray-300">
+         <thead class="bg-gray-50">
+             <tr class="divide-x divide-gray-200">
+                 <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">URL</th>
+                 <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                 <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Heard From</th>
              </tr>
          </thead>
          <tbody>
          {% for worker in workers %}
-             <tr>
-                 <td class="border border-gray-300 px-4 py-2">{{ worker.url }}</td>
-                 <td class="border border-gray-300 px-4 py-2">
+             <tr class="divide-x divide-gray-200">
+                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ worker.url }}</td>
+                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                    {% if worker.status == 'available' %}
                       {% set bg_color = 'bg-green-500' %}
                    {% else %}
@@ -28,11 +31,13 @@
                         <span class="mx-auto">{{ worker.status }}</span>
                     </div>
                  </td>
-                 <td class="border border-gray-300 px-4 py-2">{{ worker.last_keepalive | humanize_ts }}</td>
+                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ worker.last_keepalive | humanize_ts }}</td>
              </tr>
          {% endfor %}
          </tbody>
      </table>
+    </div>
+  </div>
   </div>
 </div>
 {% endblock %}
