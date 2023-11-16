@@ -8,7 +8,7 @@ from automationv3.editor.models import Document
 
 class TestDocument(unittest.TestCase):
     def setUp(self):
-        self.db_file = "test_document.db"
+        self.db_file = "test.db"
         self.conn = sqlite3.connect(self.db_file)
         Document.ensure_db(self.conn)
 

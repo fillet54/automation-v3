@@ -167,8 +167,8 @@ class TestEdnReader(unittest.TestCase):
 
     # Map 
     def test_map_basic(self):
-        self.assertEqual(read(r'{:a 1 :b 2 :c 3}'), {'a':1, 'b':2, 'c':3})
-        self.assertEqual(type(read(r'{:a 1 :b 2 :c 3}')), Map)
+        self.assertEqual(read(r'{"a" 1 "b" 2 "c" 3}'), {'a':1, 'b':2, 'c':3})
+        self.assertEqual(type(read(r'{"a" 1 "b" 2 "c" 3}')), Map)
 
     # Set 
     def test_set_basic(self):

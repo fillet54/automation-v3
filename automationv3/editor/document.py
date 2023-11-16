@@ -32,7 +32,7 @@ def guess_mime(path):
         content = path.read_text()
         try:
             parsed_content = edn.read(content)
-            if isinstance(parsed_content, edn.Map):
+            if isinstance(parsed_content, (str, edn.List)):
                 mime = 'application/rvt+edn'
             else:
                 mime = 'application/rvt'

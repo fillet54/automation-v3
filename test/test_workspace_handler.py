@@ -54,7 +54,7 @@ class TestWorkspaceHandler(unittest.TestCase):
         import tempfile, shutil
 
         # Create and setup DB
-        self.db_file = "test_treeview.db"
+        self.db_file = "test.db"
         self.conn = sqlite3.connect(self.db_file)
         Workspace.ensure_db(self.conn)
 
