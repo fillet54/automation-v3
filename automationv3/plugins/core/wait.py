@@ -47,7 +47,6 @@ class TableDriven(BuildingBlock):
         return BlockResult(True)
 
     def as_rst(self, *args):
-        print("HI")
         headers, rows = args
         s = io.StringIO('')
         s.write('   <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">\n')
@@ -75,6 +74,5 @@ class TableDriven(BuildingBlock):
         html = s.getvalue()
 
         rst = f'.. raw:: html\n\n{html}\n\n'
-        print(rst)
         return rst
 
