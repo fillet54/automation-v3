@@ -1,0 +1,49 @@
+ <div class="flex place-content-between items-center">
+    <h2>Registered Workers</h2>
+    <button type="button" 
+            class="mr-1 rounded h-8 bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+            hx-get="{{ url_for('jobqueue.list_workers', show=show_all) }}"
+            hx-target="#workers-content"
+            hx-push-url="true">
+      {{ 'Show Missing' if show_all else 'Hide Missing' }}
+    </button>
+  </div>
+  {% if not workers %}
+  <div class="w-full flex justify-center items-center">
+       <span class="inline-flex mt-8 h-20 w-full justify-center items-center rounded-md bg-gray-50 px-2 py-1 text-lg font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+          No Workers Available
+       </span>
+  </div>
+  {% else %}
+  <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+
+    <table class="my-0 min-w-full divide-y divide-gray-300">
+        <thead class="bg-gray-50">
+            <tr class="divide-x divide-gray-200">
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">URL</th>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Heard From</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for worker in workers | sort(attribute='last_keepalive', reverse=True) %}
+            <tr class="divide-x divide-gray-200">
+                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ worker.url }}</td>
+                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 flex justify-center">
+                  {% if worker.last_keepalive <= missing_time %}
+                     <span class="w-20 inline-flex items-center justify-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">missing</span>
+                  {% elif worker.status == 'available' %}
+                     {% set bg_color = 'bg-green-500' %}
+                     <span class="w-20 inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">{{ worker.status }}</span>
+                  {% else %}
+                     {% set bg_color = 'bg-yellow-500' %}
+                     <span class="w-20 inline-flex items-center justify-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">{{ worker.status }}</span>
+                  {% endif %}
+                </td>
+                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ worker.last_keepalive | humanize_ts }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+  </div>
+  {% endif %}

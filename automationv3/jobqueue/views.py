@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from flask import Blueprint, render_template, request, abort, jsonify
-from datetime import datetime 
+from datetime import datetime, timedelta
 
 from . import sqlqueue
 from .models import Worker
@@ -49,12 +49,26 @@ def register_worker():
     return 'OK!', 200
 
 @jobqueue.route("/workers", methods=['GET'])
-def list_worker():
-    with db.session as session:
-        workers = session.query(Worker).all()
+def list_workers():
+    show = request.args.get('show')
+    show_all = show and show == 'all'
+    hx_request = request.headers.get('HX-Request', False)
 
-        if 'text/html' in request.headers.get('Accept', ''):
-            return render_template('workers.html', workers=workers)
+    now = datetime.utcnow()
+    five_minutes_ago = now - timedelta(minutes=5)
+
+    with db.session as session:
+        if show_all:
+            workers = session.query(Worker).all()
+        else:
+            workers = session.query(Worker).filter(Worker.last_keepalive >= five_minutes_ago).all()
+
+        if hx_request or 'text/html' in request.headers.get('Accept', ''):
+            return render_template('workers.html', 
+                                   workers=workers,
+                                   show_all=(None if show_all else 'all'),
+                                   missing_time=five_minutes_ago,
+                                   hx_request=request.headers.get('HX-Request', False))
         else:
             return jsonify([{'id': worker.id, 
                              'url': worker.url, 

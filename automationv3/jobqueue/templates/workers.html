@@ -1,3 +1,6 @@
+{% if hx_request %}
+{% include "partials/workers_table.html" %}
+{% else %}
 {% import "icons/icon.j2" as icon %}
 {% set show_nav = False %}
 {% extends "layout.html" %}
@@ -5,39 +8,11 @@
 {% block content %}
 <div class="flex justify-center w-full">
   <div class="prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1"> 
-  <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8" style='width: 900px'>
-     <h2>Registered Workers</h2>
-
-    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
-     <table class="my-0 min-w-full divide-y divide-gray-300">
-         <thead class="bg-gray-50">
-             <tr class="divide-x divide-gray-200">
-                 <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">URL</th>
-                 <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                 <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Heard From</th>
-             </tr>
-         </thead>
-         <tbody>
-         {% for worker in workers %}
-             <tr class="divide-x divide-gray-200">
-                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ worker.url }}</td>
-                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                   {% if worker.status == 'available' %}
-                      {% set bg_color = 'bg-green-500' %}
-                   {% else %}
-                      {% set bg_color = 'bg-yellow-500' %}
-                   {% endif %}
-                    <div class="px-2 py-1 rounded-full text-white {{ bg_color }} flex justify-center items-center">
-                        <span class="mx-auto">{{ worker.status }}</span>
-                    </div>
-                 </td>
-                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ worker.last_keepalive | humanize_ts }}</td>
-             </tr>
-         {% endfor %}
-         </tbody>
-     </table>
-    </div>
+  <div id="workers-content"
+       class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8" style='width: 900px'>
+     {% include "partials/workers_table.html" %}
   </div>
   </div>
 </div>
 {% endblock %}
+{% endif %}
