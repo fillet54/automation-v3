@@ -1,16 +1,41 @@
-import click
+"""Load Database with Sample Data
+
+This script will load a supplied database with sample
+requirements
+
+Usage:
+    load_sample.py [--dbpath=FILE] [--data=FILE]
+    load_sample.py (-h | --help)
+
+Options:
+    --dbpath=FILE    sqlite3 database file to load
+                     [default: automationv3.db]
+    --data=FILE      path to text file containing
+                     requirements to load. Each 
+                     requirement on its ownline with
+                     id at end of each line surrounded 
+                     by '[]'
+                     [default: test/data/sample_requirements.txt]
+ 
+
+"""
+from pathlib import Path
+
+from docopt import docopt 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from pathlib import Path
+
 from automationv3.requirements.models import Requirement
 
 SAMPLE_DATA_PATH = Path(__file__).resolve().parent / 'sample_requirements.txt'
 
+def load_sample():
 
-@click.command()
-@click.option('--dbpath', default='./automationv3.db', help='Path to database file')
-@click.option('--data', default=SAMPLE_DATA_PATH, help='Path to database file')
-def load_sample(dbpath, data):
+    args = docopt(__doc__)
+
+    dbpath = args['--dbpath']
+    data = args['--data']
+
     engine = create_engine(f'sqlite:///{dbpath}')
 
     def line_to_requirement(line):
@@ -34,5 +59,6 @@ def load_sample(dbpath, data):
         session.add_all(requirements)
         session.commit()
 
-load_sample()
+if __name__ == '__main__':
+    load_sample()
 
