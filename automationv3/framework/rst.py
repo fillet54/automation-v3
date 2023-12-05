@@ -2,6 +2,7 @@
 
 '''
 
+import re
 import docutils.core
 from docutils import writers, nodes
 from docutils.parsers.rst import roles, Directive, directives
@@ -177,3 +178,56 @@ def extract_testcase_fields(text):
     writer = TestCaseFieldWriter()
     parts = docutils.core.publish_parts(text, writer=writer)
     return parts['whole']
+
+
+
+directive_start = re.compile(r'^\.\. (\w+)::(\s*|\s+\w+)$')
+def _is_directive_start(line):
+    m = directive_pattern.match(line) 
+    return m is not None
+
+indent_pattern = re.compile(r'^\s+')
+def _indent_width(line):
+    m = indent_pattern.match(line)
+    if m:
+        return m.group()
+    return 0
+
+def split_rst_by_directives(text):
+    '''Splits rst file by directives'''
+
+    parts = ['']
+    state = 'normal'
+    for line in text.splitlines():
+        if state == 'normal': 
+            if _is_directive_start(line):
+                if parts[-1].endswith('\n'):
+                    parts[-1] = parts[-1][:-1]
+                parts.append(line + '\n')
+                state = 'body'
+            else:
+                parts[-1] += line + '\n'
+        elif state == 'body':
+            if _indent_width(line) == 0 and line.strip() != '':
+                if parts[-1].endswith('\n'):
+                    parts[-1] = parts[-1][:-1]
+                parts.append('')
+                state = 'normal'
+            else:
+                parts[-1] += line + '\n'
+
+    if parts[-1] == '':
+        parts = parts[:-1]
+
+    return parts
+
+
+
+
+
+
+
+
+
+
+
