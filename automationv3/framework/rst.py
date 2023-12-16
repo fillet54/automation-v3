@@ -221,7 +221,10 @@ def split_rst_by_directives(text):
 
     return parts
 
+def parse_directive(text):
+    '''Parses directive into arguments, options, body'''
 
+    pass
 
 
 

@@ -2,6 +2,7 @@ from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
+import mimetypes 
 
 from ..framework import edn
 from ..database import get_db
@@ -39,7 +40,7 @@ def guess_mime(path):
         except:
             mime = 'application/rvt'
     else:
-        mime = 'text/plain'
+        mime = mimetypes.guess_type(path)[0]
     return mime
 
 class Document:

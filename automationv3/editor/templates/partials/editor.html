@@ -28,7 +28,8 @@
    var editor = CodeMirror.fromTextArea(editordiv, {
      lineNumbers: true,
      gutter: true,
-     autofocus: true
+     autofocus: true,
+     mode: '{{ document.mime }}'
    });
 
   (function() {

@@ -1,9 +1,14 @@
 from flask import Flask, render_template, g, redirect, url_for
+import mimetypes
 
 from ..jobqueue import jobqueue 
 from ..requirements.views import requirements
 from .views import editor, workspace
 from .workspace import get_workspaces
+
+# add support for rst mimetype
+mimetypes.add_type('text/x-rst', '.rst')
+
 
 app = Flask(__name__)
 app.register_blueprint(requirements, url_prefix='/requirements')

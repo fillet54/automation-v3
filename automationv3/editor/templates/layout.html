@@ -12,10 +12,18 @@
     <script src="{{ url_for('static', filename='js/tailwindcss/tailwindcss.js') }}"></script>
     <script src="{{ url_for('static', filename='js/_hyperscript/_hyperscript.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/codemirror/codemirror.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/addon/mode/overlay.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/addon/mode/simple.js') }}"></script>
     <script src="{{ url_for('static', filename='js/codemirror/mode/clojure/clojure.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/mode/rst/rst.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/mode/rvt/rvt.js') }}"></script>
     <script src="{{ url_for('static', filename='js/site.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}"/>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/code-highlighting.css') }}"/>
+
+    <script>
+      CodeMirror.defineMIME('application/rvt+edn', 'clojure');
+    </script>
 
     <script>
         tailwind.config = {

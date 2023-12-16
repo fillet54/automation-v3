@@ -70,7 +70,7 @@ def update_tabs(id, document_id):
     return resp
 
 visual_editors = {
-    'application/rvt': 'partials/editor_rvt.html'
+    'application/rvt+edn': 'partials/editor_rvt.html'
 }
 
 @editor.route("<id>/content", methods=["GET"])
@@ -88,7 +88,7 @@ def content(id):
 
     if raw:
         template = 'partials/editor.html'
-    elif active_document.mime == 'application/rvt':
+    elif active_document.mime == 'application/rvt+edn':
         template = visual_editors[active_document.mime]
         testcase = EdnTestCase(active_document.path.name, active_document.content)
     else:
