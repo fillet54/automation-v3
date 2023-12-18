@@ -1,58 +1,61 @@
-'''Job Runner / Queue'''
+"""Job Runner / Queue"""
 
 from pathlib import Path
-from flask import Blueprint, render_template, request, abort, jsonify
+from flask import Blueprint, render_template, request, jsonify
 from datetime import datetime, timedelta
 
 from . import sqlqueue
 from .models import Worker
 from ..database import get_db, db
 
-jobqueue = Blueprint('jobqueue', __name__, 
-                   template_folder=Path(__file__).resolve().parent / 'templates')
+jobqueue = Blueprint(
+    "jobqueue", __name__, template_folder=Path(__file__).resolve().parent / "templates"
+)
+
 
 @jobqueue.route("/", methods=["GET"])
 def list():
     q = sqlqueue.SQLPriorityQueue(get_db())
 
-    q.put('Task 1')
+    q.put("Task 1")
 
     return render_template("queue.html", queue=q)
 
 
-@jobqueue.route("/workers", methods=['POST'])
+@jobqueue.route("/workers", methods=["POST"])
 def register_worker():
     data = request.json
-    worker_url = data.get('url') # TODO: Validate url
-    worker_status = data.get('status', 'available')
+    worker_url = data.get("url")  # TODO: Validate url
+    worker_status = data.get("status", "available")
 
     if not worker_url:
-        return jsonify({'error': 'Worker name is required'}), 400
+        return jsonify({"error": "Worker name is required"}), 400
     if worker_status not in Worker.ALLOWED_STATUS:
-        return jsonify({'error': f'Status must be one of {Worker.ALLOWED_STATUS}'}), 400
+        return jsonify({"error": f"Status must be one of {Worker.ALLOWED_STATUS}"}), 400
 
     with db.session as session:
         worker = session.query(Worker).filter_by(url=worker_url).first()
-        
+
         # keepalive and/or status update
         if worker:
             worker.last_keepalive = datetime.utcnow()
             worker.status = worker_status
             session.commit()
-        
+
         # new worker
         else:
             new_worker = Worker(url=worker_url, status=worker_status)
             session.add(new_worker)
             session.commit()
 
-    return 'OK!', 200
+    return "OK!", 200
 
-@jobqueue.route("/workers", methods=['GET'])
+
+@jobqueue.route("/workers", methods=["GET"])
 def list_workers():
-    show = request.args.get('show')
-    show_all = show and show == 'all'
-    hx_request = request.headers.get('HX-Request', False)
+    show = request.args.get("show")
+    show_all = show and show == "all"
+    hx_request = request.headers.get("HX-Request", False)
 
     now = datetime.utcnow()
     five_minutes_ago = now - timedelta(minutes=5)
@@ -61,20 +64,32 @@ def list_workers():
         if show_all:
             workers = session.query(Worker).all()
         else:
-            workers = session.query(Worker).filter(Worker.last_keepalive >= five_minutes_ago).all()
+            workers = (
+                session.query(Worker)
+                .filter(Worker.last_keepalive >= five_minutes_ago)
+                .all()
+            )
 
-        if hx_request or 'text/html' in request.headers.get('Accept', ''):
-            return render_template('workers.html', 
-                                   workers=workers,
-                                   show_all=(None if show_all else 'all'),
-                                   missing_time=five_minutes_ago,
-                                   hx_request=request.headers.get('HX-Request', False))
+        if hx_request or "text/html" in request.headers.get("Accept", ""):
+            return render_template(
+                "workers.html",
+                workers=workers,
+                show_all=(None if show_all else "all"),
+                missing_time=five_minutes_ago,
+                hx_request=request.headers.get("HX-Request", False),
+            )
         else:
-            return jsonify([{'id': worker.id, 
-                             'url': worker.url, 
-                             'status': worker.status, 
-                             'last_keepalive': worker.last_keepalive} 
-                            for worker in workers])
+            return jsonify(
+                [
+                    {
+                        "id": worker.id,
+                        "url": worker.url,
+                        "status": worker.status,
+                        "last_keepalive": worker.last_keepalive,
+                    }
+                    for worker in workers
+                ]
+            )
 
 
 @jobqueue.app_template_filter()
@@ -87,13 +102,13 @@ def humanize_ts(timestamp=False):
     now = datetime.utcnow()
     try:
         diff = now - timestamp
-    except:
+    except TypeError:
         diff = now - datetime.fromtimestamp(timestamp)
     second_diff = diff.seconds
     day_diff = diff.days
 
     if day_diff < 0:
-        return ''
+        return ""
 
     if day_diff == 0:
         if second_diff < 10:

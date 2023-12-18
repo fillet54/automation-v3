@@ -2,13 +2,18 @@ from pathlib import Path
 from contextlib import closing
 import json
 
+
 def table_exists(conn, table_name):
-    cursor = conn.execute("""
+    cursor = conn.execute(
+        """
         SELECT name
         FROM sqlite_master
         WHERE type='table' AND name= ?
-    """, (table_name,))
+    """,
+        (table_name,),
+    )
     return len(cursor.fetchall()) != 0
+
 
 class Treeview:
     def __init__(self, conn, id, factoryfn):
@@ -16,11 +21,14 @@ class Treeview:
         self.id = id
         self.factoryfn = factoryfn
 
-        cursor = self.conn.execute("""
-            SELECT opened, root 
-            FROM treeviews 
-            WHERE id = ? 
-        """, (self.id,))
+        cursor = self.conn.execute(
+            """
+            SELECT opened, root
+            FROM treeviews
+            WHERE id = ?
+        """,
+            (self.id,),
+        )
         row = cursor.fetchone()
 
         self.root = factoryfn(row[1], root=None)
@@ -28,24 +36,29 @@ class Treeview:
 
     @staticmethod
     def ensure_db(conn):
-        if not table_exists(conn, 'treeviews'):
-            conn.execute("""
+        if not table_exists(conn, "treeviews"):
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS treeviews(
                     id INTEGER PRIMARY KEY,
                     opened TEXT,
                     root TEXT,
                     workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE
                 )
-            """)
+            """
+            )
             conn.commit()
 
     @staticmethod
     def create(conn, root, factoryfn):
         with closing(conn.cursor()) as c:
-            c.execute(""" 
+            c.execute(
+                """
                 INSERT INTO treeviews(opened, root)
                 VALUES (?, ?)
-            """, (json.dumps([]), str(root)))
+            """,
+                (json.dumps([]), str(root)),
+            )
             id = c.lastrowid
             conn.commit()
         return Treeview(conn, id, factoryfn)
@@ -62,12 +75,16 @@ class Treeview:
         opened_as_str = [str(i) for i in self.opened]
 
         with closing(self.conn.cursor()) as c:
-            c.execute(""" 
-                UPDATE treeviews 
+            c.execute(
+                """
+                UPDATE treeviews
                 SET opened = ?
                 WHERE id = ?
-            """, (json.dumps(opened_as_str), self.id))
+            """,
+                (json.dumps(opened_as_str), self.id),
+            )
             self.conn.commit()
+
 
 class FilesystemTreeNode:
     def __init__(self, pathstr, root):
@@ -78,8 +95,7 @@ class FilesystemTreeNode:
             self.path = (self.root.path / Path(pathstr)).resolve()
 
     def children(self):
-        return [FilesystemTreeNode(path, self.root)
-                for path in self.path.iterdir()]
+        return [FilesystemTreeNode(path, self.root) for path in self.path.iterdir()]
 
     @property
     def name(self):
@@ -91,11 +107,11 @@ class FilesystemTreeNode:
 
     @property
     def is_root(self):
-        return self.relative_path == Path('.')
-    
+        return self.relative_path == Path(".")
+
     def is_dir(self):
         return self.path.is_dir()
-    
+
     def is_file(self):
         return self.path.is_file()
 
@@ -113,7 +129,6 @@ class FilesystemTreeNode:
 
     def __gt__(self, other):
         return str(self) > str(other)
-    
+
     def __lt__(self, other):
         return str(self) < str(other)
-
