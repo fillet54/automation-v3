@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+CHANGED_FILES=$(git diff --name-only --cached --diff-filter=ACMR)
+get_pattern_files() {
+  pattern=$(echo "$*" | sed "s/ /\$\\\|/g")
+  echo "$CHANGED_FILES" | { grep "$pattern$" || true; }
+}
+
+PY_FILES=$(get_pattern_files .py)
+
+if [[ -n "$PY_FILES" ]]
+then
+  black --quiet --check $PY_FILES
+  retVal=$?
+  if [ $retVal -ne 0 ]; then
+    echo ""
+    echo "!!!!!!!!!!!!!!!!!!!!!!"
+    echo "!!! Commit Aborted !!!"
+    echo "!!!!!!!!!!!!!!!!!!!!!!"
+    exit $retVal
+  fi
+
+  flake8 $PY_FILES
+  retVal=$?
+  if [ $retVal -ne 0 ]; then
+    echo ""
+    echo "!!!!!!!!!!!!!!!!!!!!!!"
+    echo "!!! Commit Aborted !!!"
+    echo "!!!!!!!!!!!!!!!!!!!!!!"
+    exit $retVal
+  fi
+fi
