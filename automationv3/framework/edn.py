@@ -51,6 +51,13 @@ import io
 from collections import abc
 
 
+class ParseError(Exception):
+    def __init__(self, msg, line_info):
+        super().__init__(f"{msg} (line: {line_info[0]}, col: {line_info[1]})")
+        self.line = line_info[0]
+        self.col = line_info[1]
+
+
 # Helper
 class PushBackCharStream:
     def __init__(self, chars):
@@ -248,6 +255,8 @@ def read_symbol(stream, initch):
         return False
     elif token == "/":
         return Symbol("/")
+    elif token == "":
+        return ""
 
     ns, name = parse_symbol(token)
     symbol = Symbol(name, ns)
@@ -526,6 +535,12 @@ def read_delimited(stream, initch, sentinel):
             return forms
         elif form == stream:
             pass
+        elif form == "":
+            # non-sentinel ending (i.e. ERROR!)
+            raise ParseError(
+                f"ParseError: Missing closing '{sentinel}'",
+                stream.ending_line_col_info(),
+            )
         else:
             forms.append(form)
 
@@ -655,9 +670,25 @@ def read(stream_or_str, sentinel=None):
 def read_all(text):
     """Reads EDN returning the all forms"""
 
-    stream = PushBackCharStream(text)
-    while (statement := read(stream)) != READ_EOF:
-        yield statement
+    try:
+        forms = []
+        stream = PushBackCharStream(text)
+
+        while (statement := read(stream)) != READ_EOF:
+            forms.append(statement)
+
+        return forms
+    except ParseError as e:
+        # hacky way to point out error
+        start = max(e.line - 5, 0)
+        end = e.line + 1
+        pointer = " " * e.col + "^"
+
+        for line in text.splitlines()[start:end]:
+            print(line)
+        print(pointer)
+        print(e)
+        return
 
 
 # Write functions
