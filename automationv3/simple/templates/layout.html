@@ -1,0 +1,148 @@
+
+{% if show_nav is not defined %}
+  {% set show_nav = True %}
+{% endif %}
+
+<html>
+
+<head>
+    <title>My App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="{{ url_for('static', filename='js/tailwindcss/tailwindcss.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/_hyperscript/_hyperscript.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/codemirror.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/addon/mode/overlay.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/addon/mode/simple.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/mode/clojure/clojure.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/mode/rst/rst.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/codemirror/mode/rvt/rvt.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}"/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/code-highlighting.css') }}"/>
+
+    <script>
+      CodeMirror.defineMIME('application/rvt+edn', 'clojure');
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ngblue: "#00269a" }, typography: {
+                        DEFAULT: {
+                          css: {
+                            maxWidth: '90ch'
+                          }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+        .content-auto {
+          content-visibility: auto;
+        }
+      }
+    </style>
+    <style>
+      .gutter {
+        cursor: col-resize;
+      }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='js/codemirror/codemirror.css') }}">
+</head>
+
+<body>
+    <div>
+        <div class="h-screen flex flex-col bg-gray-50">
+            <div class="bg-ngblue p-2">
+                <img src="/static/img/automation-logo.png" class="h-8"></img>
+            </div>
+            <div class="flex-grow flex flex-row overflow-hidden justify-center">
+                {% if show_nav %}
+                <!-- lhs -->
+                <div id="left-nav" class="flex-shrink-0 w-1/4 p-4">
+                    {% block menucontent %} {% endblock %}
+                </div>
+                {% endif %}
+                <!-- center -->
+                <div id="page-content" class="flex-1 flex flex-col bg-white">
+                    <main class="flex-1 overflow-y-auto">
+                        <div class="relative">
+                            {% block content %} {% endblock %}
+                        </div>
+                    </main>
+                </div>
+            </div>
+            <!-- footer -->
+            <div id="page-content" class="p-2 text-center text-xs text-gray-500 border">
+                Copyright 2023
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/htmx/htmx.min.js" defer></script>
+    <script src="/static/js/_hyperscript/_hyperscript.min.js" defer></script>
+    <script src="/static/js/autosize/autosize.min.js"></script>
+
+
+    {% if show_nav %}
+    <script src="/static/js/split.js/split.min.js"></script>
+    <script>
+      (function() {
+        var sizes = localStorage.getItem('split-sizes')
+
+        if (sizes) {
+            sizes = JSON.parse(sizes)
+        } else {
+            sizes = [25, 75] // default sizes
+        }
+        
+        var split = Split(['#left-nav', '#page-content'], {
+            sizes: sizes,
+            minSize: 250,
+            onDragEnd: function (sizes) {
+                localStorage.setItem('split-sizes', JSON.stringify(sizes))
+            },
+        })
+      })();
+    </script>
+    {% endif %}
+
+    <script>
+      // Prevent any events for steps that havent been updated
+      document.body.addEventListener('htmx:confirm', function(evt){
+        var triggeringEvent = evt.detail.triggeringEvent;
+        if (triggeringEvent && triggeringEvent.type === 'updated-section')
+        {
+          var url = new URL('http://example.com/' + evt.detail.path);
+          if (!(url.searchParams.get('section') in triggeringEvent.detail.updated))
+          {
+            evt.preventDefault();
+          }
+        }
+      });
+
+      document.body.addEventListener('htmx:configRequest', function(evt){
+        var triggeringEvent = evt.detail.triggeringEvent;
+        if (triggeringEvent && triggeringEvent.type === 'updated-section')
+        {
+          console.log(evt)
+          var url = new URL('http://example.com/' + evt.detail.path);
+          if (url.searchParams.get('section') in triggeringEvent.detail.updated)
+          {
+            var new_section = triggeringEvent.detail.updated[url.searchParams.get('section')];
+            evt.detail.parameters['updated'] = new_section
+          }
+        }
+      });
+
+    </script>
+</body>
+
+</html>

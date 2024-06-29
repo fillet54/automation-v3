@@ -1,13 +1,28 @@
 Welcome to Automation V3's documentation!
 =========================================
 
-.. automodule:: automationv3.framework.edn
-    :members:
+.. toctree::
+   :maxdepth: 2
+   :caption: Table of Contents
+
+   introduction
+   motivation
+   features
+   architecture
+   setup
+   tests
+   extensions
+   reporting
+   case_studies
+   faq
+   roadmap
+   conclusion
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: API Documentation
 
+   api/framework/edn
 
 Indices and tables
 ==================

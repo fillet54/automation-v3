@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'Automation V3'
+project = 'Automation V2'
 copyright = '2023, Phillip Gomez'
 author = 'Phillip Gomez'
 release = '3.0.0'
