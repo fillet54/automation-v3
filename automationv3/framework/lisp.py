@@ -4,7 +4,7 @@ import copy
 from itertools import islice, count, cycle
 from collections.abc import Iterable
 
-from .edn import read, Symbol, List
+from .edn import read, Symbol, List, Vector
 
 
 class Env(dict):
@@ -168,27 +168,42 @@ def quote_special_form(x, env):
 special_forms["quote"] = quote_special_form
 
 
-def create_function(name, params, exprs, env):
+def create_function(name, sigs, env):
+    sigs = {len(sig[0]):sig for sig in sigs}
     def fn(*args):
+        arity = len(args)
+        if arity not in sigs:
+            raise RuntimeError(f"Cannot call {name} with {arity} arguments")
+        params, *exprs = sigs[arity]
         return eval(List([Symbol("do"), *exprs]), Env(params, args, outer=env))
-
+    
     if name is not None:
         fn.__name__ = name
     return fn
 
-
 def fn_special_form(x, env):
     _, *args = x
-    name, params, *exprs = args if len(args) >= 3 else [None] + args
-    return create_function(name, params, exprs, env)
+    name = args[0] if isinstance(args[0], Symbol) else None
+    sigs = args[1:] if name else args
+    if isinstance(sigs[0], Vector):
+        sigs = List([sigs])
+    elif not isinstance(sigs[0], List):
+        raise ValueError(f"Parameter declaration {sigs[0]} should be a Vector")
+
+    # validate all forms
+    for sig in sigs:
+        if not isinstance(sig[0], Vector):
+            raise ValueError(f"Parameter declaration {sig[0]} should be a Vector")
+
+    return create_function(name, sigs, env)
 
 
 special_forms["fn"] = fn_special_form
 
 
 def defn_special_form(x, env):
-    _, name, params, *exprs = x
-    fn = create_function(name, params, exprs, env)
+    _, name, *_ = x
+    fn = fn_special_form(x, env)
     return eval(List([Symbol("def"), name, fn]))
 
 
@@ -254,19 +269,22 @@ def eval_text(s):
 
 
 if __name__ == "__main__":
+
     results = eval_text(
         """
 (do
-    (def fizzbuzz (fn x [n]
+    (def fizzbuzz (fn [n]
       (let [fizzes (cycle ["" "" "Fizz"])
             buzzes (cycle ["" "" "" "" "Buzz"])
             words (map str fizzes buzzes)
             numbers (map str (rest (range)))]
         (take n (map max words numbers)))))
 
-    (fizzbuzz 10))
+    (fizzbuzz 50))
 """
     )
 
     for r in results:
         print(r)
+
+

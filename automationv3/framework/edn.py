@@ -255,8 +255,8 @@ def read_symbol(stream, initch):
         return False
     elif token == "/":
         return Symbol("/")
-    elif token == "":
-        return ""
+    elif token is None:
+        return None
 
     ns, name = parse_symbol(token)
     symbol = Symbol(name, ns)
@@ -309,6 +309,9 @@ def read_token(stream, initch):
         else:
             token += ch
             ch = next(stream)
+
+    if token == "":
+        token = None
 
     return token
 
@@ -535,7 +538,7 @@ def read_delimited(stream, initch, sentinel):
             return forms
         elif form == stream:
             pass
-        elif form == "":
+        elif form is None:
             # non-sentinel ending (i.e. ERROR!)
             raise ParseError(
                 f"ParseError: Missing closing '{sentinel}'",
