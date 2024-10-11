@@ -1,0 +1,14 @@
+{% extends "partials/layout.html" %}
+
+{% block left_nav_content %}
+{%- include "partials/workspace_select.html" %}
+
+<ul class="menu menu-xs bg-base-200 rounded-lg w-full max-w-xs my-1">
+  {% set node = workspace.root_node %} 
+  {%- include "partials/treeview.html" %}
+</ul>
+{% endblock %}
+
+{% block content %}
+EDITOR
+{% endblock %}

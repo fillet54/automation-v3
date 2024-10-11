@@ -1,0 +1,10 @@
+{% macro outline(name, classname) %}
+  {% set classname = classname|default('h-5 w-5') %}
+  {% include "icons/outline/" + name + '.svg' %}
+{% endmacro %}
+
+{% macro solid(name, classname) %}
+  {% set classname = classname|default('h-5 w-5') %}
+  {% include "icons/solid/" + name + '.svg' %}
+{% endmacro %}
+

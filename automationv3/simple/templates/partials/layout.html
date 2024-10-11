@@ -1,0 +1,100 @@
+{% set left_nav_content %}
+  {% block left_nav_content %}{% endblock %}
+{% endset %}
+
+<html>
+
+  <head>
+    <title>My App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="/static/css/daisyui.css"/>
+    <script src="/static/js/tailwindcss/tailwindcss.js"></script>
+    <script src="/static/js/site.js"></script>
+    <link rel="stylesheet" href="/static/css/site.css"/>
+
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ngblue: "#00269a"
+            },
+            typography: {
+              DEFAULT: {
+                css: {
+                  maxWidth: '90ch'
+                }
+              }
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+
+    <div>
+        <div class="h-screen flex flex-col bg-gray-50">
+            <div class="bg-ngblue p-2">
+                <img src="/static/img/automation-logo.png" class="h-8"></img>
+            </div>
+            <div class="flex-grow flex flex-row overflow-hidden justify-center">
+                {% if left_nav_content | trim %}
+                <!-- left nav -->
+                <div id="left-nav" class="flex-shrink-0 w-1/4 pl-2 py-1">
+                  {{ left_nav_content }}
+                </div>
+                {% endif %}
+                
+                <!-- center -->
+                <div id="page-content" class="flex-1 flex flex-col bg-white">
+                    <main class="flex-1 overflow-y-auto">
+                        <div class="relative">
+                            {% block content %} {% endblock %}
+                        </div>
+                    </main>
+                </div>
+            </div>
+            <!-- footer -->
+            <div id="page-content" class="p-2 text-center text-xs text-gray-500 border">
+                Copyright 2023
+            </div>
+        </div>
+    </div>
+    
+    <!-- Global javascript includes -->
+    <script src="/static/js/htmx/htmx.min.js" defer></script>
+    <script src="/static/js/_hyperscript/_hyperscript.min.js" defer></script>
+
+    {% if left_nav_content | trim %}
+    <script src="/static/js/split.js/split.min.js"></script>
+
+    <!-- save load/store split sizes into localstorage -->
+    <script>
+      (function() {
+        var sizes = localStorage.getItem('split-sizes')
+
+        if (sizes) {
+          sizes = JSON.parse(sizes)
+        } else {
+          sizes = [25, 75] // default sizes
+        }
+
+        var split = Split(['#left-nav', '#page-content'], {
+          sizes: sizes,
+          minSize: 250,
+          onDragEnd: function (sizes) {
+            localStorage.setItem('split-sizes', JSON.stringify(sizes))
+          },
+        })
+      })();
+    </script>
+    {% endif %}
+
+
+  </body>
+
+</html>

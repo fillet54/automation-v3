@@ -1,0 +1,17 @@
+<select 
+  class="select select-bordered select-sm w-full max-w-xs py-0"
+  _="on change(target)
+        set id to my value
+        js(id) 
+            window.location.href = id
+        end"
+  >
+  <option>{{ workspace.name }}</option>
+  {% for other in workspaces %}
+    {% if workspace.name != other.name %}
+    <option value="{{ url_for('workspace.index', name=other.name) }}">
+      {{ other.name }}
+    </option>
+    {% endif %}
+  {% endfor %}
+</select>

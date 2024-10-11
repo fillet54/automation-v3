@@ -1,0 +1,43 @@
+{% import "icons/icon.j2" as icon %}
+
+{% set is_expanded = node in workspace.expanded_nodes %}
+
+{% if not node.is_root %}
+<details {{ "Open" if is_expanded else "" }} onclick="return false">
+  <summary
+      hx-post="{{ url_for('workspace.expand_tree', name=workspace.name, path=node.relative_path) }}"
+      hx-target="#node-{{ node.relative_path | as_id }}"
+    >
+    {%- if is_expanded %}
+    {{ icon.solid('folder-open', 'h-5 w-5') }}
+    {%- else %}
+    {{ icon.solid('folder', 'h-5 w-5') }}
+    {%- endif %}
+
+    {{ node.name }}
+  </summary>
+{% endif %}
+
+{%- if is_expanded or node.is_root %}
+  <ul>
+      {%- for dir in node.children() | is_dir | sort %}
+      <li id="node-{{ dir.relative_path | as_id }}">
+        {%- with node=dir %}
+          {%- filter indent(8, True) %}
+            {%- include "partials/treeview.html" %}
+          {%- endfilter %}
+        {%- endwith %}
+      </li>
+      {%-endfor %}
+  
+      {% for file in node.children() | is_file | sort %}
+      <li>
+        <a>
+        <img class="h-5 w-5 mr-1 whitespace-nowrap" src="{{ url_for('static', filename='img/icons/document.svg') }}"></img>
+        {{ file.path.name }}
+        </a>
+      </li>
+      {% endfor %}
+  </ul>
+</details>
+{%- endif %}
