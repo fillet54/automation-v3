@@ -104,22 +104,16 @@ class Workspace:
     def toggle_node(self, path):
         node = FileNode(path, root=self.root_node)
 
-        # Verify valid node
-        if str(node.relative_path) != path:
-            raise ValueError
-
         if node in self.expanded_nodes:
             self.expanded_nodes.remove(node)
-            print("close")
         else:
             self.expanded_nodes.add(node)
-            print("open")
 
         return node
 
 
     def __repr__(self):
-        return f"Workspace(root='{self.root_node.name}')"
+        return f"Workspace(name='{self.name}')"
 
 
 # Data

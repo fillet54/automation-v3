@@ -6,6 +6,7 @@
 <details {{ "Open" if is_expanded else "" }} onclick="return false">
   <summary
       hx-post="{{ url_for('workspace.expand_tree', name=workspace.name, path=node.relative_path) }}"
+      hx-trigger="dblclick"
       hx-target="#node-{{ node.relative_path | as_id }}"
     >
     {%- if is_expanded %}
