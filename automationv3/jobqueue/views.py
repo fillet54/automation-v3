@@ -17,9 +17,6 @@ jobqueue = Blueprint(
 @jobqueue.route("/", methods=["GET"])
 def list():
     q = sqlqueue.SQLPriorityQueue(get_db())
-
-    q.put("Task 1")
-
     return render_template("queue.html", queue=q)
 
 

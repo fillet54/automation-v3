@@ -8,11 +8,16 @@ app = Flask(__name__)
 worker_status = "available"
 
 
-def register_worker():
-    # Perform initial registration with the central server
-    worker_details = {"url": "http://worker-url.com", "status": worker_status}
+def send_keep_alive_message():
+    """Registers with the central server, or refreshes an existing registration"""
+    return requests.post(
+        app.config["WORKER_URL"],
+        json={"url": app.config["SELF_URL"], "status": worker_status},
+    )
 
-    response = requests.post(app.config["WORKER_URL"], json=worker_details)
+
+def register_worker():
+    response = send_keep_alive_message()
     if response.status_code == 200:
         print("Registration successful")
         keep_alive_thread = threading.Thread(target=send_keep_alive_forever)
@@ -25,11 +30,6 @@ def send_keep_alive_forever():
         # Send keep-alive message
         send_keep_alive_message()
         time.sleep(60)  # Keep-alive every 60 seconds
-
-
-def send_keep_alive_message():
-    keep_alive_data = {"url": "http://worker-url.com", "status": worker_status}
-    requests.post(app.config["WORKER_URL"], json=keep_alive_data)
 
 
 def update_status(new_status):
@@ -62,8 +62,3 @@ def process_job(job_data):
 @app.route("/")
 def index():
     return "Worker Service Running"
-
-
-if __name__ == "__main__":
-    register_worker()
-    app.run(debug=True)

@@ -4,6 +4,7 @@ waitress
 docutils
 docopt
 schema 
+requests
 
 Sphinx
 sphinx-rtd-theme

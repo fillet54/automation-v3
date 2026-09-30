@@ -36,6 +36,7 @@ __banner__ = (
 )
 
 import os
+import socket
 from pathlib import Path
 from contextlib import closing
 
@@ -97,6 +98,7 @@ def start_worker(args):
     app.config["DB_PATH"] = Path(args["--dbpath"]).resolve()
     app.config["CENTRAL_SERVER_URL"] = args["--central-server"]
     app.config["WORKER_URL"] = f"http://{args['--central-server']}/runner/workers"
+    app.config["SELF_URL"] = f"http://{socket.gethostname()}:{args['--port']}"
 
     setup_db(app)
 
@@ -121,3 +123,7 @@ def start_server(args):
     else:
         print(f'   Server started: http://localhost:{args["--port"]}/')
         serve(app, port=args["--port"], threads=8)
+
+
+if __name__ == "__main__":
+    main()
