@@ -2,11 +2,12 @@
 
 from pathlib import Path
 from flask import Blueprint, render_template, request, jsonify
+from dataclasses import asdict
 from datetime import datetime, timedelta
 
 from . import sqlqueue
-from .models import Worker
-from ..database import get_db, db
+from . import models
+from ..database import get_db
 
 jobqueue = Blueprint(
     "jobqueue", __name__, template_folder=Path(__file__).resolve().parent / "templates"
@@ -30,23 +31,10 @@ def register_worker():
 
     if not worker_url:
         return jsonify({"error": "Worker name is required"}), 400
-    if worker_status not in Worker.ALLOWED_STATUS:
-        return jsonify({"error": f"Status must be one of {Worker.ALLOWED_STATUS}"}), 400
+    if worker_status not in models.ALLOWED_STATUS:
+        return jsonify({"error": f"Status must be one of {models.ALLOWED_STATUS}"}), 400
 
-    with db.session as session:
-        worker = session.query(Worker).filter_by(url=worker_url).first()
-
-        # keepalive and/or status update
-        if worker:
-            worker.last_keepalive = datetime.utcnow()
-            worker.status = worker_status
-            session.commit()
-
-        # new worker
-        else:
-            new_worker = Worker(url=worker_url, status=worker_status)
-            session.add(new_worker)
-            session.commit()
+    models.save_worker(get_db(), worker_url, worker_status)
 
     return "OK!", 200
 
@@ -60,36 +48,18 @@ def list_workers():
     now = datetime.utcnow()
     five_minutes_ago = now - timedelta(minutes=5)
 
-    with db.session as session:
-        if show_all:
-            workers = session.query(Worker).all()
-        else:
-            workers = (
-                session.query(Worker)
-                .filter(Worker.last_keepalive >= five_minutes_ago)
-                .all()
-            )
+    workers = models.find_workers(get_db(), None if show_all else five_minutes_ago)
 
-        if hx_request or "text/html" in request.headers.get("Accept", ""):
-            return render_template(
-                "workers.html",
-                workers=workers,
-                show_all=(None if show_all else "all"),
-                missing_time=five_minutes_ago,
-                hx_request=request.headers.get("HX-Request", False),
-            )
-        else:
-            return jsonify(
-                [
-                    {
-                        "id": worker.id,
-                        "url": worker.url,
-                        "status": worker.status,
-                        "last_keepalive": worker.last_keepalive,
-                    }
-                    for worker in workers
-                ]
-            )
+    if hx_request or "text/html" in request.headers.get("Accept", ""):
+        return render_template(
+            "workers.html",
+            workers=workers,
+            show_all=(None if show_all else "all"),
+            missing_time=five_minutes_ago,
+            hx_request=request.headers.get("HX-Request", False),
+        )
+    else:
+        return jsonify([asdict(worker) for worker in workers])
 
 
 @jobqueue.app_template_filter()

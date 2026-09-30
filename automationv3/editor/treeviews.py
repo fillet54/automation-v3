@@ -3,18 +3,6 @@ from contextlib import closing
 import json
 
 
-def table_exists(conn, table_name):
-    cursor = conn.execute(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type='table' AND name= ?
-    """,
-        (table_name,),
-    )
-    return len(cursor.fetchall()) != 0
-
-
 class Treeview:
     def __init__(self, conn, id, factoryfn):
         self.conn = conn
@@ -33,21 +21,6 @@ class Treeview:
 
         self.root = factoryfn(row[1], root=None)
         self.opened = [factoryfn(n, self.root) for n in json.loads(row[0])]
-
-    @staticmethod
-    def ensure_db(conn):
-        if not table_exists(conn, "treeviews"):
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS treeviews(
-                    id INTEGER PRIMARY KEY,
-                    opened TEXT,
-                    root TEXT,
-                    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE
-                )
-            """
-            )
-            conn.commit()
 
     @staticmethod
     def create(conn, root, factoryfn):

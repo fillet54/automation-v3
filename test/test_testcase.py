@@ -1,8 +1,11 @@
 import unittest
 from pathlib import Path
 
+from flask import Flask
+
 from automationv3.framework.testcase import EdnTestCase
-from automationv3.database import db
+from automationv3.database import get_db, init_db, close_db
+from automationv3.requirements import models
 from automationv3.requirements.models import Requirement
 
 edn_text = '''
@@ -29,19 +32,22 @@ Steps
 
 class TestTestCase(unittest.TestCase):
     def setUp(self):
-
-        Requirement.metadata.create_all(db.engine)
+        # In-memory DB lives as long as the app context
+        app = Flask(__name__)
+        app.config["DB_PATH"] = ":memory:"
+        app.teardown_appcontext(close_db)
+        self.app_context = app.app_context()
+        self.app_context.push()
 
         # Sample DB Data
         self.req1 = Requirement(id="R1", text="Test requirement 1", subsystem="Test-subsystem-1")
         self.req2 = Requirement(id="R2", text="Test requirement 2", subsystem="Test-subsystem-2")
 
-        with db.session as session:
-                session.add_all([self.req1, self.req2])
-                session.commit()
+        init_db(get_db())
+        models.insert(get_db(), [self.req1, self.req2])
 
     def tearDown(self):
-        Path(db.get_connection_str()).unlink()
+        self.app_context.pop()
 
 
     def test_title(self):

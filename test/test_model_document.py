@@ -5,12 +5,13 @@ import os
 from pathlib import Path
 
 from automationv3.editor.models import Document 
+from automationv3.database import init_db
 
 class TestDocument(unittest.TestCase):
     def setUp(self):
         self.db_file = "test.db"
         self.conn = sqlite3.connect(self.db_file)
-        Document.ensure_db(self.conn)
+        init_db(self.conn)
 
         self.root = Path(__file__).resolve().parent / 'data' / 'rvts'
 

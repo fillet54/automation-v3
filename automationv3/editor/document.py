@@ -8,18 +8,6 @@ from ..framework import edn
 from ..database import get_db
 
 
-def table_exists(conn, table_name):
-    cursor = conn.execute(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type='table' AND name= ?
-    """,
-        (table_name,),
-    )
-    return len(cursor.fetchall()) != 0
-
-
 def is_binary(path, sample_length=8000):
     """Simplistic Git method. Basically read checking for NUL"""
     try:
@@ -51,23 +39,6 @@ def guess_mime(path):
 
 
 class Document:
-    @staticmethod
-    def ensure_db(conn):
-        if not table_exists(conn, "documents"):
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS documents(
-                    id TEXT PRIMARY KEY,
-                    path TEXT,
-                    draft TEXT,
-                    mime TEXT NOT NULL,
-                    st_mtime REAL,
-                    meta TEXT NOT NULL
-                )
-            """
-            )
-            conn.commit()
-
     @staticmethod
     def open(conn, path):
         """Opens a file is not already opened. Otherwised returns opened document"""

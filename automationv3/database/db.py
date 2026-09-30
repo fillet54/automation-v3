@@ -1,54 +1,32 @@
-import sys
+"""Plain sqlite3 database access"""
+
 import sqlite3
+from pathlib import Path
+
 from flask import current_app, g
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+SCHEMA = Path(__file__).resolve().parent / "schema.sql"
 
 
-class DatabaseHelper:
-    def __init__(self):
-        self._engine = None
-        self._sessionmaker = None
-
-    @property
-    def engine(self):
-        if g:
-            if "engine" not in g:
-                g.engine = current_app.config["DB_ENGINE"]()
-            return g.engine
-        else:
-            if self._engine is None or "unittest" in sys.modules:
-                conn_str = f"sqlite:///{self.get_connection_str()}"
-                self._engine = create_engine(conn_str)
-            return self._engine
-
-    @property
-    def session(self):
-        if g:
-            if "session" not in g:
-                g.session = current_app.config["DB_SESSION_MAKER"]()
-            return g.session
-        else:
-            if self._sessionmaker is None or "unittest" in sys.modules:
-                self._sessionmaker = sessionmaker(self.engine)
-            return self._sessionmaker()
-
-    def get_connection_str(self):
-        # TODO: somehow get path to db. For now just hardcode
-        if "unittest" in sys.modules:
-            return "test.db"
-        else:
-            return current_app.config["DB_PATH"]
+def connect(path):
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
-db = DatabaseHelper()
+def init_db(conn):
+    """Create any missing tables"""
+    conn.executescript(SCHEMA.read_text())
 
 
 def get_db():
-    if g:
-        if "sqlite_db" not in g:
-            g.sqlite_db = sqlite3.connect(db.get_connection_str())
-        return g.sqlite_db
-    else:
-        return sqlite3.connect(db.get_connection_str())
+    """Connection for the current app context, closed by close_db"""
+    if "db" not in g:
+        g.db = connect(current_app.config["DB_PATH"])
+    return g.db
+
+
+def close_db(error=None):
+    conn = g.pop("db", None)
+    if conn is not None:
+        conn.close()

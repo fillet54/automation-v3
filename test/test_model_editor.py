@@ -4,12 +4,13 @@ import os
 from pathlib import Path
 
 from automationv3.editor.models import Editor
+from automationv3.database import init_db
 
 class TestEditor(unittest.TestCase):
     def setUp(self):
         self.db_file = "test_document.db"
         self.conn = sqlite3.connect(self.db_file)
-        Editor.ensure_db(self.conn)
+        init_db(self.conn)
         
         self.root = Path(__file__).resolve().parent / 'data' / 'rvts'
         self.temp_file = self.root / 'BRA' / 'temp.rvt'

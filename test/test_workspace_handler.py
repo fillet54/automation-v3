@@ -6,7 +6,7 @@ from pathlib import Path
 from flask import Flask, url_for
 
 from automationv3.editor.views.workspace import workspace
-from automationv3.editor.models import Workspace 
+from automationv3.database import init_db
 
 
 class TestWorkspaceHandler(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestWorkspaceHandler(unittest.TestCase):
         # Create and setup DB
         self.db_file = "test.db"
         self.conn = sqlite3.connect(self.db_file)
-        Workspace.ensure_db(self.conn)
+        init_db(self.conn)
 
 
         # Create workspaces

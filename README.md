@@ -14,7 +14,6 @@ python setup.py develop
 ```
 3. Create sample db
 ```
-alembic upgrade head
 python test/data/load_sample.py
 ```
 4. Create sample workspace
@@ -27,15 +26,10 @@ automation-v3 server --workspace-path ./test/data/git_repos/master
 ```
 
 
-## Generating Migrations
+## Database
 
-```
-alembic revision -m "Add Worker"
-```
-
-Go edit migration in automationv3/database/migrations/versions. Then to
-migrate run the following command:
-
-```
-alembic upgrade head
-```
+The app uses plain `sqlite3`. All tables are defined in
+`automationv3/database/schema.sql`, which is applied (with `CREATE ... IF NOT
+EXISTS`) every time the server or worker starts. There are no migrations: to
+change a table, edit `schema.sql`, delete the database file and reload the
+sample data.

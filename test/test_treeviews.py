@@ -4,13 +4,14 @@ import os
 from pathlib import Path
 
 from automationv3.editor.models import Treeview, FilesystemTreeNode 
+from automationv3.database import init_db
 
 class TestTreeview(unittest.TestCase):
     def setUp(self):
         self.db_file = "test_treeview.db"
         self.conn = sqlite3.connect(self.db_file)
         self.root = Path(__file__).resolve().parent / 'data' / 'rvts'
-        Treeview.ensure_db(self.conn)
+        init_db(self.conn)
 
     def tearDown(self):
         self.conn.close()

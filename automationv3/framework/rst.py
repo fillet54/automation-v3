@@ -10,8 +10,8 @@ from docutils.writers.html4css1 import Writer, HTMLTranslator
 
 from . import edn
 from .block import find_block
-from ..database import db
-from ..requirements.models import Requirement
+from ..database import get_db
+from ..requirements import models as requirements
 
 
 def requirement_reference_role(
@@ -29,11 +29,7 @@ def requirement_reference_role(
 class requirement(nodes.Inline, nodes.TextElement):
     def __init__(self, id):
         super().__init__()
-        with db.session as session:
-            self.req = Requirement.find_by_id(session, id)
-
-            if self.req is None:
-                self.req = Requirement(id=id)
+        self.req = requirements.find_by_id(get_db(), id) or requirements.Requirement(id)
 
 
 # Register requirement role

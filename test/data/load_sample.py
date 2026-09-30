@@ -21,10 +21,12 @@ Options:
 """
 from pathlib import Path
 
-from docopt import docopt 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from contextlib import closing
 
+from docopt import docopt 
+
+from automationv3.database import connect, init_db
+from automationv3.requirements import models
 from automationv3.requirements.models import Requirement
 
 SAMPLE_DATA_PATH = Path(__file__).resolve().parent / 'sample_requirements.txt'
@@ -35,8 +37,6 @@ def load_sample():
 
     dbpath = args['--dbpath']
     data = args['--data']
-
-    engine = create_engine(f'sqlite:///{dbpath}')
 
     def line_to_requirement(line):
         line = line.strip()
@@ -52,12 +52,10 @@ def load_sample():
 
     with (
         open(data, 'r') as file,
-        Session(engine) as session
+        closing(connect(dbpath)) as conn
     ):
-        requirements = [line_to_requirement(line)
-                        for line in file]
-        session.add_all(requirements)
-        session.commit()
+        init_db(conn)
+        models.insert(conn, [line_to_requirement(line) for line in file])
 
 if __name__ == '__main__':
     load_sample()

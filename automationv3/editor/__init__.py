@@ -1,6 +1,7 @@
-from flask import Flask, g, redirect, url_for
+from flask import Flask, redirect, url_for
 import mimetypes
 
+from ..database import close_db
 from ..jobqueue import jobqueue
 from ..requirements.views import requirements
 from .views import editor, workspace, commitlog
@@ -32,12 +33,4 @@ def serve_static(filename):
     return app.send_static_file(filename)
 
 
-# cleanup database connection
-@app.teardown_appcontext
-def close_db(error):
-    """Closes the database again at the end of the request."""
-    if hasattr(g, "sqlite_db"):
-        g.sqlite_db.close()
-
-    if hasattr(g, "session"):
-        g.session.close()
+app.teardown_appcontext(close_db)

@@ -4,46 +4,7 @@ from .document import Document
 from ..database import get_db
 
 
-# Helpers
-def table_exists(conn, table_name):
-    cursor = conn.execute(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type='table' AND name= ?
-    """,
-        (table_name,),
-    )
-    return len(cursor.fetchall()) != 0
-
-
 class Editor:
-    @staticmethod
-    def ensure_db(conn):
-        Document.ensure_db(conn)
-
-        if not table_exists(conn, "editors"):
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS editors(
-                    id INTEGER PRIMARY KEY,
-                    active_tab TEXT
-                )
-            """
-            )
-            conn.commit()
-        if not table_exists(conn, "opened_documents"):
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS opened_documents(
-                    id INTEGER PRIMARY KEY,
-                    editor_id INTEGER REFERENCES editors(id) ON DELETE CASCADE,
-                    document_id TEXT REFERENCES document(id) ON DELETE CASCADE
-                )
-            """
-            )
-            conn.commit()
-
     def __init__(self, conn, id):
         self.id = id
         self.conn = conn

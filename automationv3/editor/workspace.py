@@ -10,57 +10,7 @@ from .editor import Editor
 from ..database import get_db
 
 
-# Helpers
-def table_exists(conn, table_name):
-    cursor = conn.execute(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type='table' AND name= ?
-    """,
-        (table_name,),
-    )
-    return len(cursor.fetchall()) != 0
-
-
 class Workspace:
-    @staticmethod
-    def ensure_db(conn):
-        Editor.ensure_db(conn)
-        Treeview.ensure_db(conn)
-        if not table_exists(conn, "workspaces"):
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS workspaces(
-                    id TEXT PRIMARY KEY
-                )
-            """
-            )
-            conn.commit()
-        if not table_exists(conn, "workspace_editors"):
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS workspace_editors(
-                    id INTEGER PRIMARY KEY,
-                    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
-                    editor_id INTEGER REFERENCES editors(id) ON DELETE CASCADE
-                )
-            """
-            )
-            conn.commit()
-        if not table_exists(conn, "workspace_treeviews"):
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS workspace_treeviews(
-                    id INTEGER PRIMARY KEY,
-                    type TEXT,
-                    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
-                    treeview_id INTEGER REFERENCES treeviews(id) ON DELETE CASCADE
-                )
-            """
-            )
-            conn.commit()
-
     def __init__(self, id, conn, workspace_root):
         self.id = id
         self.conn = conn

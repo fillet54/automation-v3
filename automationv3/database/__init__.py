@@ -1,4 +1,3 @@
-from .db import get_db, db
-from .base import ModelBase
+from .db import connect, init_db, get_db, close_db
 
-__all__ = [get_db, db, ModelBase]
+__all__ = [connect, init_db, get_db, close_db]

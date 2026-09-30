@@ -1,34 +1,12 @@
 import re
-
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
-
-from ..database.base import ModelBase
+from dataclasses import dataclass
 
 
-class Requirement(ModelBase):
-    __tablename__ = "Requirement"
-
-    id: Mapped[str] = mapped_column(primary_key=True)
-    text: Mapped[str] = mapped_column(String(1024))
-    subsystem: Mapped[str] = mapped_column(String(20))
-
-    @classmethod
-    def find_by_id(cls, session, id):
-        return session.query(cls).filter_by(id=id).first()
-
-    def __eq__(self, other):
-        return (self.id, self.text, self.subsystem) == (
-            other.id,
-            other.text,
-            other.subsystem,
-        )
-
-    def __hash__(self):
-        return hash(self.id)
-
-    def __repr__(self):
-        return f"<Requirement: id={self.id}>"
+@dataclass(frozen=True)
+class Requirement:
+    id: str
+    text: str = None
+    subsystem: str = None
 
     def __repr_html__(self):
         if self.text:
@@ -38,3 +16,34 @@ class Requirement(ModelBase):
         else:
             markup = f"<strong>[{self.id}]</strong>"
         return f'<div class="mb-2">{markup}</div>'
+
+
+def find_by_id(conn, id):
+    row = conn.execute(
+        "SELECT id, text, subsystem FROM requirements WHERE id = ?", (id,)
+    ).fetchone()
+    return Requirement(*row) if row else None
+
+
+def find_all(conn, subsystem=None):
+    if subsystem:
+        rows = conn.execute(
+            "SELECT id, text, subsystem FROM requirements WHERE subsystem = ?",
+            (subsystem,),
+        )
+    else:
+        rows = conn.execute("SELECT id, text, subsystem FROM requirements")
+    return [Requirement(*row) for row in rows]
+
+
+def subsystems(conn):
+    rows = conn.execute("SELECT DISTINCT subsystem FROM requirements ORDER BY 1")
+    return [row[0] for row in rows]
+
+
+def insert(conn, requirements):
+    with conn:
+        conn.executemany(
+            "INSERT INTO requirements(id, text, subsystem) VALUES (?, ?, ?)",
+            [(r.id, r.text, r.subsystem) for r in requirements],
+        )
