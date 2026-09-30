@@ -5,8 +5,8 @@ import sqlite3
 from pathlib import Path
 from flask import Flask, url_for
 
-from automationv3.editor.views.workspace import workspace
-from automationv3.editor.views.editor import editor
+import automationv3
+from automationv3.editor import editor, workspace
 from automationv3.database import init_db
 
 
@@ -159,9 +159,10 @@ class TestWorkspaceHandler(unittest.TestCase):
 
 
         # Setup a test app
-        self.app = Flask(__name__)
-        self.app.register_blueprint(workspace, url_prefix='/workspace')
-        self.app.register_blueprint(editor, url_prefix='/editor')
+        templates = Path(automationv3.__file__).parent / 'templates'
+        self.app = Flask(__name__, template_folder=templates)
+        self.app.register_blueprint(workspace.bp, url_prefix='/workspace')
+        self.app.register_blueprint(editor.bp, url_prefix='/editor')
         self.app.config['DB_PATH'] = self.db_file
         self.app.config['WORKSPACE_PATH'] = self.gitdir
         self.app.testing = True

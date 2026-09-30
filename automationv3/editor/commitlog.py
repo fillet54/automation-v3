@@ -2,8 +2,7 @@ import subprocess
 
 from flask import Blueprint, render_template
 
-
-commitlog = Blueprint("commitlog", __name__, template_folder="templates")
+bp = Blueprint("commitlog", __name__)
 
 
 def get_files_for_commit(commit_hash):
@@ -59,14 +58,14 @@ def get_versions():
     ]
 
 
-@commitlog.route("/")
+@bp.route("/")
 def list():
     commits = get_commit_log()
     versions = get_versions()
     return render_template("commitlog.html", commitlog=commits, versions=versions)
 
 
-@commitlog.route("/details/<hash>")
+@bp.route("/details/<hash>")
 def details(hash):
     commits = get_commit_log()
     commit = commits[hash]

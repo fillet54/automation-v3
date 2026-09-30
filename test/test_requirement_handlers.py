@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from flask import Flask
 
-from automationv3 import editor
+import automationv3
 from automationv3.database import connect, init_db, close_db
 from automationv3.requirements import models
 from automationv3.requirements.views import requirements
@@ -24,7 +24,7 @@ class TestRequirementHandler(unittest.TestCase):
         conn.close()
 
         # Setup a test app
-        app = Flask(__name__, template_folder=Path(editor.__file__).parent / 'templates')
+        app = Flask(__name__, template_folder=Path(automationv3.__file__).parent / 'templates')
         app.register_blueprint(requirements, url_prefix='/requirements')
         app.teardown_appcontext(close_db)
 

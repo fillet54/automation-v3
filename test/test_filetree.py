@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 from automationv3.database import connect, init_db
-from automationv3.editor.treeviews import FileNode, expanded_nodes, toggle_expanded
+from automationv3.editor.workspace import FileNode, expanded_nodes, toggle_expanded
 
 
 class TestFileNode(unittest.TestCase):

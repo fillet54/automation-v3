@@ -43,7 +43,7 @@ from docopt import docopt
 from schema import Schema, And, Or, Use, SchemaError
 from waitress import serve
 
-from ..database import connect, init_db
+from .database import connect, init_db
 
 
 def main():
@@ -92,7 +92,7 @@ def setup_db(app):
 
 
 def start_worker(args):
-    from ..jobqueue.worker import app, register_worker
+    from .jobqueue.worker import app, register_worker
 
     app.config["DB_PATH"] = Path(args["--dbpath"]).resolve()
     app.config["CENTRAL_SERVER_URL"] = args["--central-server"]
@@ -109,7 +109,7 @@ def start_worker(args):
 
 
 def start_server(args):
-    from . import app
+    from .app import app
 
     app.config["DB_PATH"] = Path(args["--dbpath"]).resolve()
     app.config["WORKSPACE_PATH"] = Path(args["--workspace-path"]).resolve()
