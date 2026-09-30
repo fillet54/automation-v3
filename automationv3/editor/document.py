@@ -1,11 +1,10 @@
-from contextlib import closing
 import hashlib
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import mimetypes
 
 from ..framework import edn
-from ..database import get_db
 
 
 def is_binary(path, sample_length=8000):
@@ -38,167 +37,16 @@ def guess_mime(path):
     return mime
 
 
+@dataclass(eq=False)
 class Document:
-    @staticmethod
-    def open(conn, path):
-        """Opens a file is not already opened. Otherwised returns opened document"""
-        path = path.resolve()
-        id = hashlib.sha1(str(path).encode("utf-8")).hexdigest()
+    """A file opened for editing. `draft` holds unsaved content."""
 
-        # Determine if document is already opened
-        cursor = conn.execute(
-            """
-            SELECT COUNT(*)
-            FROM documents
-            WHERE id = ?
-        """,
-            (id,),
-        )
-        exists = cursor.fetchone()[0] > 0
-        if exists:
-            return Document(conn, id)
-
-        # Otherwise open document
-        st_mtime = path.stat().st_mtime
-        mime = guess_mime(path)
-        meta = json.dumps({})
-
-        with closing(conn.cursor()) as c:
-            c.execute(
-                """
-                INSERT INTO documents(id, path, mime, st_mtime, meta)
-                VALUES (?, ?, ?, ?, ?)
-            """,
-                (id, str(path), mime, st_mtime, meta),
-            )
-            conn.commit()
-
-        return Document(conn, id)
-
-    @staticmethod
-    def all(conn):
-        cursor = conn.execute(
-            """
-            SELECT id
-            FROM documents
-        """
-        )
-        return [Document(conn, row[0]) for row in cursor.fetchall()]
-
-    def __init__(self, conn, id):
-        self.id = id
-        self.conn = conn
-
-        # Persisted Fields read once
-        self._read = False
-        self._path = None
-        self._st_mtime = None
-        self._mime = None
-        self._draft = None
-        self._meta = None
-
-    def read_db(self):
-        if self._read:
-            return
-
-        cursor = self.conn.execute(
-            """
-            SELECT path, draft, mime, st_mtime, meta
-            FROM documents
-            WHERE id = ?
-        """,
-            (self.id,),
-        )
-        row = cursor.fetchone()
-        if row is not None:
-            self._path, self._draft, self._mime, self._st_mtime, self._meta = row
-        else:
-            self._path, self._draft, self._mime, self._st_mtime, self._meta = (
-                None,
-                None,
-                None,
-                None,
-                "[]",
-            )
-
-        self._meta = json.loads(self._meta)
-        self._read = True
-
-    @property
-    def st_mtime(self):
-        self.read_db()
-        return self._st_mtime
-
-    @property
-    def mime(self):
-        self.read_db()
-        return self._mime
-
-    @property
-    def draft(self):
-        self.read_db()
-        return self._draft
-
-    @property
-    def path(self):
-        self.read_db()
-        if self._path:
-            return Path(self._path)
-
-    @property
-    def meta(self):
-        self.read_db()
-        return self._meta
-
-    def set_meta(self, key, val):
-        meta = self.meta
-        meta[key] = val
-
-        with closing(self.conn.cursor()) as c:
-            c.execute(
-                """
-                UPDATE documents
-                SET meta = ?
-                WHERE id = ?
-            """,
-                (json.dumps(meta), self.id),
-            )
-            self.conn.commit()
-
-    def save(self):
-        """Writes content to disk, clears draft and updates st_mtime"""
-
-        if self.mime != "application/octet-stream":
-            self.path.write_text(self.content)
-
-        st_mtime = self.path.stat().st_mtime
-
-        with closing(self.conn.cursor()) as c:
-            c.execute(
-                """
-                UPDATE documents
-                SET draft = ?, st_mtime = ?
-                WHERE id = ?
-            """,
-                (None, st_mtime, self.id),
-            )
-            self.conn.commit()
-
-        self._draft = None
-        self._st_mtime = st_mtime
-
-    def save_draft(self, content):
-        with closing(self.conn.cursor()) as c:
-            c.execute(
-                """
-                UPDATE documents
-                SET draft = ?
-                WHERE id = ?
-            """,
-                (content, self.id),
-            )
-            self.conn.commit()
-        self._draft = content
+    id: str
+    path: Path
+    mime: str
+    st_mtime: float
+    draft: str = None
+    meta: dict = field(default_factory=dict)
 
     @property
     def content(self):
@@ -219,27 +67,81 @@ class Document:
         """
         return self.st_mtime != self.path.stat().st_mtime
 
-    def close(self):
-        self.conn.execute(
-            """
-            DELETE FROM documents
-            WHERE id = ?
-        """,
-            (self.id,),
-        )
-        self.conn.commit()
-        self._read = False
-
     def __eq__(self, other):
-        "Lookup by relative paths"
-        return self.path == other
+        return isinstance(other, Document) and self.id == other.id
 
     def __hash__(self):
-        return hash(self.path)
+        return hash(self.id)
 
 
-def get_document(id):
-    if id is not None:
-        conn = get_db()
-        return Document(conn, id)
-    return None
+def document_from_row(row):
+    id, path, mime, st_mtime, draft, meta = row
+    return Document(id, Path(path), mime, st_mtime, draft, json.loads(meta))
+
+
+def get_document(conn, id):
+    row = conn.execute(
+        "SELECT id, path, mime, st_mtime, draft, meta FROM documents WHERE id = ?",
+        (id,),
+    ).fetchone()
+    return document_from_row(row) if row else None
+
+
+def all_documents(conn):
+    rows = conn.execute("SELECT id, path, mime, st_mtime, draft, meta FROM documents")
+    return [document_from_row(row) for row in rows]
+
+
+def open_document(conn, path):
+    """The document for `path`, recording it as opened if it isn't already"""
+    path = path.resolve()
+    id = hashlib.sha1(str(path).encode("utf-8")).hexdigest()
+
+    document = get_document(conn, id)
+    if document is None:
+        document = Document(id, path, guess_mime(path), path.stat().st_mtime)
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO documents(id, path, mime, st_mtime, meta)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (id, str(path), document.mime, document.st_mtime, json.dumps({})),
+            )
+    return document
+
+
+def delete_document(conn, id):
+    with conn:
+        conn.execute("DELETE FROM documents WHERE id = ?", (id,))
+
+
+def save_document(conn, document):
+    """Writes content to disk, clears draft and updates st_mtime"""
+    if document.mime != "application/octet-stream":
+        document.path.write_text(document.content)
+
+    document.draft = None
+    document.st_mtime = document.path.stat().st_mtime
+    with conn:
+        conn.execute(
+            "UPDATE documents SET draft = NULL, st_mtime = ? WHERE id = ?",
+            (document.st_mtime, document.id),
+        )
+
+
+def save_draft(conn, document, content):
+    document.draft = content
+    with conn:
+        conn.execute(
+            "UPDATE documents SET draft = ? WHERE id = ?", (content, document.id)
+        )
+
+
+def set_meta(conn, document, key, val):
+    document.meta[key] = val
+    with conn:
+        conn.execute(
+            "UPDATE documents SET meta = ? WHERE id = ?",
+            (json.dumps(document.meta), document.id),
+        )

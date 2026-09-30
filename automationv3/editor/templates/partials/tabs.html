@@ -4,7 +4,7 @@
 {% set classnames = "flex max-w-xs flex-grow p-1 border justify-between relative hover:bg-gray-100 overflow-ellipsis bg-gray-200 text-gray-500" %}
 
 <div class="flex flex-wrap">
-  {% for doc in editor.documents() %}
+  {% for doc in editor.documents %}
   {% set active = doc == editor.active_document %}
   <div class="{{ active_classnames if active else classnames }} group/tabitem"
        style="top: 1px">

@@ -5,7 +5,7 @@ from ..database import close_db
 from ..jobqueue import jobqueue
 from ..requirements.views import requirements
 from .views import editor, workspace, commitlog
-from .workspace import get_workspaces
+from .workspace import find_worktrees
 
 
 # add support for rst mimetype
@@ -22,10 +22,8 @@ app.register_blueprint(commitlog, url_prefix="/commitlog")
 
 @app.route("/")
 def index():
-    workspaces = get_workspaces()
-    workspace = workspaces[0]
-
-    return redirect(url_for("workspace.index", id=workspace.id))
+    first = next(iter(find_worktrees(app.config["WORKSPACE_PATH"])))
+    return redirect(url_for("workspace.index", id=first))
 
 
 @app.route("/static/<path:filename>")

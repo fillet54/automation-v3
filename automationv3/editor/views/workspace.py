@@ -1,13 +1,25 @@
 import re
 import json
-from flask import Blueprint, render_template, request, abort, make_response
+from flask import Blueprint, current_app, render_template, request, abort, make_response
 
 from ..templates import template_root
 from ...database import get_db
+from ..editor import add_document, select_document
 from ..treeviews import FileNode, expanded_nodes, toggle_expanded
-from ..workspace import get_workspace, get_workspaces
+from ..workspace import find_worktrees, get_workspace
 
 workspace = Blueprint("workspace", __name__, template_folder=template_root)
+
+
+def worktrees():
+    return find_worktrees(current_app.config["WORKSPACE_PATH"])
+
+
+def workspace_or_404(id):
+    root = worktrees().get(id)
+    if root is None:
+        abort(404)
+    return get_workspace(get_db(), id, root)
 
 
 def node_or_404(workspace, path):
@@ -21,7 +33,7 @@ def node_or_404(workspace, path):
 @workspace.route("/<path:id>", methods=["GET"])
 def index(id):
     return render_template(
-        "workspace.html", workspaces=get_workspaces(), workspace=get_workspace(id)
+        "workspace.html", workspaces=list(worktrees()), workspace=workspace_or_404(id)
     )
 
 
@@ -52,13 +64,13 @@ def render_tree(workspace, node):
 
 @workspace.route("/<path:id>/tree", methods=["GET"])
 def tree(id):
-    ws = get_workspace(id)
+    ws = workspace_or_404(id)
     return render_tree(ws, ws.root_node)
 
 
 @workspace.route("/<path:id>/expand", methods=["POST"])
 def expand(id):
-    ws = get_workspace(id)
+    ws = workspace_or_404(id)
     node = node_or_404(ws, request.args.get("path", ""))
     toggle_expanded(get_db(), ws.id, node)
     return render_tree(ws, node)
@@ -66,14 +78,14 @@ def expand(id):
 
 @workspace.route("/<path:id>/open", methods=["POST"])
 def open_document(id):
-    ws = get_workspace(id)
+    ws = workspace_or_404(id)
     node = node_or_404(ws, request.args.get("path", ""))
     if not node.is_file():
         abort(404)
 
-    editor = ws.active_editor()
-    document = editor.open(node.path)
-    editor.select_document(document)
+    conn = get_db()
+    document = add_document(conn, ws.editor_id, node.path)
+    select_document(conn, ws.editor_id, document.id)
 
     resp = make_response("Success")
     resp.headers["Hx-Trigger"] = json.dumps(

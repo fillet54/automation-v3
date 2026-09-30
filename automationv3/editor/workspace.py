@@ -1,88 +1,22 @@
+from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
-from contextlib import closing
 import subprocess
 
-from flask import current_app, abort
-
 from .treeviews import FileNode
-from .editor import Editor
-
-from ..database import get_db
 
 
+@dataclass
 class Workspace:
-    def __init__(self, id, conn, workspace_root):
-        self.id = id
-        self.conn = conn
+    """A git worktree's rvts directory, named by its branch"""
 
-        # TODO: Should persist this to determine if a workspace is gone
-        self.root = workspace_root
-        self.root_node = FileNode(workspace_root)
+    id: str
+    root: Path
+    editor_id: int
 
-        self._editors = None
-
-        self.ensure_self()
-
-    def ensure_self(self):
-        cursor = self.conn.execute(
-            """
-            SELECT COUNT(*)
-            FROM workspaces
-            WHERE id = ?
-        """,
-            (self.id,),
-        )
-        row = cursor.fetchone()
-        workspace_exists = row[0] == 1
-
-        if not workspace_exists:
-            cursor = self.conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO workspaces(id)
-                VALUES (?)
-            """,
-                (self.id,),
-            )
-            self.conn.commit()
-            cursor.close()
-
-            # Create editor
-            self._editors = [Editor.create(self.conn)]
-            with closing(self.conn.cursor()) as c:
-                c.execute(
-                    """
-                    INSERT INTO workspace_editors(workspace_id, editor_id)
-                    VALUES (?, ?)
-                """,
-                    (self.id, self._editors[0].id),
-                )
-                self.conn.commit()
-
-    def editors(self, id=None):
-        if id is not None:
-            return Editor(self.conn, id)
-
-        if self._editors is None:
-            # return first editor
-            cursor = self.conn.execute(
-                """
-                SELECT editor_id
-                FROM workspace_editors
-                WHERE workspace_id = ?
-            """,
-                (str(self.id),),
-            )
-            rows = cursor.fetchall()
-
-            if rows is None:
-                self._editors = []
-            else:
-                self._editors = [Editor(self.conn, row[0]) for row in rows]
-        return self._editors
-
-    def active_editor(self):
-        return self.editors()[0]
+    @cached_property
+    def root_node(self):
+        return FileNode(self.root)
 
 
 def find_worktrees(repo):
@@ -100,15 +34,19 @@ def find_worktrees(repo):
     return worktrees
 
 
-def get_workspaces():
-    worktrees = find_worktrees(current_app.config["WORKSPACE_PATH"])
-    return [Workspace(id, get_db(), root) for id, root in worktrees.items()]
+def get_workspace(conn, id, root):
+    """The workspace `id`, creating it (and its editor) on first use"""
+    row = conn.execute(
+        "SELECT editor_id FROM workspaces WHERE id = ?", (id,)
+    ).fetchone()
+    if row is not None:
+        return Workspace(id, root, row[0])
 
-
-def get_workspace(id):
-    """The workspace for branch `id`. A workspace id is a branch name of
-    the git repo at WORKSPACE_PATH"""
-    worktrees = find_worktrees(current_app.config["WORKSPACE_PATH"])
-    if id not in worktrees:
-        abort(404)
-    return Workspace(id, get_db(), worktrees[id])
+    with conn:
+        editor_id = conn.execute(
+            "INSERT INTO editors(active_tab) VALUES (NULL)"
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO workspaces(id, editor_id) VALUES (?, ?)", (id, editor_id)
+        )
+    return Workspace(id, root, editor_id)

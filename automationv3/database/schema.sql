@@ -40,13 +40,8 @@ CREATE TABLE IF NOT EXISTS opened_documents(
 
 -- Workspaces
 CREATE TABLE IF NOT EXISTS workspaces(
-    id TEXT PRIMARY KEY
-);
-
-CREATE TABLE IF NOT EXISTS workspace_editors(
-    id INTEGER PRIMARY KEY,
-    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
-    editor_id INTEGER REFERENCES editors(id) ON DELETE CASCADE
+    id TEXT PRIMARY KEY,
+    editor_id INTEGER NOT NULL REFERENCES editors(id)
 );
 
 CREATE TABLE IF NOT EXISTS expanded_nodes(
