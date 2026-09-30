@@ -1,62 +1,4 @@
 from pathlib import Path
-from contextlib import closing
-import json
-
-
-class Treeview:
-    def __init__(self, conn, id, factoryfn):
-        self.conn = conn
-        self.id = id
-        self.factoryfn = factoryfn
-
-        cursor = self.conn.execute(
-            """
-            SELECT opened, root
-            FROM treeviews
-            WHERE id = ?
-        """,
-            (self.id,),
-        )
-        row = cursor.fetchone()
-
-        self.root = factoryfn(row[1], root=None)
-        self.opened = [factoryfn(n, self.root) for n in json.loads(row[0])]
-
-    @staticmethod
-    def create(conn, root, factoryfn):
-        with closing(conn.cursor()) as c:
-            c.execute(
-                """
-                INSERT INTO treeviews(opened, root)
-                VALUES (?, ?)
-            """,
-                (json.dumps([]), str(root)),
-            )
-            id = c.lastrowid
-            conn.commit()
-        return Treeview(conn, id, factoryfn)
-
-    def node(self, id):
-        return self.factoryfn(id, self.root)
-
-    def toggle(self, node):
-        if node in self.opened:
-            self.opened.remove(node)
-        else:
-            self.opened.append(node)
-
-        opened_as_str = [str(i) for i in self.opened]
-
-        with closing(self.conn.cursor()) as c:
-            c.execute(
-                """
-                UPDATE treeviews
-                SET opened = ?
-                WHERE id = ?
-            """,
-                (json.dumps(opened_as_str), self.id),
-            )
-            self.conn.commit()
 
 
 class FileNode:
@@ -112,3 +54,23 @@ class FileNode:
 
     def __repr__(self):
         return f"FileNode('{self.path}')"
+
+
+def expanded_nodes(conn, workspace_id, root):
+    """The set of nodes under `root` that are expanded in the tree view"""
+    rows = conn.execute(
+        "SELECT path FROM expanded_nodes WHERE workspace_id = ?", (workspace_id,)
+    )
+    return {FileNode(row[0], root) for row in rows}
+
+
+def toggle_expanded(conn, workspace_id, node):
+    params = (workspace_id, str(node.relative_path))
+    with conn:
+        deleted = conn.execute(
+            "DELETE FROM expanded_nodes WHERE workspace_id = ? AND path = ?", params
+        ).rowcount
+        if not deleted:
+            conn.execute(
+                "INSERT INTO expanded_nodes(workspace_id, path) VALUES (?, ?)", params
+            )

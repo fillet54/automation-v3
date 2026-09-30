@@ -4,7 +4,7 @@ import subprocess
 
 from flask import current_app, abort
 
-from .treeviews import Treeview, FileNode
+from .treeviews import FileNode
 from .editor import Editor
 
 from ..database import get_db
@@ -17,9 +17,9 @@ class Workspace:
 
         # TODO: Should persist this to determine if a workspace is gone
         self.root = workspace_root
+        self.root_node = FileNode(workspace_root)
 
         self._editors = None
-        self._filesystem_tree = None
 
         self.ensure_self()
 
@@ -59,20 +59,6 @@ class Workspace:
                 )
                 self.conn.commit()
 
-            # Create Filesystem Treeview
-            self._filesystem_treeview = Treeview.create(
-                self.conn, self.root, FileNode
-            )
-            with closing(self.conn.cursor()) as c:
-                c.execute(
-                    """
-                    INSERT INTO workspace_treeviews(workspace_id, treeview_id, type)
-                    VALUES (?, ?, 'filesystem')
-                """,
-                    (self.id, self._filesystem_treeview.id),
-                )
-                self.conn.commit()
-
     def editors(self, id=None):
         if id is not None:
             return Editor(self.conn, id)
@@ -97,20 +83,6 @@ class Workspace:
 
     def active_editor(self):
         return self.editors()[0]
-
-    def filesystem_tree(self):
-        if self._filesystem_tree is None:
-            cursor = self.conn.execute(
-                """
-                SELECT treeview_id
-                FROM workspace_treeviews
-                WHERE workspace_id = ? AND type = 'filesystem'
-            """,
-                (self.id,),
-            )
-            row = cursor.fetchone()
-            self._filesystem_tree = Treeview(self.conn, row[0], FileNode)
-        return self._filesystem_tree
 
 
 def find_worktrees(repo):

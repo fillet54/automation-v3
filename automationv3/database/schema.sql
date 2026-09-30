@@ -38,13 +38,6 @@ CREATE TABLE IF NOT EXISTS opened_documents(
     document_id TEXT REFERENCES documents(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS treeviews(
-    id INTEGER PRIMARY KEY,
-    opened TEXT,
-    root TEXT,
-    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE
-);
-
 -- Workspaces
 CREATE TABLE IF NOT EXISTS workspaces(
     id TEXT PRIMARY KEY
@@ -56,9 +49,8 @@ CREATE TABLE IF NOT EXISTS workspace_editors(
     editor_id INTEGER REFERENCES editors(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS workspace_treeviews(
-    id INTEGER PRIMARY KEY,
-    type TEXT,
+CREATE TABLE IF NOT EXISTS expanded_nodes(
     workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
-    treeview_id INTEGER REFERENCES treeviews(id) ON DELETE CASCADE
+    path TEXT NOT NULL,
+    PRIMARY KEY(workspace_id, path)
 );

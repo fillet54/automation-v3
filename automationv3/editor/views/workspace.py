@@ -3,7 +3,8 @@ import json
 from flask import Blueprint, render_template, request, abort, make_response
 
 from ..templates import template_root
-from ..treeviews import FileNode
+from ...database import get_db
+from ..treeviews import FileNode, expanded_nodes, toggle_expanded
 from ..workspace import get_workspace, get_workspaces
 
 workspace = Blueprint("workspace", __name__, template_folder=template_root)
@@ -12,7 +13,7 @@ workspace = Blueprint("workspace", __name__, template_folder=template_root)
 def node_or_404(workspace, path):
     """The tree node for `path` (relative to the workspace root)"""
     try:
-        return FileNode(path, workspace.filesystem_tree().root)
+        return FileNode(path, workspace.root_node)
     except ValueError:
         abort(404)
 
@@ -45,21 +46,21 @@ def render_tree(workspace, node):
         "partials/treeitem.html",
         workspace=workspace,
         node=node,
-        opened=workspace.filesystem_tree().opened,
+        opened=expanded_nodes(get_db(), workspace.id, workspace.root_node),
     )
 
 
 @workspace.route("/<path:id>/tree", methods=["GET"])
 def tree(id):
     ws = get_workspace(id)
-    return render_tree(ws, ws.filesystem_tree().root)
+    return render_tree(ws, ws.root_node)
 
 
 @workspace.route("/<path:id>/expand", methods=["POST"])
 def expand(id):
     ws = get_workspace(id)
     node = node_or_404(ws, request.args.get("path", ""))
-    ws.filesystem_tree().toggle(node)
+    toggle_expanded(get_db(), ws.id, node)
     return render_tree(ws, node)
 
 

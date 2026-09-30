@@ -1,6 +1,6 @@
 from .editor import Editor
 from .document import Document
 from .workspace import Workspace
-from .treeviews import Treeview, FileNode
+from .treeviews import FileNode
 
-__all__ = [Editor, Document, Workspace, Treeview, FileNode]
+__all__ = [Editor, Document, Workspace, FileNode]
