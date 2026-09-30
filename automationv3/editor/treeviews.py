@@ -59,16 +59,24 @@ class Treeview:
             self.conn.commit()
 
 
-class FilesystemTreeNode:
-    def __init__(self, pathstr, root):
-        self.root = root or self
+class FileNode:
+    """A file or directory within a root directory.
 
-        self.path = Path(pathstr)
-        if not self.path.is_relative_to(self.root.path):
-            self.path = (self.root.path / Path(pathstr)).resolve()
+    Every node keeps a reference to its root node and refuses to be
+    created for a path outside of that root."""
+
+    def __init__(self, path, root=None):
+        if root is None:
+            self.root = self
+            self.path = Path(path).resolve()
+        else:
+            self.root = root
+            self.path = (root.path / path).resolve()
+            if not self.path.is_relative_to(root.path):
+                raise ValueError(f"'{self.path}' is not within '{root.path}'")
 
     def children(self):
-        return [FilesystemTreeNode(path, self.root) for path in self.path.iterdir()]
+        return [FileNode(child, self.root) for child in self.path.iterdir()]
 
     @property
     def name(self):
@@ -80,7 +88,7 @@ class FilesystemTreeNode:
 
     @property
     def is_root(self):
-        return self.relative_path == Path(".")
+        return self.path == self.root.path
 
     def is_dir(self):
         return self.path.is_dir()
@@ -89,19 +97,18 @@ class FilesystemTreeNode:
         return self.path.is_file()
 
     def __eq__(self, other):
-        if isinstance(other, FilesystemTreeNode):
-            return str(self.relative_path) == str(other.relative_path)
-        else:
-            return str(self.relative_path) == str(other) or str(self.path) == str(other)
+        if isinstance(other, FileNode):
+            return self.path == other.path
+        return self.path == Path(other)
+
+    def __hash__(self):
+        return hash(self.path)
+
+    def __lt__(self, other):
+        return self.path < other.path
 
     def __str__(self):
         return str(self.path)
 
-    def __hash__(self):
-        return hash(str(self.relative_path))
-
-    def __gt__(self, other):
-        return str(self) > str(other)
-
-    def __lt__(self, other):
-        return str(self) < str(other)
+    def __repr__(self):
+        return f"FileNode('{self.path}')"

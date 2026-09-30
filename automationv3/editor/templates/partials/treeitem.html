@@ -3,7 +3,7 @@
 {% set is_open = node.is_root or node in opened %}
 
 {% if not node.is_root %}
-<div hx-post="{{ url_for('workspace.tree', path=node.relative_path, workspace_id=workspace.id) }}"
+<div hx-post="{{ url_for('workspace.expand', id=workspace.id, path=node.relative_path) }}"
      hx-target="#node-{{ node.relative_path | as_id }}"
      class="flex">
   {%- if is_open %}
@@ -31,7 +31,7 @@
 
     {% for file in node.children() | is_file | sort %}
     <li class="ml-5 flex"
-        hx-post="{{ url_for('workspace.open_or_select_document', id=workspace.id, path=file, action='open') }}"
+        hx-post="{{ url_for('workspace.open_document', id=workspace.id, path=file.relative_path) }}"
         hx-swap="none">
       <img class="h-5 w-5 mr-1 whitespace-nowrap" src="{{ url_for('static', filename='img/icons/document.svg') }}"></img>
       {{ file.path.name }}

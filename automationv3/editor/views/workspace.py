@@ -1,22 +1,26 @@
-from pathlib import Path
 import re
 import json
 from flask import Blueprint, render_template, request, abort, make_response
 
 from ..templates import template_root
-from ..workspace import get_workspaces
+from ..treeviews import FileNode
+from ..workspace import get_workspace, get_workspaces
 
 workspace = Blueprint("workspace", __name__, template_folder=template_root)
 
 
-@workspace.route("/<path:path>", methods=["GET"])
-def index(path):
-    workspaces = get_workspaces()
-    workspace = get_workspaces(path)
-    editor = workspace.editors()
+def node_or_404(workspace, path):
+    """The tree node for `path` (relative to the workspace root)"""
+    try:
+        return FileNode(path, workspace.filesystem_tree().root)
+    except ValueError:
+        abort(404)
 
+
+@workspace.route("/<path:id>", methods=["GET"])
+def index(id):
     return render_template(
-        "workspace.html", workspaces=workspaces, workspace=workspace, editor=editor
+        "workspace.html", workspaces=get_workspaces(), workspace=get_workspace(id)
     )
 
 
@@ -36,46 +40,38 @@ def as_id(path):
     return re.sub(r"[^a-zA-Z0-9]", "--", str(path))
 
 
-@workspace.route("/tree", defaults={"path": ""}, methods=["GET"])
-@workspace.route("/tree/<path:path>", methods=["GET", "POST"])
-def tree(path):
-    workspace_id = request.args.get("workspace_id")
-    workspace = get_workspaces(workspace_id)
-    fstree = workspace.filesystem_tree()
-
-    if path == "":
-        path = workspace.root
-
-    # ensure path is relative to our root
-    if not (workspace.root / path).resolve().is_relative_to(workspace.root):
-        abort(404)
-
-    path = (workspace.root / path).resolve().relative_to(workspace.root)
-    if request.method == "POST":
-        fstree.toggle(path)
-
+def render_tree(workspace, node):
     return render_template(
         "partials/treeitem.html",
         workspace=workspace,
-        node=fstree.node(path),
-        opened=fstree.opened,
+        node=node,
+        opened=workspace.filesystem_tree().opened,
     )
 
 
-@workspace.route("<id>/open", methods=["GET", "POST"])
-def open_or_select_document(id):
-    if request.args.get("path") is None:
+@workspace.route("/<path:id>/tree", methods=["GET"])
+def tree(id):
+    ws = get_workspace(id)
+    return render_tree(ws, ws.filesystem_tree().root)
+
+
+@workspace.route("/<path:id>/expand", methods=["POST"])
+def expand(id):
+    ws = get_workspace(id)
+    node = node_or_404(ws, request.args.get("path", ""))
+    ws.filesystem_tree().toggle(node)
+    return render_tree(ws, node)
+
+
+@workspace.route("/<path:id>/open", methods=["POST"])
+def open_document(id):
+    ws = get_workspace(id)
+    node = node_or_404(ws, request.args.get("path", ""))
+    if not node.is_file():
         abort(404)
 
-    path = Path(request.args.get("path")).resolve()
-    ws = get_workspaces(id)
     editor = ws.active_editor()
-
-    # path must be within our workspace
-    if not path.is_relative_to(ws.root):
-        abort(404)
-
-    document = editor.open(path)
+    document = editor.open(node.path)
     editor.select_document(document)
 
     resp = make_response("Success")

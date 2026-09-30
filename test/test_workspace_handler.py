@@ -12,38 +12,61 @@ from automationv3.database import init_db
 class TestWorkspaceHandler(unittest.TestCase):
     def test_workspace_filesystem_tree(self):
         # Master Workspace
-        response = self.client.get(url_for('workspace.tree', workspace_id='master'))
+        response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'BRA', response.data)
         self.assertNotIn(b'TEST', response.data)
 
         # Branch1
-        response = self.client.get(url_for('workspace.tree', workspace_id='branch1'))
+        response = self.client.get(url_for('workspace.tree', id='branch1'))
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'BRA', response.data)
         self.assertIn(b'TEST', response.data)
     
     def test_workspace_filesystem_tree_open_close(self):
         # Closed
-        response = self.client.get(url_for('workspace.tree', workspace_id='master'))
+        response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'BRA', response.data)
         self.assertNotIn(b'tc_bra_00001.rvt', response.data)
 
         # Toggle open
-        response = self.client.post(url_for('workspace.tree',
-                                            workspace_id='master',
+        response = self.client.post(url_for('workspace.expand',
+                                            id='master',
                                             path='BRA'))
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'tc_bra_00001.rvt', response.data)
 
         # Stays open
-        response = self.client.get(url_for('workspace.tree', workspace_id='master'))
+        response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'BRA', response.data)
         self.assertIn(b'tc_bra_00001.rvt', response.data)
     
 
+
+    def test_unknown_workspace(self):
+        response = self.client.get(url_for('workspace.tree', id='nope'))
+        self.assertEqual(response.status_code, 404)
+
+    def test_expand_outside_workspace(self):
+        response = self.client.post(url_for('workspace.expand',
+                                            id='master',
+                                            path='../../'))
+        self.assertEqual(response.status_code, 404)
+
+    def test_open_outside_workspace(self):
+        response = self.client.post(url_for('workspace.open_document',
+                                            id='master',
+                                            path='../rvts/../../x'))
+        self.assertEqual(response.status_code, 404)
+
+    def test_open_document(self):
+        response = self.client.post(url_for('workspace.open_document',
+                                            id='master',
+                                            path='BRA/tc_bra_00001.rvt'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('editor-content-update', response.headers['Hx-Trigger'])
 
     #################
     # Fixture Setup #

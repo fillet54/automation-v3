@@ -25,7 +25,7 @@ def index():
     workspaces = get_workspaces()
     workspace = workspaces[0]
 
-    return redirect(url_for("workspace.index", path=workspace.id))
+    return redirect(url_for("workspace.index", id=workspace.id))
 
 
 @app.route("/static/<path:filename>")

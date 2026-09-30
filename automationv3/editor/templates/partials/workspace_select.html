@@ -10,7 +10,7 @@
   <option>{{ workspace.id }}</option>
   {% for other in workspaces %}
     {% if workspace.id != other.id %}
-    <option value="{{ url_for('workspace.index', path=other.id) }}">
+    <option value="{{ url_for('workspace.index', id=other.id) }}">
       {{ other.id }}
     </option>
     {% endif %}

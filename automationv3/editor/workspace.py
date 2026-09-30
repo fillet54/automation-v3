@@ -4,7 +4,7 @@ import subprocess
 
 from flask import current_app, abort
 
-from .treeviews import Treeview, FilesystemTreeNode
+from .treeviews import Treeview, FileNode
 from .editor import Editor
 
 from ..database import get_db
@@ -48,20 +48,20 @@ class Workspace:
             cursor.close()
 
             # Create editor
-            self.editors = [Editor.create(self.conn)]
+            self._editors = [Editor.create(self.conn)]
             with closing(self.conn.cursor()) as c:
                 c.execute(
                     """
                     INSERT INTO workspace_editors(workspace_id, editor_id)
                     VALUES (?, ?)
                 """,
-                    (self.id, self.editors[0].id),
+                    (self.id, self._editors[0].id),
                 )
                 self.conn.commit()
 
             # Create Filesystem Treeview
             self._filesystem_treeview = Treeview.create(
-                self.conn, self.root, FilesystemTreeNode
+                self.conn, self.root, FileNode
             )
             with closing(self.conn.cursor()) as c:
                 c.execute(
@@ -109,18 +109,14 @@ class Workspace:
                 (self.id,),
             )
             row = cursor.fetchone()
-            self._filesystem_tree = Treeview(self.conn, row[0], FilesystemTreeNode)
+            self._filesystem_tree = Treeview(self.conn, row[0], FileNode)
         return self._filesystem_tree
 
 
-def get_workspaces(id=None):
-    conn = get_db()
-    root = current_app.config["WORKSPACE_PATH"]
-
-    # A workspace id is the branch name of the git repo pointed
-    # to at the root
+def find_worktrees(repo):
+    """Maps each branch checked out in `repo` to its rvts directory"""
     output = subprocess.check_output(
-        ["git", "worktree", "list", "--porcelain"], cwd=root
+        ["git", "worktree", "list", "--porcelain"], cwd=repo
     )
     output = output.decode("utf-8").splitlines()
     output = zip(output[::4], output[1::4], output[2::4], output[3::4])
@@ -129,14 +125,18 @@ def get_workspaces(id=None):
         worktree_root = Path(worktree[len("worktree") + 1 :]) / "rvts"
         name = branch[len("branch refs/heads/") :]
         worktrees[name] = worktree_root
+    return worktrees
 
-    if id is None:
-        return [
-            Workspace(id, conn, worktree_root)
-            for id, worktree_root in worktrees.items()
-        ]
 
-    if id in worktrees:
-        return Workspace(id, conn, worktrees[id])
+def get_workspaces():
+    worktrees = find_worktrees(current_app.config["WORKSPACE_PATH"])
+    return [Workspace(id, get_db(), root) for id, root in worktrees.items()]
 
-    abort(404)
+
+def get_workspace(id):
+    """The workspace for branch `id`. A workspace id is a branch name of
+    the git repo at WORKSPACE_PATH"""
+    worktrees = find_worktrees(current_app.config["WORKSPACE_PATH"])
+    if id not in worktrees:
+        abort(404)
+    return Workspace(id, get_db(), worktrees[id])

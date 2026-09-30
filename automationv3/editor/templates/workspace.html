@@ -5,7 +5,7 @@
   {% include "partials/workspace_select.html" %}
 </div>
 <div id="treeview"
-     hx-get="{{ url_for('workspace.tree', workspace_id=workspace.id) }}"
+     hx-get="{{ url_for('workspace.tree', id=workspace.id) }}"
      hx-trigger="load">
 </div>
 {% endblock %}
