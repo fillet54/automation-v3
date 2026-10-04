@@ -1,0 +1,65 @@
+<div id="content" class="flex flex-col h-full">
+  <div class="flex items-center justify-between border-b px-4 py-2 bg-gray-50">
+    <span class="font-medium">{{ path }}</span>
+  </div>
+
+  <div class="flex-1 overflow-auto px-4 py-2">
+    {% if errors %}
+    <div class="rounded border border-red-300 bg-red-50 text-red-800 text-sm p-2 my-2">
+      <p class="font-semibold">This script can't be queued:</p>
+      <ul class="list-disc ml-5">
+        {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if closure and not closure.errors %}
+    <form class="flex flex-wrap items-end gap-4 rounded border p-3 my-2 text-sm"
+          hx-post="{{ url_for('workspace.run', id=workspace.id, path=path) }}"
+          hx-target="#content"
+          hx-swap="outerHTML">
+      {% if closure.environments %}
+      <label class="flex flex-col">
+        <span class="text-gray-500">Environment</span>
+        <select name="environment" class="border rounded px-2 py-1">
+          {% for env in closure.environments %}
+          <option value="{{ env }}">{{ env }}
+            {%- if env not in live %} (no live worker){% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      {% for uut, ids in versions.items() %}
+      <label class="flex flex-col">
+        <span class="text-gray-500">{{ uut }} version</span>
+        <select name="version-{{ uut }}" class="border rounded px-2 py-1">
+          {% for id in ids | reverse %}
+          <option value="{{ id }}">{{ id }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+      <button class="border rounded border-gray-300 text-gray-600 hover:bg-gray-500 hover:text-white px-3 py-1">
+        Run
+      </button>
+      <span class="text-gray-400 text-xs">
+        Loads
+        {% for path in closure.load_order -%}
+          {{ path }}{% if path in closure.imports %} (imported){% endif %}
+          {%- if not loop.last %} → {% endif %}
+        {%- endfor %}
+      </span>
+    </form>
+    {% endif %}
+
+    <div class="prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1" style="max-width: 100%">
+      {% if parts is not none %}
+        {% for part in parts %}<div>{{ part | safe }}</div>{% endfor %}
+      {% elif text is not none %}
+        <pre>{{ text }}</pre>
+      {% else %}
+        <p class="text-gray-500">Binary file</p>
+      {% endif %}
+    </div>
+  </div>
+</div>

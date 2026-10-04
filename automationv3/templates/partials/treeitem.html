@@ -30,9 +30,9 @@
     {%-endfor %}
 
     {% for file in node.children() | is_file | sort %}
-    <li class="ml-5 flex"
-        hx-post="{{ url_for('workspace.open_document', id=workspace.id, path=file.relative_path) }}"
-        hx-swap="none">
+    <li class="ml-5 flex cursor-pointer hover:bg-gray-100"
+        hx-get="{{ url_for('workspace.view', id=workspace.id, path=file.relative_path) }}"
+        hx-target="#content">
       <img class="h-5 w-5 mr-1 whitespace-nowrap" src="{{ url_for('static', filename='img/icons/document.svg') }}"></img>
       {{ file.path.name }}
     </li>

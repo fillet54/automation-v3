@@ -295,10 +295,19 @@ def run_test(id, document_id):
     """Queue the document (including any unsaved draft) and show its run"""
     document = document_or_404(document_id)
 
-    script = script_path(document.path)
-    report_id, run_id = models.queue_script(
-        get_db(), current_app.config["REPORTS_PATH"], script, document.content
-    )
+    root = worktree_root(document.path)
+    if root is None:
+        abort(400)
+    try:
+        report_id, run_id = models.queue_script(
+            get_db(),
+            current_app.config["REPORTS_PATH"],
+            root,
+            str(document.path.relative_to(root)),
+            text=document.content,
+        )
+    except models.QueueError as e:
+        return make_response("\n".join(e.errors), 400)
 
     resp = make_response("", 204)
     resp.headers["HX-Redirect"] = url_for(
@@ -307,11 +316,11 @@ def run_test(id, document_id):
     return resp
 
 
-def script_path(path):
-    """`path` relative to the rvts root of the worktree containing it"""
+def worktree_root(path):
+    """The rvts root of the worktree containing `path`, or None"""
     from .workspace import find_worktrees  # workspace imports this module
 
     for root in find_worktrees(current_app.config["WORKSPACE_PATH"]).values():
         if path.is_relative_to(root):
-            return str(path.relative_to(root))
-    return path.name
+            return root
+    return None

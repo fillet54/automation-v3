@@ -18,7 +18,9 @@ class Env(dict):
         self.update(zip(params, args))
 
     def __contains__(self, key):
-        return super().__contains__(key) or key in self.outer
+        return super().__contains__(key) or (
+            self.outer is not None and key in self.outer
+        )
 
     def __getitem__(self, key):
         if super().__contains__(key):
@@ -204,7 +206,7 @@ special_forms["fn"] = fn_special_form
 def defn_special_form(x, env):
     _, name, *_ = x
     fn = fn_special_form(x, env)
-    return eval(List([Symbol("def"), name, fn]))
+    return eval(List([Symbol("def"), name, fn]), env)
 
 
 special_forms["defn"] = defn_special_form

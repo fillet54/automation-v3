@@ -15,6 +15,7 @@ from flask import (
 
 from . import store
 from ..database import get_db
+from ..framework.closure import DIRECTIVES, head
 from ..framework.testcase import get_statements
 from ..jobqueue import models
 
@@ -46,7 +47,11 @@ def statement_rows(run, finished):
 
     rows = []
     for index, statement in enumerate(get_statements(text)):
-        row = {"html": statement.html, "step": isinstance(statement.statement, list)}
+        form = statement.statement
+        row = {
+            "html": statement.html,
+            "step": isinstance(form, list) and head(form) not in DIRECTIVES,
+        }
         if row["step"]:
             if index in ended:
                 row["state"] = "pass" if ended[index]["passed"] else "fail"
@@ -103,8 +108,7 @@ def run(report_id, run_id):
 
 @reports.route("/<report_id>/runs/<run_id>/rerun", methods=["POST"])
 def rerun(report_id, run_id):
-    """Queue the same closure again as a new run in the same report"""
-    run = store.load_run(root(), report_id, run_id) or abort(404)
-    closure = store.read_closure(root(), report_id, run_id)
-    new_id = models.enqueue(get_db(), root(), report_id, run["script"], closure)
+    """Queue the same closure, environment and versions as a new run"""
+    store.load_run(root(), report_id, run_id) or abort(404)
+    new_id = models.rerun(get_db(), root(), report_id, run_id)
     return redirect(url_for("reports.run", report_id=report_id, run_id=new_id))

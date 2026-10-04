@@ -11,14 +11,7 @@
 {% endblock %}
 
 {% block content %}
-  <div id="content">
-    <div id="tabs"
-         hx-get="{{ url_for('editor.tabs', id=workspace.editor_id) }}"
-         hx-trigger="load, tab-action from:body">
-    </div>
-    <div id="editor"
-         hx-get="{{ url_for('editor.content', id=workspace.editor_id) }}"
-         hx-trigger="load, editor-content-update from:body, resize from:window delay:0.250s">
-    </div>
+  <div id="content" class="p-4 text-gray-500">
+    Select a script to view it.
   </div>
 {% endblock %}

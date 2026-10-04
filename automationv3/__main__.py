@@ -6,7 +6,7 @@ Usage:
     automation-v3 server [--port PORT] [--dbpath PATH]
                          [--workspace-path PATH] [--reports-path PATH]
                          [--debug]
-    automation-v3 worker [--port PORT] [--dbpath PATH]
+    automation-v3 worker [--port PORT] [--config PATH]
                          [--central-server URL] [--debug]
     automation-v3 (-h | --help)
 
@@ -19,6 +19,8 @@ Options:
     --reports-path=PATH    directory holding reports and runs
                            [default: ./reports]
     --central-server=URL   url to central server
+    --config=PATH          worker config (JSON) naming the environments
+                           it hosts
     --debug                enables autoload [default: false]
 
 """
@@ -74,6 +76,10 @@ def main():
                 error="--reports-path=PATH should be in an existing directory",
             ),
             "--central-server": Or(str, None),
+            "--config": Or(
+                None,
+                And(os.path.isfile, error="--config=PATH should be a file"),
+            ),
             "server": bool,
             "worker": bool,
             "--debug": bool,
@@ -105,6 +111,7 @@ def start_worker(args):
 
     app.config["SERVER_URL"] = f"http://{args['--central-server']}"
     app.config["SELF_URL"] = f"http://{socket.gethostname()}:{args['--port']}"
+    app.config["CONFIG_PATH"] = args["--config"]
 
     start_worker_threads()
     if args["--debug"]:

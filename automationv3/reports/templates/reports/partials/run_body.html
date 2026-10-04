@@ -27,6 +27,17 @@
       {% if run.ended %} &middot; ended {{ run.ended }}{% endif %}
       {% if run.worker %} &middot; worker {{ run.worker }}{% endif %}
     </p>
+    <dl class="text-sm grid grid-cols-[max-content_1fr] gap-x-4 my-2">
+      {% if run.environment %}<dt class="text-gray-500">Environment</dt><dd class="m-0">{{ run.environment }}</dd>{% endif %}
+      {% for uut, version in (run.uut_versions or {}).items() %}
+      <dt class="text-gray-500">{{ uut }}</dt>
+      <dd class="m-0">{{ version.id }}
+        {%- if run.installed and run.installed[uut] %} ({{ run.installed[uut].action }}){% endif %}
+        <span class="text-gray-400 text-xs">{{ version.digest[:12] }}</span></dd>
+      {% endfor %}
+      {% if run.load_order %}<dt class="text-gray-500">Loaded</dt><dd class="m-0">{{ run.load_order | join(' → ') }}</dd>{% endif %}
+      {% if run.closure_hash %}<dt class="text-gray-500">Closure</dt><dd class="m-0 text-xs text-gray-400">{{ run.closure_hash }}</dd>{% endif %}
+    </dl>
     {% if run.error %}
     <p class="text-red-700">{{ run.error }}</p>
     {% endif %}

@@ -1,0 +1,10 @@
+"
+Brake definitions
+=================
+Brakes use a tighter pressure limit than the default.
+"
+
+(def max-pressure 80)
+
+(defn brake-pressure-ok? [pressure]
+  (within-limit? pressure))

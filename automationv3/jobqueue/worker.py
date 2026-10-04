@@ -1,13 +1,24 @@
-"""Worker: pulls jobs from the central server and executes them"""
+"""Worker: pulls jobs from the central server and executes them
 
+A worker hosts the environments named in its config file, e.g.::
+
+    {"environments": {"sim": {"workdir": "/tmp/sim"}}}
+
+and can install any UUT whose plugin is loaded. It only pulls jobs that
+fit: the job's environment is hosted here and its UUTs are known.
+"""
+
+import json
 import threading
 import time
 import traceback
+from dataclasses import asdict
 
 import requests
 from flask import Flask, jsonify
 
-from ..framework.executor import execute_script
+from ..framework.executor import execute_closure
+from ..framework.uut import Version, environment_types, uut_types
 from ..reports.store import now_iso
 
 app = Flask(__name__)
@@ -18,12 +29,43 @@ worker_status = "available"
 POLL_INTERVAL = 2
 
 
+class Host:
+    """The environments this worker hosts and the UUTs it can install"""
+
+    def __init__(self, environments=None):
+        self.environments = environments or {}
+        self.uuts = {name: cls() for name, cls in uut_types().items()}
+
+    @classmethod
+    def from_config(cls, config):
+        types = environment_types()
+        environments = {}
+        for name, params in config.get("environments", {}).items():
+            if name not in types:
+                raise ValueError(f"No environment plugin named {name}")
+            environments[name] = types[name](**(params or {}))
+        return cls(environments)
+
+    @classmethod
+    def from_file(cls, path):
+        return cls.from_config(json.loads(open(path).read()) if path else {})
+
+    def capabilities(self):
+        return {
+            "uut_types": sorted(self.uuts),
+            "environments": {
+                name: env.fingerprint() for name, env in self.environments.items()
+            },
+        }
+
+
 class ServerClient:
     """The central server's job API, as seen by one worker"""
 
-    def __init__(self, server_url, worker_url, session=None):
+    def __init__(self, server_url, worker_url, host=None, session=None):
         self.server_url = server_url.rstrip("/")
         self.worker_url = worker_url
+        self.host = host or Host()
         self.session = session or requests.Session()
 
     def _post(self, path, **data):
@@ -35,11 +77,19 @@ class ServerClient:
     def keepalive(self, status, started=False):
         return self.session.post(
             f"{self.server_url}/runner/workers",
-            json={"url": self.worker_url, "status": status, "started": started},
+            json={
+                "url": self.worker_url,
+                "status": status,
+                "started": started,
+                **self.host.capabilities(),
+            },
         )
 
     def pending_jobs(self):
-        response = self.session.get(f"{self.server_url}/runner/jobs")
+        """Pending jobs this worker can run, oldest first"""
+        response = self.session.get(
+            f"{self.server_url}/runner/jobs?worker_url={self.worker_url}"
+        )
         response.raise_for_status()
         return response.json()
 
@@ -54,8 +104,8 @@ class ServerClient:
     def post_events(self, job_id, events):
         self._post(f"/jobs/{job_id}/events", events=events)
 
-    def complete(self, job_id, outcome):
-        self._post(f"/jobs/{job_id}/complete", outcome=outcome)
+    def complete(self, job_id, outcome, **details):
+        self._post(f"/jobs/{job_id}/complete", outcome=outcome, **details)
 
 
 class ReportObserver:
@@ -87,18 +137,43 @@ class ReportObserver:
         self._send("procedure_end", **kw)
 
 
+def install_uuts(host, job):
+    """Install each requested UUT version unless it is already installed.
+
+    Returns what is installed afterwards: uut -> {id, digest, action}.
+    """
+    env = host.environments.get(job["environment"])
+    installed = {}
+    for name, wanted in job["uut_versions"].items():
+        uut = host.uuts[name]
+        version = Version(**wanted)
+        action = "kept"
+        if uut.installed_version(env) != version:
+            uut.install(version, env)
+            action = "installed"
+        if uut.installed_version(env) != version:
+            raise RuntimeError(f"{name} {version.id} did not install")
+        installed[name] = {**asdict(version), "action": action}
+    return installed
+
+
 def run_job(client, job):
-    """Execute a claimed job and report its outcome"""
+    """Install the job's UUTs, execute it and report the outcome"""
     client.start(job["id"])
     observer = ReportObserver(client, job["id"])
+    details = {}
+    env = client.host.environments.get(job["environment"])
+    if env is not None:
+        details["fingerprint"] = env.fingerprint()
     try:
-        outcome = execute_script(
-            job["closure"][job["script"]], observer, script=job["script"]
+        details["installed"] = install_uuts(client.host, job)
+        outcome = execute_closure(
+            job["closure"], job["load_order"], observer, job.get("imports", ())
         )
     except Exception:
         observer._send("error", traceback=traceback.format_exc())
         outcome = "error"
-    client.complete(job["id"], outcome)
+    client.complete(job["id"], outcome, **details)
     return outcome
 
 
@@ -142,7 +217,11 @@ def keepalive_forever(client):
 
 
 def start_worker_threads():
-    client = ServerClient(app.config["SERVER_URL"], app.config["SELF_URL"])
+    client = ServerClient(
+        app.config["SERVER_URL"],
+        app.config["SELF_URL"],
+        host=Host.from_file(app.config.get("CONFIG_PATH")),
+    )
     response = client.keepalive(worker_status, started=True)
     if response.status_code == 200:
         print("Registration successful")

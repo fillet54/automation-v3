@@ -1,0 +1,22 @@
+"
+===========================
+Fuel Uses Brake Definitions
+===========================
+Uses its own folder's fuel definitions and imports the brake folder's
+pressure check.
+
+Requirements
+------------
+1. :req:`VMCFUE00001`
+"
+
+(import BRA)
+
+"
+Steps
+-----
+"
+
+(Wait 1)
+(brake-pressure-ok? 60)
+(fuel-level-ok? 40)

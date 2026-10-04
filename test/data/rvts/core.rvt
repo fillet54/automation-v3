@@ -1,0 +1,14 @@
+"
+Shared definitions
+==================
+Every script under this folder runs in the simulator against the demo UUT
+unless a deeper core.rvt or the script says otherwise.
+"
+
+(environments :sim)
+(uut :demo)
+
+(def max-pressure 100)
+
+(defn within-limit? [pressure]
+  (<= pressure max-pressure))

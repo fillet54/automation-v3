@@ -53,7 +53,13 @@ def register_worker():
         return jsonify({"error": f"Status must be one of {models.ALLOWED_STATUS}"}), 400
 
     conn = get_db()
-    models.save_worker(conn, worker_url, worker_status)
+    models.save_worker(
+        conn,
+        worker_url,
+        worker_status,
+        uut_types=data.get("uut_types"),
+        environments=data.get("environments"),
+    )
 
     # A (re)starting worker can't still be running anything it held before
     if data.get("started"):
@@ -68,20 +74,49 @@ def register_worker():
 def list_jobs():
     conn = get_db()
     models.reap_lost_jobs(conn, reports_root())
-    status = request.args.get("status", "pending")
-    return jsonify([job_json(job) for job in models.find_jobs(conn, status)])
+    if "worker_url" in request.args:
+        jobs = models.jobs_for_worker(conn, request.args["worker_url"])
+    else:
+        jobs = models.find_jobs(conn, request.args.get("status", "pending"))
+    return jsonify([job_json(job) for job in jobs])
 
 
 @jobqueue.route("/jobs", methods=["POST"])
 def queue_job():
-    """Queue a script given as {"script": relative path, "text": content}"""
+    """Queue a script as a new report.
+
+    JSON body: workspace (branch name), script (path relative to its rvts
+    root), and optionally text (content overriding the file), environment
+    and uut_versions (uut name -> version id).
+    """
     data = request.json or {}
-    if not data.get("script") or "text" not in data:
-        return jsonify({"error": "script and text are required"}), 400
-    report_id, run_id = models.queue_script(
-        get_db(), reports_root(), data["script"], data["text"]
-    )
+    root = workspace_root(data.get("workspace"))
+    if root is None or not data.get("script"):
+        return jsonify({"errors": ["a known workspace and a script are required"]}), 400
+    try:
+        report_id, run_id = models.queue_script(
+            get_db(),
+            reports_root(),
+            root,
+            data["script"],
+            text=data.get("text"),
+            environment=data.get("environment"),
+            versions=data.get("uut_versions"),
+        )
+    except models.QueueError as e:
+        return jsonify({"errors": e.errors}), 400
+    except FileNotFoundError:
+        return jsonify({"errors": [f"No script {data['script']}"]}), 400
     return jsonify({"report_id": report_id, "run_id": run_id}), 201
+
+
+def workspace_root(name):
+    """The rvts root of the worktree for branch `name`, or None"""
+    from ..editor.workspace import find_worktrees
+
+    if not name:
+        return None
+    return find_worktrees(current_app.config["WORKSPACE_PATH"]).get(name)
 
 
 def held_job(id):
@@ -106,9 +141,12 @@ def claim_job(id):
         return jsonify({"error": "Job is not pending"}), 409
 
     job = models.get_job(conn, id)
+    run = store.load_run(reports_root(), job.report_id, job.id)
     return jsonify(
         {
             **job_json(job),
+            "load_order": run.get("load_order", [job.script]),
+            "imports": run.get("imports", []),
             "closure": store.read_closure(reports_root(), job.report_id, job.id),
         }
     )
@@ -150,7 +188,13 @@ def complete_job(id):
     outcome = request.json.get("outcome")
     if outcome not in OUTCOMES:
         return jsonify({"error": f"outcome must be one of {OUTCOMES}"}), 400
-    models.finish(get_db(), reports_root(), job, outcome)
+    # What the worker actually ran against, kept for configuration management
+    extra = {
+        key: request.json[key]
+        for key in ("installed", "fingerprint")
+        if key in request.json
+    }
+    models.finish(get_db(), reports_root(), job, outcome, **extra)
     return jsonify({"status": "done", "outcome": outcome})
 
 
