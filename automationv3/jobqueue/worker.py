@@ -101,6 +101,9 @@ class ServerClient:
     def start(self, job_id):
         self._post(f"/jobs/{job_id}/start")
 
+    def release(self, job_id):
+        self._post(f"/jobs/{job_id}/release")
+
     def post_events(self, job_id, events):
         self._post(f"/jobs/{job_id}/events", events=events)
 
@@ -157,27 +160,74 @@ def install_uuts(host, job):
     return installed
 
 
-def run_job(client, job):
-    """Install the job's UUTs, execute it and report the outcome"""
+def versions_installed(host, job):
+    """True if every UUT the job needs is already at the right version"""
+    env = host.environments.get(job["environment"])
+    return all(
+        host.uuts[name].installed_version(env) == Version(**wanted)
+        for name, wanted in job["uut_versions"].items()
+    )
+
+
+def handles(host, job):
+    """name -> handle for each of the job's UUTs that offers one"""
+    env = host.environments.get(job["environment"])
+    found = {}
+    for name, wanted in job["uut_versions"].items():
+        handle = host.uuts[name].handle(Version(**wanted), env)
+        if handle is not None:
+            found[name] = handle
+    return found
+
+
+def run_job(client, job, mode="force"):
+    """Run a claimed job and report it.
+
+    "probe" mode (precondition mode) runs the script against the
+    environment as it is. If the UUT versions aren't installed, or a
+    precondition fails, the job is released back to the queue and
+    "released" is returned. "force" mode installs the UUTs, starts them
+    fresh and runs the script; a failing precondition then makes the run
+    "blocked".
+    """
+    host = client.host
+    if mode == "probe" and not versions_installed(host, job):
+        client.release(job["id"])
+        return "released"
+
     client.start(job["id"])
     observer = ReportObserver(client, job["id"])
-    details = {}
-    env = client.host.environments.get(job["environment"])
+    details = {"mode": "precondition" if mode == "probe" else "force"}
+    env = host.environments.get(job["environment"])
     if env is not None:
         details["fingerprint"] = env.fingerprint()
     try:
-        details["installed"] = install_uuts(client.host, job)
+        if mode == "force":
+            details["installed"] = install_uuts(host, job)
+            for name, wanted in job["uut_versions"].items():
+                host.uuts[name].start(Version(**wanted), env)
+        else:
+            details["installed"] = {
+                name: {**wanted, "action": "kept"}
+                for name, wanted in job["uut_versions"].items()
+            }
         outcome = execute_closure(
             job["closure"],
             job["load_order"],
             observer,
             job.get("imports", ()),
             job.get("variation"),
+            bindings=handles(host, job),
+            mode=mode,
         )
     except Exception:
         observer._send("error", traceback=traceback.format_exc())
         outcome = "error"
-    client.complete(job["id"], outcome, **details)
+
+    if outcome == "released":
+        client.release(job["id"])
+    else:
+        client.complete(job["id"], outcome, **details)
     return outcome
 
 
@@ -187,17 +237,34 @@ def update_status(client, new_status):
     client.keepalive(worker_status)
 
 
+def run_claimed(client, job, mode):
+    update_status(client, "busy")
+    print("Running", job["script"], job["id"], mode)
+    outcome = run_job(client, job, mode)
+    print("Finished", job["id"], outcome)
+    update_status(client, "available")
+    return outcome
+
+
 def work_once(client):
-    """Claim and run the oldest pending job. Returns its outcome, or None."""
+    """Run one job. Returns its outcome, or None if there was no work.
+
+    Every compatible pending job is probed, oldest first; the first whose
+    preconditions already hold (or heal) runs. If none does, the oldest
+    compatible job runs in force mode.
+    """
+    for pending in client.pending_jobs():
+        job = client.claim(pending["id"])
+        if job is None:
+            continue
+        outcome = run_claimed(client, job, "probe")
+        if outcome != "released":
+            return outcome
+
     for pending in client.pending_jobs():
         job = client.claim(pending["id"])
         if job is not None:
-            update_status(client, "busy")
-            print("Running", job["script"], job["id"])
-            outcome = run_job(client, job)
-            print("Finished", job["id"], outcome)
-            update_status(client, "available")
-            return outcome
+            return run_claimed(client, job, "force")
     return None
 
 

@@ -1,0 +1,27 @@
+"
+=========================
+Brake Pressure Over Limit
+=========================
+Applies 95 against the brake limit of 80.
+
+.. warning::
+
+   Fails on purpose: 95 is over the brake limit, so the last step fails
+   and VMCBRA00007 rolls up Red. Use it to see a failing step.
+
+Requirements
+------------
+1. :req:`VMCBRA00007`
+"
+
+(Precondition "Demo running in normal mode"
+  (demo-in-mode? :normal)
+  :heal (start-demo :normal))
+
+"
+Steps
+-----
+"
+
+(set-reading :brake-pressure 95)
+(brake-pressure-ok? (reading :brake-pressure))

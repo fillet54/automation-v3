@@ -229,16 +229,11 @@ def dot_special_form(x, env):
     if is_property:
         attr = attr[1:]
 
-    if isinstance(sym, Symbol):
-        # Get symbol from environment
-        the_attr = getattr(env[sym], attr)
-    else:
-        val = eval(sym)
-        the_attr = getattr(val, attr)
+    the_attr = getattr(eval(sym, env), attr)
 
     if is_property:
         return the_attr
-    return the_attr(*args)
+    return the_attr(*[eval(arg, env) for arg in args])
 
 
 special_forms[has_leading_dot] = dot_special_form

@@ -31,7 +31,7 @@ jobqueue = Blueprint(
     "jobqueue", __name__, template_folder=Path(__file__).resolve().parent / "templates"
 )
 
-OUTCOMES = ["pass", "fail", "error"]
+OUTCOMES = ["pass", "fail", "blocked", "error"]
 
 
 def reports_root():
@@ -255,6 +255,7 @@ def release_job(id):
     if error:
         return error
     models.release(get_db(), id, job.worker_url)
+    store.reset_run(reports_root(), job.report_id, job.id)
     return jsonify({"status": "pending"})
 
 
@@ -278,7 +279,7 @@ def complete_job(id):
     # What the worker actually ran against, kept for configuration management
     extra = {
         key: request.json[key]
-        for key in ("installed", "fingerprint")
+        for key in ("installed", "fingerprint", "mode")
         if key in request.json
     }
     models.finish(get_db(), reports_root(), job, outcome, **extra)

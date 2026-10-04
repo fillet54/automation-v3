@@ -21,6 +21,14 @@ A script may declare its variations once, at the top level::
 Each variation is a display name and the values bound to the symbols
 for that run. Values are literals or expressions over core.rvt
 definitions; they are kept as forms here and evaluated later.
+
+Preconditions state what must hold before a script's steps run::
+
+    (Precondition "Demo running" (demo-in-mode? :normal)
+      :heal (start-demo :normal))
+
+They come before the first regular step. The check and the optional
+heal are step forms.
 """
 
 import hashlib
@@ -36,6 +44,8 @@ DEFINITIONS = {"def", "defn"}
 DECLARATIONS = {"uut", "environments"}
 # Top-level forms that configure a script rather than run as steps
 DIRECTIVES = {"import", "variations"} | DECLARATIONS
+
+PRECONDITION = "Precondition"
 
 REQUIREMENT_REF = re.compile(r":req:`([^`]+)`", re.IGNORECASE)
 
@@ -95,6 +105,35 @@ def parse_variations(path, form, errors):
         else:
             variations.append(Variation(name, symbols, list(values)))
     return variations
+
+
+def parse_precondition(form):
+    """(name, check, heal) of a Precondition form, or None if malformed"""
+    if len(form) not in (3, 5) or not is_text(form[1]) or not isinstance(form[2], list):
+        return None
+    if len(form) == 5:
+        if form[3] != edn.Keyword("heal") or not isinstance(form[4], list):
+            return None
+        return form[1], form[2], form[4]
+    return form[1], form[2], None
+
+
+def lint_preconditions(path, forms):
+    errors = []
+    seen_step = False
+    for form in forms:
+        name = head(form)
+        if name == PRECONDITION:
+            if parse_precondition(form) is None:
+                errors.append(f'{path}: Precondition takes "name" (check) '
+                              "and optionally :heal (form)")
+            if seen_step:
+                label = form[1] if len(form) > 1 else ""
+                errors.append(f"{path}: Precondition {label} "
+                              "must come before the first step")
+        elif isinstance(form, list) and name not in DIRECTIVES | DEFINITIONS:
+            seen_step = True
+    return errors
 
 
 def requirement_refs(text):
@@ -220,5 +259,6 @@ def resolve(root, script, text=None):
     if declared:
         closure.variations = parse_variations(script, declared[0], errors)
     errors.extend(lint(script, script_forms))
+    errors.extend(lint_preconditions(script, script_forms))
 
     return closure

@@ -1,0 +1,28 @@
+"
+==========
+Fuel Types
+==========
+Loads each supported fuel type.
+
+Requirements
+------------
+1. :req:`VMCFUE00002`
+2. :req:`VMCFUE00003`
+"
+
+(variations "fuel-type litres"
+  ["jet-a"  [:jet-a 45]
+   "avgas"  [:avgas 30]])
+
+(Precondition "Demo running in normal mode"
+  (demo-in-mode? :normal)
+  :heal (start-demo :normal))
+
+"
+Steps
+-----
+"
+
+(set-reading :fuel-type fuel-type)
+(set-reading :fuel-level litres)
+(fuel-level-ok? (reading :fuel-level))

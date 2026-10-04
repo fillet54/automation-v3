@@ -25,9 +25,10 @@ python test/data/makeworspaces.py
 automation-v3 server --workspace-path ./test/data/git_repos/master
 ```
 6. Start a worker (in another terminal) to execute queued scripts. The
-   config names the environments it hosts; this one hosts the sample `sim`.
+   config names the environments it hosts; this one hosts the sample `sim`
+   and `bench`.
 ```
-automation-v3 worker --port 8081 --central-server localhost:8080 --config test/data/worker-sim.json
+automation-v3 worker --port 8081 --central-server localhost:8080 --config test/data/worker.json
 ```
 Pick requirements on the **Requirements** page (or open a script and press
 **Queue…**), choose environments, UUT versions and variations, and queue.
@@ -58,6 +59,24 @@ different values for its own run:
 The queue dialog can untick variations or filter them with an EDN
 predicate over those symbols plus `name` and `index`, e.g.
 `(not= mode :degraded)`.
+
+Preconditions state what must hold before the steps run, and may heal it:
+
+```clojure
+(Precondition "Demo running in normal mode"
+  (demo-in-mode? :normal)
+  :heal (start-demo :normal))
+```
+
+Workers run the job whose preconditions already hold (or heal) first,
+leaving UUTs as they are between jobs. Only when no queued job is ready do
+they start the UUTs fresh for the oldest one; a precondition that still
+fails then makes the run **blocked**. Scripts reach a UUT through a handle
+bound to its name, e.g. `(.mode demo)`.
+
+`test/data/rvts` is an example set that tests every BRA and FUE
+requirement; its `README.rst` lists what each script shows and which ones
+fail on purpose.
 
 `(environments :sim ...)` and `(uut :demo ...)` declare where a script can
 run and what it tests. They are inherited from the `core.rvt` chain and the

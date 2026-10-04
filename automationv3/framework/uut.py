@@ -56,6 +56,14 @@ class UUT:
         """Start the UUT fresh (used by force mode)"""
         raise NotImplementedError
 
+    def handle(self, version, env):
+        """The object scripts use to reach this UUT, bound to its name.
+
+        Scripts call its methods with the dot form, e.g. (.mode demo).
+        None means scripts get no handle.
+        """
+        return None
+
 
 def _registry(base):
     from . import block  # noqa: F401  importing it loads every plugin

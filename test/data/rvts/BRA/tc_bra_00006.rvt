@@ -1,0 +1,26 @@
+"
+==========================
+Blocked Without Hydraulics
+==========================
+Needs the hydraulics pressurised, which nothing in the example set
+does.
+
+.. warning::
+
+   Blocked on purpose: the precondition has no heal, so probes release
+   the job and force mode ends it blocked. VMCBRA00005 rolls up Partial.
+
+Requirements
+------------
+1. :req:`VMCBRA00005`
+"
+
+(Precondition "Hydraulics pressurised"
+  (reading-is? :hydraulics :on))
+
+"
+Steps
+-----
+"
+
+(brake-pressure-ok? 10)

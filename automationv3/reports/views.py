@@ -14,7 +14,7 @@ from flask import (
 
 from . import rollup, store
 from ..database import get_db
-from ..framework.closure import DIRECTIVES, head
+from ..framework.closure import DIRECTIVES, PRECONDITION, head
 from ..framework.testcase import get_statements
 from ..jobqueue import models
 from ..requirements import models as requirement_models
@@ -51,6 +51,7 @@ def statement_rows(run, finished):
         row = {
             "html": statement.html,
             "step": isinstance(form, list) and head(form) not in DIRECTIVES,
+            "precondition": head(form) == PRECONDITION,
         }
         if row["step"]:
             if index in ended:

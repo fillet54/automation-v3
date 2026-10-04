@@ -1,50 +1,24 @@
 "
-================
-Brake Monitoring
-================
-This will test that the brakes are properly monitored. The
-test will ensure the following
+=========================
+Brake Pressure Monitoring
+=========================
+Monitors brake pressure and checks it against the brake limit
+(80, from BRA/core.rvt overriding the root's 100).
 
-1. The data is sent in telemetry message `123`
-2. The data matches the model
-3. Can determine brake model
-
-.. tip::
-
-   This should be split into two 3 tests
-"
-
-"
 Requirements
--------------
-
+------------
 1. :req:`VMCBRA00001`
-2. :req:`VMCBRA00002`
+2. :req:`VMCBRA00005`
 "
 
-"
-Preconditions
--------------
-Ensure system is in proper state before test begins
-"
-
-(SetupSimulation
-    :as-configured/name
-    "1234"
-    :as-configured/serial-number
-    567
-    :as-loaded/data
-    2
-    :simulation/trim
-    [xyz])
-
-(Verify ABC)
+(Precondition "Demo running in normal mode"
+  (demo-in-mode? :normal)
+  :heal (start-demo :normal))
 
 "
 Steps
 -----
 "
 
-(Verify X = 10)
-(Wait 10)
-(VERIFY Y)
+(set-reading :brake-pressure 60)
+(brake-pressure-ok? (reading :brake-pressure))

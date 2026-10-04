@@ -3,20 +3,25 @@
 Fuel Uses Brake Definitions
 ===========================
 Uses its own folder's fuel definitions and imports the brake folder's
-pressure check.
+pressure check. The import only adds definitions: BRA's limit of 80 does
+not override the root's 100 for this script.
 
 Requirements
 ------------
-1. :req:`VMCFUE00001`
+1. :req:`VMCFUE00006`
+2. :req:`VMCFUE00008`
 "
 
 (import BRA)
+
+(Precondition "Demo running in normal mode"
+  (demo-in-mode? :normal)
+  :heal (start-demo :normal))
 
 "
 Steps
 -----
 "
 
-(Wait 1)
-(brake-pressure-ok? 60)
 (fuel-level-ok? 40)
+(brake-pressure-ok? 90)

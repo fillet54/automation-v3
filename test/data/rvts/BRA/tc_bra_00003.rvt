@@ -1,0 +1,26 @@
+"
+=================
+Remote Brake Test
+=================
+Remote brake testing needs demo 1.1.0 or newer.
+
+.. note::
+
+   Passes with the default (newest) demo version and fails if queued
+   with demo 1.0.0, which shows UUT version selection at work.
+
+Requirements
+------------
+1. :req:`VMCBRA00006`
+"
+
+(Precondition "Demo running in normal mode"
+  (demo-in-mode? :normal)
+  :heal (start-demo :normal))
+
+"
+Steps
+-----
+"
+
+(demo-version-at-least? "1.1.0")

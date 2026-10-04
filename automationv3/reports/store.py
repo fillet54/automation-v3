@@ -125,6 +125,16 @@ def read_events(root, report_id, run_id):
     return [json.loads(line) for line in path.read_text().splitlines() if line]
 
 
+def reset_run(root, report_id, run_id):
+    """Forget a released probe: clear its events and start time"""
+    path = run_dir(root, report_id, run_id)
+    (path / "events.jsonl").write_text("")
+    run = _read_json(path / "run.json")
+    run.pop("started", None)
+    run["probes"] = run.get("probes", 0) + 1
+    _write_json(path / "run.json", run)
+
+
 def update_run(root, report_id, run_id, **fields):
     path = run_dir(root, report_id, run_id) / "run.json"
     run = _read_json(path)

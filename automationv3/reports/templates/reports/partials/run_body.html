@@ -28,6 +28,8 @@
       {% if run.worker %} &middot; worker {{ run.worker }}{% endif %}
     </p>
     <dl class="text-sm grid grid-cols-[max-content_1fr] gap-x-4 my-2">
+      {% if run.mode %}<dt class="text-gray-500">Mode</dt><dd class="m-0">{{ run.mode }}
+        {%- if run.probes %} <span class="text-gray-400 text-xs">(released {{ run.probes }} time{{ '' if run.probes == 1 else 's' }} by probes first)</span>{% endif %}</dd>{% endif %}
       {% if run.environment %}<dt class="text-gray-500">Environment</dt><dd class="m-0">{{ run.environment }}</dd>{% endif %}
       {% if run.variation %}
       <dt class="text-gray-500">Variation</dt>
@@ -57,6 +59,7 @@
       <div class="flex gap-3 items-start border-l-4 pl-3 my-2
                   {{ {'pass': 'border-green-500', 'fail': 'border-red-500', 'running': 'border-blue-500'}.get(row.state, 'border-gray-200') }}">
         <div class="flex-1 min-w-0">
+          {% if row.precondition %}<div class="text-xs uppercase tracking-wide text-gray-400">Precondition</div>{% endif %}
           {{ row.html | safe }}
           {% if row.result and (row.result.stdout or row.result.stderr) %}
           <pre class="text-xs">{{ row.result.stdout }}{{ row.result.stderr }}</pre>

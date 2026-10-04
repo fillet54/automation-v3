@@ -10,6 +10,7 @@ from flask import Flask
 import automationv3
 from automationv3.database import close_db, connect, init_db
 from automationv3.editor import workspace
+from automationv3.framework import edn
 from automationv3.framework.closure import resolve
 from automationv3.framework.executor import execute_closure, execute_script
 from automationv3.framework.uut import Version, uut_types
@@ -241,6 +242,64 @@ class TestExecutor(unittest.TestCase):
         self.assertFalse(ends[0]["passed"])
 
 
+class State:
+    """A stand-in UUT handle for precondition tests"""
+
+    def __init__(self, on=False):
+        self.on = on
+
+    def is_on(self):
+        return self.on
+
+    def turn_on(self):
+        self.on = True
+        return True
+
+
+class TestPreconditions(unittest.TestCase):
+    CORE = "(defn on? [] (.is_on h)) (defn turn-on [] (.turn_on h))"
+
+    def run_script(self, script, mode, state):
+        recorder = Recorder()
+        outcome = execute_closure({"core.rvt": self.CORE, "s.rvt": script},
+                                  ["core.rvt", "s.rvt"], recorder,
+                                  bindings={"h": state}, mode=mode)
+        return outcome, [kw for kind, kw in recorder.events if kind == "step_end"]
+
+    def test_heal_then_continue(self):
+        state = State()
+        outcome, ends = self.run_script(
+            '(Precondition "on" (on?) :heal (turn-on)) (Wait 1)', "probe", state)
+        self.assertEqual(outcome, "pass")
+        self.assertTrue(state.on)
+        self.assertTrue(ends[0]["precondition"])
+        self.assertTrue(ends[0]["stdout"].startswith("healed"))
+
+    def test_unhealable_precondition_releases_or_blocks(self):
+        script = '(Precondition "on" (on?)) (Wait 1)'
+        self.assertEqual(self.run_script(script, "probe", State())[0], "released")
+        outcome, ends = self.run_script(script, "force", State())
+        self.assertEqual(outcome, "blocked")
+        self.assertEqual(len(ends), 1)  # steps never ran
+        self.assertEqual(self.run_script(script, "force", State(on=True))[0], "pass")
+
+    def test_lint(self):
+        root = Path(tempfile.mkdtemp())
+        try:
+            write_tree(root, {
+                "late.rvt": '(Wait 1) (Precondition "on" (on?))',
+                "bad.rvt": '(Precondition (on?)) (Precondition "x" (on?) :cure (x))',
+                "ok.rvt": '(import FUE) (Precondition "on" (on?) :heal (x)) (Wait 1)',
+                "FUE/core.rvt": "",
+            })
+            self.assertIn("must come before the first step",
+                          resolve(root, "late.rvt").errors[0])
+            self.assertEqual(len(resolve(root, "bad.rvt").errors), 2)
+            self.assertEqual(resolve(root, "ok.rvt").errors, [])
+        finally:
+            shutil.rmtree(root)
+
+
 class TestSamplePlugins(unittest.TestCase):
     def setUp(self):
         self.workdir = Path(tempfile.mkdtemp())
@@ -409,7 +468,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.root.mkdir()
 
         # A git workspace whose rvts hold a sim/demo tree and a plain one
-        gitdir = self.tmp / "repo"
+        gitdir = self.gitdir = self.tmp / "repo"
         write_tree(gitdir / "rvts", {
             "core.rvt": ROOT_CORE,
             "BRA/tc.rvt": '"Pressure :req:`R2`" (under-limit? 5) (Wait 1)',
@@ -504,6 +563,42 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(worker.work_once(self.worker), "fail")
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["imports"], ["LIB/core.rvt"])
+
+    def test_warm_job_runs_before_older_cold_one(self):
+        write_tree(self.gitdir / "rvts", {
+            "BRA/core.rvt": "(defn mode? [m] (= (.mode demo) m))",
+            "BRA/cold.rvt": '(Precondition "x" (mode? :x)) (Wait 1)',
+            "BRA/warm.rvt": '(Precondition "normal" (mode? :normal)) (Wait 1)',
+        })
+        # Demo 1.1.0 installed and running in :normal
+        env = self.worker.host.environments["sim"]
+        demo = self.worker.host.uuts["demo"]
+        demo.install(demo.list_versions()[-1], env)
+        demo.handle(None, env).start(edn.Keyword("normal"))
+
+        cold = self.queue("BRA/cold.rvt")
+        warm = self.queue("BRA/warm.rvt")
+        self.assertEqual(worker.work_once(self.worker), "pass")
+        warm_run = store.load_run(self.root, warm["report_id"], warm["run_id"])
+        self.assertEqual(warm_run["mode"], "precondition")
+
+        # The cold job was probed and released: no events, back in the queue
+        cold_run = store.load_run(self.root, cold["report_id"], cold["run_id"])
+        self.assertIsNone(cold_run["outcome"])
+        self.assertEqual(cold_run["probes"], 1)
+        self.assertEqual(store.read_events(self.root, cold["report_id"], cold["run_id"]), [])
+
+        # Nothing else is warm, so it is forced: a fresh start can't be :x
+        self.assertEqual(worker.work_once(self.worker), "blocked")
+        cold_run = store.load_run(self.root, cold["report_id"], cold["run_id"])
+        self.assertEqual((cold_run["outcome"], cold_run["mode"]), ("blocked", "force"))
+
+    def test_probe_releases_when_uut_version_not_installed(self):
+        ids = self.queue("BRA/tc.rvt")
+        job = self.worker.claim(ids["run_id"])
+        self.assertEqual(worker.run_job(self.worker, job, "probe"), "released")
+        self.assertEqual(models.find_jobs(connect(self.tmp / "test.db"), "pending")[0].id,
+                         ids["run_id"])
 
     def test_worker_without_environment_skips_sim_jobs(self):
         bare = worker.ServerClient("http://server", "http://bare",

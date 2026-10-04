@@ -13,6 +13,12 @@ which receives its arguments unevaluated.
 
 The first failing step stops the script: the outcome is "fail" and
 later statements are not reported.
+
+Preconditions run like steps: the check, then (if it failed and there
+is one) the heal and the check again. A precondition that still fails
+ends the script before its steps. In "probe" mode the outcome is then
+"released": the worker gives the job back because this environment
+isn't ready for it. In any other mode the outcome is "blocked".
 """
 
 import time
@@ -20,7 +26,14 @@ import traceback
 
 from . import edn, lisp
 from .block import BlockResult, find_block
-from .closure import DEFINITIONS, DIRECTIVES, head, parse_variations
+from .closure import (
+    DEFINITIONS,
+    DIRECTIVES,
+    PRECONDITION,
+    head,
+    parse_precondition,
+    parse_variations,
+)
 
 
 def is_comment(form):
@@ -63,6 +76,23 @@ def run_step(form, env=None):
     return result
 
 
+def run_precondition(form, env):
+    """Check, heal if needed, check again. Returns a BlockResult."""
+    parsed = parse_precondition(form)
+    if parsed is None:
+        return BlockResult(False, stderr="Malformed Precondition")
+    _, check, heal = parsed
+    result = run_step(check, env)
+    if result or heal is None:
+        return result
+    healed = run_step(heal, env)
+    if healed.stderr:  # the heal itself raised or had no block
+        return BlockResult(False, stdout=result.stdout, stderr=healed.stderr)
+    result = run_step(check, env)
+    return BlockResult(bool(result), stdout=f"healed; {result.stdout}".strip("; "),
+                       stderr=result.stderr)
+
+
 def load_definitions(env, text, keep=frozenset()):
     """Evaluate the def and defn forms of a core.rvt into `env`.
 
@@ -73,32 +103,44 @@ def load_definitions(env, text, keep=frozenset()):
             lisp.eval(form, env)
 
 
-def execute_script(text, observer, script=None, env=None):
-    """Run the statements of `text` in order. Returns "pass" or "fail"."""
+def execute_script(text, observer, script=None, env=None, mode="normal"):
+    """Run the statements of `text` in order.
+
+    Returns "pass", "fail", "blocked", or (in probe mode) "released".
+    """
     env = env if env is not None else new_env()
     forms = list(edn.read_all(text))
-    observer.on_procedure_begin(script=script, statements=len(forms))
+    observer.on_procedure_begin(script=script, statements=len(forms), mode=mode)
 
-    passed = True
+    outcome = "pass"
     for index, form in enumerate(forms):
         if is_comment(form):
             observer.on_comment(index=index, text=form)
         elif isinstance(form, list) and head(form) not in DIRECTIVES:
-            observer.on_step_start(index=index, form=edn.writes(form).strip())
+            precondition = head(form) == PRECONDITION
+            observer.on_step_start(
+                index=index, form=edn.writes(form).strip(), precondition=precondition
+            )
             started = time.monotonic()
-            result = run_step(form, env)
+            run = run_precondition if precondition else run_step
+            result = run(form, env)
             observer.on_step_end(
                 index=index,
                 passed=bool(result),
                 stdout=result.stdout,
                 stderr=result.stderr,
                 duration=round(time.monotonic() - started, 3),
+                precondition=precondition,
             )
             if not result:
-                passed = False
+                if not precondition:
+                    outcome = "fail"
+                elif mode == "probe":
+                    outcome = "released"
+                else:
+                    outcome = "blocked"
                 break
 
-    outcome = "pass" if passed else "fail"
     observer.on_procedure_end(outcome=outcome)
     return outcome
 
@@ -139,15 +181,18 @@ def find_variation(text, name):
     raise ValueError(f"No variation named {name}")
 
 
-def execute_closure(files, load_order, observer, imports=(), variation=None):
+def execute_closure(files, load_order, observer, imports=(), variation=None,
+                    bindings=None, mode="normal"):
     """Load the core.rvt files in order, then run the script (last).
 
     With `variation` (a name), that variation's symbols are bound before
-    the script runs.
+    the script runs. `bindings` (name -> value) are bound too, e.g. the
+    handles scripts use to reach their UUTs.
     """
     env = build_env(files, load_order, imports)
+    env.update({edn.Symbol(name): value for name, value in (bindings or {}).items()})
     script = load_order[-1]
     if variation is not None:
         values = variation_values(env, find_variation(files[script], variation))
         env.update({edn.Symbol(symbol): value for symbol, value in values.items()})
-    return execute_script(files[script], observer, script=script, env=env)
+    return execute_script(files[script], observer, script=script, env=env, mode=mode)

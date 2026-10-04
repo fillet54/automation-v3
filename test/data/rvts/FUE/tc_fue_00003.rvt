@@ -1,0 +1,25 @@
+"
+===================
+Fuel Fault Recovery
+===================
+Raises a fuel leak fault and checks the system recovers.
+
+Requirements
+------------
+1. :req:`VMCFUE00004`
+2. :req:`VMCFUE00007`
+"
+
+(Precondition "Demo running in normal mode"
+  (demo-in-mode? :normal)
+  :heal (start-demo :normal))
+
+"
+Steps
+-----
+"
+
+(raise-fault :fuel-leak)
+(fault-active? :fuel-leak)
+(clear-faults)
+(no-faults?)
