@@ -5,6 +5,7 @@ from flask import Flask, redirect, url_for
 from .database import close_db
 from .editor import commitlog, editor, workspace
 from .jobqueue import jobqueue
+from .reports.views import reports
 from .requirements.views import requirements
 
 # add support for rst mimetype
@@ -17,6 +18,7 @@ app.register_blueprint(editor.bp, url_prefix="/editor")
 app.register_blueprint(commitlog.bp, url_prefix="/commitlog")
 app.register_blueprint(requirements, url_prefix="/requirements")
 app.register_blueprint(jobqueue, url_prefix="/runner")
+app.register_blueprint(reports, url_prefix="/reports")
 app.teardown_appcontext(close_db)
 
 

@@ -1,7 +1,15 @@
 from dataclasses import dataclass, field
 import json
 
-from flask import Blueprint, render_template, request, abort, make_response
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    make_response,
+    render_template,
+    request,
+    url_for,
+)
 
 from .document import (
     Document,
@@ -14,9 +22,8 @@ from .document import (
     set_meta,
 )
 from ..database import get_db
-from ..framework import edn
 from ..framework.testcase import EdnTestCase
-from ..jobqueue import sqlqueue
+from ..jobqueue import models
 
 
 @dataclass
@@ -285,21 +292,26 @@ def update_testcase(id, document_id):
 
 @bp.route("<id>/run_test/<document_id>", methods=["POST"])
 def run_test(id, document_id):
-    q = sqlqueue.SQLPriorityQueue(get_db())
+    """Queue the document (including any unsaved draft) and show its run"""
     document = document_or_404(document_id)
 
-    # This is where we would actually create a job
-    # jobqueue.Job(client_id, body)
-    # framework.TestJob(body, client_id=None, content_type='automationv3/edn')
-    # framework.BatchTestJob(
-    #    [TestJob(body1),
-    #     TestJob(body2),
-    #     TestJob(body3)], client_id=client_id, content_type='automationv3/edn')
-    job = {
-        "Content-Type": edn.Keyword("edn", namespace="automationv3"),
-        "body": document.content,
-    }
+    script = script_path(document.path)
+    report_id, run_id = models.queue_script(
+        get_db(), current_app.config["REPORTS_PATH"], script, document.content
+    )
 
-    q.put(edn.writes(job))
+    resp = make_response("", 204)
+    resp.headers["HX-Redirect"] = url_for(
+        "reports.run", report_id=report_id, run_id=run_id
+    )
+    return resp
 
-    return make_response("SUCCESS", 200)
+
+def script_path(path):
+    """`path` relative to the rvts root of the worktree containing it"""
+    from .workspace import find_worktrees  # workspace imports this module
+
+    for root in find_worktrees(current_app.config["WORKSPACE_PATH"]).values():
+        if path.is_relative_to(root):
+            return str(path.relative_to(root))
+    return path.name

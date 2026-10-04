@@ -62,7 +62,7 @@ class TestcaseHTMLTranslator(HTMLTranslator):
     }
 
     # Delimiters for endstatement directives
-    ENDSTATEMENT_RST = "\n.. endstatement::\n\n"
+    ENDSTATEMENT_RST = "\n\n.. endstatement::\n\n"
     ENDSTATEMENT_DIV = '<splitter id="1234567890!!!!"/>'
 
     def __init__(self, document):

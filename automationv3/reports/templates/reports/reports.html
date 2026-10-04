@@ -1,0 +1,29 @@
+{% from "reports/macros.html" import badge %}
+{% set show_nav = False %}
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="flex justify-center w-full">
+  <div class="prose py-4" style="width: 900px; max-width: 100%">
+    <h1>Reports</h1>
+    {% if not reports %}
+    <p>No reports yet. Queue a script with <strong>Run Test</strong> in the editor.</p>
+    {% else %}
+    <table>
+      <thead>
+        <tr><th>Created</th><th>Scripts</th><th>Runs</th></tr>
+      </thead>
+      <tbody>
+      {% for report in reports %}
+        <tr>
+          <td><a href="{{ url_for('reports.report', report_id=report.id) }}">{{ report.created }}</a></td>
+          <td>{{ report.scripts | join(', ') }}</td>
+          <td>{{ report.runs | length }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

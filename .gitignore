@@ -98,3 +98,4 @@ celerybeat-schedule
 *.db-shm
 
 test/data/git_repos/
+/reports/

@@ -15,7 +15,7 @@ class ObserverManager:
     def notify(self, event, *args, **kwargs):
         for observer in self.observers:
             if hasattr(observer, "on_" + event):
-                getattr(observer, "on_" + event)(observer, *args, **kwargs)
+                getattr(observer, "on_" + event)(*args, **kwargs)
 
     def __getattr__(self, name):
         if name.startswith("on_"):

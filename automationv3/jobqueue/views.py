@@ -1,23 +1,44 @@
-"""Job Runner / Queue"""
+"""Job Runner / Queue
+
+Workers pull work: they list pending jobs, atomically claim one, stream
+its events back and complete it with an outcome. Every call that acts on
+a job carries the worker's url, and only the worker holding a job may
+act on it.
+"""
 
 from pathlib import Path
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, current_app, render_template, request, jsonify
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from . import sqlqueue
 from . import models
 from ..database import get_db
+from ..reports import store
 
 jobqueue = Blueprint(
     "jobqueue", __name__, template_folder=Path(__file__).resolve().parent / "templates"
 )
 
+OUTCOMES = ["pass", "fail", "error"]
+
+
+def reports_root():
+    return current_app.config["REPORTS_PATH"]
+
+
+def job_json(job):
+    return {
+        **asdict(job),
+        "queued_at": str(job.queued_at),
+        "claimed_at": str(job.claimed_at),
+    }
+
 
 @jobqueue.route("/", methods=["GET"])
 def list():
-    q = sqlqueue.SQLPriorityQueue(get_db())
-    return render_template("queue.html", queue=q)
+    conn = get_db()
+    models.reap_lost_jobs(conn, reports_root())
+    return render_template("queue.html", jobs=models.find_jobs(conn))
 
 
 @jobqueue.route("/workers", methods=["POST"])
@@ -31,9 +52,106 @@ def register_worker():
     if worker_status not in models.ALLOWED_STATUS:
         return jsonify({"error": f"Status must be one of {models.ALLOWED_STATUS}"}), 400
 
-    models.save_worker(get_db(), worker_url, worker_status)
+    conn = get_db()
+    models.save_worker(conn, worker_url, worker_status)
+
+    # A (re)starting worker can't still be running anything it held before
+    if data.get("started"):
+        models.fail_worker_jobs(
+            conn, reports_root(), worker_url, f"Worker {worker_url} restarted"
+        )
 
     return "OK!", 200
+
+
+@jobqueue.route("/jobs", methods=["GET"])
+def list_jobs():
+    conn = get_db()
+    models.reap_lost_jobs(conn, reports_root())
+    status = request.args.get("status", "pending")
+    return jsonify([job_json(job) for job in models.find_jobs(conn, status)])
+
+
+@jobqueue.route("/jobs", methods=["POST"])
+def queue_job():
+    """Queue a script given as {"script": relative path, "text": content}"""
+    data = request.json or {}
+    if not data.get("script") or "text" not in data:
+        return jsonify({"error": "script and text are required"}), 400
+    report_id, run_id = models.queue_script(
+        get_db(), reports_root(), data["script"], data["text"]
+    )
+    return jsonify({"report_id": report_id, "run_id": run_id}), 201
+
+
+def held_job(id):
+    """The job `id` if the requesting worker holds it, else an error response"""
+    worker_url = (request.json or {}).get("worker_url")
+    job = models.get_job(get_db(), id)
+    if job is None:
+        return None, (jsonify({"error": "No such job"}), 404)
+    if job.worker_url != worker_url:
+        return None, (jsonify({"error": "Job is not held by this worker"}), 409)
+    return job, None
+
+
+@jobqueue.route("/jobs/<id>/claim", methods=["POST"])
+def claim_job(id):
+    worker_url = (request.json or {}).get("worker_url")
+    if not worker_url:
+        return jsonify({"error": "worker_url is required"}), 400
+
+    conn = get_db()
+    if not models.claim(conn, id, worker_url):
+        return jsonify({"error": "Job is not pending"}), 409
+
+    job = models.get_job(conn, id)
+    return jsonify(
+        {
+            **job_json(job),
+            "closure": store.read_closure(reports_root(), job.report_id, job.id),
+        }
+    )
+
+
+@jobqueue.route("/jobs/<id>/start", methods=["POST"])
+def start_job(id):
+    job, error = held_job(id)
+    if error:
+        return error
+    models.start(get_db(), id, job.worker_url)
+    store.update_run(reports_root(), job.report_id, job.id, started=store.now_iso())
+    return jsonify({"status": "running"})
+
+
+@jobqueue.route("/jobs/<id>/release", methods=["POST"])
+def release_job(id):
+    job, error = held_job(id)
+    if error:
+        return error
+    models.release(get_db(), id, job.worker_url)
+    return jsonify({"status": "pending"})
+
+
+@jobqueue.route("/jobs/<id>/events", methods=["POST"])
+def post_events(id):
+    job, error = held_job(id)
+    if error:
+        return error
+    store.append_events(reports_root(), job.report_id, job.id, request.json["events"])
+    return jsonify({"status": "ok"})
+
+
+@jobqueue.route("/jobs/<id>/complete", methods=["POST"])
+def complete_job(id):
+    job, error = held_job(id)
+    if error:
+        return error
+    outcome = request.json.get("outcome")
+    if outcome not in OUTCOMES:
+        return jsonify({"error": f"outcome must be one of {OUTCOMES}"}), 400
+    models.finish(get_db(), reports_root(), job, outcome)
+    return jsonify({"status": "done", "outcome": outcome})
 
 
 @jobqueue.route("/workers", methods=["GET"])
@@ -43,16 +161,16 @@ def list_workers():
     hx_request = request.headers.get("HX-Request", False)
 
     now = datetime.utcnow()
-    five_minutes_ago = now - timedelta(minutes=5)
+    missing_time = now - models.MISSING_AFTER
 
-    workers = models.find_workers(get_db(), None if show_all else five_minutes_ago)
+    workers = models.find_workers(get_db(), None if show_all else missing_time)
 
     if hx_request or "text/html" in request.headers.get("Accept", ""):
         return render_template(
             "workers.html",
             workers=workers,
             show_all=(None if show_all else "all"),
-            missing_time=five_minutes_ago,
+            missing_time=missing_time,
             hx_request=request.headers.get("HX-Request", False),
         )
     else:

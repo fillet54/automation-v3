@@ -1,0 +1,33 @@
+{% from "reports/macros.html" import badge %}
+{% set show_nav = False %}
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="flex justify-center w-full">
+  <div class="prose py-4" style="width: 900px; max-width: 100%">
+    <p><a href="{{ url_for('reports.index') }}">Reports</a></p>
+    <h1>Report</h1>
+    <p class="text-sm text-gray-500">{{ report.id }} &middot; created {{ report.created }}</p>
+    <table>
+      <thead>
+        <tr><th>Script</th><th>Latest run</th><th>Outcome</th><th>Reruns</th></tr>
+      </thead>
+      <tbody>
+      {% for entry in scripts %}
+        <tr>
+          <td>{{ entry.script }}</td>
+          <td><a href="{{ url_for('reports.run', report_id=report.id, run_id=entry.latest.id) }}">{{ entry.latest.created }}</a></td>
+          <td>{{ badge(entry.latest.status) }}</td>
+          <td>
+            {% for run in entry.earlier %}
+              <a href="{{ url_for('reports.run', report_id=report.id, run_id=run.id) }}">{{ run.created }}</a>
+              ({{ run.status }}){% if not loop.last %},{% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

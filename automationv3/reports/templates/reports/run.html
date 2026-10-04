@@ -1,0 +1,10 @@
+{% set show_nav = False %}
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="flex justify-center w-full">
+  <div class="py-4" style="width: 900px; max-width: 100%">
+    {% include "reports/partials/run_body.html" %}
+  </div>
+</div>
+{% endblock %}

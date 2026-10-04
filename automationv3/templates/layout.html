@@ -61,8 +61,14 @@
 <body>
     <div>
         <div class="h-screen flex flex-col bg-gray-50">
-            <div class="bg-ngblue p-2">
+            <div class="bg-ngblue p-2 flex items-center gap-6">
                 <img src="/static/img/automation-logo.png" class="h-8"></img>
+                <nav class="flex gap-4 text-sm text-white">
+                    <a href="/" class="hover:underline">Workspace</a>
+                    <a href="/runner/" class="hover:underline">Queue</a>
+                    <a href="/reports/" class="hover:underline">Reports</a>
+                    <a href="/runner/workers" class="hover:underline">Workers</a>
+                </nav>
             </div>
             <div class="flex-grow flex flex-row overflow-hidden justify-center">
                 {% if show_nav %}

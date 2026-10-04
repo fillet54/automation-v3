@@ -1,13 +1,30 @@
-{% import "icons/icon.j2" as icon %}
+{% from "reports/macros.html" import badge %}
+{% set show_nav = False %}
 {% extends "layout.html" %}
 
 {% block content %}
-<h1>Job Queue</h1>
-Size: {{ queue.qsize() }}
-
-{% for msg in queue.get() %}
-  <ul>
-    {% include "partials/queued_item.html" %}
-  </ul>
-{% endfor %}
+<div class="flex justify-center w-full">
+  <div class="prose py-4" style="width: 900px; max-width: 100%">
+    <h1>Job Queue</h1>
+    {% if not jobs %}
+    <p>The queue is empty.</p>
+    {% else %}
+    <table>
+      <thead>
+        <tr><th>Script</th><th>Status</th><th>Worker</th><th>Queued</th></tr>
+      </thead>
+      <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td><a href="{{ url_for('reports.run', report_id=job.report_id, run_id=job.id) }}">{{ job.script }}</a></td>
+          <td>{{ badge(job.status) }}</td>
+          <td>{{ job.worker_url or '' }}</td>
+          <td>{{ job.queued_at | humanize_ts }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

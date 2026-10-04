@@ -1,0 +1,10 @@
+{% macro badge(status) -%}
+{%- set colors = {
+  'pass': 'bg-green-50 text-green-700 ring-green-600/20',
+  'fail': 'bg-red-50 text-red-700 ring-red-600/20',
+  'error': 'bg-red-50 text-red-700 ring-red-600/20',
+  'running': 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  'claimed': 'bg-blue-50 text-blue-700 ring-blue-600/20',
+} -%}
+<span class="inline-flex w-20 items-center justify-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset {{ colors.get(status, 'bg-gray-50 text-gray-600 ring-gray-500/20') }}">{{ status }}</span>
+{%- endmacro %}
