@@ -8,3 +8,16 @@
 } -%}
 <span class="inline-flex w-20 items-center justify-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset {{ colors.get(status, 'bg-gray-50 text-gray-600 ring-gray-500/20') }}">{{ status }}</span>
 {%- endmacro %}
+
+{% macro rollup_badge(color) -%}
+{%- set styles = {
+  'green': 'bg-green-100 text-green-800 ring-green-600/30',
+  'red': 'bg-red-100 text-red-800 ring-red-600/30',
+  'partial': 'bg-yellow-50 text-yellow-800 ring-yellow-600/30',
+} -%}
+<span class="inline-flex w-20 items-center justify-center rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset {{ styles[color] }}">{{ color | capitalize }}</span>
+{%- endmacro %}
+
+{% macro variation_label(environment, variation) -%}
+{%- if environment or variation %} <span class="text-gray-400">({{ [environment, variation] | select | join(' · ') }})</span>{% endif -%}
+{%- endmacro %}

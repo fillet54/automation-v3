@@ -20,7 +20,7 @@ import traceback
 
 from . import edn, lisp
 from .block import BlockResult, find_block
-from .closure import DEFINITIONS, DIRECTIVES, head
+from .closure import DEFINITIONS, DIRECTIVES, head, parse_variations
 
 
 def is_comment(form):
@@ -103,19 +103,51 @@ def execute_script(text, observer, script=None, env=None):
     return outcome
 
 
-def execute_closure(files, load_order, observer, imports=()):
-    """Load the core.rvt files in order, then run the script (last).
+def build_env(files, load_order, imports=()):
+    """An env holding the definitions of every core.rvt in the closure.
 
     Files in `imports` only add definitions: they never override a name
-    defined by the script's own core.rvt chain.
+    defined by the script's own core.rvt chain. Only def and defn forms
+    are evaluated, so building it never runs a step.
     """
     env = new_env()
-    *cores, script = load_order
     chain_names = set()
-    for path in cores:
+    for path in load_order[:-1]:
         if path in imports:
             load_definitions(env, files[path], keep=chain_names)
         else:
             load_definitions(env, files[path])
             chain_names = set(env)
+    return env
+
+
+def variation_values(env, variation):
+    """symbol -> value for a Variation, evaluated in `env`"""
+    return {
+        symbol: lisp.eval(form, env)
+        for symbol, form in zip(variation.symbols, variation.forms)
+    }
+
+
+def find_variation(text, name):
+    for form in edn.read_all(text):
+        if head(form) == "variations":
+            errors = []
+            for variation in parse_variations("", form, errors):
+                if variation.name == name:
+                    return variation
+    raise ValueError(f"No variation named {name}")
+
+
+def execute_closure(files, load_order, observer, imports=(), variation=None):
+    """Load the core.rvt files in order, then run the script (last).
+
+    With `variation` (a name), that variation's symbols are bound before
+    the script runs.
+    """
+    env = build_env(files, load_order, imports)
+    script = load_order[-1]
+    if variation is not None:
+        values = variation_values(env, find_variation(files[script], variation))
+        env.update({edn.Symbol(symbol): value for symbol, value in values.items()})
     return execute_script(files[script], observer, script=script, env=env)

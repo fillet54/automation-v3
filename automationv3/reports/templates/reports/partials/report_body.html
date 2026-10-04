@@ -1,0 +1,78 @@
+{% from "reports/macros.html" import badge, rollup_badge, variation_label %}
+<div id="report-body"
+     {% if in_progress %}
+     hx-get="{{ url_for('reports.report', report_id=report.id) }}"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML"
+     {% endif %}>
+  <div class="prose prose-code:before:content-none prose-code:after:content-none" style="max-width: 100%">
+    <p class="text-sm"><a href="{{ url_for('reports.index') }}">Reports</a></p>
+    <h1 class="mb-1">Report</h1>
+    <p class="text-sm text-gray-500 mt-0">
+      {{ report.id }} &middot; created {{ report.created }}
+      {% if report.workspace %} &middot; workspace {{ report.workspace }}{% endif %}
+      {% for uut, version in (report.uut_versions or {}).items() %} &middot; {{ uut }} {{ version.id }}{% endfor %}
+      {% if report.filter %} &middot; filter <code>{{ report.filter }}</code>{% endif %}
+    </p>
+
+    {% if requirements %}
+    <h2>Requirements</h2>
+    <table class="text-sm">
+      <thead><tr><th>Requirement</th><th>State</th><th>Passed</th><th>Combinations</th></tr></thead>
+      <tbody>
+      {% for req in requirements %}
+        <tr>
+          <td>
+            <strong>{{ req.id }}</strong>
+            {% if texts[req.id] %}<div class="text-gray-500 text-xs">{{ texts[req.id] }}</div>{% endif %}
+          </td>
+          <td>{{ rollup_badge(req.color) }}</td>
+          <td>{{ req.passed }} / {{ req.total }}</td>
+          <td>
+            {% for cell in req.cells %}
+              <div class="whitespace-nowrap text-xs">
+                {{ badge(cell.state) }}
+                {{ cell.script }}{{ variation_label(cell.environment, cell.variation) }}
+              </div>
+            {% endfor %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <h2>Runs</h2>
+    <table class="text-sm">
+      <thead><tr><th>Script</th><th>Environment</th><th>Variation</th><th>Latest</th><th>Reruns</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.script }}</td>
+          <td>{{ row.environment or '' }}</td>
+          <td>{{ row.variation or '' }}</td>
+          <td>
+            {% if row.latest %}
+            <a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}">{{ badge(row.state) }}</a>
+            {% else %}
+            {{ badge(row.state) }}
+            {% endif %}
+          </td>
+          <td>
+            {% for run in row.earlier %}
+              <a href="{{ url_for('reports.run', report_id=report.id, run_id=run.id) }}">{{ run.status }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if skipped %}
+    <h2>Skipped</h2>
+    <ul class="text-sm">
+      {% for s in skipped %}<li><strong>{{ s.script }}</strong>: {{ s.skipped }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>

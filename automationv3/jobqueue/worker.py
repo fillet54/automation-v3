@@ -168,7 +168,11 @@ def run_job(client, job):
     try:
         details["installed"] = install_uuts(client.host, job)
         outcome = execute_closure(
-            job["closure"], job["load_order"], observer, job.get("imports", ())
+            job["closure"],
+            job["load_order"],
+            observer,
+            job.get("imports", ()),
+            job.get("variation"),
         )
     except Exception:
         observer._send("error", traceback=traceback.format_exc())

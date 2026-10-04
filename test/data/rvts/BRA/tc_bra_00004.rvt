@@ -1,0 +1,24 @@
+"
+====================
+Brake Pressure Modes
+====================
+Checks the brake pressure limit holds in each braking mode.
+
+Requirements
+------------
+1. :req:`VMCBRA00002`
+2. :req:`VMCBRA00003`
+"
+
+(variations "mode pressure"
+  ["nominal"   [:normal 60]
+   "degraded"  [:limp-home 75]
+   "emergency" [:emergency max-pressure]])
+
+"
+Steps
+-----
+"
+
+(Wait 1)
+(brake-pressure-ok? pressure)

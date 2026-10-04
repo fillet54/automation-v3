@@ -29,6 +29,13 @@
     </p>
     <dl class="text-sm grid grid-cols-[max-content_1fr] gap-x-4 my-2">
       {% if run.environment %}<dt class="text-gray-500">Environment</dt><dd class="m-0">{{ run.environment }}</dd>{% endif %}
+      {% if run.variation %}
+      <dt class="text-gray-500">Variation</dt>
+      <dd class="m-0">{{ run.variation.name }}
+        <span class="text-gray-400 text-xs">
+          {% for symbol, value in run.variation["values"].items() %}{{ symbol }} = {{ value }}{% if not loop.last %}, {% endif %}{% endfor %}
+        </span></dd>
+      {% endif %}
       {% for uut, version in (run.uut_versions or {}).items() %}
       <dt class="text-gray-500">{{ uut }}</dt>
       <dd class="m-0">{{ version.id }}

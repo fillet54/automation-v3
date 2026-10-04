@@ -7,11 +7,23 @@ act on it.
 """
 
 from pathlib import Path
-from flask import Blueprint, current_app, render_template, request, jsonify
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from dataclasses import asdict
 from datetime import datetime
 
 from . import models
+from .planning import build_plan
+from ..requirements import links
 from ..database import get_db
 from ..reports import store
 
@@ -108,6 +120,81 @@ def queue_job():
     except FileNotFoundError:
         return jsonify({"errors": [f"No script {data['script']}"]}), 400
     return jsonify({"report_id": report_id, "run_id": run_id}), 201
+
+
+def live_environments():
+    since = datetime.utcnow() - models.MISSING_AFTER
+    live = {}
+    for worker in models.find_workers(get_db(), since=since):
+        for name in worker.environments:
+            live.setdefault(name, []).append(worker.url)
+    return live
+
+
+def plan_from(args):
+    """The plan for a queue dialog request (query string or form)"""
+    workspace = args.get("workspace", "")
+    root = workspace_root(workspace)
+    if root is None:
+        abort(404)
+    conn = get_db()
+    links.refresh(conn, workspace, root)
+
+    configured = args.get("configured") == "1"
+    options = dict(
+        scripts=args.getlist("script"),
+        requirements=args.getlist("requirement"),
+        versions={
+            key[len("version-"):]: value
+            for key, value in args.items()
+            if key.startswith("version-") and value
+        },
+        variations=set(args.getlist("variation")) if configured else None,
+        filter_source=args.get("filter", ""),
+        links=links.scripts_by_requirement(conn, workspace),
+    )
+    environments = args.getlist("environment") if configured else None
+    plan = build_plan(workspace, root, environments=environments, **options)
+    if not configured:
+        # Default to the environments some live worker offers
+        live = [e for e in plan.available_environments if e in live_environments()]
+        if live and live != plan.environments:
+            plan = build_plan(workspace, root, environments=live, **options)
+    return plan
+
+
+def render_dialog(plan, errors=()):
+    template = "queue_new.html"
+    if request.headers.get("HX-Request"):
+        template = "partials/queue_form.html"
+    return render_template(
+        template,
+        plan=plan,
+        runs=plan.runs(),
+        live=live_environments(),
+        errors=[*errors, *plan.errors],
+    )
+
+
+@jobqueue.route("/new", methods=["GET"])
+def new():
+    """Queue dialog: choose environments, versions and variations"""
+    return render_dialog(plan_from(request.args))
+
+
+@jobqueue.route("/queue", methods=["POST"])
+def queue():
+    plan = plan_from(request.form)
+    try:
+        report_id, _ = models.queue_plan(get_db(), reports_root(), plan)
+    except models.QueueError as e:
+        return render_dialog(plan, e.errors)
+    target = url_for("reports.report", report_id=report_id)
+    if request.headers.get("HX-Request"):
+        resp = make_response("", 204)
+        resp.headers["HX-Redirect"] = target
+        return resp
+    return redirect(target)
 
 
 def workspace_root(name):

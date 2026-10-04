@@ -18,6 +18,9 @@ from automationv3.jobqueue.views import jobqueue
 from automationv3.plugins.sample import Demo, Sim
 from automationv3.reports import store
 from automationv3.reports.views import reports
+from automationv3.requirements.views import requirements
+from automationv3.jobqueue.planning import build_plan
+from automationv3.reports import rollup
 
 from .data import make_workspaces as gitutil
 
@@ -409,7 +412,10 @@ class TestWorkerAgainstServer(unittest.TestCase):
         gitdir = self.tmp / "repo"
         write_tree(gitdir / "rvts", {
             "core.rvt": ROOT_CORE,
-            "BRA/tc.rvt": "(under-limit? 5) (Wait 1)",
+            "BRA/tc.rvt": '"Pressure :req:`R2`" (under-limit? 5) (Wait 1)',
+            "BRA/modes.rvt": '"Modes :req:`R1` :req:`R2`" '
+                             '(variations "mode level" ["low" [:low 1] "high" [:high 50]]) '
+                             "(under-limit? level)",
             "plain/core.rvt": "(environments) (uut)",
             "plain/fail.rvt": FAILING,
             "plain/pass.rvt": PASSING,
@@ -424,6 +430,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         app.register_blueprint(workspace.bp, url_prefix="/workspace")
         app.register_blueprint(jobqueue, url_prefix="/runner")
         app.register_blueprint(reports, url_prefix="/reports")
+        app.register_blueprint(requirements, url_prefix="/requirements")
         app.teardown_appcontext(close_db)
         app.config["DB_PATH"] = self.tmp / "test.db"
         app.config["REPORTS_PATH"] = self.root
@@ -549,24 +556,155 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(self.http.get("/runner/").status_code, 200)
         self.assertEqual(self.http.get("/reports/").status_code, 200)
 
-    def test_viewer_shows_script_and_run_panel(self):
-        page = self.http.get(f"/workspace/{self.branch}/view?path=BRA/tc.rvt")
+    def test_viewer_links_to_queue_dialog(self):
+        page = self.http.get(f"/workspace/{self.branch}/view?path=BRA/modes.rvt")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"under-limit?", page.data)
-        self.assertIn(b'name="environment"', page.data)
-        self.assertIn(b'name="version-demo"', page.data)
+        self.assertIn(b"/runner/new?workspace=", page.data)
+        self.assertIn(b"2 variations", page.data)
 
         page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rvt")
         self.assertIn(b"belongs in a core.rvt", page.data)
-        self.assertNotIn(b'hx-post', page.data)
+        self.assertNotIn(b"/runner/new", page.data)
 
-    def test_viewer_run_queues_and_redirects(self):
-        response = self.http.post(f"/workspace/{self.branch}/run?path=BRA/tc.rvt",
-                                  data={"environment": "sim", "version-demo": "1.0.0"})
-        self.assertEqual(response.status_code, 204)
-        self.assertTrue(response.headers["HX-Redirect"].startswith("/reports/"))
-        (job,) = models.find_jobs(connect(self.tmp / "test.db"))
-        self.assertEqual(job.uut_versions["demo"]["id"], "1.0.0")
+    def dialog(self, **params):
+        return self.http.get("/runner/new", query_string={
+            "workspace": self.branch, **params})
+
+    def test_dialog_defaults_to_everything_runnable(self):
+        page = self.dialog(requirement="R1")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"BRA/modes.rvt", page.data)
+        self.assertIn(b"mode=:low", page.data)
+        self.assertIn(b"Queue 2 runs", page.data)
+
+    def test_dialog_filter_and_ticks_narrow_the_runs(self):
+        base = {"requirement": "R1", "configured": "1", "environment": "sim",
+                "variation": ["BRA/modes.rvt::low", "BRA/modes.rvt::high"]}
+        one_run = r"Queue 1 run\s*<"
+        self.assertRegex(self.dialog(**base, filter="(= mode :high)").get_data(True),
+                         one_run)
+        self.assertRegex(self.dialog(**{**base, "variation": [
+            "BRA/modes.rvt::low"]}).get_data(True), one_run)
+        page = self.dialog(**base, filter="(= mood :high)")
+        self.assertIn(b"unknown symbol mood", page.data)
+
+    def test_dialog_skips_scripts_without_selected_environment(self):
+        page = self.dialog(requirement="R2", configured="1")  # no environment ticked
+        self.assertIn(b"supports none of the selected environments", page.data)
+        self.assertIn(b"disabled", page.data)
+
+    def queue_requirements(self, **form):
+        response = self.http.post("/runner/queue", data={
+            "workspace": self.branch, "configured": "1", "environment": "sim", **form})
+        self.assertEqual(response.status_code, 302, response.data)
+        return response.headers["Location"].rstrip("/").split("/")[-1]
+
+    def test_queue_by_requirement_runs_variations_and_rolls_up(self):
+        report_id = self.queue_requirements(
+            requirement=["R1", "R2"],
+            variation=["BRA/modes.rvt::low", "BRA/modes.rvt::high"])
+        outcomes = [worker.work_once(self.worker) for _ in range(3)]
+        self.assertEqual(sorted(outcomes), ["fail", "pass", "pass"])
+
+        runs = store.list_runs(self.root, report_id)
+        by_variation = {(r["variation"] or {}).get("name"): r for r in runs}
+        self.assertEqual(by_variation["high"]["variation"]["values"],
+                         {"mode": ":high", "level": "50"})
+        self.assertEqual(by_variation["high"]["outcome"], "fail")
+        self.assertEqual(by_variation[None]["script"], "BRA/tc.rvt")
+
+        report = store.load_report(self.root, report_id)
+        rows = rollup.combinations(report, runs, lambda run: "pending")
+        colors = {r["id"]: r["color"] for r in rollup.requirement_rollup(report, rows)}
+        self.assertEqual(colors, {"R1": "red", "R2": "red"})
+
+        page = self.http.get(f"/reports/{report_id}")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b">Red<", page.data)
+
+    def test_unqueued_variations_leave_requirement_partial(self):
+        report_id = self.queue_requirements(
+            requirement="R1", variation="BRA/modes.rvt::low")
+        self.assertEqual(worker.work_once(self.worker), "pass")
+        self.assertIsNone(worker.work_once(self.worker))
+
+        report = store.load_report(self.root, report_id)
+        runs = store.list_runs(self.root, report_id)
+        rows = rollup.combinations(report, runs, lambda run: "pending")
+        (r1,) = rollup.requirement_rollup(report, rows)
+        self.assertEqual((r1["color"], r1["passed"], r1["total"]), ("partial", 1, 2))
+        self.assertEqual({c["variation"]: c["state"] for c in r1["cells"]},
+                         {"low": "pass", "high": "not run"})
+
+        # A rerun of the queued variation keeps it, and the rollup uses it
+        (low,) = runs
+        self.http.post(f"/reports/{report_id}/runs/{low['id']}/rerun")
+        worker.work_once(self.worker)
+        latest = store.list_runs(self.root, report_id)[-1]
+        self.assertEqual(latest["variation"]["name"], "low")
+
+    def test_queue_with_nothing_to_run_shows_errors(self):
+        response = self.http.post("/runner/queue", data={
+            "workspace": self.branch, "configured": "1", "requirement": "R1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Nothing to run", response.data)
+
+    def test_requirements_page_lists_linked_scripts(self):
+        page = self.http.get(f"/requirements/?workspace={self.branch}")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Tested by BRA/modes.rvt", page.data)
+        self.assertIn(b'value="R2"', page.data)
+
+
+class TestPlanning(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        write_tree(self.root, {
+            "core.rvt": "(environments :sim :bench) (uut :demo) (def base 5)",
+            "a.rvt": '(variations "mode n" ["x" [:x base] "y" [:y 2]]) (Wait 1)',
+            "b.rvt": "(environments :bench) (Wait 1)",
+            "c.rvt": '(variations [other] ["only" [1]]) (Wait 1)',
+        })
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def runs(self, **kw):
+        plan = build_plan("w", self.root, ["a.rvt", "b.rvt", "c.rvt"], **kw)
+        return plan, [(s.script, e, v) for s, e, v in plan.runs()]
+
+    def test_fan_out(self):
+        plan, runs = self.runs()
+        self.assertEqual(len(runs), 2 * 2 + 1 + 2)
+        self.assertEqual(plan.uut_versions["demo"]["id"], "1.1.0")
+        self.assertEqual(plan.scripts[0].variations[0].values, {"mode": ":x", "n": "5"})
+
+    def test_environment_intersection(self):
+        plan, runs = self.runs(environments=["sim"])
+        self.assertNotIn("b.rvt", [r[0] for r in runs])
+        self.assertIn("supports none", plan.scripts[1].skipped)
+        self.assertEqual(plan.scripts[1].expected(), [(None, None)])
+
+    def test_filter_excludes_variations_missing_symbols(self):
+        plan, runs = self.runs(environments=["sim"], filter_source="(= mode :y)")
+        self.assertEqual(runs, [("a.rvt", "sim", "y")])
+        self.assertEqual(plan.errors, [])
+        # c.rvt's variation lacks `mode`, so it is left out but still expected
+        self.assertEqual(plan.scripts[2].expected(), [("sim", "only")])
+
+    def test_unknown_filter_symbol_is_an_error(self):
+        plan, _ = self.runs(filter_source="(= nope 1)")
+        self.assertEqual(plan.errors, ["Variation filter uses unknown symbol nope"])
+
+
+class TestRollupColor(unittest.TestCase):
+    def test_color(self):
+        self.assertEqual(rollup.color(["pass", "pass"]), "green")
+        self.assertEqual(rollup.color(["pass", "not run"]), "partial")
+        self.assertEqual(rollup.color(["pass", "error"]), "partial")
+        self.assertEqual(rollup.color(["fail", "not run"]), "red")
+        self.assertEqual(rollup.color([]), "partial")
 
 
 if __name__ == "__main__":

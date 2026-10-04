@@ -1,7 +1,6 @@
 """Workspaces: a git worktree's rvts directory, shown as a file tree"""
 
 from dataclasses import dataclass
-from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 import json
@@ -9,14 +8,11 @@ import re
 import subprocess
 
 from flask import Blueprint, current_app, render_template, request, abort, make_response
-from flask import url_for
 
 from ..database import get_db
 from ..framework.closure import CORE, resolve
 from ..framework.rst import write_html_parts
 from ..framework.testcase import get_statements
-from ..framework.uut import uut_types
-from ..jobqueue import models
 from .document import is_binary
 from .editor import add_document, select_document
 
@@ -245,22 +241,6 @@ def render_file(path):
     return None
 
 
-def run_options(closure):
-    """What the Run panel offers: environments with live workers, versions"""
-    since = datetime.utcnow() - models.MISSING_AFTER
-    live = {}
-    for worker in models.find_workers(get_db(), since=since):
-        for name in worker.environments:
-            live.setdefault(name, []).append(worker.url)
-
-    known = uut_types()
-    versions = {
-        name: [v.id for v in known[name]().list_versions()] if name in known else []
-        for name in closure.uuts
-    }
-    return {"live": live, "versions": versions}
-
-
 def render_view(ws, node, errors=None):
     relpath = str(node.relative_path)
     closure = None
@@ -281,7 +261,6 @@ def render_view(ws, node, errors=None):
         text=text,
         closure=closure,
         errors=(errors or []) + (closure.errors if closure else []),
-        **(run_options(closure) if closure else {}),
     )
 
 
@@ -292,32 +271,3 @@ def view(id):
     if not node.is_file():
         abort(404)
     return render_view(ws, node)
-
-
-@bp.route("/<path:id>/run", methods=["POST"])
-def run(id):
-    """Queue the script with the environment and versions picked"""
-    ws = workspace_or_404(id)
-    node = node_or_404(ws, request.args.get("path", ""))
-    versions = {
-        key[len("version-"):]: value
-        for key, value in request.form.items()
-        if key.startswith("version-") and value
-    }
-    try:
-        report_id, run_id = models.queue_script(
-            get_db(),
-            current_app.config["REPORTS_PATH"],
-            ws.root,
-            str(node.relative_path),
-            environment=request.form.get("environment") or None,
-            versions=versions,
-        )
-    except models.QueueError as e:
-        return render_view(ws, node, e.errors)
-
-    resp = make_response("", 204)
-    resp.headers["HX-Redirect"] = url_for(
-        "reports.run", report_id=report_id, run_id=run_id
-    )
-    return resp

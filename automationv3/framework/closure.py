@@ -11,10 +11,21 @@ never overrides a name the chain defines: imports only add definitions.
 Declarations (`uut`, `environments`) may appear in any core.rvt of the
 chain or in the script, and the last one in load order wins. Imported
 core.rvt files contribute definitions only.
+
+A script may declare its variations once, at the top level::
+
+    (variations "mode trim"
+      ["nominal"  [:normal default-trim]
+       "degraded" [:limp-home 2]])
+
+Each variation is a display name and the values bound to the symbols
+for that run. Values are literals or expressions over core.rvt
+definitions; they are kept as forms here and evaluated later.
 """
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -24,7 +35,9 @@ CORE = "core.rvt"
 DEFINITIONS = {"def", "defn"}
 DECLARATIONS = {"uut", "environments"}
 # Top-level forms that configure a script rather than run as steps
-DIRECTIVES = {"import"} | DECLARATIONS
+DIRECTIVES = {"import", "variations"} | DECLARATIONS
+
+REQUIREMENT_REF = re.compile(r":req:`([^`]+)`", re.IGNORECASE)
 
 
 def head(form):
@@ -40,6 +53,60 @@ def name_of(value):
 
 
 @dataclass
+class Variation:
+    name: str
+    symbols: list
+    forms: list  # one unevaluated value form per symbol
+
+
+def is_text(value):
+    return isinstance(value, str) and not isinstance(value, (edn.Symbol, edn.Keyword))
+
+
+def parse_variations(path, form, errors):
+    """The Variations declared by a (variations SYMBOLS [NAME VALUES ...]) form"""
+    if len(form) != 3:
+        errors.append(f"{path}: variations takes symbol names and a vector of rows")
+        return []
+    names, rows = form[1], form[2]
+    if is_text(names):
+        symbols = names.split()
+    elif isinstance(names, list) and all(isinstance(n, edn.Symbol) for n in names):
+        symbols = [str(n) for n in names]
+    else:
+        errors.append(
+            f"{path}: variation symbols must be a string or a list of symbols"
+        )
+        return []
+    if not symbols or not isinstance(rows, list) or len(rows) % 2:
+        errors.append(f"{path}: variations need symbols and NAME [VALUES] pairs")
+        return []
+
+    variations = []
+    for name, values in zip(rows[::2], rows[1::2]):
+        if not is_text(name):
+            errors.append(f"{path}: variation name {edn.writes(name).strip()} "
+                          "must be a string")
+        elif any(v.name == name for v in variations):
+            errors.append(f"{path}: variation {name} is declared twice")
+        elif not isinstance(values, list) or len(values) != len(symbols):
+            errors.append(f"{path}: variation {name} needs {len(symbols)} values "
+                          f"for {' '.join(symbols)}")
+        else:
+            variations.append(Variation(name, symbols, list(values)))
+    return variations
+
+
+def requirement_refs(text):
+    """Requirement ids referenced with :req:`ID` in a script's documentation"""
+    refs = []
+    for form in edn.read_all(text):
+        if is_text(form):
+            refs.extend(ref.strip() for ref in REQUIREMENT_REF.findall(form))
+    return list(dict.fromkeys(refs))
+
+
+@dataclass
 class Closure:
     script: str
     files: dict = field(default_factory=dict)
@@ -47,6 +114,7 @@ class Closure:
     imports: list = field(default_factory=list)  # load_order entries from imports
     uuts: list = field(default_factory=list)
     environments: list = field(default_factory=list)
+    variations: list = field(default_factory=list)
     errors: list = field(default_factory=list)
 
     @property
@@ -145,6 +213,12 @@ def resolve(root, script, text=None):
                 closure.environments = [name_of(v) for v in form[1:]]
     for path in imports:
         errors.extend(lint(path, read_forms(path, closure.files[path], errors)))
+
+    declared = [form for form in script_forms if head(form) == "variations"]
+    if len(declared) > 1:
+        errors.append(f"{script}: variations may only be declared once")
+    if declared:
+        closure.variations = parse_variations(script, declared[0], errors)
     errors.extend(lint(script, script_forms))
 
     return closure

@@ -37,11 +37,28 @@ CREATE TABLE IF NOT EXISTS jobs(
     report_id TEXT NOT NULL,
     script TEXT NOT NULL,
     environment TEXT,
+    variation TEXT,
     uut_versions TEXT NOT NULL DEFAULT '{}',
     status TEXT NOT NULL DEFAULT 'pending',
     worker_url TEXT,
     queued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     claimed_at TEXT
+);
+
+-- Requirement links: a derived index of the :req: references in each
+-- workspace's scripts, refreshed from files whose mtime changed
+CREATE TABLE IF NOT EXISTS indexed_scripts(
+    workspace TEXT NOT NULL,
+    script TEXT NOT NULL,
+    st_mtime REAL NOT NULL,
+    PRIMARY KEY(workspace, script)
+);
+
+CREATE TABLE IF NOT EXISTS requirement_links(
+    workspace TEXT NOT NULL,
+    script TEXT NOT NULL,
+    requirement_id TEXT NOT NULL,
+    PRIMARY KEY(workspace, script, requirement_id)
 );
 
 -- Editor

@@ -1,11 +1,11 @@
 import hashlib
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from ..framework.closure import Closure, resolve
-from ..framework.uut import uut_types
 from ..reports import store
+from .planning import build_plan
 
 ALLOWED_STATUS = ["available", "busy", "missing"]
 
@@ -20,6 +20,7 @@ class Job:
     report_id: str
     script: str
     environment: str
+    variation: str
     uut_versions: dict
     status: str
     worker_url: str
@@ -28,13 +29,14 @@ class Job:
 
 
 def _job(row):
-    (id, report_id, script, environment, uut_versions,
+    (id, report_id, script, environment, variation, uut_versions,
      status, worker_url, queued_at, claimed_at) = row
     return Job(
         id,
         report_id,
         script,
         environment,
+        variation,
         json.loads(uut_versions),
         status,
         worker_url,
@@ -44,13 +46,13 @@ def _job(row):
 
 
 JOB_COLUMNS = (
-    "id, report_id, script, environment, uut_versions, "
+    "id, report_id, script, environment, variation, uut_versions, "
     "status, worker_url, queued_at, claimed_at"
 )
 
 
 class QueueError(Exception):
-    """A script that can't be queued, with every reason why"""
+    """A request that can't be queued, with every reason why"""
 
     def __init__(self, errors):
         super().__init__("; ".join(errors))
@@ -58,8 +60,11 @@ class QueueError(Exception):
 
 
 def enqueue(conn, root, report_id, script, files, load_order,
-            environment=None, uut_versions=None, imports=()):
-    """Create a run folder in the report and queue it as a job"""
+            environment=None, uut_versions=None, imports=(), variation=None):
+    """Create a run folder in the report and queue it as a job.
+
+    `variation` is None or {"name", "values"} (values as edn text).
+    """
     uut_versions = uut_versions or {}
     run_id = store.create_run(root, report_id, script, files)
     store.update_run(
@@ -70,15 +75,24 @@ def enqueue(conn, root, report_id, script, files, load_order,
         imports=list(imports),
         closure_hash=closure_hash(files, load_order),
         environment=environment,
+        variation=variation,
         uut_versions=uut_versions,
     )
     with conn:
         conn.execute(
             """
-            INSERT INTO jobs(id, report_id, script, environment, uut_versions)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO jobs(id, report_id, script, environment, variation,
+                             uut_versions)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (run_id, report_id, script, environment, json.dumps(uut_versions)),
+            (
+                run_id,
+                report_id,
+                script,
+                environment,
+                variation["name"] if variation else None,
+                json.dumps(uut_versions),
+            ),
         )
     return run_id
 
@@ -87,71 +101,75 @@ def closure_hash(files, load_order):
     return Closure(load_order[-1], files, load_order).hash
 
 
-def choose(closure, environment=None, versions=None):
-    """The environment and UUT versions to run `closure` with.
+def queue_plan(conn, root, plan):
+    """Queue every run of `plan` under one new report.
 
-    Defaults to the first declared environment and the newest version of
-    each declared UUT. Raises QueueError if a choice is not allowed.
+    Returns (report_id, run_ids). Raises QueueError if the plan has
+    errors or nothing to run.
     """
-    versions = versions or {}
-    errors = list(closure.errors)
-
-    if closure.environments:
-        environment = environment or closure.environments[0]
-        if environment not in closure.environments:
-            errors.append(
-                f"{closure.script} does not support environment {environment}"
-            )
-    elif environment:
-        errors.append(f"{closure.script} declares no environments")
-
-    chosen = {}
-    known = uut_types()
-    for name in closure.uuts:
-        if name not in known:
-            errors.append(f"No UUT plugin named {name}")
-            continue
-        uut = known[name]()
-        available = uut.list_versions()
-        if not available:
-            errors.append(f"UUT {name} has no versions")
-            continue
-        version = available[-1]
-        if name in versions:
-            version = uut.find_version(versions[name])
-        if version is None:
-            errors.append(f"UUT {name} has no version {versions[name]}")
-            continue
-        chosen[name] = asdict(version)
-
-    if errors:
+    runs = plan.runs()
+    if plan.errors or not runs:
+        errors = list(plan.errors) or ["Nothing to run"]
+        errors += [f"{s.script}: {s.skipped}" for s in plan.scripts if s.skipped]
         raise QueueError(errors)
-    return environment or None, chosen
+
+    report_id = store.create_report(root, **plan.summary())
+    run_ids = []
+    for script_plan, environment, variation in runs:
+        closure = script_plan.closure
+        if variation is not None:
+            choice = next(v for v in script_plan.variations if v.name == variation)
+            variation = {"name": choice.name, "values": choice.values}
+        run_ids.append(enqueue(
+            conn,
+            root,
+            report_id,
+            closure.script,
+            closure.files,
+            closure.load_order,
+            environment,
+            {name: plan.uut_versions[name] for name in closure.uuts},
+            closure.imports,
+            variation,
+        ))
+    return report_id, run_ids
 
 
 def queue_script(conn, root, workspace_root, script, text=None,
-                 environment=None, versions=None):
-    """Queue one script as a new report holding a single run.
+                 environment=None, versions=None, workspace=""):
+    """Queue one script, in one environment, as a new report.
 
-    `text` overrides the script's content on disk (an unsaved draft).
+    The environment defaults to the first the script declares. Every
+    variation is queued. `text` overrides the script's content on disk.
+    Returns (report_id, first run id).
     """
     closure = resolve(workspace_root, script, text)
-    environment, uut_versions = choose(closure, environment, versions)
-    report_id = store.create_report(root, scripts=[script])
-    run_id = enqueue(conn, root, report_id, script, closure.files,
-                     closure.load_order, environment, uut_versions,
-                     closure.imports)
-    return report_id, run_id
+    if closure.errors:
+        raise QueueError(closure.errors)
+    if environment and environment not in closure.environments:
+        raise QueueError([f"{script} does not support environment {environment}"])
+    environment = environment or next(iter(closure.environments), None)
+
+    plan = build_plan(
+        workspace,
+        workspace_root,
+        [script],
+        environments=[environment] if environment else None,
+        versions=versions,
+        texts={script: text} if text is not None else None,
+    )
+    report_id, run_ids = queue_plan(conn, root, plan)
+    return report_id, run_ids[0]
 
 
 def rerun(conn, root, report_id, run_id):
-    """Queue an identical run (same closure, environment and versions)"""
+    """Queue an identical run (same closure, environment, variation, versions)"""
     run = store.load_run(root, report_id, run_id)
     files = store.read_closure(root, report_id, run_id)
     return enqueue(conn, root, report_id, run["script"], files,
                    run.get("load_order", [run["script"]]),
                    run.get("environment"), run.get("uut_versions"),
-                   run.get("imports", []))
+                   run.get("imports", []), run.get("variation"))
 
 
 def get_job(conn, id):

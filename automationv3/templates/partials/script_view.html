@@ -14,42 +14,24 @@
     {% endif %}
 
     {% if closure and not closure.errors %}
-    <form class="flex flex-wrap items-end gap-4 rounded border p-3 my-2 text-sm"
-          hx-post="{{ url_for('workspace.run', id=workspace.id, path=path) }}"
-          hx-target="#content"
-          hx-swap="outerHTML">
-      {% if closure.environments %}
-      <label class="flex flex-col">
-        <span class="text-gray-500">Environment</span>
-        <select name="environment" class="border rounded px-2 py-1">
-          {% for env in closure.environments %}
-          <option value="{{ env }}">{{ env }}
-            {%- if env not in live %} (no live worker){% endif %}</option>
-          {% endfor %}
-        </select>
-      </label>
-      {% endif %}
-      {% for uut, ids in versions.items() %}
-      <label class="flex flex-col">
-        <span class="text-gray-500">{{ uut }} version</span>
-        <select name="version-{{ uut }}" class="border rounded px-2 py-1">
-          {% for id in ids | reverse %}
-          <option value="{{ id }}">{{ id }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      {% endfor %}
-      <button class="border rounded border-gray-300 text-gray-600 hover:bg-gray-500 hover:text-white px-3 py-1">
-        Run
-      </button>
-      <span class="text-gray-400 text-xs">
+    <div class="flex flex-wrap items-center gap-4 rounded border p-3 my-2 text-sm">
+      <a href="{{ url_for('jobqueue.new', workspace=workspace.id, script=path) }}"
+         class="border rounded border-gray-300 text-gray-600 hover:bg-gray-500 hover:text-white px-3 py-1 no-underline">
+        Queue&hellip;
+      </a>
+      <span class="text-gray-500">
+        {% if closure.environments %}Runs in {{ closure.environments | join(', ') }}{% endif %}
+        {% if closure.uuts %} &middot; tests {{ closure.uuts | join(', ') }}{% endif %}
+        {% if closure.variations %} &middot; {{ closure.variations | length }} variations{% endif %}
+      </span>
+      <span class="text-gray-400 text-xs basis-full">
         Loads
         {% for path in closure.load_order -%}
           {{ path }}{% if path in closure.imports %} (imported){% endif %}
           {%- if not loop.last %} → {% endif %}
         {%- endfor %}
       </span>
-    </form>
+    </div>
     {% endif %}
 
     <div class="prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1" style="max-width: 100%">

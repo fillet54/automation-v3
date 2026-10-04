@@ -1,5 +1,39 @@
-<ul>
+<form method="get" action="/runner/new">
+  {% if workspace %}
+  <div class="flex items-center justify-between gap-4 mb-3 sticky top-0 bg-white py-2 border-b">
+    <label class="text-sm">
+      Workspace
+      <select name="workspace" class="border rounded px-2 py-1"
+              hx-get="{{ url_for('requirements.list', subsystem=selected_subsystem) }}"
+              hx-target="#requirements" hx-swap="innerHTML" hx-push-url="true">
+        {% for ws in workspaces %}
+        <option value="{{ ws }}" {% if ws == workspace %}selected{% endif %}>{{ ws }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="border rounded border-gray-300 hover:bg-gray-600 hover:text-white px-3 py-1 text-sm font-semibold">
+      Queue selected&hellip;
+    </button>
+  </div>
+  {% endif %}
+
+  <ul>
     {% for requirement in requirements %}
-      {{ requirement.__repr_html__() | safe }}
+    {% set scripts = linked.get(requirement.id, []) %}
+    <li class="flex gap-3 items-start">
+      {% if workspace %}
+      <input type="checkbox" name="requirement" value="{{ requirement.id }}" class="mt-1"
+             {% if not scripts %}disabled title="No scripts reference this requirement"{% endif %}>
+      {% endif %}
+      <div class="flex-1">
+        {{ requirement.__repr_html__() | safe }}
+        {% if workspace %}
+        <div class="text-xs text-gray-500 -mt-1 mb-2">
+          {% if scripts %}Tested by {{ scripts | join(', ') }}{% else %}No linked scripts{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </li>
     {% endfor %}
-</ul>
+  </ul>
+</form>

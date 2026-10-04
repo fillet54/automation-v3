@@ -4,7 +4,7 @@ import copy
 from itertools import islice, count, cycle
 from collections.abc import Iterable
 
-from .edn import read, Symbol, List, Vector
+from .edn import read, Keyword, Symbol, List, Vector
 
 
 class Env(dict):
@@ -73,6 +73,10 @@ def standard_env():
             ">=": op.ge,
             "<=": op.le,
             "=": op.eq,
+            "not=": op.ne,
+            # Not special forms: every argument is evaluated
+            "and": lambda *x: all(x),
+            "or": lambda *x: any(x),
             "abs": abs,
             "append": op.add,
             "apply": lambda proc, args: proc(*args),
@@ -242,6 +246,10 @@ special_forms[has_leading_dot] = dot_special_form
 
 def eval(x, env=global_env):
     "Evaluate an expression in an environment."
+
+    # keywords evaluate to themselves
+    if isinstance(x, Keyword):
+        return x
 
     # symbol reference
     if isinstance(x, Symbol):

@@ -1,0 +1,116 @@
+<form id="queue-form" class="text-sm"
+      hx-get="{{ url_for('jobqueue.new') }}"
+      hx-trigger="change"
+      hx-target="#queue-form"
+      hx-swap="outerHTML">
+  <input type="hidden" name="workspace" value="{{ plan.workspace }}">
+  <input type="hidden" name="configured" value="1">
+  {% for req in plan.requirements %}<input type="hidden" name="requirement" value="{{ req }}">{% endfor %}
+  {% for s in request.values.getlist('script') %}<input type="hidden" name="script" value="{{ s }}">{% endfor %}
+
+  <p class="text-gray-500 mb-3">
+    Workspace <strong>{{ plan.workspace }}</strong>
+    {% if plan.requirements %}&middot; requirements {{ plan.requirements | list | join(', ') }}{% endif %}
+  </p>
+
+  {% if errors %}
+  <div class="rounded border border-red-300 bg-red-50 text-red-800 p-2 mb-3">
+    <ul class="list-disc ml-5">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <div class="flex flex-wrap gap-8 mb-4">
+    {% if plan.available_environments %}
+    <fieldset>
+      <legend class="font-semibold mb-1">Environments</legend>
+      {% for env in plan.available_environments %}
+      <label class="flex items-center gap-2">
+        <input type="checkbox" name="environment" value="{{ env }}"
+               {% if env in plan.environments %}checked{% endif %}>
+        {{ env }}
+        {% if env not in live %}<span class="text-gray-400">(no live worker)</span>{% endif %}
+      </label>
+      {% endfor %}
+    </fieldset>
+    {% endif %}
+
+    {% if plan.uut_choices %}
+    <fieldset>
+      <legend class="font-semibold mb-1">UUT versions</legend>
+      {% for uut, ids in plan.uut_choices.items() %}
+      <label class="flex items-center gap-2 mb-1">
+        <span class="w-16">{{ uut }}</span>
+        <select name="version-{{ uut }}" class="border rounded px-2 py-1">
+          {% for id in ids | reverse %}
+          <option value="{{ id }}" {% if plan.uut_versions[uut] and plan.uut_versions[uut].id == id %}selected{% endif %}>{{ id }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+    </fieldset>
+    {% endif %}
+
+    <fieldset class="flex-1 min-w-[16rem]">
+      <legend class="font-semibold mb-1">Variation filter</legend>
+      <input type="text" name="filter" value="{{ plan.filter }}"
+             placeholder="e.g. (= mode :normal) or (= index 0)"
+             class="border rounded px-2 py-1 w-full font-mono">
+      <p class="text-gray-400 text-xs mt-1">
+        An EDN predicate over each variation's symbols plus <code>name</code> and
+        <code>index</code>. Variations missing a symbol it uses are left out.
+      </p>
+    </fieldset>
+  </div>
+
+  <table class="w-full border-collapse mb-4">
+    <thead>
+      <tr class="text-left border-b">
+        <th class="py-1 pr-3">Script</th>
+        <th class="py-1 pr-3">Requirements</th>
+        <th class="py-1 pr-3">Environments</th>
+        <th class="py-1">Variations</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for s in plan.scripts %}
+      <tr class="border-b align-top {{ 'text-gray-400' if s.skipped }}">
+        <td class="py-1 pr-3">{{ s.script }}</td>
+        <td class="py-1 pr-3">{{ s.requirements | join(', ') }}</td>
+        <td class="py-1 pr-3">
+          {% if s.skipped %}<span class="text-red-700">skipped: {{ s.skipped }}</span>
+          {% else %}{{ s.environments | join(', ') or 'any worker' }}{% endif %}
+        </td>
+        <td class="py-1">
+          {% for v in s.variations %}
+          <label class="flex items-center gap-2">
+            <input type="checkbox" name="variation" value="{{ s.script }}::{{ v.name }}"
+                   {% if v.reason != 'unticked' %}checked{% endif %}>
+            <span class="{{ 'line-through text-gray-400' if not v.selected }}">{{ v.name }}</span>
+            <span class="text-gray-400 text-xs">
+              {% for sym, val in v["values"].items() %}{{ sym }}={{ val }}{% if not loop.last %}, {% endif %}{% endfor %}
+              {% if v.reason == 'filtered out' %}(filtered out){% endif %}
+            </span>
+          </label>
+          {% endfor %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="flex items-center gap-4">
+    <button type="button"
+            hx-post="{{ url_for('jobqueue.queue') }}"
+            hx-include="#queue-form"
+            hx-target="#queue-form"
+            hx-swap="outerHTML"
+            class="border rounded border-gray-300 bg-white hover:bg-gray-600 hover:text-white px-3 py-1 font-semibold"
+            {% if not runs %}disabled{% endif %}>
+      Queue {{ runs | length }} run{{ '' if runs | length == 1 else 's' }}
+    </button>
+    <span class="text-gray-500">
+      {% set skipped = plan.scripts | selectattr('skipped') | list %}
+      {% if skipped %}{{ skipped | length }} script{{ '' if skipped | length == 1 else 's' }} skipped{% endif %}
+    </span>
+  </div>
+</form>

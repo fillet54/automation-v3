@@ -29,8 +29,10 @@ automation-v3 server --workspace-path ./test/data/git_repos/master
 ```
 automation-v3 worker --port 8081 --central-server localhost:8080 --config test/data/worker-sim.json
 ```
-Open a script, pick an environment and UUT version and press **Run**; the
-run page updates as the worker executes it.
+Pick requirements on the **Requirements** page (or open a script and press
+**Queue…**), choose environments, UUT versions and variations, and queue.
+The report rolls each requirement up as Green (every linked script passed
+in every environment and variation), Red (any failed) or Partial.
 
 ## Scripts
 
@@ -42,6 +44,20 @@ root down to its own, then those of folders it imports with
 definitions and never override a name the script's own chain defines. A step whose head is
 a `defn` is called with evaluated arguments and passes if it returns
 something truthy; every other step runs through its BuildingBlock.
+
+Scripts reference requirements with ``:req:`ID` `` in their documentation.
+A script may declare variations, each binding the same symbols to
+different values for its own run:
+
+```clojure
+(variations "mode pressure"
+  ["nominal"  [:normal 60]
+   "degraded" [:limp-home 75]])
+```
+
+The queue dialog can untick variations or filter them with an EDN
+predicate over those symbols plus `name` and `index`, e.g.
+`(not= mode :degraded)`.
 
 `(environments :sim ...)` and `(uut :demo ...)` declare where a script can
 run and what it tests. They are inherited from the `core.rvt` chain and the
