@@ -37,6 +37,7 @@ EXPECTED = {
     ("BRA/tc_bra_00005.rvt", "sim", None): "pass",
     ("BRA/tc_bra_00005.rvt", "bench", None): "pass",
     ("BRA/tc_bra_00006.rvt", "sim", None): "blocked",
+    ("BRA/tc_bra_00008.rvt", "sim", None): "pass",
     ("FUE/tc_fue_00001.rvt", "sim", None): "pass",
     ("FUE/tc_fue_00002.rvt", "sim", "jet-a"): "pass",
     ("FUE/tc_fue_00002.rvt", "sim", "avgas"): "pass",

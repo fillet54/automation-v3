@@ -115,6 +115,10 @@ bound to its name, e.g. `(.mode demo)`.
 requirement; its `README.rst` lists what each script shows and which ones
 fail on purpose.
 
+Steps render through their BuildingBlock: a block can override `as_html`
+(or `as_rst`) to show its arguments readably, e.g. a configuration as a
+table; otherwise the step shows as code.
+
 `(environments :sim ...)` and `(uut :demo ...)` declare where a script can
 run and what it tests. They are inherited from the `core.rvt` chain and the
 script can override them. UUTs and environments are plugins in

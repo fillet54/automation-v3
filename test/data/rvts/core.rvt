@@ -52,12 +52,9 @@ Reaching the demo UUT
 "
 Precondition helpers
 --------------------
-Scripts with variations bind ``mode`` by convention; these helpers put
-the demo UUT in that mode.
+Scripts with variations bind ``mode`` by convention; this checks the
+demo UUT is in that mode. Heal with the StartDemo block.
 "
 
 (defn in-variation-mode? []
   (demo-in-mode? mode))
-
-(defn enter-variation-mode []
-  (start-demo mode))

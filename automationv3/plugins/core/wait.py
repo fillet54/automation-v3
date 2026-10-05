@@ -11,8 +11,8 @@ class Wait(BuildingBlock):
     def execute(self, seconds):
         return BlockResult(True)
 
-    def as_rst(self, seconds):
-        return f".. raw:: html\n\n   <span><strong>Wait</strong> {seconds} seconds</span>\n\n"  # noqa: E501
+    def as_html(self, seconds):
+        return f"<span><strong>Wait</strong> {seconds} seconds</span>"
 
 
 class SetupSimulation(BuildingBlock):
@@ -47,7 +47,7 @@ class TableDriven(BuildingBlock):
     def execute(self, *args):
         return BlockResult(True)
 
-    def as_rst(self, *args):
+    def as_html(self, *args):
         headers, rows = args
         s = io.StringIO("")
         s.write('   <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">\n')
@@ -88,7 +88,4 @@ class TableDriven(BuildingBlock):
         s.write("      </div>\n")
         s.write("   </div>\n")
 
-        html = s.getvalue()
-
-        rst = f".. raw:: html\n\n{html}\n\n"
-        return rst
+        return s.getvalue()

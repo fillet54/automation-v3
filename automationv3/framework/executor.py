@@ -24,7 +24,7 @@ isn't ready for it. In any other mode the outcome is "blocked".
 import time
 import traceback
 
-from . import edn, lisp
+from . import context, edn, lisp
 from .block import BlockResult, find_block
 from .closure import (
     DEFINITIONS,
@@ -109,6 +109,11 @@ def execute_script(text, observer, script=None, env=None, mode="normal"):
     Returns "pass", "fail", "blocked", or (in probe mode) "released".
     """
     env = env if env is not None else new_env()
+    with context.running(env):
+        return _execute(text, observer, script, env, mode)
+
+
+def _execute(text, observer, script, env, mode):
     forms = list(edn.read_all(text))
     observer.on_procedure_begin(script=script, statements=len(forms), mode=mode)
 

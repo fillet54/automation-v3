@@ -1,15 +1,19 @@
-"""Utilities for reStructuredText
+"""Rendering scripts through reStructuredText
 
+Every statement becomes rst (documentation as written, steps through
+their BuildingBlock), the whole script is rendered to HTML in one pass,
+and the HTML is split back into one part per statement. Scripts may
+reference requirements with the :req:`ID` role.
 """
 
-import re
 import docutils.core
-from docutils import writers, nodes
+from docutils import nodes
 from docutils.parsers.rst import roles, Directive, directives
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
-from . import edn
-from .block import find_block
+from . import edn, html
+from .block import find_block, raw_html
+from .closure import PRECONDITION, head, parse_precondition, parse_variations
 from .requirement import Requirement
 
 # How a :req:`ID` reference finds its requirement. Applications with a
@@ -127,13 +131,40 @@ def rst_codeblock(src):
 
 
 def repr_rst(form):
-    """Convert object to RST"""
+    """A statement as rst: documentation as written, language forms
+    (variations, Precondition) readably, steps through their block"""
     if isinstance(form, str):
         return form
-    elif block := find_block(form):
+    name = head(form)
+    if name == "variations" and (table := variations_html(form)):
+        return raw_html(table)
+    if name == PRECONDITION and parse_precondition(form):
+        return precondition_rst(form)
+    if block := find_block(form):
         return block.__repr_rst__()
-    else:
-        return rst_codeblock(edn.writes(form))
+    return rst_codeblock(edn.writes(form))
+
+
+def variations_html(form):
+    """A variations form as a table, one row per variation"""
+    errors = []
+    variations = parse_variations("", form, errors)
+    if errors or not variations:
+        return None
+    return html.table(
+        ["Variation", *variations[0].symbols],
+        [[v.name, *v.forms] for v in variations],
+        caption="Variations",
+    )
+
+
+def precondition_rst(form):
+    """The precondition's name, then its check and heal as they render"""
+    name, check, heal = parse_precondition(form)
+    rst = f"**Precondition:** {name}\n\n{repr_rst(check)}"
+    if heal is not None:
+        rst += f"\n\n*If not, heal by:*\n\n{repr_rst(heal)}"
+    return rst
 
 
 def write_html_parts(rst_statements):
@@ -153,107 +184,3 @@ def write_html_parts(rst_statements):
     # our custom div pattern. Throw away the first
     # and last as thats the wrapping 'document' divs
     return html["html_body"].split(TestcaseHTMLTranslator.ENDSTATEMENT_DIV)[1:-1]
-
-
-class TestCaseFieldWriter(writers.Writer):
-    """Writes test case fields to a dictionary"""
-
-    def __init__(self):
-        writers.Writer.__init__(self)
-        self.translator_class = TestCaseTranslator
-        self.visitor = None
-
-    def translate(self):
-        self.visitor = visitor = self.translator_class(self.document)
-        self.document.walkabout(visitor)
-        self.output = visitor.output
-
-
-class TestCaseTranslator(nodes.GenericNodeVisitor):
-    def __init__(self, document):
-        nodes.NodeVisitor.__init__(self, document)
-        self.output = {"title": "", "requirements": set()}
-
-    # GenericNodeVisitor methods
-    def default_visit(self, node):
-        """Default node visit method."""
-        pass
-
-    def default_departure(self, node):
-        """Default node depart method."""
-        pass
-
-    # NodeVisitor methods
-    def unknown_departure(self, node):
-        pass
-
-    def unknown_visit(self, node):
-        pass
-
-    # Test case fields
-    def visit_title(self, node):
-        if isinstance(node.parent, nodes.document):
-            self.output["title"] = node.astext()
-
-    def visit_requirement(self, node):
-        self.output["requirements"].add(node.req)
-
-
-def extract_testcase_fields(text):
-    """Extracts testcase fields from reStructuredText"""
-    writer = TestCaseFieldWriter()
-    parts = docutils.core.publish_parts(text, writer=writer)
-    return parts["whole"]
-
-
-directive_start = re.compile(r"^\.\. (\w+)::(\s*|\s+\w+)$")
-
-
-def _is_directive_start(line):
-    m = directive_start.match(line)
-    return m is not None
-
-
-indent_pattern = re.compile(r"^\s+")
-
-
-def _indent_width(line):
-    m = indent_pattern.match(line)
-    if m:
-        return m.group()
-    return 0
-
-
-def split_rst_by_directives(text):
-    """Splits rst file by directives"""
-
-    parts = [""]
-    state = "normal"
-    for line in text.splitlines():
-        if state == "normal":
-            if _is_directive_start(line):
-                if parts[-1].endswith("\n"):
-                    parts[-1] = parts[-1][:-1]
-                parts.append(line + "\n")
-                state = "body"
-            else:
-                parts[-1] += line + "\n"
-        elif state == "body":
-            if _indent_width(line) == 0 and line.strip() != "":
-                if parts[-1].endswith("\n"):
-                    parts[-1] = parts[-1][:-1]
-                parts.append("")
-                state = "normal"
-            else:
-                parts[-1] += line + "\n"
-
-    if parts[-1] == "":
-        parts = parts[:-1]
-
-    return parts
-
-
-def parse_directive(text):
-    """Parses directive into arguments, options, body"""
-
-    pass

@@ -5,6 +5,7 @@ They exercise the UUT/Environment plumbing without real hardware. The
 "installs" by recording the version there.
 """
 
+from .blocks import StartDemo
 from .demo import Bench, Demo, Sim
 
-__all__ = [Bench, Demo, Sim]
+__all__ = [Bench, Demo, Sim, StartDemo]

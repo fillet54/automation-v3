@@ -61,35 +61,9 @@ CREATE TABLE IF NOT EXISTS requirement_links(
     PRIMARY KEY(workspace, script, requirement_id)
 );
 
--- Editor
-CREATE TABLE IF NOT EXISTS documents(
-    id TEXT PRIMARY KEY,
-    path TEXT,
-    draft TEXT,
-    mime TEXT NOT NULL,
-    st_mtime REAL,
-    meta TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS editors(
-    id INTEGER PRIMARY KEY,
-    active_tab TEXT
-);
-
-CREATE TABLE IF NOT EXISTS opened_documents(
-    id INTEGER PRIMARY KEY,
-    editor_id INTEGER REFERENCES editors(id) ON DELETE CASCADE,
-    document_id TEXT REFERENCES documents(id) ON DELETE CASCADE
-);
-
--- Workspaces
-CREATE TABLE IF NOT EXISTS workspaces(
-    id TEXT PRIMARY KEY,
-    editor_id INTEGER NOT NULL REFERENCES editors(id)
-);
-
+-- Workspace tree view: which folders are expanded, per workspace
 CREATE TABLE IF NOT EXISTS expanded_nodes(
-    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id TEXT NOT NULL,
     path TEXT NOT NULL,
     PRIMARY KEY(workspace_id, path)
 );

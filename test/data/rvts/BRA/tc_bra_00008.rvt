@@ -1,0 +1,25 @@
+"
+=================================
+Hard Stop From A Configured Start
+=================================
+Starts the demo UUT from a configuration with the StartDemo block, which
+shows its configuration as a table, then checks the brakes hold.
+
+Requirements
+------------
+1. :req:`VMCBRA00001`
+"
+
+(Precondition "Demo configured for a hard stop"
+  (reading-is? :brake-pressure 70)
+  :heal (StartDemo {:mode :emergency
+                    :readings {:brake-pressure 70
+                               :brake-temperature 300}}))
+
+"
+Steps
+-----
+"
+
+(demo-in-mode? :emergency)
+(brake-pressure-ok? (reading :brake-pressure))

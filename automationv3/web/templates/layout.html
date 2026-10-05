@@ -11,19 +11,8 @@
 
     <script src="{{ url_for('static', filename='js/tailwindcss/tailwindcss.js') }}"></script>
     <script src="{{ url_for('static', filename='js/_hyperscript/_hyperscript.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/codemirror/codemirror.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/codemirror/addon/mode/overlay.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/codemirror/addon/mode/simple.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/codemirror/mode/clojure/clojure.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/codemirror/mode/rst/rst.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/codemirror/mode/rvt/rvt.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/site.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}"/>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/code-highlighting.css') }}"/>
-
-    <script>
-      CodeMirror.defineMIME('application/rvt+edn', 'clojure');
-    </script>
 
     <script>
         tailwind.config = {
@@ -55,7 +44,6 @@
         cursor: col-resize;
       }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='js/codemirror/codemirror.css') }}">
 </head>
 
 <body>
@@ -94,8 +82,6 @@
     </div>
 
     <script src="/static/js/htmx/htmx.min.js" defer></script>
-    <script src="/static/js/_hyperscript/_hyperscript.min.js" defer></script>
-    <script src="/static/js/autosize/autosize.min.js"></script>
 
 
     {% if show_nav %}
@@ -121,35 +107,6 @@
     </script>
     {% endif %}
 
-    <script>
-      // Prevent any events for steps that havent been updated
-      document.body.addEventListener('htmx:confirm', function(evt){
-        var triggeringEvent = evt.detail.triggeringEvent;
-        if (triggeringEvent && triggeringEvent.type === 'updated-section')
-        {
-          var url = new URL('http://example.com/' + evt.detail.path);
-          if (!(url.searchParams.get('section') in triggeringEvent.detail.updated))
-          {
-            evt.preventDefault();
-          }
-        }
-      });
-
-      document.body.addEventListener('htmx:configRequest', function(evt){
-        var triggeringEvent = evt.detail.triggeringEvent;
-        if (triggeringEvent && triggeringEvent.type === 'updated-section')
-        {
-          console.log(evt)
-          var url = new URL('http://example.com/' + evt.detail.path);
-          if (url.searchParams.get('section') in triggeringEvent.detail.updated)
-          {
-            var new_section = triggeringEvent.detail.updated[url.searchParams.get('section')];
-            evt.detail.parameters['updated'] = new_section
-          }
-        }
-      });
-
-    </script>
 </body>
 
 </html>

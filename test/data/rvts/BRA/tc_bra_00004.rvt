@@ -3,8 +3,8 @@
 Brake Pressure Modes
 ====================
 Checks the brake pressure limit holds in each braking mode. The
-precondition puts the demo UUT in the variation's mode, so runs of the
-same mode can reuse a warm UUT.
+precondition starts the demo UUT with the variation's mode and pressure,
+so runs of the same mode can reuse a warm UUT.
 
 Requirements
 ------------
@@ -19,7 +19,8 @@ Requirements
 
 (Precondition "Demo running in the variation's mode"
   (in-variation-mode?)
-  :heal (enter-variation-mode))
+  :heal (StartDemo {:mode mode
+                    :readings {:brake-pressure pressure}}))
 
 "
 Steps

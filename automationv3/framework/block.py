@@ -29,16 +29,16 @@ class BuildingBlock:
         return BlockResult(False)
 
     def as_rst(self, *args):
-        """Converts block with arguments to RST
+        """How a step using this block reads in a rendered script.
 
-        Note: We don't use the something like __repr_rst__
-        here due to maintaining backwards compatibility. A
-        block is sort of treated as a singleton which then
-        provides member functions that take a specific list
-        of arguments. A building block typically will
-        get wrapped up in a class that
-
+        Blocks render themselves so a script reads well, e.g. a
+        configuration as a table instead of a large edn structure.
+        Override this to write reStructuredText, or as_html to write
+        HTML. By default the step is shown as code.
         """
+        html = self.as_html(*args)
+        if html is not None:
+            return raw_html(html)
         src = edn.writes(edn.List([self.name(), *args]))
         return (
             "\n".join(
@@ -50,6 +50,16 @@ class BuildingBlock:
             )
             + "\n\n"
         )
+
+    def as_html(self, *args):
+        """HTML for a step using this block, or None to use as_rst"""
+        return None
+
+
+def raw_html(html):
+    """rst that embeds `html` as is"""
+    body = "\n".join("   " + line for line in html.splitlines())
+    return f".. raw:: html\n\n{body}\n\n"
 
 
 class BuildingBlockInst:
@@ -98,10 +108,21 @@ class BlockResult(object):
         return f"<BlockResult: {result}, {self.stdout}, {self.stderr}>"
 
 
+def all_blocks():
+    """An instance of every BuildingBlock subclass loaded so far"""
+    found, stack = [], list(BuildingBlock.__subclasses__())
+    while stack:
+        cls = stack.pop(0)
+        stack.extend(cls.__subclasses__())
+        found.append(cls())
+    return found
+
+
 def find_block(form):
+    """The block (with its arguments) that handles a step form, or None"""
     name, *args = form
 
-    for block in all_blocks:
+    for block in all_blocks():
         if block.name() == name and block.check_syntax(*args):
             return BuildingBlockInst(block, args)
 
@@ -110,9 +131,8 @@ def iter_namespace(ns_pkg):
     return pkgutil.iter_modules(ns_pkg.__path__, ns_pkg.__name__ + ".")
 
 
+# Importing every plugin registers its blocks
 discovered_plugins = {
     name: importlib.import_module(name)
     for finder, name, ispkg in iter_namespace(automationv3.plugins)
 }
-
-all_blocks = [block() for block in BuildingBlock.__subclasses__()]

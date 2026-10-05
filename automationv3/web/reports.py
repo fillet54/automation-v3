@@ -11,7 +11,7 @@ from flask import (
 )
 
 from ..framework.closure import DIRECTIVES, PRECONDITION, head
-from ..framework.testcase import get_statements
+from ..framework.statements import get_statements
 from ..services import jobs as models
 from ..services.reports import rollup, store
 from ..services.requirements import models as requirement_models

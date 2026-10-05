@@ -3,18 +3,15 @@
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-import json
 import re
 
-from flask import Blueprint, current_app, render_template, request, abort, make_response
+from flask import Blueprint, current_app, render_template, request, abort
 
 from ..framework.closure import CORE, resolve
 from ..framework.rst import write_html_parts
-from ..framework.testcase import get_statements
-from ..services.workspace import FileNode, find_worktrees
+from ..framework.statements import get_statements
+from ..services.workspace import FileNode, find_worktrees, is_binary
 from .db import get_db
-from .editor.document import is_binary
-from .editor.editor import add_document, select_document
 
 
 def expanded_nodes(conn, workspace_id, root):
@@ -43,29 +40,10 @@ class Workspace:
 
     id: str
     root: Path
-    editor_id: int
 
     @cached_property
     def root_node(self):
         return FileNode(self.root)
-
-
-def get_workspace(conn, id, root):
-    """The workspace `id`, creating it (and its editor) on first use"""
-    row = conn.execute(
-        "SELECT editor_id FROM workspaces WHERE id = ?", (id,)
-    ).fetchone()
-    if row is not None:
-        return Workspace(id, root, row[0])
-
-    with conn:
-        editor_id = conn.execute(
-            "INSERT INTO editors(active_tab) VALUES (NULL)"
-        ).lastrowid
-        conn.execute(
-            "INSERT INTO workspaces(id, editor_id) VALUES (?, ?)", (id, editor_id)
-        )
-    return Workspace(id, root, editor_id)
 
 
 # Views
@@ -81,7 +59,7 @@ def workspace_or_404(id):
     root = worktrees().get(id)
     if root is None:
         abort(404)
-    return get_workspace(get_db(), id, root)
+    return Workspace(id, root)
 
 
 def node_or_404(workspace, path):
@@ -136,24 +114,6 @@ def expand(id):
     node = node_or_404(ws, request.args.get("path", ""))
     toggle_expanded(get_db(), ws.id, node)
     return render_tree(ws, node)
-
-
-@bp.route("/<path:id>/open", methods=["POST"])
-def open_document(id):
-    ws = workspace_or_404(id)
-    node = node_or_404(ws, request.args.get("path", ""))
-    if not node.is_file():
-        abort(404)
-
-    conn = get_db()
-    document = add_document(conn, ws.editor_id, node.path)
-    select_document(conn, ws.editor_id, document.id)
-
-    resp = make_response("Success")
-    resp.headers["Hx-Trigger"] = json.dumps(
-        {"tab-action": "open", "editor-content-update": True}
-    )
-    return resp
 
 
 # Read-only script viewer
