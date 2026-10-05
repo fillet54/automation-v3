@@ -19,7 +19,8 @@ Steps
 -----
 "
 
-(raise-fault :fuel-leak)
-(fault-active? :fuel-leak)
+(def leak :fuel-leak)
+(raise-fault leak)
+(fault-active? leak)
 (clear-faults)
 (no-faults?)

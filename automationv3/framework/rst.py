@@ -73,6 +73,22 @@ class EndStatement(Directive):
 directives.register_directive("endstatement", EndStatement)
 
 
+class RvtDirective(Directive):
+    """`.. rvt::` marks how the script uses the forms that follow, e.g.
+    `:definitions:`. It renders nothing; pages group the forms instead."""
+
+    required_arguments = 0
+    optional_arguments = 0
+    has_content = False
+    option_spec = {"definitions": directives.flag}
+
+    def run(self):
+        return []
+
+
+directives.register_directive("rvt", RvtDirective)
+
+
 class TestcaseHTMLTranslator(HTMLTranslator):
     documenttag_args = {
         "tagname": "div",

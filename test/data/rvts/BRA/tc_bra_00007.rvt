@@ -2,14 +2,16 @@
 ==================
 Lint Error Example
 ==================
-Defines a value in a script instead of a core.rvt.
+Checks a precondition after a step has already run.
 
 .. warning::
 
-   Refuses to queue on purpose: definitions belong in a core.rvt. The
-   viewer shows the error, and the queue dialog lists it as skipped.
+   Refuses to queue on purpose: preconditions must come before the first
+   step. The viewer shows the error, and the queue dialog lists it as
+   skipped.
 "
 
-(def local-limit 5)
-
 (Wait 1)
+
+(Precondition "Too late to matter"
+  (demo-in-mode? :normal))

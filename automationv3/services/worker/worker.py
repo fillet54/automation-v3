@@ -56,6 +56,12 @@ class ReportObserver:
     def on_step_end(self, **kw):
         self.send("step_end", **kw)
 
+    def on_call_start(self, **kw):
+        self.send("call_start", **kw)
+
+    def on_call_end(self, **kw):
+        self.send("call_end", **kw)
+
     def on_procedure_end(self, **kw):
         self.send("procedure_end", **kw)
 

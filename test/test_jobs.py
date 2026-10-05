@@ -35,7 +35,7 @@ Title
 FAILING = '''
 "Docs"
 (Wait 1)
-(Verify X)
+(Missing X)
 (Wait 2)
 '''
 
@@ -182,11 +182,12 @@ class TestClosure(unittest.TestCase):
     def test_lint(self):
         write_tree(self.root, {
             "BAD/core.rvt": "(Wait 1)",
-            "BAD/tc.rvt": "(def x 1) (do (import FUE)) (import NOPE) (import ../..)",
+            "BAD/tc.rvt": '(def x 1) (do (import FUE)) (import NOPE) (import ../..) '
+                          '(Wait 1) (Precondition "late" (x))',
         })
         errors = resolve(self.root, "BAD/tc.rvt").errors
         self.assertTrue(any("core.rvt may only contain" in e for e in errors))
-        self.assertTrue(any("def x belongs in a core.rvt" in e for e in errors))
+        self.assertTrue(any("must come before the first step" in e for e in errors))
         self.assertTrue(any("only allowed at the top level" in e for e in errors))
         self.assertTrue(any("cannot import NOPE" in e for e in errors))
         self.assertTrue(any("outside the root" in e for e in errors))
@@ -210,7 +211,7 @@ class TestExecutor(unittest.TestCase):
         self.assertEqual(execute_script(FAILING, recorder), "fail")
         ends = [kw for kind, kw in recorder.events if kind == "step_end"]
         self.assertEqual([e["passed"] for e in ends], [True, False])
-        self.assertIn("No BuildingBlock matches (Verify X)", ends[1]["stderr"])
+        self.assertIn("No BuildingBlock or definition matches (Missing X)", ends[1]["stderr"])
         self.assertEqual([e["index"] for e in ends], [1, 2])
         self.assertEqual(recorder.events[-1], ("procedure_end", {"outcome": "fail"}))
 
@@ -369,7 +370,7 @@ class TestJobModels(QueueTestCase):
                          {"core.rvt": "(def x 1)", "a.rvt": PASSING})
 
     def test_lint_errors_refuse_queueing(self):
-        write_tree(self.rvts, {"bad.rvt": "(def x 1)"})
+        write_tree(self.rvts, {"bad.rvt": "(Wait 1) (Precondition \"late\" (Wait 2))"})
         with self.assertRaises(models.QueueError):
             self.queue("bad.rvt")
         self.assertEqual(models.find_jobs(self.conn), [])
@@ -475,7 +476,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "plain/core.rvt": "(environments) (uut)",
             "plain/fail.rvt": FAILING,
             "plain/pass.rvt": PASSING,
-            "plain/lint.rvt": "(def x 1)",
+            "plain/lint.rvt": "(Wait 1) (Precondition \"late\" (Wait 2))",
             "LIB/core.rvt": "(def limit 99)",
             "BRA/imports.rvt": "(import LIB) (under-limit? 50)",
         })
@@ -519,7 +520,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         page = self.http.get(f"/reports/{ids['report_id']}/runs/{ids['run_id']}")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"No BuildingBlock matches (Verify X)", page.data)
+        self.assertIn(b"No BuildingBlock or definition matches (Missing X)", page.data)
         self.assertIn(b">pass<", page.data)
         self.assertIn(b">fail<", page.data)
         self.assertIn(b">not run<", page.data)
@@ -599,7 +600,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         response = self.http.post("/runner/jobs", json={
             "workspace": self.branch, "script": "plain/lint.rvt"})
         self.assertEqual(response.status_code, 400)
-        self.assertIn("belongs in a core.rvt", response.get_json()["errors"][0])
+        self.assertIn("must come before the first step", response.get_json()["errors"][0])
 
     def test_only_holder_can_report(self):
         ids = self.queue("plain/pass.rvt")
@@ -646,7 +647,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertIn(b"2 variations", page.data)
 
         page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rvt")
-        self.assertIn(b"belongs in a core.rvt", page.data)
+        self.assertIn(b"must come before the first step", page.data)
         self.assertNotIn(b"/runner/new", page.data)
 
     def dialog(self, **params):

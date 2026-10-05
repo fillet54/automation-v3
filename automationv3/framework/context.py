@@ -1,8 +1,8 @@
 """What a running step can reach
 
 While a script runs, BuildingBlocks can look up the run's bindings (e.g.
-a UUT handle by name, a variation symbol, a core.rvt definition) and
-evaluate their arguments, which they receive unevaluated.
+a UUT handle by name, a variation symbol, a core.rvt definition). Block
+arguments are evaluated with `evaluate` before reaching `execute`.
 """
 
 import contextvars
@@ -35,15 +35,15 @@ def lookup(name):
     return current_env()[edn.Symbol(name)]
 
 
-def evaluate(form):
+def evaluate(form, env=None):
     """Evaluate a block argument, including inside maps and vectors.
 
     Keywords and literals stay as they are; symbols and lists are
-    evaluated as Lisp in the running script's environment.
+    evaluated as Lisp in `env` (by default the running script's).
     """
-    env = current_env()
+    env = env if env is not None else current_env()
     if isinstance(form, dict):
-        return edn.Map({evaluate(k): evaluate(v) for k, v in form.items()})
+        return edn.Map({evaluate(k, env): evaluate(v, env) for k, v in form.items()})
     if isinstance(form, edn.Vector):
-        return edn.Vector(evaluate(item) for item in form)
+        return edn.Vector(evaluate(item, env) for item in form)
     return lisp.eval(form, env)

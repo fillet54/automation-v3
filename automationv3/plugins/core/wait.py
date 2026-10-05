@@ -19,7 +19,8 @@ class SetupSimulation(BuildingBlock):
     def check_syntax(self, *args):
         return (len(args) % 2) == 0
 
-    def execute(self, *arg):
+    # Keys and values are names as written, e.g. [xyz]
+    def execute_forms(self, *arg):
         return BlockResult(True)
 
     def as_rst(self, *args):
@@ -44,7 +45,8 @@ class TableDriven(BuildingBlock):
     def name(self):
         return "Table-Driven"
 
-    def execute(self, *args):
+    # Headers are bare symbols naming columns, not values to evaluate
+    def execute_forms(self, *args):
         return BlockResult(True)
 
     def as_html(self, *args):

@@ -182,6 +182,20 @@ class ConsoleObserver:
         if stderr:
             print("       " + stderr.strip().replace("\n", "\n       "))
 
+    def on_call_start(self, form=None, depth=0, quiet=False, **kw):
+        self.form = form
+
+    def on_call_end(self, passed=True, stdout="", depth=0, quiet=False,
+                    checked=False, **kw):
+        if quiet:
+            return
+        if checked:
+            mark = "yes " if passed else "no  "
+        else:
+            mark = "ok  " if passed else "FAIL"
+        indent = "      " + "  " * depth
+        print(f"{indent}{mark} {self.form}{': ' + stdout if stdout else ''}")
+
     def on_procedure_end(self, outcome=None, **kw):
         print(f"  -> {outcome}")
 

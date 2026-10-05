@@ -6,8 +6,9 @@ Applies 95 against the brake limit of 80.
 
 .. warning::
 
-   Fails on purpose: 95 is over the brake limit, so the last step fails
-   and VMCBRA00007 rolls up Red. Use it to see a failing step.
+   Fails on purpose: 95 is over the brake limit, so the brakes-hold
+   defblock fails and VMCBRA00007 rolls up Red. Use it to see a failing
+   step and the nested calls that explain it.
 
 Requirements
 ------------
@@ -23,5 +24,4 @@ Steps
 -----
 "
 
-(set-reading :brake-pressure 95)
-(brake-pressure-ok? (reading :brake-pressure))
+(brakes-hold 95)

@@ -4,6 +4,8 @@
   'fail': 'bg-red-50 text-red-700 ring-red-600/20',
   'error': 'bg-red-50 text-red-700 ring-red-600/20',
   'blocked': 'bg-orange-50 text-orange-700 ring-orange-600/20',
+  'true': 'bg-gray-50 text-gray-700 ring-gray-500/20',
+  'false': 'bg-gray-100 text-gray-500 ring-gray-500/20',
   'running': 'bg-blue-50 text-blue-700 ring-blue-600/20',
   'claimed': 'bg-blue-50 text-blue-700 ring-blue-600/20',
 } -%}
@@ -21,4 +23,26 @@
 
 {% macro variation_label(environment, variation) -%}
 {%- if environment or variation %} <span class="text-gray-400">({{ [environment, variation] | select | join(' · ') }})</span>{% endif -%}
+{%- endmacro %}
+
+
+{% macro calls_list(calls) -%}
+<ul class="list-none pl-0 my-1 text-xs">
+  {% for call in calls %}
+  <li class="my-1">
+    <div class="flex items-start gap-2">
+      {{ badge(call.state) }}
+      <span class="font-mono">{{ call.form }}</span>
+      {% if call.stdout %}<span class="text-gray-500">{{ call.stdout }}</span>{% endif %}
+    </div>
+    {% if call.stderr %}<pre class="text-xs my-1">{{ call.stderr }}</pre>{% endif %}
+    {% if call.children %}
+    <details class="ml-6">
+      <summary class="cursor-pointer text-gray-500">{{ call.children | length }} nested call{{ '' if call.children | length == 1 else 's' }}</summary>
+      {{ calls_list(call.children) }}
+    </details>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
 {%- endmacro %}

@@ -21,5 +21,8 @@ Steps
 -----
 "
 
-(Wait 1)
+(quietly (Wait 1))
+(if (passes? (Verify (.version demo) = "1.1.0"))
+  (Wait 2)
+  (Wait 1))
 (brake-pressure-ok? 40)

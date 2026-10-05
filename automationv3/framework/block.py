@@ -4,12 +4,21 @@ import pkgutil
 import automationv3.plugins
 
 from . import edn
+from .context import evaluate
 
 
 class BuildingBlock:
     """
     The 'BuildingBlock' of the automation framework. Registers as a function to
     be run during text execution.
+
+    A step's arguments reach `execute` evaluated, like a function call:
+    symbols, calls, and values inside maps and vectors are evaluated in
+    the running script (definitions, variation symbols, UUT handles). A
+    block that gives meaning to the forms themselves, e.g. treating bare
+    symbols as names, implements `execute_forms` instead and gets the
+    arguments exactly as written. `check_syntax`, `as_rst` and `as_html`
+    always see the forms as written.
     """
 
     def name(self):
@@ -23,10 +32,14 @@ class BuildingBlock:
         return True
 
     def execute(self, *args):
-        """Executes the block.
+        """Executes the block with its arguments evaluated.
 
         Returns a BlockResult"""
         return BlockResult(False)
+
+    # Defined by blocks that take their arguments unevaluated:
+    #     def execute_forms(self, *forms): ...
+    execute_forms = None
 
     def as_rst(self, *args):
         """How a step using this block reads in a rendered script.
@@ -83,8 +96,12 @@ class BuildingBlockInst:
     def valid(self):
         return self.block.check_syntax(*self.args)
 
-    def execute(self):
-        return self.block.execute(*self.args)
+    def execute(self, env=None):
+        """Run the block: forms as written to execute_forms if the block
+        has it, otherwise evaluated (in `env`) to execute"""
+        if self.block.execute_forms is not None:
+            return self.block.execute_forms(*self.args)
+        return self.block.execute(*[evaluate(arg, env) for arg in self.args])
 
     def __repr_rst__(self):
         return self.block.as_rst(*self.args)
@@ -108,14 +125,23 @@ class BlockResult(object):
         return f"<BlockResult: {result}, {self.stdout}, {self.stderr}>"
 
 
+_instances = {}
+
+
 def all_blocks():
     """An instance of every BuildingBlock subclass loaded so far"""
     found, stack = [], list(BuildingBlock.__subclasses__())
     while stack:
         cls = stack.pop(0)
         stack.extend(cls.__subclasses__())
-        found.append(cls())
+        if cls not in _instances:
+            _instances[cls] = cls()
+        found.append(_instances[cls])
     return found
+
+
+def block_names():
+    return {block.name() for block in all_blocks()}
 
 
 def find_block(form):

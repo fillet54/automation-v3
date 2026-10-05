@@ -79,7 +79,7 @@ class TestRunLocally(unittest.TestCase):
 
         code, out = self.cli("BRA/tc_bra_00007.rvt")
         self.assertEqual(code, 2)
-        self.assertIn("belongs in a core.rvt", out)
+        self.assertIn("must come before the first step", out)
 
 
 class TestServerWithLocalWorker(unittest.TestCase):

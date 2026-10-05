@@ -123,11 +123,12 @@ class TestExampleSet(unittest.TestCase):
     def test_lint_example_refuses_to_queue(self):
         closure = resolve(RVTS, "BRA/tc_bra_00007.rvt")
         self.assertEqual(closure.errors,
-                         ["BRA/tc_bra_00007.rvt: def local-limit belongs in a core.rvt"])
+                         ["BRA/tc_bra_00007.rvt: Precondition Too late to matter "
+                          "must come before the first step"])
         response = self.http.post("/runner/queue", data={
             "workspace": self.branch, "script": "BRA/tc_bra_00007.rvt"})
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"belongs in a core.rvt", response.data)
+        self.assertIn(b"must come before the first step", response.data)
 
     def test_every_bra_and_fue_requirement_is_tested(self):
         from automationv3.services.requirements import links

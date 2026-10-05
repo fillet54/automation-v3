@@ -75,13 +75,15 @@ or `LocalServer` (`services/worker/local.py`), which `run` uses in-process.
 ## Scripts
 
 Scripts are authored in git; the workspace is a read-only viewer. Each
-folder (including the root) may hold a `core.rvt`, the only place `def` and
-`defn` are allowed. A script loads the `core.rvt` of every folder from the
+folder (including the root) may hold a `core.rvt` of shared definitions
+(`def`, `defn`, `defblock`). A script loads the `core.rvt` of every folder from the
 root down to its own, then those of folders it imports with
 `(import FOLDER)`. Inner definitions shadow outer ones; imports only add
 definitions and never override a name the script's own chain defines. A step whose head is
 a `defn` is called with evaluated arguments and passes if it returns
-something truthy; every other step runs through its BuildingBlock.
+something truthy; every other step runs through its BuildingBlock, whose
+`execute` also gets evaluated arguments (a block that wants the forms as
+written implements `execute_forms` instead).
 
 Scripts reference requirements with ``:req:`ID` `` in their documentation.
 A script may declare variations, each binding the same symbols to
@@ -114,6 +116,30 @@ bound to its name, e.g. `(.mode demo)`.
 `test/data/rvts` is an example set that tests every BRA and FUE
 requirement; its `README.rst` lists what each script shows and which ones
 fail on purpose.
+
+A script can define things too. Definitions are never reported as steps;
+a script's definitions section (marked with an `rvt` directive, and placed
+before any step) loads with the closure, and pages show it collapsed:
+
+```clojure
+"
+.. rvt::
+   :definitions:
+"
+(def stop-pressure 70)
+```
+
+Blocks compose in scripts. Called at the top level or in a plain `defn`, a
+block acts as its own step: it is reported, and a failure stops the script.
+A `defblock` (in a `core.rvt`) reports as one step with its calls nested
+beneath it, and passes on what it returns. `(passes? (Block ...))` checks a
+block without failing, and `(quietly ...)` leaves calls out of the output:
+
+```clojure
+(defblock brakes-hold [pressure]
+  (StartDemo {:mode :normal :readings {:brake-pressure pressure}})
+  (Verify (reading :brake-pressure) <= max-pressure))
+```
 
 Steps render through their BuildingBlock: a block can override `as_html`
 (or `as_rst`) to show its arguments readably, e.g. a configuration as a

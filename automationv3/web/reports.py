@@ -16,6 +16,7 @@ from ..services import jobs as models
 from ..services.reports import rollup, store
 from ..services.requirements import models as requirement_models
 from .db import get_db
+from .grouping import group, statement_item
 
 reports = Blueprint("reports", __name__)
 
@@ -40,15 +41,20 @@ def statement_rows(run, finished):
 
     started = {e["index"] for e in events if e["kind"] == "step_start"}
     ended = {e["index"]: e for e in events if e["kind"] == "step_end"}
+    calls = call_trees(events)
 
     rows = []
     for index, statement in enumerate(get_statements(text)):
         form = statement.statement
-        row = {
-            "html": statement.html,
-            "step": isinstance(form, list) and head(form) not in DIRECTIVES,
-            "precondition": head(form) == PRECONDITION,
-        }
+        row = statement_item(
+            statement,
+            step=isinstance(form, list) and head(form) not in DIRECTIVES,
+            precondition=head(form) == PRECONDITION,
+            calls=calls.get(index, []),
+        )
+        if statement.definition:
+            # Definitions aren't steps; only a failed one has a result
+            row["step"] = index in ended
         if row["step"]:
             if index in ended:
                 row["state"] = "pass" if ended[index]["passed"] else "fail"
@@ -60,7 +66,40 @@ def statement_rows(run, finished):
         rows.append(row)
 
     errors = [e for e in events if e["kind"] == "error"]
-    return rows, errors
+    return group(rows), errors
+
+
+def call_state(call):
+    if "passed" not in call:
+        return "running"
+    if call.get("checked"):
+        return "true" if call["passed"] else "false"
+    return "pass" if call["passed"] else "fail"
+
+
+def call_trees(events):
+    """statement index -> its block calls as a tree, quiet calls left out.
+
+    Each call has its `children` (calls nested in a defblock call) and a
+    `nested` flag for calls the statement's own defblock nested.
+    """
+    calls = {}
+    for event in events:
+        if event["kind"] not in ("call_start", "call_end") or event.get("quiet"):
+            continue
+        call = calls.setdefault((event["index"], event["call"]), {"children": []})
+        call.update({k: v for k, v in event.items() if k not in ("kind", "seq", "ts")})
+    for call in calls.values():
+        call["state"] = call_state(call)
+
+    trees = {}
+    for (index, _), call in sorted(calls.items()):
+        parent = calls.get((index, call.get("parent")))
+        if parent is not None:
+            parent["children"].append(call)
+        else:
+            trees.setdefault(index, []).append(call)
+    return trees
 
 
 @reports.route("/", methods=["GET"])

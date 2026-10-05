@@ -1,0 +1,18 @@
+{# Collapsed definitions: the section, and lone definitions #}
+
+{% macro definitions_section(items, render) -%}
+<details class="my-2 rounded border border-gray-200 px-3 py-1 bg-gray-50">
+  <summary class="cursor-pointer text-sm text-gray-600">
+    Definitions
+    <span class="text-gray-400">{{ items | selectattr('defines') | map(attribute='defines') | join(', ') }}</span>
+  </summary>
+  {% for item in items %}{{ render(item) }}{% endfor %}
+</details>
+{%- endmacro %}
+
+{% macro definition(item, render) -%}
+<details class="my-1">
+  <summary class="cursor-pointer text-xs text-gray-500">Definition: <span class="font-mono">{{ item.defines }}</span></summary>
+  {{ render(item) }}
+</details>
+{%- endmacro %}

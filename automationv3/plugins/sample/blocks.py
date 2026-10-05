@@ -13,15 +13,15 @@ class StartDemo(BuildingBlock):
         (StartDemo {:mode :emergency
                     :readings {:brake-pressure 70}})
 
-    Values may use the script's definitions and variation symbols. In a
-    rendered script the configuration reads as a table.
+    Values may use the script's definitions and variation symbols; the
+    block gets them evaluated. In a rendered script the configuration
+    reads as written, as a table.
     """
 
     def check_syntax(self, *args):
         return len(args) == 1 and isinstance(args[0], dict) and MODE in args[0]
 
     def execute(self, config):
-        config = context.evaluate(config)
         demo = context.lookup("demo")
         demo.start(config[MODE])
         readings = config.get(READINGS, {})

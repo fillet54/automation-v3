@@ -21,4 +21,4 @@ Steps
 "
 
 (set-reading :brake-pressure 60)
-(brake-pressure-ok? (reading :brake-pressure))
+(Verify (reading :brake-pressure) <= max-pressure)

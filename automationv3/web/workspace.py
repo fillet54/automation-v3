@@ -12,6 +12,7 @@ from ..framework.rst import write_html_parts
 from ..framework.statements import get_statements
 from ..services.workspace import FileNode, find_worktrees, is_binary
 from .db import get_db
+from .grouping import group, statement_item
 
 
 def expanded_nodes(conn, workspace_id, root):
@@ -120,14 +121,14 @@ def expand(id):
 
 
 def render_file(path):
-    """The file as HTML parts for display"""
+    """The file as grouped entries for display (see grouping.group)"""
     if is_binary(path):
         return None
     text = path.read_text()
     if path.suffix == ".rvt":
-        return [statement.html for statement in get_statements(text)]
+        return group([statement_item(s) for s in get_statements(text)])
     if path.suffix == ".rst":
-        return write_html_parts([text])
+        return [("statement", {"html": html}) for html in write_html_parts([text])]
     return None
 
 

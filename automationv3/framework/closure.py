@@ -5,7 +5,15 @@ to the script's folder, then the core.rvt of every folder it imports
 with `(import folder)`, then the script itself. That is also the load
 order. Nothing is executed to resolve it.
 
-core.rvt files hold definitions (`def`, `defn`); scripts only use them.
+Definitions (`def`, `defn`, `defblock`) live in core.rvt files and may
+also appear in a script, typically in its definitions section::
+
+    "
+    .. rvt::
+       :definitions:
+    "
+    (def stop-pressure 70)
+
 A deeper core.rvt in the chain overrides a shallower one, but an import
 never overrides a name the chain defines: imports only add definitions.
 Declarations (`uut`, `environments`) may appear in any core.rvt of the
@@ -40,7 +48,7 @@ from pathlib import Path, PurePosixPath
 from . import edn
 
 CORE = "core.rvt"
-DEFINITIONS = {"def", "defn"}
+DEFINITIONS = {"def", "defn", "defblock"}
 DECLARATIONS = {"uut", "environments"}
 # Top-level forms that configure a script rather than run as steps
 DIRECTIVES = {"import", "variations"} | DECLARATIONS
@@ -188,11 +196,67 @@ def lint(path, forms):
         if is_core:
             if isinstance(form, list) and name not in DEFINITIONS | DECLARATIONS:
                 errors.append(
-                    f"{path}: core.rvt may only contain documentation, "
-                    f"def, defn, uut and environments, not {edn.writes(form).strip()}"
+                    f"{path}: core.rvt may only contain documentation, def, defn, "
+                    f"defblock, uut and environments, not {edn.writes(form).strip()}"
                 )
-        elif name in DEFINITIONS:
-            errors.append(f"{path}: {name} {name_of(form[1])} belongs in a core.rvt")
+    return errors
+
+
+RVT_DIRECTIVE = re.compile(r"^\.\. rvt::\s*$", re.MULTILINE)
+RVT_OPTION = re.compile(r"^\s+:([\w-]+):\s*(.*)$")
+RVT_OPTIONS = {"definitions"}
+
+
+def rvt_options(form):
+    """The options of an `.. rvt::` directive in a doc string, or None"""
+    if not is_text(form):
+        return None
+    match = RVT_DIRECTIVE.search(form)
+    if match is None:
+        return None
+    options = {}
+    for line in form[match.end():].splitlines()[1:]:
+        option = RVT_OPTION.match(line)
+        if option is None:
+            break
+        options[option.group(1)] = option.group(2)
+    return options
+
+
+def is_definition(form):
+    return head(form) in DEFINITIONS
+
+
+def definitions_section(forms):
+    """Indexes of the script's definitions section: the doc string with
+    an `.. rvt:: :definitions:` directive, and the definitions after it
+    up to the next doc string or other form. Empty if there is none."""
+    for index, form in enumerate(forms):
+        options = rvt_options(form)
+        if options is not None and "definitions" in options:
+            section = [index]
+            for later in range(index + 1, len(forms)):
+                if not is_definition(forms[later]):
+                    break
+                section.append(later)
+            return section
+    return []
+
+
+def lint_definitions(path, forms):
+    """The definitions section comes first, and rvt options are known"""
+    errors = []
+    seen_step = False
+    for form in forms:
+        options = rvt_options(form)
+        if options is not None:
+            for option in sorted(set(options) - RVT_OPTIONS):
+                errors.append(f"{path}: unknown rvt option :{option}:")
+            if "definitions" in options and seen_step:
+                errors.append(f"{path}: the definitions section must come before "
+                              "any step or Precondition")
+        elif isinstance(form, list) and head(form) not in DIRECTIVES | DEFINITIONS:
+            seen_step = True
     return errors
 
 
@@ -260,5 +324,6 @@ def resolve(root, script, text=None):
         closure.variations = parse_variations(script, declared[0], errors)
     errors.extend(lint(script, script_forms))
     errors.extend(lint_preconditions(script, script_forms))
+    errors.extend(lint_definitions(script, script_forms))
 
     return closure
