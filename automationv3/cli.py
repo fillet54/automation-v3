@@ -3,7 +3,7 @@
 Usage:
     automation-v3 server [--port PORT] [--dbpath PATH]
                          [--workspace-path PATH] [--reports-path PATH]
-                         [--debug]
+                         [--local-worker] [--config PATH] [--debug]
     automation-v3 worker [--port PORT] [--config PATH]
                          [--central-server URL] [--no-http] [--debug]
     automation-v3 run SCRIPT... [--root PATH] [--config PATH]
@@ -12,7 +12,8 @@ Usage:
     automation-v3 (-h | --help)
 
 Commands:
-    server                 serve the web app and the job API
+    server                 serve the web app and the job API, optionally
+                           with a worker in the same process
     worker                 take jobs from a server and run them
     run                    run scripts on this machine, without a server
 
@@ -28,6 +29,8 @@ Options:
     --config=PATH          worker config (JSON) naming the environments
                            it hosts
     --no-http              run the worker without its status page
+    --local-worker         also run a worker inside the server process
+                           (hosting the environments in --config)
     --root=PATH            root script path SCRIPTs are relative to
                            [default: ./]
     --env=NAME             environment to run in (default: all hosted)
@@ -53,6 +56,7 @@ __banner__ = (
 """
 )
 
+import os
 import socket
 import sys
 from contextlib import closing
@@ -114,7 +118,27 @@ def start_server(args):
     app = create_app(
         DB_PATH=db_path, WORKSPACE_PATH=workspace_path, REPORTS_PATH=reports_path
     )
+    if args["--local-worker"] and serving_process(args):
+        start_local_worker(db_path, reports_path, args["--config"])
     serve(app, args, "Server")
+
+
+def serving_process(args):
+    """False in the --debug reloader's watcher process, which never serves"""
+    return not args["--debug"] or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+
+
+def start_local_worker(db_path, reports_path, config):
+    """A worker taking jobs straight from the server's database"""
+    from .services.worker import Host, Worker
+    from .services.worker.local import LocalServer
+
+    url = f"local://{socket.gethostname()}"
+    worker = Worker(LocalServer(db_path, reports_path, url), Host.from_file(config))
+    worker.start()
+    hosted = ", ".join(worker.host.environments) or "no environments"
+    print(f"   Local worker started: {url} ({hosted})")
+    return worker
 
 
 def start_worker(args):

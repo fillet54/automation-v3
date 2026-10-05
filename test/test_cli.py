@@ -3,15 +3,21 @@
 import json
 import shutil
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
 from automationv3 import cli
+from automationv3.services.database import connect, init_db
 from automationv3.services.reports import store
-from automationv3.services.worker import Host
-from automationv3.services.worker.local import run_locally
+from automationv3.services.worker import Host, Worker
+from automationv3.services.worker.local import LocalServer, run_locally
+from automationv3.services.workspace import find_worktrees
+from automationv3.web.app import create_app
+
+from .data import make_workspaces as gitutil
 
 RVTS = Path(__file__).resolve().parent / "data" / "rvts"
 
@@ -74,6 +80,47 @@ class TestRunLocally(unittest.TestCase):
         code, out = self.cli("BRA/tc_bra_00007.rvt")
         self.assertEqual(code, 2)
         self.assertIn("belongs in a core.rvt", out)
+
+
+class TestServerWithLocalWorker(unittest.TestCase):
+    """The server's --local-worker: a worker in the server process"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        gitdir = self.tmp / "repo"
+        shutil.copytree(RVTS, gitdir / "rvts")
+        gitutil.create_repo(gitdir)
+        self.branch = next(iter(find_worktrees(gitdir)))
+        self.db = self.tmp / "test.db"
+        with connect(self.db) as conn:
+            init_db(conn)
+        app = create_app(DB_PATH=self.db, REPORTS_PATH=self.tmp / "reports",
+                         WORKSPACE_PATH=gitdir, TESTING=True)
+        (self.tmp / "reports").mkdir()
+        self.http = app.test_client()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_jobs_queued_in_the_app_run_in_process(self):
+        response = self.http.post("/runner/queue", data={
+            "workspace": self.branch, "requirement": "VMCFUE00004"})
+        report_id = response.headers["Location"].rstrip("/").split("/")[-1]
+
+        # The worker's own thread, with its own connection to the same file
+        host = Host.from_config({"environments": {"sim": {"workdir": str(self.tmp / "sim")}}})
+        local = Worker(LocalServer(self.db, self.tmp / "reports", "local://test"), host)
+        local.check_in(started=True)
+        outcomes = []
+        thread = threading.Thread(target=lambda: outcomes.extend(local.work_until_idle()))
+        thread.start()
+        thread.join(30)
+
+        self.assertEqual(outcomes, ["pass"])
+        page = self.http.get(f"/reports/{report_id}")
+        self.assertIn(b">Green<", page.data)
+        workers = self.http.get("/runner/workers", headers={"Accept": "application/json"})
+        self.assertIn("local://test", [w["url"] for w in workers.get_json()])
 
 
 if __name__ == "__main__":

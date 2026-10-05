@@ -1,9 +1,13 @@
-"""Running jobs in-process, without a server or HTTP
+"""Running jobs in-process, without HTTP
 
 LocalServer gives a Worker the job API straight from a queue database
-and a reports directory. run_locally uses it with a throwaway in-memory
-queue to run scripts on this machine, writing an ordinary report.
+and a reports directory. The server uses it for a worker inside its own
+process; run_locally uses it with a throwaway in-memory queue to run
+scripts on this machine, writing an ordinary report.
 """
+
+import sqlite3
+import threading
 
 from ...framework.planning import build_plan
 from .. import jobs
@@ -13,10 +17,22 @@ from .worker import Worker
 
 
 class LocalServer:
-    def __init__(self, conn, root, worker_url="local"):
-        self.conn = conn
+    """`db` is an open connection (used from one thread only, e.g. an
+    in-memory queue) or a database path (each thread opens its own)."""
+
+    def __init__(self, db, root, worker_url="local"):
+        self.db = db
         self.root = root
         self.worker_url = worker_url
+        self.local = threading.local()
+
+    @property
+    def conn(self):
+        if isinstance(self.db, sqlite3.Connection):
+            return self.db
+        if not hasattr(self.local, "conn"):
+            self.local.conn = connect(self.db)
+        return self.local.conn
 
     def check_in(self, status, capabilities, started=False):
         jobs.check_in(self.conn, self.root, self.worker_url, status,

@@ -37,6 +37,13 @@ in every environment and variation), Red (any failed) or Partial.
 
 Add `--no-http` to run a worker without its status page.
 
+To run everything in one process instead, start the server with its own
+worker; it takes jobs straight from the server's database. Separate workers
+can still connect as well:
+```
+automation-v3 server --workspace-path ./test/data/git_repos/master --local-worker --config test/data/worker.json
+```
+
 ### Running scripts without a server
 
 `run` runs scripts on this machine, with no server or database, using the
