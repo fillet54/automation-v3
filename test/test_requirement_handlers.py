@@ -4,10 +4,12 @@ from pathlib import Path
 from flask import Flask
 
 import automationv3
-from automationv3.database import connect, init_db, close_db
-from automationv3.requirements import models
-from automationv3.requirements.views import requirements
-from automationv3.requirements.models import Requirement
+from automationv3.web import TEMPLATES
+from automationv3.services.database import connect, init_db
+from automationv3.web.db import close_db
+from automationv3.services.requirements import models
+from automationv3.web.requirements import requirements
+from automationv3.framework.requirement import Requirement
 
 class TestRequirementHandler(unittest.TestCase):
     def setUp(self):
@@ -24,7 +26,7 @@ class TestRequirementHandler(unittest.TestCase):
         conn.close()
 
         # Setup a test app
-        app = Flask(__name__, template_folder=Path(automationv3.__file__).parent / 'templates')
+        app = Flask(__name__, template_folder=TEMPLATES)
         app.register_blueprint(requirements, url_prefix='/requirements')
         app.teardown_appcontext(close_db)
 

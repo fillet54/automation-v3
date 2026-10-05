@@ -1,8 +1,8 @@
 import unittest
 
-from automationv3.database import connect, init_db
-from automationv3.requirements import models
-from automationv3.requirements.models import Requirement
+from automationv3.services.database import connect, init_db
+from automationv3.services.requirements import models
+from automationv3.framework.requirement import Requirement
 
 
 class TestRequirements(unittest.TestCase):

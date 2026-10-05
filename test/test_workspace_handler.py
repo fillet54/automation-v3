@@ -6,8 +6,10 @@ from pathlib import Path
 from flask import Flask, url_for
 
 import automationv3
-from automationv3.editor import editor, workspace
-from automationv3.database import init_db
+from automationv3.web import TEMPLATES
+from automationv3.web import workspace
+from automationv3.web.editor import editor
+from automationv3.services.database import init_db
 
 
 class TestWorkspaceHandler(unittest.TestCase):
@@ -89,8 +91,8 @@ class TestWorkspaceHandler(unittest.TestCase):
         response = self.client.get(url_for('editor.content', id=editor_id))
         self.assertEqual(response.status_code, 200)
 
-        from automationv3.database import get_db
-        from automationv3.editor.editor import get_editor
+        from automationv3.web.db import get_db
+        from automationv3.web.editor.editor import get_editor
         ed = get_editor(get_db(), editor_id)
         doc1, doc2 = ed.documents
         self.assertEqual(ed.active_document, doc2)
@@ -159,7 +161,7 @@ class TestWorkspaceHandler(unittest.TestCase):
 
 
         # Setup a test app
-        templates = Path(automationv3.__file__).parent / 'templates'
+        templates = TEMPLATES
         self.app = Flask(__name__, template_folder=templates)
         self.app.register_blueprint(workspace.bp, url_prefix='/workspace')
         self.app.register_blueprint(editor.bp, url_prefix='/editor')

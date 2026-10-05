@@ -1,3 +1,10 @@
+"""Observers: whatever wants to hear about a script as it runs
+
+The executor calls on_procedure_begin, on_comment, on_step_start,
+on_step_end and on_procedure_end (and workers add on_error). An observer
+implements the ones it cares about.
+"""
+
 from functools import partial
 
 
@@ -6,11 +13,13 @@ class Observer:
 
 
 class ObserverManager:
+    """Passes each event on to several observers, in the order added"""
+
     def __init__(self):
-        self.observers = set()
+        self.observers = []
 
     def add_observer(self, observer):
-        self.observers.add(observer)
+        self.observers.append(observer)
 
     def notify(self, event, *args, **kwargs):
         for observer in self.observers:

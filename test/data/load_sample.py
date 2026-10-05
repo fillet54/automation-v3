@@ -25,9 +25,9 @@ from contextlib import closing
 
 from docopt import docopt 
 
-from automationv3.database import connect, init_db
-from automationv3.requirements import models
-from automationv3.requirements.models import Requirement
+from automationv3.services.database import connect, init_db
+from automationv3.services.requirements import models
+from automationv3.framework.requirement import Requirement
 
 SAMPLE_DATA_PATH = Path(__file__).resolve().parent / 'sample_requirements.txt'
 

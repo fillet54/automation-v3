@@ -18,7 +18,7 @@ python test/data/load_sample.py
 ```
 4. Create sample workspace
 ```
-python test/data/makeworspaces.py
+python test/data/make_workspaces.py
 ```
 5. Run!
 ```
@@ -34,6 +34,36 @@ Pick requirements on the **Requirements** page (or open a script and press
 **Queue…**), choose environments, UUT versions and variations, and queue.
 The report rolls each requirement up as Green (every linked script passed
 in every environment and variation), Red (any failed) or Partial.
+
+Add `--no-http` to run a worker without its status page.
+
+### Running scripts without a server
+
+`run` runs scripts on this machine, with no server or database, using the
+same worker config. It prints each step, writes a normal report folder and
+exits non-zero unless every run passed:
+
+```
+automation-v3 run BRA/tc_bra_00004.rvt --root test/data/rvts --config test/data/worker.json
+automation-v3 run BRA/tc_bra_00004.rvt --root test/data/rvts --config test/data/worker.json --variation limp-home --uut demo=1.0.0
+```
+
+## Code organization
+
+Each layer only imports from the ones above it (`test/test_layers.py`
+checks this):
+
+| Package | Holds | Must not use |
+| --- | --- | --- |
+| `automationv3/framework` | The script language and its execution: edn, lisp, closures, preconditions, variations, planning, UUT/environment interfaces | storage, HTTP, Flask |
+| `automationv3/services` | Concepts that need storage or processes: workspaces, requirements, reports, the job queue, workers | Flask, the web layer |
+| `automationv3/web` | Flask pages and the HTTP job API, templates and static files | |
+| `automationv3/cli.py` | `server`, `worker` and `run` | |
+| `automationv3/plugins` | BuildingBlocks, UUTs and environments | services, web |
+
+A worker takes jobs from anything with the small server interface in
+`services/worker/worker.py`: the HTTP client (`services/worker/client.py`)
+or `LocalServer` (`services/worker/local.py`), which `run` uses in-process.
 
 ## Scripts
 
@@ -87,7 +117,7 @@ script can override them. UUTs and environments are plugins in
 ## Database
 
 The app uses plain `sqlite3`. All tables are defined in
-`automationv3/database/schema.sql`, which is applied (with `CREATE ... IF NOT
+`automationv3/services/schema.sql`, which is applied (with `CREATE ... IF NOT
 EXISTS`) every time the server starts. There are no migrations: to
 change a table, edit `schema.sql`, delete the database file and reload the
 sample data.

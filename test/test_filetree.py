@@ -1,8 +1,9 @@
 import unittest
 from pathlib import Path
 
-from automationv3.database import connect, init_db
-from automationv3.editor.workspace import FileNode, expanded_nodes, toggle_expanded
+from automationv3.services.database import connect, init_db
+from automationv3.services.workspace import FileNode
+from automationv3.web.workspace import expanded_nodes, toggle_expanded
 
 
 class TestFileNode(unittest.TestCase):

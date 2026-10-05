@@ -10,8 +10,22 @@ from docutils.writers.html4css1 import Writer, HTMLTranslator
 
 from . import edn
 from .block import find_block
-from ..database import get_db
-from ..requirements import models as requirements
+from .requirement import Requirement
+
+# How a :req:`ID` reference finds its requirement. Applications with a
+# requirements store install their own lookup; it may return None.
+_requirement_lookup = None
+
+
+def set_requirement_lookup(lookup):
+    """Use `lookup(id) -> Requirement | None` to resolve :req: references"""
+    global _requirement_lookup
+    _requirement_lookup = lookup
+
+
+def find_requirement(id):
+    found = _requirement_lookup(id) if _requirement_lookup else None
+    return found or Requirement(id)
 
 
 def requirement_reference_role(
@@ -29,7 +43,7 @@ def requirement_reference_role(
 class requirement(nodes.Inline, nodes.TextElement):
     def __init__(self, id):
         super().__init__()
-        self.req = requirements.find_by_id(get_db(), id) or requirements.Requirement(id)
+        self.req = find_requirement(id)
 
 
 # Register requirement role

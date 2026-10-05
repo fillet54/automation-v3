@@ -1,8 +1,8 @@
 import unittest
 from pathlib import Path
 
-from automationv3.database import connect, init_db
-from automationv3.editor.editor import (
+from automationv3.services.database import connect, init_db
+from automationv3.web.editor.editor import (
     create_editor, get_editor, add_document, select_document, close_document
 )
 

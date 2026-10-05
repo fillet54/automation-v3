@@ -1,12 +1,12 @@
 import unittest
 from pathlib import Path
 
-from flask import Flask
 
 from automationv3.framework.testcase import EdnTestCase
-from automationv3.database import get_db, init_db, close_db
-from automationv3.requirements import models
-from automationv3.requirements.models import Requirement
+from automationv3.framework import rst
+from automationv3.services.database import connect, init_db
+from automationv3.services.requirements import models
+from automationv3.framework.requirement import Requirement
 
 edn_text = '''
 
@@ -32,23 +32,17 @@ Steps
 
 class TestTestCase(unittest.TestCase):
     def setUp(self):
-        # In-memory DB lives as long as the app context
-        app = Flask(__name__)
-        app.config["DB_PATH"] = ":memory:"
-        app.teardown_appcontext(close_db)
-        self.app_context = app.app_context()
-        self.app_context.push()
-
-        # Sample DB Data
+        # Requirement text comes from a plain sqlite store; no web app needed
+        self.conn = connect(":memory:")
+        init_db(self.conn)
         self.req1 = Requirement(id="R1", text="Test requirement 1", subsystem="Test-subsystem-1")
         self.req2 = Requirement(id="R2", text="Test requirement 2", subsystem="Test-subsystem-2")
-
-        init_db(get_db())
-        models.insert(get_db(), [self.req1, self.req2])
+        models.insert(self.conn, [self.req1, self.req2])
+        rst.set_requirement_lookup(lambda id: models.find_by_id(self.conn, id))
 
     def tearDown(self):
-        self.app_context.pop()
-
+        rst.set_requirement_lookup(None)
+        self.conn.close()
 
     def test_title(self):
         tc = EdnTestCase('id1', edn_text)

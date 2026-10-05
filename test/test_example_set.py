@@ -10,16 +10,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from flask import Flask
 
-import automationv3
-from automationv3.database import close_db, connect, init_db
-from automationv3.editor import workspace
 from automationv3.framework.closure import resolve
-from automationv3.jobqueue import worker
-from automationv3.jobqueue.views import jobqueue
-from automationv3.reports import rollup, store
-from automationv3.reports.views import reports
+from automationv3.services.database import connect, init_db
+from automationv3.services.reports import rollup, store
+from automationv3.services.worker import Host, Worker
+from automationv3.services.worker.client import ServerClient
+from automationv3.services.workspace import find_worktrees
+from automationv3.web.app import create_app
 
 from .data import make_workspaces as gitutil
 from .test_jobs import FlaskSession
@@ -55,28 +53,23 @@ class TestExampleSet(unittest.TestCase):
         gitdir = self.tmp / "repo"
         shutil.copytree(RVTS, gitdir / "rvts")
         gitutil.create_repo(gitdir)
-        self.branch = next(iter(workspace.find_worktrees(gitdir)))
+        self.branch = next(iter(find_worktrees(gitdir)))
 
-        app = Flask(__name__, template_folder=Path(automationv3.__file__).parent / "templates")
-        app.register_blueprint(workspace.bp, url_prefix="/workspace")
-        app.register_blueprint(jobqueue, url_prefix="/runner")
-        app.register_blueprint(reports, url_prefix="/reports")
-        app.teardown_appcontext(close_db)
-        app.config.update(DB_PATH=self.tmp / "test.db", REPORTS_PATH=self.root,
-                          WORKSPACE_PATH=gitdir, TESTING=True)
+        app = create_app(DB_PATH=self.tmp / "test.db", REPORTS_PATH=self.root,
+                         WORKSPACE_PATH=gitdir, TESTING=True)
         with connect(app.config["DB_PATH"]) as conn:
             init_db(conn)
         self.http = app.test_client()
 
-        self.worker = worker.ServerClient(
-            "http://server", "http://w1",
-            host=worker.Host.from_config({"environments": {
+        self.worker = Worker(
+            ServerClient("http://server", "http://w1",
+                         session=FlaskSession(self.http, "http://server")),
+            Host.from_config({"environments": {
                 "sim": {"workdir": str(self.tmp / "sim")},
                 "bench": {"workdir": str(self.tmp / "bench")},
             }}),
-            session=FlaskSession(self.http, "http://server"),
         )
-        self.worker.keepalive("available", started=True)
+        self.worker.check_in(started=True)
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -89,7 +82,7 @@ class TestExampleSet(unittest.TestCase):
     def run_all(self):
         outcomes = []
         for _ in range(50):
-            outcome = worker.work_once(self.worker)
+            outcome = self.worker.work_once()
             if outcome is None:
                 return outcomes
             outcomes.append(outcome)
@@ -136,7 +129,7 @@ class TestExampleSet(unittest.TestCase):
         self.assertIn(b"belongs in a core.rvt", response.data)
 
     def test_every_bra_and_fue_requirement_is_tested(self):
-        from automationv3.requirements import links
+        from automationv3.services.requirements import links
         conn = connect(":memory:")
         init_db(conn)
         links.refresh(conn, "w", RVTS)

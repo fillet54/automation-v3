@@ -5,23 +5,20 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from flask import Flask
 
-import automationv3
-from automationv3.database import close_db, connect, init_db
-from automationv3.editor import workspace
 from automationv3.framework import edn
 from automationv3.framework.closure import resolve
 from automationv3.framework.executor import execute_closure, execute_script
+from automationv3.framework.planning import build_plan
 from automationv3.framework.uut import Version, uut_types
-from automationv3.jobqueue import models, worker
-from automationv3.jobqueue.views import jobqueue
 from automationv3.plugins.sample import Demo, Sim
-from automationv3.reports import store
-from automationv3.reports.views import reports
-from automationv3.requirements.views import requirements
-from automationv3.jobqueue.planning import build_plan
-from automationv3.reports import rollup
+from automationv3.services import jobs as models
+from automationv3.services.database import connect, init_db
+from automationv3.services.reports import rollup, store
+from automationv3.services.worker import Host, Worker
+from automationv3.services.worker.client import ServerClient
+from automationv3.services.workspace import find_worktrees
+from automationv3.web.app import create_app
 
 from .data import make_workspaces as gitutil
 
@@ -483,30 +480,20 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "BRA/imports.rvt": "(import LIB) (under-limit? 50)",
         })
         gitutil.create_repo(gitdir)
-        self.branch = next(iter(workspace.find_worktrees(gitdir)))
+        self.branch = next(iter(find_worktrees(gitdir)))
 
-        app = Flask(__name__, template_folder=Path(automationv3.__file__).parent / "templates")
-        app.register_blueprint(workspace.bp, url_prefix="/workspace")
-        app.register_blueprint(jobqueue, url_prefix="/runner")
-        app.register_blueprint(reports, url_prefix="/reports")
-        app.register_blueprint(requirements, url_prefix="/requirements")
-        app.teardown_appcontext(close_db)
-        app.config["DB_PATH"] = self.tmp / "test.db"
-        app.config["REPORTS_PATH"] = self.root
-        app.config["WORKSPACE_PATH"] = gitdir
-        app.testing = True
+        app = create_app(DB_PATH=self.tmp / "test.db", REPORTS_PATH=self.root,
+                         WORKSPACE_PATH=gitdir, TESTING=True)
         with connect(app.config["DB_PATH"]) as conn:
             init_db(conn)
         self.http = app.test_client()
 
         self.simdir = self.tmp / "sim"
-        session = FlaskSession(self.http, "http://server")
-        self.worker = worker.ServerClient(
-            "http://server", "http://w1",
-            host=worker.Host.from_config({"environments": {"sim": {"workdir": str(self.simdir)}}}),
-            session=session,
-        )
-        self.worker.keepalive("available", started=True)
+        self.client = ServerClient("http://server", "http://w1",
+                                   session=FlaskSession(self.http, "http://server"))
+        self.worker = Worker(self.client, Host.from_config(
+            {"environments": {"sim": {"workdir": str(self.simdir)}}}))
+        self.worker.check_in(started=True)
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -519,8 +506,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def test_worker_runs_queued_script(self):
         ids = self.queue("plain/fail.rvt")
-        self.assertEqual(worker.work_once(self.worker), "fail")
-        self.assertIsNone(worker.work_once(self.worker))
+        self.assertEqual(self.worker.work_once(), "fail")
+        self.assertIsNone(self.worker.work_once())
 
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["outcome"], "fail")
@@ -539,7 +526,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def test_installs_uut_once_and_records_it(self):
         ids = self.queue("BRA/tc.rvt", uut_versions={"demo": "1.0.0"})
-        self.assertEqual(worker.work_once(self.worker), "pass")
+        self.assertEqual(self.worker.work_once(), "pass")
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["environment"], "sim")
         self.assertEqual(run["installed"]["demo"]["id"], "1.0.0")
@@ -548,19 +535,19 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         # Same version again is kept, a different one is installed
         self.http.post(f"/reports/{ids['report_id']}/runs/{ids['run_id']}/rerun")
-        worker.work_once(self.worker)
+        self.worker.work_once()
         latest = store.list_runs(self.root, ids["report_id"])[-1]
         self.assertEqual(latest["installed"]["demo"]["action"], "kept")
         self.assertEqual(latest["uut_versions"], run["uut_versions"])
 
         self.queue("BRA/tc.rvt", uut_versions={"demo": "1.1.0"})
-        worker.work_once(self.worker)
+        self.worker.work_once()
         self.assertEqual(Demo().installed_version(Sim(workdir=self.simdir)).id, "1.1.0")
 
     def test_worker_keeps_chain_definitions_over_imports(self):
         ids = self.queue("BRA/imports.rvt")
         # LIB's limit (99) would let 50 pass; the chain's 10 must win
-        self.assertEqual(worker.work_once(self.worker), "fail")
+        self.assertEqual(self.worker.work_once(), "fail")
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["imports"], ["LIB/core.rvt"])
 
@@ -578,7 +565,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         cold = self.queue("BRA/cold.rvt")
         warm = self.queue("BRA/warm.rvt")
-        self.assertEqual(worker.work_once(self.worker), "pass")
+        self.assertEqual(self.worker.work_once(), "pass")
         warm_run = store.load_run(self.root, warm["report_id"], warm["run_id"])
         self.assertEqual(warm_run["mode"], "precondition")
 
@@ -589,24 +576,24 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(store.read_events(self.root, cold["report_id"], cold["run_id"]), [])
 
         # Nothing else is warm, so it is forced: a fresh start can't be :x
-        self.assertEqual(worker.work_once(self.worker), "blocked")
+        self.assertEqual(self.worker.work_once(), "blocked")
         cold_run = store.load_run(self.root, cold["report_id"], cold["run_id"])
         self.assertEqual((cold_run["outcome"], cold_run["mode"]), ("blocked", "force"))
 
     def test_probe_releases_when_uut_version_not_installed(self):
         ids = self.queue("BRA/tc.rvt")
-        job = self.worker.claim(ids["run_id"])
-        self.assertEqual(worker.run_job(self.worker, job, "probe"), "released")
+        job = self.client.claim(ids["run_id"])
+        self.assertEqual(self.worker.run_job(job, "probe"), "released")
         self.assertEqual(models.find_jobs(connect(self.tmp / "test.db"), "pending")[0].id,
                          ids["run_id"])
 
     def test_worker_without_environment_skips_sim_jobs(self):
-        bare = worker.ServerClient("http://server", "http://bare",
-                                   session=self.worker.session)
-        bare.keepalive("available", started=True)
+        bare = Worker(ServerClient("http://server", "http://bare",
+                                   session=self.client.session), Host())
+        bare.check_in(started=True)
         self.queue("BRA/tc.rvt")
-        self.assertIsNone(worker.work_once(bare))
-        self.assertEqual(worker.work_once(self.worker), "pass")
+        self.assertIsNone(bare.work_once())
+        self.assertEqual(self.worker.work_once(), "pass")
 
     def test_queue_rejects_lint_errors(self):
         response = self.http.post("/runner/jobs", json={
@@ -616,21 +603,21 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def test_only_holder_can_report(self):
         ids = self.queue("plain/pass.rvt")
-        self.assertIsNotNone(self.worker.claim(ids["run_id"]))
+        self.assertIsNotNone(self.client.claim(ids["run_id"]))
         response = self.http.post(f"/runner/jobs/{ids['run_id']}/complete",
                                   json={"worker_url": "http://w2", "outcome": "pass"})
         self.assertEqual(response.status_code, 409)
 
     def test_restarted_worker_errors_its_jobs(self):
         ids = self.queue("plain/pass.rvt")
-        self.worker.claim(ids["run_id"])
-        self.worker.keepalive("available", started=True)
+        self.client.claim(ids["run_id"])
+        self.worker.check_in(started=True)
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["outcome"], "error")
 
     def test_rerun_adds_run_to_same_report(self):
         ids = self.queue("plain/pass.rvt")
-        worker.work_once(self.worker)
+        self.worker.work_once()
         response = self.http.post(f"/reports/{ids['report_id']}/runs/{ids['run_id']}/rerun")
         self.assertEqual(response.status_code, 302)
 
@@ -699,7 +686,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         report_id = self.queue_requirements(
             requirement=["R1", "R2"],
             variation=["BRA/modes.rvt::low", "BRA/modes.rvt::high"])
-        outcomes = [worker.work_once(self.worker) for _ in range(3)]
+        outcomes = [self.worker.work_once() for _ in range(3)]
         self.assertEqual(sorted(outcomes), ["fail", "pass", "pass"])
 
         runs = store.list_runs(self.root, report_id)
@@ -721,8 +708,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def test_unqueued_variations_leave_requirement_partial(self):
         report_id = self.queue_requirements(
             requirement="R1", variation="BRA/modes.rvt::low")
-        self.assertEqual(worker.work_once(self.worker), "pass")
-        self.assertIsNone(worker.work_once(self.worker))
+        self.assertEqual(self.worker.work_once(), "pass")
+        self.assertIsNone(self.worker.work_once())
 
         report = store.load_report(self.root, report_id)
         runs = store.list_runs(self.root, report_id)
@@ -735,7 +722,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         # A rerun of the queued variation keeps it, and the rollup uses it
         (low,) = runs
         self.http.post(f"/reports/{report_id}/runs/{low['id']}/rerun")
-        worker.work_once(self.worker)
+        self.worker.work_once()
         latest = store.list_runs(self.root, report_id)[-1]
         self.assertEqual(latest["variation"]["name"], "low")
 
