@@ -81,7 +81,7 @@ class Demo(UUT):
 
 
 def key(name):
-    return edn.writes(name).strip()
+    return edn.writes(name)
 
 
 class DemoHandle:

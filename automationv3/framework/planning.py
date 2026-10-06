@@ -160,7 +160,7 @@ def plan_variations(script_plan, selection, predicate, errors, variation_symbols
         choice = VariationChoice(
             variation.name,
             index,
-            {k: edn.writes(v).strip() for k, v in values.items()},
+            {k: edn.writes(v) for k, v in values.items()},
         )
         key = f"{script_plan.script}::{variation.name}"
         if selection is not None and key not in selection:

@@ -10,7 +10,7 @@ code.
 import functools
 
 from . import document, edn
-from .closure import PRECONDITION, head, is_definition, parse_precondition
+from .language import PRECONDITION, head, is_definition, is_text, parse_precondition
 from .rst import repr_rst, write_html_parts
 
 
@@ -45,7 +45,7 @@ class Statement:
         return str(self.statement[1]) if self.definition else None
 
     def __str__(self):
-        return edn.writes(self.statement).replace("\\n", "\n").strip('"')
+        return self.statement if is_text(self.statement) else edn.writes(self.statement)
 
     def __repr__(self):
         return str(self)

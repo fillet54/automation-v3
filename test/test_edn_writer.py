@@ -78,18 +78,19 @@ class TestEdnWriter(unittest.TestCase):
     def test_vector_basic(self):
         self.assertEqual('[1 2 3]', writes(read('[1 2 3]')))
     
-    def test_vector_with_complex_will_indent_each(self):
-        self.assertEqual('''\
-[
-  (1 2)
-  3
-]''', writes(read('[(1 2) 3]')))
+    def test_vector_with_complex_stays_on_one_line_if_it_fits(self):
+        self.assertEqual('[(1 2) 3]', writes(read('[(1 2) 3]')))
+
+    def test_vector_with_complex_too_long_puts_each_item_on_a_line(self):
+        long = "x" * 60
+        self.assertEqual(f'[(f "{long}")\n (g "{long}")]',
+                         writes(read(f'[(f "{long}") (g "{long}")]')))
 
     # Map 
     def test_map_basic(self):
         self.assertEqual('{:a 1 :b 2 :c 3}', writes(read('{:a 1 :b 2 :c 3}')))
     
-    def test_vector_with_complex_will_indent_each(self):
+    def test_map_with_complex_will_indent_each(self):
         self.assertEqual('''\
 {
   :a (1 2)
@@ -109,3 +110,20 @@ class TestEdnWriter(unittest.TestCase):
 
 
     # TODO: Quote shorthand
+
+    # Strings keep their spacing, even when a collection is laid out
+    def test_strings_keep_their_spaces(self):
+        self.assertEqual('[(f "a  b") 1]', writes(read('[(f "a  b") 1]')))
+
+    def test_control_characters_are_escaped(self):
+        self.assertEqual(r'"\u0001"', writes("\x01"))
+        self.assertEqual('"é"', writes("é"))
+
+    # Definitions read with their body on lines of their own
+    def test_defn_with_body(self):
+        self.assertEqual("(defn f [x]\n  (if (> x 1)\n    (g x)\n    (h x)))",
+                         writes(read("(defn f [x] (if (> x 1) (g x) (h x)))")))
+
+    def test_defn_inside_a_short_collection_stays_inline(self):
+        self.assertEqual("[(defn f [x] (+ x 1)) 1]",
+                         writes(read("[(defn f [x] (+ x 1)) 1]")))

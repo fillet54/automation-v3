@@ -16,7 +16,7 @@ OPERATORS = {
 
 
 def show(value):
-    return edn.writes(value).strip()
+    return edn.writes(value)
 
 
 class Verify(BuildingBlock):

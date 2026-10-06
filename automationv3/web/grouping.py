@@ -15,7 +15,7 @@ its last definition (the one that wins).
 
 from itertools import groupby
 
-from ..framework.closure import head
+from ..framework.language import head
 
 # A titled block's state is its most telling step's: earlier wins
 STATE_ORDER = ["fail", "running", "pending", "not run", "pass"]

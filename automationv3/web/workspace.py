@@ -137,7 +137,7 @@ def render_file(path, variation=None):
 
 def written_values(variation):
     """A Variation's value forms, as written"""
-    return [edn.writes(form).strip() for form in variation.forms]
+    return [edn.writes(form) for form in variation.forms]
 
 
 def render_view(ws, node, errors=None, variation=None):

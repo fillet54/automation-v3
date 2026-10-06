@@ -95,10 +95,15 @@ class Runtime:
             result = BlockResult(False, stderr=traceback.format_exc())
         self.observer.on_call_end(
             passed=bool(result), stdout=result.stdout, stderr=result.stderr,
-            duration=round(time.monotonic() - started, 3), **details)
+            duration=elapsed(started), **details)
         if not result and frame.stops_on_failure:
             raise StepFailed(form, result)
         return result
+
+
+def elapsed(started):
+    """Seconds since `started` (a time.monotonic()), to the millisecond"""
+    return round(time.monotonic() - started, 3)
 
 
 _runtime = contextvars.ContextVar("runtime", default=None)
@@ -121,13 +126,21 @@ def current_runtime():
 
 
 def as_result(value):
+    """A block's or step's value as a BlockResult: passing if truthy"""
     if isinstance(value, BlockResult):
         return value
     return BlockResult(bool(value))
 
 
+def returned(value):
+    """A form's value as a BlockResult that says what it returned"""
+    if isinstance(value, BlockResult):
+        return value
+    return BlockResult(bool(value), stdout=f"returned {text(value)}")
+
+
 def text(form):
-    return edn.writes(form).strip()
+    return edn.writes(form)
 
 
 def run_block(block, env):
@@ -150,6 +163,7 @@ def is_block_name(symbol):
     return isinstance(symbol, edn.Symbol) and str(symbol) in block_names()
 
 
+@lisp.special_form(is_block_name)
 def block_special_form(x, env):
     if x[0] in env:  # a script definition shadows the block
         proc = env[x[0]]
@@ -170,10 +184,7 @@ class DefBlock:
     def run(self, runtime, call, args):
         """Run the body with its block calls nested under `call`"""
         with runtime.within(nested=True, parent=call, depth=runtime.frame.depth + 1):
-            value = self.fn(*args)
-        if isinstance(value, BlockResult):
-            return value
-        return BlockResult(bool(value), stdout=f"returned {text(value)}")
+            return returned(self.fn(*args))
 
     def __call__(self, *args):
         runtime = current_runtime()
@@ -181,6 +192,7 @@ class DefBlock:
         return runtime.call(form, lambda call: self.run(runtime, call, args))
 
 
+@lisp.special_form("defblock")
 def defblock_special_form(x, env):
     """(defblock name [params] body...)"""
     _, name, params, *body = x
@@ -189,12 +201,14 @@ def defblock_special_form(x, env):
     return env[name]
 
 
+@lisp.special_form("passes?")
 def passes_special_form(x, env):
     """(passes? expr): true or false, never stopping the step"""
     with current_runtime().within(checking=True):
         return bool(lisp.eval(x[1], env))
 
 
+@lisp.special_form("quietly")
 def quietly_special_form(x, env):
     """(quietly forms...): run forms with their block calls left out of
     the output"""
@@ -203,12 +217,6 @@ def quietly_special_form(x, env):
         for form in x[1:]:
             value = lisp.eval(form, env)
     return value
-
-
-lisp.special_forms[is_block_name] = block_special_form
-lisp.special_forms["defblock"] = defblock_special_form
-lisp.special_forms["passes?"] = passes_special_form
-lisp.special_forms["quietly"] = quietly_special_form
 
 
 # Statements
@@ -245,8 +253,6 @@ def run_statement(form, env, runtime):
         except StepFailed as failed:
             stderr = f"{failed.form} failed\n{failed.result.stderr}".strip()
             return BlockResult(False, stdout=failed.result.stdout, stderr=stderr)
-        if isinstance(value, BlockResult):
-            return value
-        return BlockResult(bool(value), stdout=f"returned {text(value)}")
+        return returned(value)
     except Exception:
         return BlockResult(False, stderr=traceback.format_exc())

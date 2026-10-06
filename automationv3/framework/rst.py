@@ -12,8 +12,8 @@ from docutils.parsers.rst import roles, Directive, directives
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
 from . import edn, html
-from .block import find_block, raw_html
-from .closure import PRECONDITION, head, parse_precondition, parse_variations
+from .block import code_block, find_block, raw_html
+from .language import PRECONDITION, head, is_text, parse_precondition, parse_variations
 from .requirement import Requirement
 
 # How a :req:`ID` reference finds its requirement. Applications with a
@@ -32,70 +32,50 @@ def find_requirement(id):
     return found or Requirement(id)
 
 
-def requirement_reference_role(
-    role, rawtext, text, lineno, inliner, options=None, content=None
-):
-    """rst role to support software requirement references"""
-    try:
-        node = requirement(text)
-        return [node], []
-    except Exception as e:
-        print(e)
-    return [], []
-
-
 class requirement(nodes.Inline, nodes.TextElement):
+    """A :req:`ID` reference, rendered by its Requirement"""
+
     def __init__(self, id):
         super().__init__()
         self.req = find_requirement(id)
 
 
-# Register requirement role
-roles.register_canonical_role("REQ", requirement_reference_role)
+def requirement_role(role, rawtext, text, lineno, inliner, options=None, content=None):
+    return [requirement(text)], []
+
+
+roles.register_canonical_role("REQ", requirement_role)
 
 
 class endstatement(nodes.Inline, nodes.TextElement):
-    pass
+    """Where one statement's rendering ends and the next one's begins"""
 
 
 class EndStatement(Directive):
-    """This `Directive` will split up statements"""
-
-    required_arguments = 0
-    optional_arguments = 0
-    has_content = False
-
     def run(self):
-        thenode = endstatement()
-        return [thenode]
+        return [endstatement()]
 
 
 directives.register_directive("endstatement", EndStatement)
 
+# The endstatement directive between statements, and what it renders as
+ENDSTATEMENT_RST = "\n\n.. endstatement::\n\n"
+ENDSTATEMENT_HTML = '<splitter id="1234567890!!!!"/>'
 
-class TestcaseHTMLTranslator(HTMLTranslator):
-    documenttag_args = {
-        "tagname": "div",
-        "CLASS": "document prose prose-li:mt-0 prose-li:mb-0 prose-p:mb-1 prose-p:mt-1 prose-headings:mb-2 prose-headings:mt-5",  # noqa: E501
-    }
 
-    # Delimiters for endstatement directives
-    ENDSTATEMENT_RST = "\n\n.. endstatement::\n\n"
-    ENDSTATEMENT_DIV = '<splitter id="1234567890!!!!"/>'
-
-    def __init__(self, document):
-        HTMLTranslator.__init__(self, document)
+class StatementsTranslator(HTMLTranslator):
+    """HTML with a splitter at each statement boundary, the start and the
+    end of the document, and no section wrappers (a statement may end
+    inside a section)"""
 
     def visit_document(self, node):
         super().visit_document(node)
-        self.body.append(self.ENDSTATEMENT_DIV)
+        self.body.append(ENDSTATEMENT_HTML)
 
     def depart_document(self, node):
-        self.body.append(self.ENDSTATEMENT_DIV)
+        self.body.append(ENDSTATEMENT_HTML)
         super().depart_document(node)
 
-    # Don't want nested sections since we might split
-    # a section
     def visit_section(self, node):
         pass
 
@@ -103,38 +83,31 @@ class TestcaseHTMLTranslator(HTMLTranslator):
         pass
 
     def visit_endstatement(self, node):
-        self.body.append(self.ENDSTATEMENT_DIV)
+        self.body.append(ENDSTATEMENT_HTML)
 
     def depart_endstatement(self, node):
         pass
 
     def visit_requirement(self, node):
-        return self.body.append(node.req.__repr_html__())
+        self.body.append(node.req.__repr_html__())
 
     def depart_requirement(self, node):
         pass
 
 
-class TestcaseHTMLWriter(Writer):
-    def __init__(self, requirement_by_id=None):
-        Writer.__init__(self)
-        self.translator_class = TestcaseHTMLTranslator
-
-
-def rst_codeblock(src):
-    return (
-        "\n".join(
-            [".. code-block:: clojure", "", *["  " + line for line in src.splitlines()]]
-        )
-        + "\n\n"
-    )
+class StatementsWriter(Writer):
+    def __init__(self):
+        super().__init__()
+        self.translator_class = StatementsTranslator
 
 
 def repr_rst(form):
     """A statement as rst: documentation as written, language forms
     (variations, Precondition) readably, steps through their block"""
-    if isinstance(form, str):
+    if is_text(form):
         return form
+    if not isinstance(form, list) or not form:  # a bare value: shown as code
+        return code_block(edn.writes(form))
     name = head(form)
     if name == "variations" and (table := variations_html(form)):
         return raw_html(table)
@@ -142,7 +115,7 @@ def repr_rst(form):
         return precondition_rst(form)
     if block := find_block(form):
         return block.__repr_rst__()
-    return rst_codeblock(edn.writes(form))
+    return code_block(edn.writes(form))
 
 
 def variations_html(form):
@@ -158,9 +131,6 @@ def variations_html(form):
     )
 
 
-CHEVRON = ('<svg class="ui-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" '
-           'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
-           'aria-hidden="true"><path d="M6 4 L10 8 L6 12"/></svg>')
 def precondition_rst(form):
     """The precondition's name. Pages show its check and heal themselves,
     like a titled block's steps (see statements.Statement.precondition)."""
@@ -168,19 +138,13 @@ def precondition_rst(form):
 
 
 def write_html_parts(rst_statements):
-    # At this point we can assume all of our statements
-    # are in rst format. To allow us to split up the rendered
-    # html we need to insert some marker so we can split on
-    # that after. To do this we will use a custom rst
-    # directive.
-    rst_text = TestcaseHTMLTranslator.ENDSTATEMENT_RST.join(rst_statements)
+    """Each rst statement as HTML, rendered as one document so headings,
+    lists and references carry across statements"""
     html = docutils.core.publish_parts(
-        rst_text,
-        writer=TestcaseHTMLWriter(),
+        ENDSTATEMENT_RST.join(rst_statements),
+        writer=StatementsWriter(),
         settings_overrides={"initial_header_level": "3"},
     )
-
-    # Now we should be able to split the HTML on
-    # our custom div pattern. Throw away the first
-    # and last as thats the wrapping 'document' divs
-    return html["html_body"].split(TestcaseHTMLTranslator.ENDSTATEMENT_DIV)[1:-1]
+    # Splitters wrap the document too: drop what's before the first and
+    # after the last
+    return html["html_body"].split(ENDSTATEMENT_HTML)[1:-1]

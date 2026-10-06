@@ -60,11 +60,11 @@ import re
 from dataclasses import dataclass, field
 
 import docutils.core
-import docutils.utils
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 
 from . import edn
+from .language import is_text
 
 RVT_START = re.compile(r"^\.\. rvt::(\s.*)?$")
 VARIANT_START = re.compile(r"^\.\. rvt-variant::\s*$")
@@ -98,12 +98,13 @@ class Part:
 
     def applies(self, variation):
         """True if the part runs for `variation` (None: no variation)"""
-        return variation is None or self.variations is None or variation in self.variations
+        if variation is None or self.variations is None:
+            return True
+        return variation in self.variations
 
     @property
     def prose(self):
-        return isinstance(self.form, str) and not isinstance(
-            self.form, (edn.Symbol, edn.Keyword))
+        return is_text(self.form)
 
 
 def split(text):

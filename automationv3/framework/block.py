@@ -1,5 +1,14 @@
+"""BuildingBlocks: the steps scripts are written in
+
+A BuildingBlock subclass is a step scripts can call by its name, e.g.
+(Verify x = 1). Plugins in `automationv3.plugins` define them; every
+plugin module is imported when this module loads, which registers its
+blocks.
+"""
+
 import importlib
 import pkgutil
+from dataclasses import dataclass
 
 import automationv3.plugins
 
@@ -7,10 +16,20 @@ from . import edn
 from .context import evaluate
 
 
+@dataclass
+class BlockResult:
+    """The result of executing a BuildingBlock: true if it passed"""
+
+    passed: bool
+    stdout: str = ""
+    stderr: str = ""
+
+    def __bool__(self):
+        return bool(self.passed)
+
+
 class BuildingBlock:
-    """
-    The 'BuildingBlock' of the automation framework. Registers as a function to
-    be run during text execution.
+    """A step scripts can call by name.
 
     A step's arguments reach `execute` evaluated, like a function call:
     symbols, calls, and values inside maps and vectors are evaluated in
@@ -22,19 +41,15 @@ class BuildingBlock:
     """
 
     def name(self):
-        """Returns the name of the building block. The name is used
-        as a first order lookup for the block"""
+        """The name scripts call the block by"""
         return type(self).__name__
 
     def check_syntax(self, *args):
-        """Returns True if this BuildingBlock can support the
-        arguments and False otherwise"""
+        """True if the block accepts these arguments"""
         return True
 
     def execute(self, *args):
-        """Executes the block with its arguments evaluated.
-
-        Returns a BlockResult"""
+        """Run the block with its arguments evaluated. Returns a BlockResult."""
         return BlockResult(False)
 
     # Defined by blocks that take their arguments unevaluated:
@@ -52,17 +67,7 @@ class BuildingBlock:
         html = self.as_html(*args)
         if html is not None:
             return raw_html(html)
-        src = edn.writes(edn.List([self.name(), *args]))
-        return (
-            "\n".join(
-                [
-                    ".. code-block:: clojure",
-                    "",
-                    *["  " + line for line in src.splitlines()],
-                ]
-            )
-            + "\n\n"
-        )
+        return code_block(edn.writes(edn.List([edn.Symbol(self.name()), *args])))
 
     def as_html(self, *args):
         """HTML for a step using this block, or None to use as_rst"""
@@ -75,26 +80,18 @@ def raw_html(html):
     return f".. raw:: html\n\n{body}\n\n"
 
 
+def code_block(source):
+    """rst that shows edn `source` as code"""
+    body = "\n".join("  " + line for line in source.splitlines())
+    return f".. code-block:: clojure\n\n{body}\n\n"
+
+
 class BuildingBlockInst:
-    """Building block `instance` which packs block together with arguments
-
-    This provides a mechanism to make a BuildingBlock
-    more pythonic without breaking backwards compatibility.
-
-    New blocks are free to implement either this or BuildingBlock.
-    The framework will mostly be interfacing with blocks via this
-    interface.
-    """
+    """A block found for a step, with the step's arguments as written"""
 
     def __init__(self, block, args):
         self.block = block
         self.args = args
-
-    def name(self):
-        return self.block.name()
-
-    def valid(self):
-        return self.block.check_syntax(*self.args)
 
     def execute(self, env=None):
         """Run the block: forms as written to execute_forms if the block
@@ -105,24 +102,6 @@ class BuildingBlockInst:
 
     def __repr_rst__(self):
         return self.block.as_rst(*self.args)
-
-
-class BlockResult(object):
-    """
-    The result of executing a BuildingBlock
-    """
-
-    def __init__(self, passed, stdout="", stderr=""):
-        self.passed = passed
-        self.stdout = stdout
-        self.stderr = stderr
-
-    def __bool__(self):
-        return self.passed
-
-    def __str__(self):
-        result = "PASS" if self.passed else "FAIL"
-        return f"<BlockResult: {result}, {self.stdout}, {self.stderr}>"
 
 
 _instances = {}
@@ -147,18 +126,17 @@ def block_names():
 def find_block(form):
     """The block (with its arguments) that handles a step form, or None"""
     name, *args = form
-
     for block in all_blocks():
         if block.name() == name and block.check_syntax(*args):
             return BuildingBlockInst(block, args)
+    return None
 
 
-def iter_namespace(ns_pkg):
-    return pkgutil.iter_modules(ns_pkg.__path__, ns_pkg.__name__ + ".")
+def load_plugins():
+    """Import every plugin module, which registers its blocks"""
+    for module in pkgutil.iter_modules(automationv3.plugins.__path__,
+                                       automationv3.plugins.__name__ + "."):
+        importlib.import_module(module.name)
 
 
-# Importing every plugin registers its blocks
-discovered_plugins = {
-    name: importlib.import_module(name)
-    for finder, name, ispkg in iter_namespace(automationv3.plugins)
-}
+load_plugins()

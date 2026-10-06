@@ -39,20 +39,16 @@ import traceback
 
 from . import context, document, edn, lisp
 from .block import BlockResult
-from .closure import (
+from .language import (
     DEFINITIONS,
-    DIRECTIVES,
     PRECONDITION,
     head,
     is_definition,
+    is_step,
     parse_precondition,
     parse_variations,
 )
-from .steps import Runtime, run_statement, running_statement
-
-
-def is_comment(form):
-    return isinstance(form, str) and not isinstance(form, (edn.Symbol, edn.Keyword))
+from .steps import Runtime, elapsed, run_statement, running_statement
 
 
 def new_env():
@@ -64,12 +60,12 @@ def run_phase(action, form, env, runtime):
     such. Returns a BlockResult."""
     runtime.phase = (runtime.phase or 0) + 1
     details = dict(index=runtime.index, phase=runtime.phase, action=action)
-    runtime.observer.on_phase_start(form=edn.writes(form).strip(), **details)
+    runtime.observer.on_phase_start(form=edn.writes(form), **details)
     started = time.monotonic()
     result = run_statement(form, env, runtime)
-    runtime.observer.on_phase_end(
-        passed=bool(result), stdout=result.stdout, stderr=result.stderr,
-        duration=round(time.monotonic() - started, 3), **details)
+    runtime.observer.on_phase_end(passed=bool(result), stdout=result.stdout,
+                                  stderr=result.stderr, duration=elapsed(started),
+                                  **details)
     return result
 
 
@@ -122,66 +118,61 @@ def execute_script(text, observer, script=None, env=None, mode="normal",
 
 def _execute(text, observer, script, env, mode, variation):
     parts = document.parse(text)
-    forms = [part.form for part in parts]
-    observer.on_procedure_begin(script=script, statements=len(forms), mode=mode)
-    section = set(document.definitions_section(parts))
+    observer.on_procedure_begin(script=script, statements=len(parts), mode=mode)
+    preloaded = set(document.definitions_section(parts))
 
     outcome = "pass"
-    for index, form in enumerate(forms):
-        if not parts[index].applies(variation):
+    for index, part in enumerate(parts):
+        form = part.form
+        if not part.applies(variation):
             continue
-        if is_comment(form):
+        if part.prose:
             observer.on_comment(index=index, text=form)
         elif is_definition(form):
-            if index in section and dict.__contains__(env, form[1]):
+            if index in preloaded and dict.__contains__(env, form[1]):
                 continue  # loaded with the closure
-            result = define(form, env)
-            if not result:
-                observer.on_step_start(index=index, form=edn.writes(form).strip(),
-                                       definition=True)
-                observer.on_step_end(index=index, passed=False, stdout="",
-                                     stderr=result.stderr, duration=0,
-                                     definition=True)
+            if not _define(form, env, observer, index):
                 outcome = "fail"
                 break
-        elif isinstance(form, list) and head(form) not in DIRECTIVES:
-            precondition = head(form) == PRECONDITION
-            observer.on_step_start(
-                index=index, form=edn.writes(form).strip(), precondition=precondition
-            )
-            started = time.monotonic()
-            run = run_precondition if precondition else run_statement
-            runtime = Runtime(observer, index)
-            with running_statement(runtime):
-                result = run(form, env, runtime)
-            observer.on_step_end(
-                index=index,
-                passed=bool(result),
-                stdout=result.stdout,
-                stderr=result.stderr,
-                duration=round(time.monotonic() - started, 3),
-                precondition=precondition,
-            )
-            if not result:
-                if not precondition:
+        elif is_step(form):
+            if not _run_step(form, env, observer, index):
+                if head(form) != PRECONDITION:
                     outcome = "fail"
-                elif mode == "probe":
-                    outcome = "released"
                 else:
-                    outcome = "blocked"
+                    outcome = "released" if mode == "probe" else "blocked"
                 break
 
     observer.on_procedure_end(outcome=outcome)
     return outcome
 
 
-def define(form, env):
-    """Evaluate a definition, returning a BlockResult"""
+def _define(form, env, observer, index):
+    """Evaluate a definition where it is in the script; only a failure is
+    reported (as a step). Returns whether it succeeded."""
     try:
         lisp.eval(form, env)
-        return BlockResult(True)
+        return True
     except Exception:
-        return BlockResult(False, stderr=traceback.format_exc())
+        details = dict(index=index, definition=True)
+        observer.on_step_start(form=edn.writes(form), **details)
+        observer.on_step_end(passed=False, stdout="", stderr=traceback.format_exc(),
+                             duration=0, **details)
+        return False
+
+
+def _run_step(form, env, observer, index):
+    """Run and report one step (or Precondition). Returns its BlockResult."""
+    precondition = head(form) == PRECONDITION
+    details = dict(index=index, precondition=precondition)
+    observer.on_step_start(form=edn.writes(form), **details)
+    started = time.monotonic()
+    runtime = Runtime(observer, index)
+    run = run_precondition if precondition else run_statement
+    with running_statement(runtime):
+        result = run(form, env, runtime)
+    observer.on_step_end(passed=bool(result), stdout=result.stdout,
+                         stderr=result.stderr, duration=elapsed(started), **details)
+    return result
 
 
 def build_env(files, load_order, imports=(), variation=None):

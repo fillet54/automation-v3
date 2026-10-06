@@ -17,31 +17,12 @@ Declarations (`uut`, `environments`) may appear in any core.rst of the
 chain or in the script, and the last one in load order wins. Imported
 core.rst files contribute definitions only.
 
-A script may declare its variations once::
+Blocks limited to variations (`:variations:` on an rvt block, or an
+rvt-variant directive; see document.py) must name variations the script
+declares, may not hold directives, and may only appear in scripts.
 
-    (variations "mode trim"
-      ["nominal"  [:normal default-trim]
-       "degraded" [:limp-home 2]])
-
-Each variation is a display name and the values bound to the symbols
-for that run. Values are literals or expressions over definitions; they
-are kept as forms here and evaluated later.
-
-An rvt block marked `:variations: name, ...` only applies to those
-variations: its steps, preconditions and definitions are skipped when
-any other variation runs. So does everything in an rvt-variant
-directive, prose included (see document.py). Names must be declared by the script's
-variations form, and only scripts may scope blocks; declarations
-(import, uut, environments, variations) can't be scoped.
-
-Preconditions state what must hold before a script's steps run::
-
-    (Precondition "Demo running" (demo-in-mode? :normal)
-      :heal "Start the demo in normal mode" (start-demo :normal))
-
-They come before the first regular step. The check and the optional
-heal are step forms; the heal may be described by a string after
-:heal.
+The forms a script is made of (definitions, declarations, variations,
+preconditions) are described in language.py.
 """
 
 import hashlib
@@ -51,96 +32,13 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from . import document, edn
+from .language import (
+    DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_definition, is_step,
+    name_of, parse_precondition, parse_variations,
+)
 
 CORE = "core.rst"
-DEFINITIONS = {"def", "defn", "defblock"}
-DECLARATIONS = {"uut", "environments"}
-# Top-level forms that configure a script rather than run as steps
-DIRECTIVES = {"import", "variations"} | DECLARATIONS
-
-PRECONDITION = "Precondition"
-
 REQUIREMENT_REF = re.compile(r":req:`([^`]+)`", re.IGNORECASE)
-
-
-def head(form):
-    """The name of a list form's first symbol, else None"""
-    if isinstance(form, list) and len(form) > 0 and isinstance(form[0], edn.Symbol):
-        return str(form[0])
-    return None
-
-
-def name_of(value):
-    """'sim' for :sim, sim or "sim" """
-    return str(value).lstrip(":")
-
-
-@dataclass
-class Variation:
-    name: str
-    symbols: list
-    forms: list  # one unevaluated value form per symbol
-
-
-def is_text(value):
-    return isinstance(value, str) and not isinstance(value, (edn.Symbol, edn.Keyword))
-
-
-def parse_variations(path, form, errors):
-    """The Variations declared by a (variations SYMBOLS [NAME VALUES ...]) form"""
-    if len(form) != 3:
-        errors.append(f"{path}: variations takes symbol names and a vector of rows")
-        return []
-    names, rows = form[1], form[2]
-    if is_text(names):
-        symbols = names.split()
-    elif isinstance(names, list) and all(isinstance(n, edn.Symbol) for n in names):
-        symbols = [str(n) for n in names]
-    else:
-        errors.append(
-            f"{path}: variation symbols must be a string or a list of symbols"
-        )
-        return []
-    if not symbols or not isinstance(rows, list) or len(rows) % 2:
-        errors.append(f"{path}: variations need symbols and NAME [VALUES] pairs")
-        return []
-
-    variations = []
-    for name, values in zip(rows[::2], rows[1::2]):
-        if not is_text(name):
-            errors.append(f"{path}: variation name {edn.writes(name).strip()} "
-                          "must be a string")
-        elif "," in name:
-            errors.append(f"{path}: variation name {name} may not contain a comma")
-        elif any(v.name == name for v in variations):
-            errors.append(f"{path}: variation {name} is declared twice")
-        elif not isinstance(values, list) or len(values) != len(symbols):
-            errors.append(f"{path}: variation {name} needs {len(symbols)} values "
-                          f"for {' '.join(symbols)}")
-        else:
-            variations.append(Variation(name, symbols, list(values)))
-    return variations
-
-
-@dataclass
-class PreconditionParts:
-    name: str
-    check: list
-    heal: list = None
-    heal_name: str = None  # the heal's description, if given
-
-
-def parse_precondition(form):
-    """The PreconditionParts of a Precondition form, or None if malformed"""
-    if len(form) not in (3, 5, 6) or not is_text(form[1]) or not isinstance(form[2], list):
-        return None
-    if len(form) == 3:
-        return PreconditionParts(form[1], form[2])
-    heal_name = form[4] if len(form) == 6 else None
-    if (form[3] != edn.Keyword("heal") or not isinstance(form[-1], list)
-            or (len(form) == 6 and not is_text(heal_name))):
-        return None
-    return PreconditionParts(form[1], form[2], form[-1], heal_name)
 
 
 def lint_preconditions(path, forms):
@@ -156,7 +54,7 @@ def lint_preconditions(path, forms):
                 label = form[1] if len(form) > 1 else ""
                 errors.append(f"{path}: Precondition {label} "
                               "must come before the first step")
-        elif isinstance(form, list) and name not in DIRECTIVES | DEFINITIONS:
+        elif is_step(form):
             seen_step = True
     return errors
 
@@ -223,13 +121,9 @@ def lint(path, forms):
             if isinstance(form, list) and name not in DEFINITIONS | DECLARATIONS:
                 errors.append(
                     f"{path}: core.rst may only contain documentation, def, defn, "
-                    f"defblock, uut and environments, not {edn.writes(form).strip()}"
+                    f"defblock, uut and environments, not {edn.writes(form)}"
                 )
     return errors
-
-
-def is_definition(form):
-    return head(form) in DEFINITIONS
 
 
 def lint_definitions(path, parts):
@@ -242,11 +136,11 @@ def lint_definitions(path, parts):
         if "definitions" in part.options:
             if not is_definition(form):
                 errors.append(f"{path}: a :definitions: block may only hold "
-                              f"definitions, not {edn.writes(form).strip()}")
+                              f"definitions, not {edn.writes(form)}")
             elif seen_step:
                 errors.append(f"{path}: the definitions section must come before "
                               "any step or Precondition")
-        elif isinstance(form, list) and head(form) not in DIRECTIVES | DEFINITIONS:
+        elif is_step(form):
             seen_step = True
     return errors
 
@@ -286,24 +180,11 @@ def ancestors(script):
     return [str(folder / CORE) if str(folder) != "." else CORE for folder in folders]
 
 
-def resolve(root, script, text=None):
-    """The closure of `script` (relative to `root`), using `text` if given"""
-    root = Path(root).resolve()
-    script = str(PurePosixPath(script))
-    closure = Closure(script)
-    errors = closure.errors
-
-    if PurePosixPath(script).name == CORE:
-        errors.append(f"{script}: core.rst files are not scripts")
-    if text is None:
-        text = (root / script).read_text()
-
-    chain = [path for path in ancestors(script) if (root / path).is_file()]
-    script_parts = read_parts(script, text, errors)
-    script_forms = [part.form for part in script_parts if not part.prose]
-
+def find_imports(root, script, forms, chain, errors):
+    """The core.rst paths the script's (import folder) forms load, beyond
+    its chain"""
     imports = []
-    for form in script_forms:
+    for form in forms:
         if head(form) != "import":
             continue
         if len(form) != 2:
@@ -317,30 +198,44 @@ def resolve(root, script, text=None):
             errors.append(f"{script}: cannot import {folder}, it has no core.rst")
         elif path not in chain and path not in imports:
             imports.append(path)
+    return imports
 
-    closure.imports = imports
-    closure.load_order = chain + imports + [script]
-    closure.files = {path: (root / path).read_text() for path in chain + imports}
+
+def resolve(root, script, text=None):
+    """The closure of `script` (relative to `root`), using `text` if given"""
+    root = Path(root).resolve()
+    script = str(PurePosixPath(script))
+    closure = Closure(script)
+    errors = closure.errors
+
+    if PurePosixPath(script).name == CORE:
+        errors.append(f"{script}: core.rst files are not scripts")
+    if text is None:
+        text = (root / script).read_text()
+    script_parts = read_parts(script, text, errors)
+    script_forms = [part.form for part in script_parts if not part.prose]
+
+    chain = [path for path in ancestors(script) if (root / path).is_file()]
+    closure.imports = find_imports(root, script, script_forms, chain, errors)
+    closure.load_order = chain + closure.imports + [script]
+    core_paths = closure.load_order[:-1]
+    closure.files = {path: (root / path).read_text() for path in core_paths}
     closure.files[script] = text
 
-    # Declarations: chain then script, last one wins
-    for path in chain + [script]:
-        if path == script:
-            forms = script_forms
-        else:
-            parts = read_parts(path, closure.files[path], errors)
-            forms = [part.form for part in parts if not part.prose]
-            errors.extend(lint(path, forms))
-            errors.extend(lint_variation_scopes(path, parts, []))
-        for form in forms:
-            if head(form) == "uut":
-                closure.uuts = [name_of(v) for v in form[1:]]
-            elif head(form) == "environments":
-                closure.environments = [name_of(v) for v in form[1:]]
-    for path in imports:
+    core_forms = {}
+    for path in core_paths:
         parts = read_parts(path, closure.files[path], errors)
-        errors.extend(lint(path, [part.form for part in parts if not part.prose]))
+        core_forms[path] = [part.form for part in parts if not part.prose]
+        errors.extend(lint(path, core_forms[path]))
         errors.extend(lint_variation_scopes(path, parts, []))
+
+    # Declarations: the chain's, then the script's; the last one wins.
+    # Imported core.rst files only add definitions.
+    for form in [form for path in chain for form in core_forms[path]] + script_forms:
+        if head(form) == "uut":
+            closure.uuts = [name_of(v) for v in form[1:]]
+        elif head(form) == "environments":
+            closure.environments = [name_of(v) for v in form[1:]]
 
     declared = [form for form in script_forms if head(form) == "variations"]
     if len(declared) > 1:
@@ -351,5 +246,4 @@ def resolve(root, script, text=None):
     errors.extend(lint_preconditions(script, script_forms))
     errors.extend(lint_definitions(script, script_parts))
     errors.extend(lint_variation_scopes(script, script_parts, closure.variations))
-
     return closure

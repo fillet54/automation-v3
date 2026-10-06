@@ -29,7 +29,7 @@ class StartDemo(BuildingBlock):
             demo.set(name, value)
         return BlockResult(
             True,
-            stdout=f"started in {edn.writes(config[MODE]).strip()} "
+            stdout=f"started in {edn.writes(config[MODE])} "
                    f"with {len(readings)} reading(s)",
         )
 

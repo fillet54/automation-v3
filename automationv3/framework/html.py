@@ -12,7 +12,7 @@ def text(value):
     """A value as readable, escaped text: keywords and literals as edn"""
     if isinstance(value, str) and not isinstance(value, edn.Symbol):
         return escape(value)
-    return escape(edn.writes(value).strip())
+    return escape(edn.writes(value))
 
 
 def value(item):

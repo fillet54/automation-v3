@@ -1,295 +1,233 @@
+"""A small Lisp over edn forms, for the code in scripts
+
+`eval(form, env)` evaluates a form read by edn: keywords and literals
+evaluate to themselves, symbols are looked up in `env`, and a list is a
+special form or a call. Special forms (if, do, def, let, quote, fn,
+defn, and (.method obj args) calls on Python objects) get their
+arguments unevaluated; other modules add their own with
+`@special_form`. Everything else is a call: the head and arguments are
+evaluated and the head called with the arguments.
+"""
+
+import copy
 import math
 import operator as op
-import copy
-from itertools import islice, count, cycle
-from collections.abc import Iterable
+from itertools import count, cycle, islice
 
-from .edn import read, Keyword, Symbol, List, Vector
+from .edn import Keyword, List, Symbol, Vector
 
 
 class Env(dict):
-    def __init__(self, params=(), args=(), outer=None):
-        self.outer = outer
-        self.destructure(params, args)
+    """Bindings, falling back to an `outer` Env for names not bound here"""
 
-    def destructure(self, params, args):
+    def __init__(self, params=(), args=(), outer=None):
         if len(params) != len(args):
             raise TypeError(f"Invalid arguments[{args}] received. Expected [{params}]")
-        self.update(zip(params, args))
+        super().__init__(zip(params, args))
+        self.outer = outer
 
     def __contains__(self, key):
-        return super().__contains__(key) or (
-            self.outer is not None and key in self.outer
-        )
+        if super().__contains__(key):
+            return True
+        return self.outer is not None and key in self.outer
 
     def __getitem__(self, key):
         if super().__contains__(key):
             return super().__getitem__(key)
-        elif self.outer is not None and key in self.outer:
+        if self.outer is not None and key in self.outer:
             return self.outer[key]
-        else:
-            raise KeyError(f"{key} not found.")
+        raise KeyError(f"{key} not found.")
 
 
 def partition(n, seq):
-    "Returns a lazy sequence of lists of n items each, at offsets step apart."
+    """The items of `seq` in tuples of `n`, leaving out an incomplete last one"""
     return zip(*[islice(seq, start, None, n) for start in range(n)])
 
 
-def assoc(m, *args):
-    """assoc[iates]. When applied to a map returns a new map with key mapped
-    to value. When applied to vector returns new vector with val set at index.
-    Note that index must be < length of vector
-    """
+def assoc(m, *pairs):
+    """A copy of map (or vector) `m` with each key set to its value"""
     m = copy.deepcopy(m)
-    for k, v in partition(2, args):
+    for k, v in partition(2, pairs):
         m[k] = v
     return m
 
 
-def dissoc(m, *args):
-    """dissoc[iate]. Returns a new map of the same (hashed/sorted) type,
-    that does not contain a mapping for key(s)."""
+def dissoc(m, *keys):
+    """A copy of map `m` without `keys`"""
     m = copy.deepcopy(m)
-    for k in args:
+    for k in keys:
         m.pop(k, None)
     return m
 
 
 def standard_env():
     env = Env()
-
-    # math functions
     env.update({k: v for k, v in vars(math).items() if not k.startswith("__")})
-
-    env.update(
-        {
-            "+": op.add,
-            "-": op.sub,
-            "*": op.mul,
-            "/": op.truediv,
-            ">": op.gt,
-            "<": op.lt,
-            ">=": op.ge,
-            "<=": op.le,
-            "=": op.eq,
-            "not=": op.ne,
-            # Not special forms: every argument is evaluated
-            "and": lambda *x: all(x),
-            "or": lambda *x: any(x),
-            "abs": abs,
-            "append": op.add,
-            "apply": lambda proc, args: proc(*args),
-            "first": lambda x: next(islice(x, 0, None)),
-            "rest": lambda x: islice(x, 1, None),
-            "cons": lambda x, y: [x] + y,
-            "eq?": op.is_,
-            "expt": pow,
-            "count": len,
-            "list": lambda *x: List(x),
-            "list?": lambda x: isinstance(x, list),
-            "map": map,
-            "max": max,
-            "min": min,
-            "not": op.not_,
-            "nil?": lambda x: x is None,
-            "some?": lambda x: x is not None,
-            "number?": lambda x: isinstance(x, (int, float)),
-            "print": print,
-            "procedure?": callable,
-            "round": round,
-            "symbol?": lambda x: isinstance(x, Symbol),
-            "cycle": cycle,
-            "take": lambda n, coll: islice(coll, 0, n),
-            "range": lambda: count(),
-            "str": lambda *x: "".join([str(i) for i in x]),
-            "partition": partition,
-            "assoc": assoc,
-            "dissoc": dissoc,
-        }
-    )
+    env.update({
+        "+": op.add,
+        "-": op.sub,
+        "*": op.mul,
+        "/": op.truediv,
+        ">": op.gt,
+        "<": op.lt,
+        ">=": op.ge,
+        "<=": op.le,
+        "=": op.eq,
+        "not=": op.ne,
+        # Not special forms: every argument is evaluated
+        "and": lambda *x: all(x),
+        "or": lambda *x: any(x),
+        "abs": abs,
+        "append": op.add,
+        "apply": lambda proc, args: proc(*args),
+        "first": lambda x: next(islice(x, 0, None)),
+        "rest": lambda x: islice(x, 1, None),
+        "cons": lambda x, y: [x] + y,
+        "eq?": op.is_,
+        "expt": pow,
+        "count": len,
+        "list": lambda *x: List(x),
+        "list?": lambda x: isinstance(x, list),
+        "map": map,
+        "max": max,
+        "min": min,
+        "not": op.not_,
+        "nil?": lambda x: x is None,
+        "some?": lambda x: x is not None,
+        "number?": lambda x: isinstance(x, (int, float)),
+        "print": print,
+        "procedure?": callable,
+        "round": round,
+        "symbol?": lambda x: isinstance(x, Symbol),
+        "cycle": cycle,
+        "take": lambda n, coll: islice(coll, 0, n),
+        "range": count,
+        "str": lambda *x: "".join(str(i) for i in x),
+        "partition": partition,
+        "assoc": assoc,
+        "dissoc": dissoc,
+    })
     return env
 
 
 global_env = standard_env()
 
 
+# Special forms: by name, or by a test of the head symbol (e.g. a
+# leading dot)
 special_forms = {}
 
 
-def get_special_form(symbol):
-    if symbol in special_forms:
-        return special_forms[symbol]
-
-    for test, special_form_fn in special_forms.items():
-        if callable(test) and test(symbol):
-            return special_form_fn
-
-
-def if_special_form(x, env):
-    (_, test, then, _else) = x if len(x) == 4 else x + [None]
-    exp = then if eval(test, env) else _else
-    return eval(exp, env)
+def special_form(name_or_test):
+    """Register the decorated `fn(form, env)` as a special form"""
+    def register(fn):
+        special_forms[name_or_test] = fn
+        return fn
+    return register
 
 
-special_forms["if"] = if_special_form
+def get_special_form(head):
+    """The special form a list starting with `head` is, if any"""
+    if not isinstance(head, Symbol):
+        return None
+    if head in special_forms:
+        return special_forms[head]
+    for test, fn in special_forms.items():
+        if callable(test) and test(head):
+            return fn
+    return None
 
 
-def do_special_form(x, env):
-    _, *expressions = x
-    last = None
-    for exp in expressions:
-        last = eval(exp, env)
-    return last
+def _do(forms, env):
+    value = None
+    for form in forms:
+        value = eval(form, env)
+    return value
 
 
-special_forms["do"] = do_special_form
+@special_form("if")
+def if_form(x, env):
+    _, test, then, *otherwise = x
+    if eval(test, env):
+        return eval(then, env)
+    return eval(otherwise[0], env) if otherwise else None
 
 
-def def_special_form(x, env):
-    (_, symbol, exp) = x
-    env[symbol] = eval(exp, env)
+@special_form("do")
+def do_form(x, env):
+    return _do(x[1:], env)
 
 
-special_forms["def"] = def_special_form
+@special_form("def")
+def def_form(x, env):
+    _, name, value = x
+    env[name] = eval(value, env)
 
 
-def let_special_form(x, env):
-    _, bindings, *exprs = x
+@special_form("let")
+def let_form(x, env):
+    _, bindings, *body = x
     env = Env(outer=env)
-    # binding to environment
-    for binding, expr in zip(bindings[::2], bindings[1::2]):
-        env[binding] = eval(expr, env)
-    return eval(List(["do"] + exprs), env)
+    for name, value in partition(2, bindings):
+        env[name] = eval(value, env)
+    return _do(body, env)
 
 
-special_forms["let"] = let_special_form
+@special_form("quote")
+def quote_form(x, env):
+    return x[1]
 
 
-def quote_special_form(x, env):
-    _, form = x
-    return form
+@special_form("fn")
+def fn_form(x, env):
+    """(fn name? [params] body...) or (fn name? ([params] body...) ...)"""
+    _, *rest = x
+    name = rest.pop(0) if rest and isinstance(rest[0], Symbol) else None
+    if rest and isinstance(rest[0], Vector):
+        signatures = [rest]  # one arity: [params] body...
+    else:
+        signatures = rest  # several: ([params] body...) ...
+    for signature in signatures:
+        if not (isinstance(signature, list) and signature
+                and isinstance(signature[0], Vector)):
+            raise ValueError(f"Parameter declaration {signature} should be a Vector")
+    by_arity = {len(params): (params, body) for params, *body in signatures}
 
-
-special_forms["quote"] = quote_special_form
-
-
-def create_function(name, sigs, env):
-    sigs = {len(sig[0]):sig for sig in sigs}
     def fn(*args):
-        arity = len(args)
-        if arity not in sigs:
-            raise RuntimeError(f"Cannot call {name} with {arity} arguments")
-        params, *exprs = sigs[arity]
-        return eval(List([Symbol("do"), *exprs]), Env(params, args, outer=env))
-    
+        if len(args) not in by_arity:
+            raise RuntimeError(f"Cannot call {name} with {len(args)} arguments")
+        params, body = by_arity[len(args)]
+        return _do(body, Env(params, args, outer=env))
+
     if name is not None:
-        fn.__name__ = name
+        fn.__name__ = str(name)
     return fn
 
-def fn_special_form(x, env):
-    _, *args = x
-    name = args[0] if isinstance(args[0], Symbol) else None
-    sigs = args[1:] if name else args
-    if isinstance(sigs[0], Vector):
-        sigs = List([sigs])
-    elif not isinstance(sigs[0], List):
-        raise ValueError(f"Parameter declaration {sigs[0]} should be a Vector")
 
-    # validate all forms
-    for sig in sigs:
-        if not isinstance(sig[0], Vector):
-            raise ValueError(f"Parameter declaration {sig[0]} should be a Vector")
-
-    return create_function(name, sigs, env)
+@special_form("defn")
+def defn_form(x, env):
+    env[x[1]] = fn_form(x, env)
 
 
-special_forms["fn"] = fn_special_form
-
-
-def defn_special_form(x, env):
-    _, name, *_ = x
-    fn = fn_special_form(x, env)
-    return eval(List([Symbol("def"), name, fn]), env)
-
-
-special_forms["defn"] = defn_special_form
-
-
-def has_leading_dot(symbol):
-    result = symbol.startswith(".")
-    return result
-
-
-def dot_special_form(x, env):
-    attr, sym, *args = x
-    attr = attr[1:]  # remove leading dot
-
-    is_property = attr.startswith("-")
-    if is_property:
-        attr = attr[1:]
-
-    the_attr = getattr(eval(sym, env), attr)
-
-    if is_property:
-        return the_attr
-    return the_attr(*[eval(arg, env) for arg in args])
-
-
-special_forms[has_leading_dot] = dot_special_form
+@special_form(lambda head: head.startswith(".") and len(head) > 1)
+def dot_form(x, env):
+    """(.method obj args...) calls a method; (.-attr obj) reads an attribute"""
+    member, obj, *args = x
+    member = member[1:]
+    if member.startswith("-"):
+        return getattr(eval(obj, env), member[1:])
+    return getattr(eval(obj, env), member)(*[eval(arg, env) for arg in args])
 
 
 def eval(x, env=global_env):
-    "Evaluate an expression in an environment."
-
-    # keywords evaluate to themselves
+    """Evaluate the form `x` in `env`"""
     if isinstance(x, Keyword):
         return x
-
-    # symbol reference
     if isinstance(x, Symbol):
         return env[x]
-
-    # constant
-    elif not isinstance(x, List):
+    if not isinstance(x, List) or not x:
         return x
-
-    # special forms
-    special_form = get_special_form(x[0])
-    if special_form:
-        return special_form(x, env)
-
-    # procedure call
-    else:
-        proc = eval(x[0], env)
-        args = [eval(arg, env) for arg in x[1:]]
-        return proc(*args)
-
-
-def eval_text(s):
-    result = eval(read(s))
-    if not isinstance(result, str) and isinstance(result, Iterable):
-        return List(result)
-    return result
-
-
-if __name__ == "__main__":
-
-    results = eval_text(
-        """
-(do
-    (def fizzbuzz (fn [n]
-      (let [fizzes (cycle ["" "" "Fizz"])
-            buzzes (cycle ["" "" "" "" "Buzz"])
-            words (map str fizzes buzzes)
-            numbers (map str (rest (range)))]
-        (take n (map max words numbers)))))
-
-    (fizzbuzz 50))
-"""
-    )
-
-    for r in results:
-        print(r)
-
-
+    if special := get_special_form(x[0]):
+        return special(x, env)
+    proc = eval(x[0], env)
+    return proc(*[eval(arg, env) for arg in x[1:]])

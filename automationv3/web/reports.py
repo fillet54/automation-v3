@@ -10,7 +10,7 @@ from flask import (
     url_for,
 )
 
-from ..framework.closure import DIRECTIVES, head
+from ..framework.language import DIRECTIVES, head
 from ..framework.statements import get_statements
 from ..services import jobs as models
 from ..services.reports import rollup, store

@@ -1,7 +1,7 @@
 import unittest
 import os
 
-from automationv3.framework.edn import read, read_all, Symbol, Keyword, List, Vector, Map, Set
+from automationv3.framework.edn import ParseError, read, read_all, Symbol, Keyword, List, Vector, Map, Set
 
 
 class TestEdnReader(unittest.TestCase):
@@ -198,6 +198,40 @@ class TestEdnReader(unittest.TestCase):
         self.assertEqual(len(forms), 2)
         self.assertEqual(forms[0][0], 'form1')
         self.assertEqual(forms[1][0], 'form2')
+
+    # nil, and strings that once meant the end of input, inside collections
+    def test_nil_inside_collections(self):
+        self.assertEqual(read('(a nil)'), ['a', None])
+        self.assertEqual(read('[nil 1]'), [None, 1])
+        self.assertEqual(read('{:a nil}'), {Keyword('a'): None})
+
+    def test_any_string_inside_a_list(self):
+        self.assertEqual(read('(a "READ_EOF" "READ_FINISHED" b)'),
+                         ['a', 'READ_EOF', 'READ_FINISHED', 'b'])
+
+    def test_invalid_numbers_raise(self):
+        for text in ('08', '1abc', '1.2.3'):
+            with self.assertRaises(ParseError):
+                read(text)
+
+    def test_unbalanced_delimiters_raise(self):
+        with self.assertRaises(ParseError):
+            read_all('(a))')
+        with self.assertRaises(ParseError):
+            read_all('(a')
+        with self.assertRaises(ParseError):
+            read('{:a 1 :b}')
+
+    def test_errors_say_where(self):
+        with self.assertRaises(ParseError) as c:
+            read_all('(a)\n  (b ]')
+        self.assertEqual((c.exception.line, c.exception.col), (1, 6))
+
+    def test_nothing_to_read(self):
+        with self.assertRaises(ParseError):
+            read('  ; just a comment')
+        self.assertEqual(read_all(''), [])
+
 
 if __name__ == '__main__':
     unittest.main()
