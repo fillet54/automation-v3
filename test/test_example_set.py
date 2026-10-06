@@ -28,21 +28,21 @@ REQUIREMENTS = [f"VMC{s}{n:05d}" for s in ("BRA", "FUE") for n in range(1, 9)]
 
 # (script, environment, variation) -> outcome
 EXPECTED = {
-    ("BRA/tc_bra_00001.rvt", "sim", None): "pass",
-    ("BRA/tc_bra_00002.rvt", "sim", None): "fail",
-    ("BRA/tc_bra_00003.rvt", "sim", None): "pass",
-    ("BRA/tc_bra_00004.rvt", "sim", "normal"): "pass",
-    ("BRA/tc_bra_00004.rvt", "sim", "limp-home"): "pass",
-    ("BRA/tc_bra_00004.rvt", "sim", "emergency"): "pass",
-    ("BRA/tc_bra_00005.rvt", "sim", None): "pass",
-    ("BRA/tc_bra_00005.rvt", "bench", None): "pass",
-    ("BRA/tc_bra_00006.rvt", "sim", None): "blocked",
-    ("BRA/tc_bra_00008.rvt", "sim", None): "pass",
-    ("FUE/tc_fue_00001.rvt", "sim", None): "pass",
-    ("FUE/tc_fue_00002.rvt", "sim", "jet-a"): "pass",
-    ("FUE/tc_fue_00002.rvt", "sim", "avgas"): "pass",
-    ("FUE/tc_fue_00003.rvt", "sim", None): "pass",
-    ("FUE/tc_fue_00004.rvt", "sim", None): "pass",
+    ("BRA/tc_bra_00001.rst", "sim", None): "pass",
+    ("BRA/tc_bra_00002.rst", "sim", None): "fail",
+    ("BRA/tc_bra_00003.rst", "sim", None): "pass",
+    ("BRA/tc_bra_00004.rst", "sim", "normal"): "pass",
+    ("BRA/tc_bra_00004.rst", "sim", "limp-home"): "pass",
+    ("BRA/tc_bra_00004.rst", "sim", "emergency"): "pass",
+    ("BRA/tc_bra_00005.rst", "sim", None): "pass",
+    ("BRA/tc_bra_00005.rst", "bench", None): "pass",
+    ("BRA/tc_bra_00006.rst", "sim", None): "blocked",
+    ("BRA/tc_bra_00008.rst", "sim", None): "pass",
+    ("FUE/tc_fue_00001.rst", "sim", None): "pass",
+    ("FUE/tc_fue_00002.rst", "sim", "jet-a"): "pass",
+    ("FUE/tc_fue_00002.rst", "sim", "avgas"): "pass",
+    ("FUE/tc_fue_00003.rst", "sim", None): "pass",
+    ("FUE/tc_fue_00004.rst", "sim", None): "pass",
 }
 
 
@@ -111,22 +111,22 @@ class TestExampleSet(unittest.TestCase):
         # is left, so most runs reuse it
         modes = [run["mode"] for run in runs]
         self.assertGreater(modes.count("precondition"), modes.count("force"))
-        blocked = next(r for r in runs if r["script"] == "BRA/tc_bra_00006.rvt")
+        blocked = next(r for r in runs if r["script"] == "BRA/tc_bra_00006.rst")
         self.assertEqual(blocked["mode"], "force")
 
     def test_remote_brake_test_needs_newer_demo(self):
         for version, expected in (("1.0.0", "fail"), ("1.1.0", "pass")):
-            self.queue(script="BRA/tc_bra_00003.rvt", **{
+            self.queue(script="BRA/tc_bra_00003.rst", **{
                 "version-demo": version})
             self.assertEqual(self.run_all(), [expected])
 
     def test_lint_example_refuses_to_queue(self):
-        closure = resolve(RVTS, "BRA/tc_bra_00007.rvt")
+        closure = resolve(RVTS, "BRA/tc_bra_00007.rst")
         self.assertEqual(closure.errors,
-                         ["BRA/tc_bra_00007.rvt: Precondition Too late to matter "
+                         ["BRA/tc_bra_00007.rst: Precondition Too late to matter "
                           "must come before the first step"])
         response = self.http.post("/runner/queue", data={
-            "workspace": self.branch, "script": "BRA/tc_bra_00007.rvt"})
+            "workspace": self.branch, "script": "BRA/tc_bra_00007.rst"})
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"must come before the first step", response.data)
 

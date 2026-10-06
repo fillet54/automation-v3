@@ -6,6 +6,8 @@ from automationv3.framework import edn
 from automationv3.framework.block import BlockResult, BuildingBlock
 from automationv3.framework.executor import execute_closure
 
+from .rvt import rvt
+
 seen = {}
 
 
@@ -36,9 +38,9 @@ class Recorder:
 
 
 def run(script, variation=None):
-    files = {"core.rvt": "(def limit 80)", "s.rvt": script}
+    files = {"core.rst": rvt("(def limit 80)"), "s.rst": rvt(script)}
     recorder = Recorder()
-    outcome = execute_closure(files, ["core.rvt", "s.rvt"], recorder,
+    outcome = execute_closure(files, ["core.rst", "s.rst"], recorder,
                               variation=variation)
     return outcome, recorder.ends
 

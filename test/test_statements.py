@@ -9,8 +9,9 @@ from automationv3.framework.statements import get_statements
 from automationv3.services.database import connect, init_db
 from automationv3.services.requirements import models
 
+from .rvt import rvt
+
 SCRIPT = '''
-"
 =========
 The Title
 =========
@@ -18,9 +19,11 @@ The Title
 Requirements
 ------------
 1. :req:`R1`
-"
-(Wait 1)
-(Unknown :x 1)
+
+.. rvt::
+
+   (Wait 1)
+   (Unknown :x 1)
 '''
 
 
@@ -62,14 +65,14 @@ class TestStatements(unittest.TestCase):
         self.assertIn("shall [R1]", get_statements(SCRIPT)[0].html)
 
     def test_blocks_render_themselves(self):
-        (statement,) = get_statements('(StartWithConfig {:mode :normal :trim 3})')
+        (statement,) = get_statements(rvt('(StartWithConfig {:mode :normal :trim 3})'))
         self.assertIn('<table class="config">', statement.html)
         self.assertIn("<td>3</td>", statement.html)
         self.assertNotIn("code clojure", statement.html)
 
     def test_variations_render_as_a_table(self):
-        (statement,) = get_statements(
-            '(variations "mode level" ["low" [:low 1] "high" [:high (+ 1 2)]])')
+        (statement,) = get_statements(rvt(
+            '(variations "mode level" ["low" [:low 1] "high" [:high (+ 1 2)]])'))
         html = statement.html
         self.assertIn("Variations</caption>", html)
         for cell in ("mode", "level", "low", ":low", "high", ":high", "(+ 1 2)"):
@@ -77,15 +80,15 @@ class TestStatements(unittest.TestCase):
         self.assertNotIn("code clojure", html)
 
     def test_precondition_renders_check_and_heal(self):
-        (statement,) = get_statements(
-            '(Precondition "Ready" (ready?) :heal (StartWithConfig {:mode :x}))')
+        (statement,) = get_statements(rvt(
+            '(Precondition "Ready" (ready?) :heal (StartWithConfig {:mode :x}))'))
         self.assertIn("<strong>Precondition:</strong> Ready", statement.html)
         self.assertIn("ready?", statement.html)
         self.assertIn('<table class="config">', statement.html)  # the heal's block
 
     def test_sample_start_demo_block(self):
-        (statement,) = get_statements(
-            "(StartDemo {:mode :emergency :readings {:brake-pressure 70}})")
+        (statement,) = get_statements(rvt(
+            "(StartDemo {:mode :emergency :readings {:brake-pressure 70}})"))
         self.assertIn("Configuration</caption>", statement.html)
         self.assertIn("brake-pressure", statement.html)
 

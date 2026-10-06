@@ -1,4 +1,3 @@
-"
 ===========================
 Fuel Uses Brake Definitions
 ===========================
@@ -10,18 +9,19 @@ Requirements
 ------------
 1. :req:`VMCFUE00006`
 2. :req:`VMCFUE00008`
-"
 
-(import BRA)
+.. rvt::
 
-(Precondition "Demo running in normal mode"
-  (demo-in-mode? :normal)
-  :heal (start-demo :normal))
+   (import BRA)
 
-"
+   (Precondition "Demo running in normal mode"
+     (demo-in-mode? :normal)
+     :heal (start-demo :normal))
+
 Steps
 -----
-"
 
-(fuel-level-ok? 40)
-(brake-pressure-ok? 90)
+.. rvt::
+
+   (fuel-level-ok? 40)
+   (brake-pressure-ok? 90)

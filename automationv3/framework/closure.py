@@ -1,34 +1,31 @@
 """Script closures: everything a script needs, resolved statically
 
-A script's closure is the core.rvt chain from the root script path down
-to the script's folder, then the core.rvt of every folder it imports
-with `(import folder)`, then the script itself. That is also the load
-order. Nothing is executed to resolve it.
+Scripts and core.rst files are reStructuredText documents whose code is
+in rvt blocks (see document.py). A script's closure is the core.rst
+chain from the root script path down to the script's folder, then the
+core.rst of every folder it imports with `(import folder)`, then the
+script itself. That is also the load order. Nothing is executed to
+resolve it.
 
-Definitions (`def`, `defn`, `defblock`) live in core.rvt files and may
-also appear in a script, typically in its definitions section::
+Definitions (`def`, `defn`, `defblock`) live in core.rst files and may
+also appear in a script, typically in its definitions section, an rvt
+block marked `:definitions:` that comes before any step.
 
-    "
-    .. rvt::
-       :definitions:
-    "
-    (def stop-pressure 70)
-
-A deeper core.rvt in the chain overrides a shallower one, but an import
+A deeper core.rst in the chain overrides a shallower one, but an import
 never overrides a name the chain defines: imports only add definitions.
-Declarations (`uut`, `environments`) may appear in any core.rvt of the
+Declarations (`uut`, `environments`) may appear in any core.rst of the
 chain or in the script, and the last one in load order wins. Imported
-core.rvt files contribute definitions only.
+core.rst files contribute definitions only.
 
-A script may declare its variations once, at the top level::
+A script may declare its variations once::
 
     (variations "mode trim"
       ["nominal"  [:normal default-trim]
        "degraded" [:limp-home 2]])
 
 Each variation is a display name and the values bound to the symbols
-for that run. Values are literals or expressions over core.rvt
-definitions; they are kept as forms here and evaluated later.
+for that run. Values are literals or expressions over definitions; they
+are kept as forms here and evaluated later.
 
 Preconditions state what must hold before a script's steps run::
 
@@ -45,9 +42,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from . import edn
+from . import document, edn
 
-CORE = "core.rvt"
+CORE = "core.rst"
 DEFINITIONS = {"def", "defn", "defblock"}
 DECLARATIONS = {"uut", "environments"}
 # Top-level forms that configure a script rather than run as steps
@@ -145,12 +142,21 @@ def lint_preconditions(path, forms):
 
 
 def requirement_refs(text):
-    """Requirement ids referenced with :req:`ID` in a script's documentation"""
+    """Requirement ids referenced with :req:`ID` in a script's prose"""
+    try:
+        prose = [part.form for part in document.parse(text) if part.prose]
+    except Exception:
+        prose = [text]
     refs = []
-    for form in edn.read_all(text):
-        if is_text(form):
-            refs.extend(ref.strip() for ref in REQUIREMENT_REF.findall(form))
+    for chunk in prose:
+        refs.extend(ref.strip() for ref in REQUIREMENT_REF.findall(chunk))
     return list(dict.fromkeys(refs))
+
+
+def is_script(path, text):
+    """An .rst document with rvt blocks, other than a core.rst"""
+    path = PurePosixPath(path)
+    return path.suffix == ".rst" and path.name != CORE and document.has_rvt(text)
 
 
 @dataclass
@@ -170,12 +176,16 @@ class Closure:
         return hashlib.sha256(json.dumps(ordered).encode()).hexdigest()
 
 
-def read_forms(path, text, errors):
+def read_parts(path, text, errors):
     try:
-        return list(edn.read_all(text))
+        return document.parse(text)
     except Exception as e:
         errors.append(f"{path}: could not be read ({e})")
         return []
+
+
+def read_forms(path, text, errors):
+    return [part.form for part in read_parts(path, text, errors) if not part.prose]
 
 
 def nested_imports(form):
@@ -196,63 +206,28 @@ def lint(path, forms):
         if is_core:
             if isinstance(form, list) and name not in DEFINITIONS | DECLARATIONS:
                 errors.append(
-                    f"{path}: core.rvt may only contain documentation, def, defn, "
+                    f"{path}: core.rst may only contain documentation, def, defn, "
                     f"defblock, uut and environments, not {edn.writes(form).strip()}"
                 )
     return errors
-
-
-RVT_DIRECTIVE = re.compile(r"^\.\. rvt::\s*$", re.MULTILINE)
-RVT_OPTION = re.compile(r"^\s+:([\w-]+):\s*(.*)$")
-RVT_OPTIONS = {"definitions"}
-
-
-def rvt_options(form):
-    """The options of an `.. rvt::` directive in a doc string, or None"""
-    if not is_text(form):
-        return None
-    match = RVT_DIRECTIVE.search(form)
-    if match is None:
-        return None
-    options = {}
-    for line in form[match.end():].splitlines()[1:]:
-        option = RVT_OPTION.match(line)
-        if option is None:
-            break
-        options[option.group(1)] = option.group(2)
-    return options
 
 
 def is_definition(form):
     return head(form) in DEFINITIONS
 
 
-def definitions_section(forms):
-    """Indexes of the script's definitions section: the doc string with
-    an `.. rvt:: :definitions:` directive, and the definitions after it
-    up to the next doc string or other form. Empty if there is none."""
-    for index, form in enumerate(forms):
-        options = rvt_options(form)
-        if options is not None and "definitions" in options:
-            section = [index]
-            for later in range(index + 1, len(forms)):
-                if not is_definition(forms[later]):
-                    break
-                section.append(later)
-            return section
-    return []
-
-
-def lint_definitions(path, forms):
-    """The definitions section comes first, and rvt options are known"""
+def lint_definitions(path, parts):
+    """The definitions section comes before any step, and holds only
+    definitions"""
     errors = []
     seen_step = False
-    for form in forms:
-        options = rvt_options(form)
-        if options is not None:
-            for option in sorted(set(options) - RVT_OPTIONS):
-                errors.append(f"{path}: unknown rvt option :{option}:")
-            if "definitions" in options and seen_step:
+    for part in parts:
+        form = part.form
+        if "definitions" in part.options:
+            if not is_definition(form):
+                errors.append(f"{path}: a :definitions: block may only hold "
+                              f"definitions, not {edn.writes(form).strip()}")
+            elif seen_step:
                 errors.append(f"{path}: the definitions section must come before "
                               "any step or Precondition")
         elif isinstance(form, list) and head(form) not in DIRECTIVES | DEFINITIONS:
@@ -261,7 +236,7 @@ def lint_definitions(path, forms):
 
 
 def ancestors(script):
-    """core.rvt paths from the root down to the script's folder"""
+    """core.rst paths from the root down to the script's folder"""
     folders = list(reversed(PurePosixPath(script).parents))
     return [str(folder / CORE) if str(folder) != "." else CORE for folder in folders]
 
@@ -274,12 +249,13 @@ def resolve(root, script, text=None):
     errors = closure.errors
 
     if PurePosixPath(script).name == CORE:
-        errors.append(f"{script}: core.rvt files are not scripts")
+        errors.append(f"{script}: core.rst files are not scripts")
     if text is None:
         text = (root / script).read_text()
 
     chain = [path for path in ancestors(script) if (root / path).is_file()]
-    script_forms = read_forms(script, text, errors)
+    script_parts = read_parts(script, text, errors)
+    script_forms = [part.form for part in script_parts if not part.prose]
 
     imports = []
     for form in script_forms:
@@ -293,7 +269,7 @@ def resolve(root, script, text=None):
         if not (root / path).resolve().is_relative_to(root):
             errors.append(f"{script}: cannot import {folder}, it is outside the root")
         elif not (root / path).is_file():
-            errors.append(f"{script}: cannot import {folder}, it has no core.rvt")
+            errors.append(f"{script}: cannot import {folder}, it has no core.rst")
         elif path not in chain and path not in imports:
             imports.append(path)
 
@@ -324,6 +300,6 @@ def resolve(root, script, text=None):
         closure.variations = parse_variations(script, declared[0], errors)
     errors.extend(lint(script, script_forms))
     errors.extend(lint_preconditions(script, script_forms))
-    errors.extend(lint_definitions(script, script_forms))
+    errors.extend(lint_definitions(script, script_parts))
 
     return closure

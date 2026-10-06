@@ -21,31 +21,29 @@ from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 
 from .data import make_workspaces as gitutil
+from .rvt import doc, rvt
 
-PASSING = '''
-"
-=====
-Title
-=====
-"
-(Wait 1)
-(Wait 2)
-'''
+PASSING = doc('''
+    =====
+    Title
+    =====
+    ''', rvt('''
+    (Wait 1)
+    (Wait 2)
+    '''))
 
-FAILING = '''
-"Docs"
-(Wait 1)
-(Missing X)
-(Wait 2)
-'''
+FAILING = doc("Docs", rvt('''
+    (Wait 1)
+    (Missing X)
+    (Wait 2)
+    '''))
 
-ROOT_CORE = '''
-"Shared"
-(environments :sim)
-(uut :demo)
-(def limit 10)
-(defn under-limit? [x] (< x limit))
-'''
+ROOT_CORE = doc("Shared", rvt('''
+    (environments :sim)
+    (uut :demo)
+    (def limit 10)
+    (defn under-limit? [x] (< x limit))
+    '''))
 
 
 class Recorder:
@@ -56,10 +54,17 @@ class Recorder:
         return lambda **kw: self.events.append((name[3:], kw))
 
 
+def script(text):
+    """`text` as a document: code-only fixtures go in one rvt block"""
+    if not text.strip() or ".. rvt::" in text:
+        return text
+    return rvt(text)
+
+
 def write_tree(root, files):
     for path, text in files.items():
         (root / path).parent.mkdir(parents=True, exist_ok=True)
-        (root / path).write_text(text)
+        (root / path).write_text(script(text) if path.endswith(".rst") else text)
 
 
 class TestUuid7(unittest.TestCase):
@@ -78,20 +83,20 @@ class TestStore(unittest.TestCase):
         shutil.rmtree(self.root)
 
     def test_report_and_runs(self):
-        report_id = store.create_report(self.root, scripts=["a.rvt"])
-        first = store.create_run(self.root, report_id, "a.rvt", {"a.rvt": "(Wait 1)"})
-        second = store.create_run(self.root, report_id, "a.rvt", {"a.rvt": "(Wait 2)"})
+        report_id = store.create_report(self.root, scripts=["a.rst"])
+        first = store.create_run(self.root, report_id, "a.rst", {"a.rst": "(Wait 1)"})
+        second = store.create_run(self.root, report_id, "a.rst", {"a.rst": "(Wait 2)"})
 
-        self.assertEqual(store.load_report(self.root, report_id)["scripts"], ["a.rvt"])
+        self.assertEqual(store.load_report(self.root, report_id)["scripts"], ["a.rst"])
         self.assertEqual([r["id"] for r in store.list_runs(self.root, report_id)],
                          [first, second])
         self.assertEqual(store.read_closure(self.root, report_id, first),
-                         {"a.rvt": "(Wait 1)"})
+                         {"a.rst": "(Wait 1)"})
         self.assertTrue(store.run_dir(self.root, report_id, first).joinpath("files").is_dir())
 
     def test_events_and_outcome(self):
         report_id = store.create_report(self.root)
-        run_id = store.create_run(self.root, report_id, "a.rvt", {"a.rvt": ""})
+        run_id = store.create_run(self.root, report_id, "a.rst", {"a.rst": ""})
         store.append_events(self.root, report_id, run_id, [{"seq": 1}, {"seq": 2}])
         store.append_events(self.root, report_id, run_id, [{"seq": 3}])
         self.assertEqual([e["seq"] for e in store.read_events(self.root, report_id, run_id)],
@@ -102,8 +107,8 @@ class TestStore(unittest.TestCase):
 
     def test_closure_keeps_subdirectories(self):
         report_id = store.create_report(self.root)
-        closure = {"core.rvt": "", "BRA/tc.rvt": "(Wait 1)"}
-        run_id = store.create_run(self.root, report_id, "BRA/tc.rvt", closure)
+        closure = {"core.rst": "", "BRA/tc.rst": "(Wait 1)"}
+        run_id = store.create_run(self.root, report_id, "BRA/tc.rst", closure)
         self.assertEqual(store.read_closure(self.root, report_id, run_id), closure)
 
 
@@ -111,42 +116,42 @@ class TestClosure(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         write_tree(self.root, {
-            "core.rvt": ROOT_CORE,
-            "BRA/core.rvt": "(def limit 20)",
-            "BRA/SUB/tc.rvt": "(under-limit? 15)",
-            "FUE/core.rvt": "(defn fuel-ok? [] true)",
-            "FUE/tc.rvt": "(import FUE)",
-            "ENG/tc.rvt": '(import FUE) (import "BRA") (environments :bench)',
+            "core.rst": ROOT_CORE,
+            "BRA/core.rst": "(def limit 20)",
+            "BRA/SUB/tc.rst": "(under-limit? 15)",
+            "FUE/core.rst": "(defn fuel-ok? [] true)",
+            "FUE/tc.rst": "(import FUE)",
+            "ENG/tc.rst": '(import FUE) (import "BRA") (environments :bench)',
         })
 
     def tearDown(self):
         shutil.rmtree(self.root)
 
     def test_ancestor_chain_skips_missing_cores(self):
-        closure = resolve(self.root, "BRA/SUB/tc.rvt")
+        closure = resolve(self.root, "BRA/SUB/tc.rst")
         self.assertEqual(closure.load_order,
-                         ["core.rvt", "BRA/core.rvt", "BRA/SUB/tc.rvt"])
+                         ["core.rst", "BRA/core.rst", "BRA/SUB/tc.rst"])
         self.assertEqual(closure.errors, [])
 
     def test_imports_follow_chain_once(self):
-        closure = resolve(self.root, "ENG/tc.rvt")
+        closure = resolve(self.root, "ENG/tc.rst")
         self.assertEqual(closure.load_order,
-                         ["core.rvt", "FUE/core.rvt", "BRA/core.rvt", "ENG/tc.rvt"])
+                         ["core.rst", "FUE/core.rst", "BRA/core.rst", "ENG/tc.rst"])
         # Importing a folder already in the chain adds nothing
-        self.assertEqual(resolve(self.root, "FUE/tc.rvt").load_order,
-                         ["core.rvt", "FUE/core.rvt", "FUE/tc.rvt"])
+        self.assertEqual(resolve(self.root, "FUE/tc.rst").load_order,
+                         ["core.rst", "FUE/core.rst", "FUE/tc.rst"])
 
     def test_imports_add_to_the_implicit_chain(self):
         write_tree(self.root, {
-            "FUE/core.rvt": "(def fuel 1)",
-            "FUE/SUB/core.rvt": "(defn all-loaded? [] (= 12 (+ (+ limit fuel) 1)))",
-            "FUE/SUB/tc.rvt": "(import BRA) (all-loaded?)",
+            "FUE/core.rst": "(def fuel 1)",
+            "FUE/SUB/core.rst": "(defn all-loaded? [] (= 12 (+ (+ limit fuel) 1)))",
+            "FUE/SUB/tc.rst": "(import BRA) (all-loaded?)",
         })
-        closure = resolve(self.root, "FUE/SUB/tc.rvt")
-        self.assertEqual(closure.load_order, ["core.rvt", "FUE/core.rvt",
-                                              "FUE/SUB/core.rvt", "BRA/core.rvt",
-                                              "FUE/SUB/tc.rvt"])
-        self.assertEqual(closure.imports, ["BRA/core.rvt"])
+        closure = resolve(self.root, "FUE/SUB/tc.rst")
+        self.assertEqual(closure.load_order, ["core.rst", "FUE/core.rst",
+                                              "FUE/SUB/core.rst", "BRA/core.rst",
+                                              "FUE/SUB/tc.rst"])
+        self.assertEqual(closure.imports, ["BRA/core.rst"])
 
         # Definitions from the chain and the import are all visible, and
         # the chain's own limit (10) wins over the imported BRA's (20)
@@ -156,44 +161,44 @@ class TestClosure(unittest.TestCase):
 
     def test_imports_see_chain_values_but_never_override_them(self):
         write_tree(self.root, {
-            "LIB/core.rvt": "(def limit 99) (def lib-limit (+ limit 1))",
-            "APP/core.rvt": "(defn check? [] (= 11 lib-limit))",
-            "APP/tc.rvt": "(import LIB) (check?) (under-limit? 9)",
+            "LIB/core.rst": "(def limit 99) (def lib-limit (+ limit 1))",
+            "APP/core.rst": "(defn check? [] (= 11 lib-limit))",
+            "APP/tc.rst": "(import LIB) (check?) (under-limit? 9)",
         })
-        closure = resolve(self.root, "APP/tc.rvt")
+        closure = resolve(self.root, "APP/tc.rst")
         recorder = Recorder()
         outcome = execute_closure(closure.files, closure.load_order, recorder,
                                   closure.imports)
         self.assertEqual(outcome, "pass", recorder.events)
 
     def test_declarations_inherit_and_script_overrides(self):
-        self.assertEqual(resolve(self.root, "BRA/SUB/tc.rvt").environments, ["sim"])
-        closure = resolve(self.root, "ENG/tc.rvt")
+        self.assertEqual(resolve(self.root, "BRA/SUB/tc.rst").environments, ["sim"])
+        closure = resolve(self.root, "ENG/tc.rst")
         self.assertEqual(closure.environments, ["bench"])
         self.assertEqual(closure.uuts, ["demo"])
 
     def test_text_overrides_disk_and_changes_hash(self):
-        on_disk = resolve(self.root, "BRA/SUB/tc.rvt")
-        draft = resolve(self.root, "BRA/SUB/tc.rvt", text="(under-limit? 1)")
-        self.assertEqual(draft.files["BRA/SUB/tc.rvt"], "(under-limit? 1)")
+        on_disk = resolve(self.root, "BRA/SUB/tc.rst")
+        draft = resolve(self.root, "BRA/SUB/tc.rst", text=rvt("(under-limit? 1)"))
+        self.assertEqual(draft.files["BRA/SUB/tc.rst"], rvt("(under-limit? 1)"))
         self.assertNotEqual(on_disk.hash, draft.hash)
-        self.assertEqual(on_disk.hash, resolve(self.root, "BRA/SUB/tc.rvt").hash)
+        self.assertEqual(on_disk.hash, resolve(self.root, "BRA/SUB/tc.rst").hash)
 
     def test_lint(self):
         write_tree(self.root, {
-            "BAD/core.rvt": "(Wait 1)",
-            "BAD/tc.rvt": '(def x 1) (do (import FUE)) (import NOPE) (import ../..) '
+            "BAD/core.rst": "(Wait 1)",
+            "BAD/tc.rst": '(def x 1) (do (import FUE)) (import NOPE) (import ../..) '
                           '(Wait 1) (Precondition "late" (x))',
         })
-        errors = resolve(self.root, "BAD/tc.rvt").errors
-        self.assertTrue(any("core.rvt may only contain" in e for e in errors))
+        errors = resolve(self.root, "BAD/tc.rst").errors
+        self.assertTrue(any("core.rst may only contain" in e for e in errors))
         self.assertTrue(any("must come before the first step" in e for e in errors))
         self.assertTrue(any("only allowed at the top level" in e for e in errors))
         self.assertTrue(any("cannot import NOPE" in e for e in errors))
         self.assertTrue(any("outside the root" in e for e in errors))
 
     def test_core_is_not_a_script(self):
-        self.assertTrue(resolve(self.root, "BRA/core.rvt").errors)
+        self.assertTrue(resolve(self.root, "BRA/core.rst").errors)
 
 
 class TestExecutor(unittest.TestCase):
@@ -217,12 +222,12 @@ class TestExecutor(unittest.TestCase):
 
     def test_defn_steps_use_innermost_definitions(self):
         files = {
-            "core.rvt": ROOT_CORE,
-            "BRA/core.rvt": "(def limit 20)",
-            "BRA/tc.rvt": "(uut :demo) (under-limit? 15) (Wait 1) (under-limit? 25)",
+            "core.rst": ROOT_CORE,
+            "BRA/core.rst": rvt("(def limit 20)"),
+            "BRA/tc.rst": rvt("(uut :demo) (under-limit? 15) (Wait 1) (under-limit? 25)"),
         }
         recorder = Recorder()
-        outcome = execute_closure(files, ["core.rvt", "BRA/core.rvt", "BRA/tc.rvt"],
+        outcome = execute_closure(files, ["core.rst", "BRA/core.rst", "BRA/tc.rst"],
                                   recorder)
         self.assertEqual(outcome, "fail")
         ends = [kw for kind, kw in recorder.events if kind == "step_end"]
@@ -232,10 +237,10 @@ class TestExecutor(unittest.TestCase):
         self.assertEqual(ends[0]["stdout"], "returned true")
 
     def test_definitions_do_not_leak_between_runs(self):
-        execute_closure({"core.rvt": "(def leaked 1)", "a.rvt": ""},
-                        ["core.rvt", "a.rvt"], Recorder())
+        execute_closure({"core.rst": rvt("(def leaked 1)"), "a.rst": ""},
+                        ["core.rst", "a.rst"], Recorder())
         recorder = Recorder()
-        execute_closure({"b.rvt": "(leaked)"}, ["b.rvt"], recorder)
+        execute_closure({"b.rst": rvt("(leaked)")}, ["b.rst"], recorder)
         ends = [kw for kind, kw in recorder.events if kind == "step_end"]
         self.assertFalse(ends[0]["passed"])
 
@@ -255,12 +260,12 @@ class State:
 
 
 class TestPreconditions(unittest.TestCase):
-    CORE = "(defn on? [] (.is_on h)) (defn turn-on [] (.turn_on h))"
+    CORE = rvt("(defn on? [] (.is_on h)) (defn turn-on [] (.turn_on h))")
 
     def run_script(self, script, mode, state):
         recorder = Recorder()
-        outcome = execute_closure({"core.rvt": self.CORE, "s.rvt": script},
-                                  ["core.rvt", "s.rvt"], recorder,
+        outcome = execute_closure({"core.rst": self.CORE, "s.rst": rvt(script)},
+                                  ["core.rst", "s.rst"], recorder,
                                   bindings={"h": state}, mode=mode)
         return outcome, [kw for kind, kw in recorder.events if kind == "step_end"]
 
@@ -285,15 +290,15 @@ class TestPreconditions(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         try:
             write_tree(root, {
-                "late.rvt": '(Wait 1) (Precondition "on" (on?))',
-                "bad.rvt": '(Precondition (on?)) (Precondition "x" (on?) :cure (x))',
-                "ok.rvt": '(import FUE) (Precondition "on" (on?) :heal (x)) (Wait 1)',
-                "FUE/core.rvt": "",
+                "late.rst": '(Wait 1) (Precondition "on" (on?))',
+                "bad.rst": '(Precondition (on?)) (Precondition "x" (on?) :cure (x))',
+                "ok.rst": '(import FUE) (Precondition "on" (on?) :heal (x)) (Wait 1)',
+                "FUE/core.rst": "",
             })
             self.assertIn("must come before the first step",
-                          resolve(root, "late.rvt").errors[0])
-            self.assertEqual(len(resolve(root, "bad.rvt").errors), 2)
-            self.assertEqual(resolve(root, "ok.rvt").errors, [])
+                          resolve(root, "late.rst").errors[0])
+            self.assertEqual(len(resolve(root, "bad.rst").errors), 2)
+            self.assertEqual(resolve(root, "ok.rst").errors, [])
         finally:
             shutil.rmtree(root)
 
@@ -324,7 +329,7 @@ class QueueTestCase(unittest.TestCase):
         self.root = self.tmp / "reports"
         self.root.mkdir()
         self.rvts = self.tmp / "rvts"
-        write_tree(self.rvts, {"a.rvt": PASSING, "b.rvt": PASSING})
+        write_tree(self.rvts, {"a.rst": PASSING, "b.rst": PASSING})
         self.db_file = self.tmp / "test.db"
         self.conn = connect(self.db_file)
         init_db(self.conn)
@@ -333,7 +338,7 @@ class QueueTestCase(unittest.TestCase):
         self.conn.close()
         shutil.rmtree(self.tmp)
 
-    def queue(self, script="a.rvt", **kw):
+    def queue(self, script="a.rst", **kw):
         return models.queue_script(self.conn, self.root, self.rvts, script, **kw)
 
 
@@ -361,22 +366,22 @@ class TestJobModels(QueueTestCase):
         self.assertEqual(run["worker"], "http://w1")
 
     def test_run_records_closure(self):
-        write_tree(self.rvts, {"core.rvt": "(def x 1)"})
+        write_tree(self.rvts, {"core.rst": "(def x 1)"})
         report_id, run_id = self.queue()
         run = store.load_run(self.root, report_id, run_id)
-        self.assertEqual(run["load_order"], ["core.rvt", "a.rvt"])
-        self.assertEqual(run["closure_hash"], resolve(self.rvts, "a.rvt").hash)
+        self.assertEqual(run["load_order"], ["core.rst", "a.rst"])
+        self.assertEqual(run["closure_hash"], resolve(self.rvts, "a.rst").hash)
         self.assertEqual(store.read_closure(self.root, report_id, run_id),
-                         {"core.rvt": "(def x 1)", "a.rvt": PASSING})
+                         {"core.rst": rvt("(def x 1)"), "a.rst": PASSING})
 
     def test_lint_errors_refuse_queueing(self):
-        write_tree(self.rvts, {"bad.rvt": "(Wait 1) (Precondition \"late\" (Wait 2))"})
+        write_tree(self.rvts, {"bad.rst": "(Wait 1) (Precondition \"late\" (Wait 2))"})
         with self.assertRaises(models.QueueError):
-            self.queue("bad.rvt")
+            self.queue("bad.rst")
         self.assertEqual(models.find_jobs(self.conn), [])
 
     def test_choose_environment_and_versions(self):
-        write_tree(self.rvts, {"core.rvt": ROOT_CORE})
+        write_tree(self.rvts, {"core.rst": ROOT_CORE})
         report_id, run_id = self.queue()
         job = models.get_job(self.conn, run_id)
         self.assertEqual(job.environment, "sim")
@@ -390,10 +395,10 @@ class TestJobModels(QueueTestCase):
                 self.queue(**bad)
 
     def test_jobs_for_worker_match_environment_and_uuts(self):
-        write_tree(self.rvts, {"core.rvt": ROOT_CORE, "plain/core.rvt": ""})
-        write_tree(self.rvts, {"plain/x.rvt": "(environments) (uut) (Wait 1)"})
+        write_tree(self.rvts, {"core.rst": ROOT_CORE, "plain/core.rst": ""})
+        write_tree(self.rvts, {"plain/x.rst": "(environments) (uut) (Wait 1)"})
         _, sim_job = self.queue()
-        _, plain_job = self.queue("plain/x.rvt")
+        _, plain_job = self.queue("plain/x.rst")
 
         models.save_worker(self.conn, "http://bare", "available", [], {})
         models.save_worker(self.conn, "http://sim", "available", ["demo"],
@@ -409,7 +414,7 @@ class TestJobModels(QueueTestCase):
         models.save_worker(self.conn, "http://alive", "busy")
         models.save_worker(self.conn, "http://gone", "busy")
         _, alive_job = self.queue()
-        report_id, gone_job = self.queue("b.rvt")
+        report_id, gone_job = self.queue("b.rst")
         models.claim(self.conn, alive_job, "http://alive")
         models.claim(self.conn, gone_job, "http://gone")
 
@@ -468,17 +473,17 @@ class TestWorkerAgainstServer(unittest.TestCase):
         # A git workspace whose rvts hold a sim/demo tree and a plain one
         gitdir = self.gitdir = self.tmp / "repo"
         write_tree(gitdir / "rvts", {
-            "core.rvt": ROOT_CORE,
-            "BRA/tc.rvt": '"Pressure :req:`R2`" (under-limit? 5) (Wait 1)',
-            "BRA/modes.rvt": '"Modes :req:`R1` :req:`R2`" '
-                             '(variations "mode level" ["low" [:low 1] "high" [:high 50]]) '
-                             "(under-limit? level)",
-            "plain/core.rvt": "(environments) (uut)",
-            "plain/fail.rvt": FAILING,
-            "plain/pass.rvt": PASSING,
-            "plain/lint.rvt": "(Wait 1) (Precondition \"late\" (Wait 2))",
-            "LIB/core.rvt": "(def limit 99)",
-            "BRA/imports.rvt": "(import LIB) (under-limit? 50)",
+            "core.rst": ROOT_CORE,
+            "BRA/tc.rst": doc("Pressure :req:`R2`", rvt("(under-limit? 5) (Wait 1)")),
+            "BRA/modes.rst": doc("Modes :req:`R1` :req:`R2`", rvt(
+                '(variations "mode level" ["low" [:low 1] "high" [:high 50]]) '
+                "(under-limit? level)")),
+            "plain/core.rst": "(environments) (uut)",
+            "plain/fail.rst": FAILING,
+            "plain/pass.rst": PASSING,
+            "plain/lint.rst": "(Wait 1) (Precondition \"late\" (Wait 2))",
+            "LIB/core.rst": "(def limit 99)",
+            "BRA/imports.rst": "(import LIB) (under-limit? 50)",
         })
         gitutil.create_repo(gitdir)
         self.branch = next(iter(find_worktrees(gitdir)))
@@ -506,7 +511,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         return response.get_json()
 
     def test_worker_runs_queued_script(self):
-        ids = self.queue("plain/fail.rvt")
+        ids = self.queue("plain/fail.rst")
         self.assertEqual(self.worker.work_once(), "fail")
         self.assertIsNone(self.worker.work_once())
 
@@ -526,7 +531,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertIn(b">not run<", page.data)
 
     def test_installs_uut_once_and_records_it(self):
-        ids = self.queue("BRA/tc.rvt", uut_versions={"demo": "1.0.0"})
+        ids = self.queue("BRA/tc.rst", uut_versions={"demo": "1.0.0"})
         self.assertEqual(self.worker.work_once(), "pass")
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["environment"], "sim")
@@ -541,22 +546,22 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(latest["installed"]["demo"]["action"], "kept")
         self.assertEqual(latest["uut_versions"], run["uut_versions"])
 
-        self.queue("BRA/tc.rvt", uut_versions={"demo": "1.1.0"})
+        self.queue("BRA/tc.rst", uut_versions={"demo": "1.1.0"})
         self.worker.work_once()
         self.assertEqual(Demo().installed_version(Sim(workdir=self.simdir)).id, "1.1.0")
 
     def test_worker_keeps_chain_definitions_over_imports(self):
-        ids = self.queue("BRA/imports.rvt")
+        ids = self.queue("BRA/imports.rst")
         # LIB's limit (99) would let 50 pass; the chain's 10 must win
         self.assertEqual(self.worker.work_once(), "fail")
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
-        self.assertEqual(run["imports"], ["LIB/core.rvt"])
+        self.assertEqual(run["imports"], ["LIB/core.rst"])
 
     def test_warm_job_runs_before_older_cold_one(self):
         write_tree(self.gitdir / "rvts", {
-            "BRA/core.rvt": "(defn mode? [m] (= (.mode demo) m))",
-            "BRA/cold.rvt": '(Precondition "x" (mode? :x)) (Wait 1)',
-            "BRA/warm.rvt": '(Precondition "normal" (mode? :normal)) (Wait 1)',
+            "BRA/core.rst": "(defn mode? [m] (= (.mode demo) m))",
+            "BRA/cold.rst": '(Precondition "x" (mode? :x)) (Wait 1)',
+            "BRA/warm.rst": '(Precondition "normal" (mode? :normal)) (Wait 1)',
         })
         # Demo 1.1.0 installed and running in :normal
         env = self.worker.host.environments["sim"]
@@ -564,8 +569,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
         demo.install(demo.list_versions()[-1], env)
         demo.handle(None, env).start(edn.Keyword("normal"))
 
-        cold = self.queue("BRA/cold.rvt")
-        warm = self.queue("BRA/warm.rvt")
+        cold = self.queue("BRA/cold.rst")
+        warm = self.queue("BRA/warm.rst")
         self.assertEqual(self.worker.work_once(), "pass")
         warm_run = store.load_run(self.root, warm["report_id"], warm["run_id"])
         self.assertEqual(warm_run["mode"], "precondition")
@@ -582,7 +587,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual((cold_run["outcome"], cold_run["mode"]), ("blocked", "force"))
 
     def test_probe_releases_when_uut_version_not_installed(self):
-        ids = self.queue("BRA/tc.rvt")
+        ids = self.queue("BRA/tc.rst")
         job = self.client.claim(ids["run_id"])
         self.assertEqual(self.worker.run_job(job, "probe"), "released")
         self.assertEqual(models.find_jobs(connect(self.tmp / "test.db"), "pending")[0].id,
@@ -592,32 +597,32 @@ class TestWorkerAgainstServer(unittest.TestCase):
         bare = Worker(ServerClient("http://server", "http://bare",
                                    session=self.client.session), Host())
         bare.check_in(started=True)
-        self.queue("BRA/tc.rvt")
+        self.queue("BRA/tc.rst")
         self.assertIsNone(bare.work_once())
         self.assertEqual(self.worker.work_once(), "pass")
 
     def test_queue_rejects_lint_errors(self):
         response = self.http.post("/runner/jobs", json={
-            "workspace": self.branch, "script": "plain/lint.rvt"})
+            "workspace": self.branch, "script": "plain/lint.rst"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("must come before the first step", response.get_json()["errors"][0])
 
     def test_only_holder_can_report(self):
-        ids = self.queue("plain/pass.rvt")
+        ids = self.queue("plain/pass.rst")
         self.assertIsNotNone(self.client.claim(ids["run_id"]))
         response = self.http.post(f"/runner/jobs/{ids['run_id']}/complete",
                                   json={"worker_url": "http://w2", "outcome": "pass"})
         self.assertEqual(response.status_code, 409)
 
     def test_restarted_worker_errors_its_jobs(self):
-        ids = self.queue("plain/pass.rvt")
+        ids = self.queue("plain/pass.rst")
         self.client.claim(ids["run_id"])
         self.worker.check_in(started=True)
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["outcome"], "error")
 
     def test_rerun_adds_run_to_same_report(self):
-        ids = self.queue("plain/pass.rvt")
+        ids = self.queue("plain/pass.rst")
         self.worker.work_once()
         response = self.http.post(f"/reports/{ids['report_id']}/runs/{ids['run_id']}/rerun")
         self.assertEqual(response.status_code, 302)
@@ -626,27 +631,27 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(len(runs), 2)
         self.assertEqual(runs[1]["closure_hash"], runs[0]["closure_hash"])
         self.assertEqual(store.read_closure(self.root, ids["report_id"], runs[1]["id"]),
-                         {"plain/core.rvt": "(environments) (uut)",
-                          "core.rvt": ROOT_CORE,
-                          "plain/pass.rvt": PASSING})
+                         {"plain/core.rst": rvt("(environments) (uut)"),
+                          "core.rst": ROOT_CORE,
+                          "plain/pass.rst": PASSING})
 
         report_page = self.http.get(f"/reports/{ids['report_id']}")
         self.assertEqual(report_page.status_code, 200)
         self.assertIn(b"pending", report_page.data)
 
     def test_queue_and_reports_pages(self):
-        self.queue("plain/pass.rvt")
+        self.queue("plain/pass.rst")
         self.assertEqual(self.http.get("/runner/").status_code, 200)
         self.assertEqual(self.http.get("/reports/").status_code, 200)
 
     def test_viewer_links_to_queue_dialog(self):
-        page = self.http.get(f"/workspace/{self.branch}/view?path=BRA/modes.rvt")
+        page = self.http.get(f"/workspace/{self.branch}/view?path=BRA/modes.rst")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"under-limit?", page.data)
         self.assertIn(b"/runner/new?workspace=", page.data)
         self.assertIn(b"2 variations", page.data)
 
-        page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rvt")
+        page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rst")
         self.assertIn(b"must come before the first step", page.data)
         self.assertNotIn(b"/runner/new", page.data)
 
@@ -657,18 +662,18 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def test_dialog_defaults_to_everything_runnable(self):
         page = self.dialog(requirement="R1")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"BRA/modes.rvt", page.data)
+        self.assertIn(b"BRA/modes.rst", page.data)
         self.assertIn(b"mode=:low", page.data)
         self.assertIn(b"Queue 2 runs", page.data)
 
     def test_dialog_filter_and_ticks_narrow_the_runs(self):
         base = {"requirement": "R1", "configured": "1", "environment": "sim",
-                "variation": ["BRA/modes.rvt::low", "BRA/modes.rvt::high"]}
+                "variation": ["BRA/modes.rst::low", "BRA/modes.rst::high"]}
         one_run = r"Queue 1 run\s*<"
         self.assertRegex(self.dialog(**base, filter="(= mode :high)").get_data(True),
                          one_run)
         self.assertRegex(self.dialog(**{**base, "variation": [
-            "BRA/modes.rvt::low"]}).get_data(True), one_run)
+            "BRA/modes.rst::low"]}).get_data(True), one_run)
         page = self.dialog(**base, filter="(= mood :high)")
         self.assertIn(b"unknown symbol mood", page.data)
 
@@ -686,7 +691,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def test_queue_by_requirement_runs_variations_and_rolls_up(self):
         report_id = self.queue_requirements(
             requirement=["R1", "R2"],
-            variation=["BRA/modes.rvt::low", "BRA/modes.rvt::high"])
+            variation=["BRA/modes.rst::low", "BRA/modes.rst::high"])
         outcomes = [self.worker.work_once() for _ in range(3)]
         self.assertEqual(sorted(outcomes), ["fail", "pass", "pass"])
 
@@ -695,7 +700,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(by_variation["high"]["variation"]["values"],
                          {"mode": ":high", "level": "50"})
         self.assertEqual(by_variation["high"]["outcome"], "fail")
-        self.assertEqual(by_variation[None]["script"], "BRA/tc.rvt")
+        self.assertEqual(by_variation[None]["script"], "BRA/tc.rst")
 
         report = store.load_report(self.root, report_id)
         rows = rollup.combinations(report, runs, lambda run: "pending")
@@ -708,7 +713,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def test_unqueued_variations_leave_requirement_partial(self):
         report_id = self.queue_requirements(
-            requirement="R1", variation="BRA/modes.rvt::low")
+            requirement="R1", variation="BRA/modes.rst::low")
         self.assertEqual(self.worker.work_once(), "pass")
         self.assertIsNone(self.worker.work_once())
 
@@ -736,7 +741,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def test_requirements_page_lists_linked_scripts(self):
         page = self.http.get(f"/requirements/?workspace={self.branch}")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"Tested by BRA/modes.rvt", page.data)
+        self.assertIn(b"Tested by BRA/modes.rst", page.data)
         self.assertIn(b'value="R2"', page.data)
 
 
@@ -744,17 +749,17 @@ class TestPlanning(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         write_tree(self.root, {
-            "core.rvt": "(environments :sim :bench) (uut :demo) (def base 5)",
-            "a.rvt": '(variations "mode n" ["x" [:x base] "y" [:y 2]]) (Wait 1)',
-            "b.rvt": "(environments :bench) (Wait 1)",
-            "c.rvt": '(variations [other] ["only" [1]]) (Wait 1)',
+            "core.rst": "(environments :sim :bench) (uut :demo) (def base 5)",
+            "a.rst": '(variations "mode n" ["x" [:x base] "y" [:y 2]]) (Wait 1)',
+            "b.rst": "(environments :bench) (Wait 1)",
+            "c.rst": '(variations [other] ["only" [1]]) (Wait 1)',
         })
 
     def tearDown(self):
         shutil.rmtree(self.root)
 
     def runs(self, **kw):
-        plan = build_plan("w", self.root, ["a.rvt", "b.rvt", "c.rvt"], **kw)
+        plan = build_plan("w", self.root, ["a.rst", "b.rst", "c.rst"], **kw)
         return plan, [(s.script, e, v) for s, e, v in plan.runs()]
 
     def test_fan_out(self):
@@ -765,15 +770,15 @@ class TestPlanning(unittest.TestCase):
 
     def test_environment_intersection(self):
         plan, runs = self.runs(environments=["sim"])
-        self.assertNotIn("b.rvt", [r[0] for r in runs])
+        self.assertNotIn("b.rst", [r[0] for r in runs])
         self.assertIn("supports none", plan.scripts[1].skipped)
         self.assertEqual(plan.scripts[1].expected(), [(None, None)])
 
     def test_filter_excludes_variations_missing_symbols(self):
         plan, runs = self.runs(environments=["sim"], filter_source="(= mode :y)")
-        self.assertEqual(runs, [("a.rvt", "sim", "y")])
+        self.assertEqual(runs, [("a.rst", "sim", "y")])
         self.assertEqual(plan.errors, [])
-        # c.rvt's variation lacks `mode`, so it is left out but still expected
+        # c.rst's variation lacks `mode`, so it is left out but still expected
         self.assertEqual(plan.scripts[2].expected(), [("sim", "only")])
 
     def test_unknown_filter_symbol_is_an_error(self):

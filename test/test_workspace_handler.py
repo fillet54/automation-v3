@@ -30,20 +30,20 @@ class TestWorkspaceHandler(unittest.TestCase):
         response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'BRA', response.data)
-        self.assertNotIn(b'tc_bra_00001.rvt', response.data)
+        self.assertNotIn(b'tc_bra_00001.rst', response.data)
 
         # Toggle open
         response = self.client.post(url_for('workspace.expand',
                                             id='master',
                                             path='BRA'))
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'tc_bra_00001.rvt', response.data)
+        self.assertIn(b'tc_bra_00001.rst', response.data)
 
         # Stays open
         response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'BRA', response.data)
-        self.assertIn(b'tc_bra_00001.rvt', response.data)
+        self.assertIn(b'tc_bra_00001.rst', response.data)
     
 
 

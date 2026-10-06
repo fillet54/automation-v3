@@ -1,0 +1,60 @@
+Shared definitions
+==================
+Every script runs in the simulator against the demo UUT unless a deeper
+core.rst or the script says otherwise. The demo UUT is reached through
+the ``demo`` handle bound for each run.
+
+.. rvt::
+
+   (environments :sim)
+   (uut :demo)
+
+   (def max-pressure 100)
+
+   (defn within-limit? [pressure]
+     (<= pressure max-pressure))
+
+Reaching the demo UUT
+---------------------
+
+.. rvt::
+
+   (defn demo-in-mode? [m]
+     (and (.running demo) (= (.mode demo) m)))
+
+   (defn start-demo [m]
+     (.start demo m))
+
+   (defn reading [name]
+     (.get demo name))
+
+   (defn set-reading [name value]
+     (.set demo name value))
+
+   (defn reading-is? [name value]
+     (= (.get demo name) value))
+
+   (defn demo-version-at-least? [version]
+     (>= (.version demo) version))
+
+   (defn raise-fault [name]
+     (.fault demo name))
+
+   (defn fault-active? [name]
+     (.has_fault demo name))
+
+   (defn clear-faults []
+     (.clear_faults demo))
+
+   (defn no-faults? []
+     (= 0 (count (.faults demo))))
+
+Precondition helpers
+--------------------
+Scripts with variations bind ``mode`` by convention; this checks the
+demo UUT is in that mode. Heal with the StartDemo block.
+
+.. rvt::
+
+   (defn in-variation-mode? []
+     (demo-in-mode? mode))

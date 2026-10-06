@@ -1,8 +1,8 @@
 """Rendering scripts through reStructuredText
 
-Every statement becomes rst (documentation as written, steps through
-their BuildingBlock), the whole script is rendered to HTML in one pass,
-and the HTML is split back into one part per statement. Scripts may
+Every statement becomes rst (prose as written, forms through their
+BuildingBlock), the whole script is rendered to HTML in one pass, and
+the HTML is split back into one part per statement. Scripts may
 reference requirements with the :req:`ID` role.
 """
 
@@ -71,22 +71,6 @@ class EndStatement(Directive):
 
 
 directives.register_directive("endstatement", EndStatement)
-
-
-class RvtDirective(Directive):
-    """`.. rvt::` marks how the script uses the forms that follow, e.g.
-    `:definitions:`. It renders nothing; pages group the forms instead."""
-
-    required_arguments = 0
-    optional_arguments = 0
-    has_content = False
-    option_spec = {"definitions": directives.flag}
-
-    def run(self):
-        return []
-
-
-directives.register_directive("rvt", RvtDirective)
 
 
 class TestcaseHTMLTranslator(HTMLTranslator):

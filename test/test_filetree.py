@@ -29,7 +29,7 @@ class TestFileNode(unittest.TestCase):
         self.assertFalse(node.is_file())
 
     def test_is_file(self):
-        node = FileNode(self.root_path / 'BRA' / 'tc_bra_00001.rvt', self.root)
+        node = FileNode(self.root_path / 'BRA' / 'tc_bra_00001.rst', self.root)
         self.assertTrue(node.is_file())
         self.assertFalse(node.is_dir())
 

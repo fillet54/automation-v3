@@ -40,7 +40,7 @@ class TestRunLocally(unittest.TestCase):
         }
 
     def test_every_variation_by_default(self):
-        report_id, _ = run_locally(RVTS, ["BRA/tc_bra_00004.rvt"], self.tmp / "reports",
+        report_id, _ = run_locally(RVTS, ["BRA/tc_bra_00004.rst"], self.tmp / "reports",
                                    Host.from_config(self.config))
         self.assertEqual(self.outcomes(report_id), {
             ("normal", "sim"): "pass",
@@ -50,9 +50,9 @@ class TestRunLocally(unittest.TestCase):
 
     def test_one_variation_in_every_hosted_environment(self):
         report_id, _ = run_locally(
-            RVTS, ["BRA/tc_bra_00005.rvt", "BRA/tc_bra_00004.rvt"], self.tmp / "reports",
+            RVTS, ["BRA/tc_bra_00005.rst", "BRA/tc_bra_00004.rst"], self.tmp / "reports",
             Host.from_config(self.config),
-            variations={"BRA/tc_bra_00004.rvt::limp-home"})
+            variations={"BRA/tc_bra_00004.rst::limp-home"})
         self.assertEqual(self.outcomes(report_id), {
             (None, "sim"): "pass",
             (None, "bench"): "pass",
@@ -69,15 +69,15 @@ class TestRunLocally(unittest.TestCase):
         return exit.exception.code, out.getvalue()
 
     def test_cli_exit_status(self):
-        code, out = self.cli("BRA/tc_bra_00001.rvt")
+        code, out = self.cli("BRA/tc_bra_00001.rst")
         self.assertEqual(code, 0, out)
-        self.assertIn("pass     BRA/tc_bra_00001.rvt (sim)", out)
+        self.assertIn("pass     BRA/tc_bra_00001.rst (sim)", out)
 
-        code, out = self.cli("BRA/tc_bra_00003.rvt", "--uut", "demo=1.0.0")
+        code, out = self.cli("BRA/tc_bra_00003.rst", "--uut", "demo=1.0.0")
         self.assertEqual(code, 1)
-        self.assertIn("fail     BRA/tc_bra_00003.rvt", out)
+        self.assertIn("fail     BRA/tc_bra_00003.rst", out)
 
-        code, out = self.cli("BRA/tc_bra_00007.rvt")
+        code, out = self.cli("BRA/tc_bra_00007.rst")
         self.assertEqual(code, 2)
         self.assertIn("must come before the first step", out)
 

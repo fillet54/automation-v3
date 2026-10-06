@@ -1,13 +1,14 @@
-"""Executes edn test scripts, reporting progress to an observer
+"""Executes scripts, reporting progress to an observer
 
-Each top-level form is a statement. Plain strings are documentation and
-are reported as comments; directives (import, uut, environments,
-variations) are skipped; every other list is a step. Statement indexes
+A script is an rst document (see document.py). Its statements are its
+parts: prose chunks are reported as comments as the run reaches them,
+and each form of its rvt blocks is a statement. Directives (import, uut,
+environments, variations) are skipped; every other form is a step. Statement indexes
 match `statements.get_statements`, so a report can line results up with
 the rendered script.
 
 Definitions (def, defn, defblock) are not steps. A script's definitions
-section is loaded before anything runs, along with its core.rvt files;
+section is loaded before anything runs, along with its core.rst files;
 a definition elsewhere runs where it is, without being reported unless
 it fails.
 
@@ -29,13 +30,12 @@ isn't ready for it. In any other mode the outcome is "blocked".
 import time
 import traceback
 
-from . import context, edn, lisp
+from . import context, document, edn, lisp
 from .block import BlockResult
 from .closure import (
     DEFINITIONS,
     DIRECTIVES,
     PRECONDITION,
-    definitions_section,
     head,
     is_definition,
     parse_precondition,
@@ -70,20 +70,20 @@ def run_precondition(form, env, runtime):
 
 
 def load_definitions(env, text, keep=frozenset()):
-    """Evaluate the definitions (def, defn, defblock) of a core.rvt into `env`.
+    """Evaluate the definitions (def, defn, defblock) of a core.rst into `env`.
 
     Names in `keep` are already defined and are not overridden.
     """
-    for form in edn.read_all(text):
+    for form in document.forms(text):
         if head(form) in DEFINITIONS and form[1] not in keep:
             lisp.eval(form, env)
 
 
-def load_script_definitions(env, forms):
+def load_script_definitions(env, parts):
     """Evaluate the script's definitions section into `env`"""
-    for index in definitions_section(forms):
-        if is_definition(forms[index]):
-            lisp.eval(forms[index], env)
+    for index in document.definitions_section(parts):
+        if is_definition(parts[index].form):
+            lisp.eval(parts[index].form, env)
 
 
 def execute_script(text, observer, script=None, env=None, mode="normal"):
@@ -97,9 +97,10 @@ def execute_script(text, observer, script=None, env=None, mode="normal"):
 
 
 def _execute(text, observer, script, env, mode):
-    forms = list(edn.read_all(text))
+    parts = document.parse(text)
+    forms = [part.form for part in parts]
     observer.on_procedure_begin(script=script, statements=len(forms), mode=mode)
-    section = set(definitions_section(forms))
+    section = set(document.definitions_section(parts))
 
     outcome = "pass"
     for index, form in enumerate(forms):
@@ -158,11 +159,11 @@ def define(form, env):
 
 
 def build_env(files, load_order, imports=()):
-    """An env holding the definitions of every core.rvt in the closure,
+    """An env holding the definitions of every core.rst in the closure,
     then the script's definitions section.
 
     Files in `imports` only add definitions: they never override a name
-    defined by the script's own core.rvt chain. Only definition forms
+    defined by the script's own core.rst chain. Only definition forms
     are evaluated, so building it never runs a step.
     """
     env = new_env()
@@ -173,7 +174,7 @@ def build_env(files, load_order, imports=()):
         else:
             load_definitions(env, files[path])
             chain_names = set(env)
-    load_script_definitions(env, list(edn.read_all(files[load_order[-1]])))
+    load_script_definitions(env, document.parse(files[load_order[-1]]))
     return env
 
 
@@ -186,7 +187,7 @@ def variation_values(env, variation):
 
 
 def find_variation(text, name):
-    for form in edn.read_all(text):
+    for form in document.forms(text):
         if head(form) == "variations":
             errors = []
             for variation in parse_variations("", form, errors):
@@ -197,7 +198,7 @@ def find_variation(text, name):
 
 def execute_closure(files, load_order, observer, imports=(), variation=None,
                     bindings=None, mode="normal"):
-    """Load the core.rvt files in order, then run the script (last).
+    """Load the core.rst files in order, then run the script (last).
 
     With `variation` (a name), that variation's symbols are bound before
     the script runs. `bindings` (name -> value) are bound too, e.g. the

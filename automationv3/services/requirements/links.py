@@ -7,17 +7,21 @@ only scripts whose modification time changed.
 
 from pathlib import Path
 
-from ...framework.closure import CORE, requirement_refs
+from ...framework.closure import is_script, requirement_refs
 
 
 def scripts(root):
-    """Every script under `root`, as paths relative to it"""
+    """Every script under `root` (an .rst with rvt blocks, not a
+    core.rst), as paths relative to it"""
     root = Path(root)
-    return sorted(
-        str(p.relative_to(root).as_posix())
-        for p in root.rglob("*.rvt")
-        if p.name != CORE and p.is_file()
-    )
+    found = []
+    for p in root.rglob("*.rst"):
+        try:
+            if p.is_file() and is_script(p.name, p.read_text()):
+                found.append(str(p.relative_to(root).as_posix()))
+        except (OSError, UnicodeDecodeError):
+            continue
+    return sorted(found)
 
 
 def refresh(conn, workspace, root):

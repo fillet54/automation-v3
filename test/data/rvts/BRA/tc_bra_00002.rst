@@ -1,4 +1,3 @@
-"
 =========================
 Brake Pressure Over Limit
 =========================
@@ -13,15 +12,16 @@ Applies 95 against the brake limit of 80.
 Requirements
 ------------
 1. :req:`VMCBRA00007`
-"
 
-(Precondition "Demo running in normal mode"
-  (demo-in-mode? :normal)
-  :heal (start-demo :normal))
+.. rvt::
 
-"
+   (Precondition "Demo running in normal mode"
+     (demo-in-mode? :normal)
+     :heal (start-demo :normal))
+
 Steps
 -----
-"
 
-(brakes-hold 95)
+.. rvt::
+
+   (brakes-hold 95)

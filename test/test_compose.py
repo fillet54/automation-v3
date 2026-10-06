@@ -9,6 +9,8 @@ from automationv3.framework.closure import resolve
 from automationv3.framework.executor import execute_closure
 from automationv3.framework.statements import get_statements
 
+from .rvt import rvt
+
 CORE = """
 (def limit 80)
 
@@ -44,8 +46,8 @@ class Recorder:
 
 def run(script, core=CORE):
     recorder = Recorder()
-    outcome = execute_closure({"core.rvt": core, "s.rvt": script},
-                              ["core.rvt", "s.rvt"], recorder)
+    files = {"core.rst": rvt(core) if core else "", "s.rst": rvt(script)}
+    outcome = execute_closure(files, ["core.rst", "s.rst"], recorder)
     return outcome, recorder
 
 
@@ -131,7 +133,7 @@ class TestVerify(unittest.TestCase):
             self.assertEqual(run(script)[0], outcome, script)
 
     def test_renders_as_written(self):
-        (statement,) = get_statements("(Verify (reading :x) <= max-pressure)")
+        (statement,) = get_statements(rvt("(Verify (reading :x) <= max-pressure)"))
         self.assertIn("<strong>Verify</strong>", statement.html)
         self.assertIn("(reading :x) &lt;= max-pressure", statement.html)
 
@@ -140,8 +142,8 @@ class TestDefinitions(unittest.TestCase):
     def test_scripts_may_define_too(self):
         root = Path(tempfile.mkdtemp())
         try:
-            (root / "s.rvt").write_text("(defblock ok [] true) (ok)")
-            self.assertEqual(resolve(root, "s.rvt").errors, [])
+            (root / "s.rst").write_text(rvt("(defblock ok [] true) (ok)"))
+            self.assertEqual(resolve(root, "s.rst").errors, [])
         finally:
             shutil.rmtree(root)
         self.assertEqual(run("(defblock ok [] (Verify 1 = 1)) (ok)", core="")[0], "pass")

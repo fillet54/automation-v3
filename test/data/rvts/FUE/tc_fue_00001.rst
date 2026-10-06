@@ -1,0 +1,23 @@
+=====================
+Fuel Level Monitoring
+=====================
+Reads the fuel level and checks it fits the tank.
+
+Requirements
+------------
+1. :req:`VMCFUE00001`
+2. :req:`VMCFUE00005`
+
+.. rvt::
+
+   (Precondition "Demo running in normal mode"
+     (demo-in-mode? :normal)
+     :heal (start-demo :normal))
+
+Steps
+-----
+
+.. rvt::
+
+   (set-reading :fuel-level 40)
+   (fuel-level-ok? (reading :fuel-level))

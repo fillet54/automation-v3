@@ -1,4 +1,3 @@
-"
 ==========================
 Blocked Without Hydraulics
 ==========================
@@ -13,14 +12,15 @@ does.
 Requirements
 ------------
 1. :req:`VMCBRA00005`
-"
 
-(Precondition "Hydraulics pressurised"
-  (reading-is? :hydraulics :on))
+.. rvt::
 
-"
+   (Precondition "Hydraulics pressurised"
+     (reading-is? :hydraulics :on))
+
 Steps
 -----
-"
 
-(brake-pressure-ok? 10)
+.. rvt::
+
+   (brake-pressure-ok? 10)

@@ -1,7 +1,7 @@
 """What a running step can reach
 
 While a script runs, BuildingBlocks can look up the run's bindings (e.g.
-a UUT handle by name, a variation symbol, a core.rvt definition). Block
+a UUT handle by name, a variation symbol, a core.rst definition). Block
 arguments are evaluated with `evaluate` before reaching `execute`.
 """
 

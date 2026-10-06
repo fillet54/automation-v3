@@ -7,7 +7,8 @@ import re
 
 from flask import Blueprint, current_app, render_template, request, abort
 
-from ..framework.closure import CORE, resolve
+from ..framework.closure import is_script, resolve
+from ..framework.document import has_rvt
 from ..framework.rst import write_html_parts
 from ..framework.statements import get_statements
 from ..services.workspace import FileNode, find_worktrees, is_binary
@@ -125,17 +126,17 @@ def render_file(path):
     if is_binary(path):
         return None
     text = path.read_text()
-    if path.suffix == ".rvt":
+    if path.suffix != ".rst":
+        return None
+    if has_rvt(text):  # a script or core.rst: statements, with results' layout
         return group([statement_item(s) for s in get_statements(text)])
-    if path.suffix == ".rst":
-        return [("statement", {"html": html}) for html in write_html_parts([text])]
-    return None
+    return [("statement", {"html": html}) for html in write_html_parts([text])]
 
 
 def render_view(ws, node, errors=None):
     relpath = str(node.relative_path)
     closure = None
-    if node.path.suffix == ".rvt" and node.path.name != CORE:
+    if not is_binary(node.path) and is_script(relpath, node.path.read_text()):
         closure = resolve(ws.root, relpath)
     text = None
     try:

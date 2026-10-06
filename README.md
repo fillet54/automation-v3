@@ -51,8 +51,8 @@ same worker config. It prints each step, writes a normal report folder and
 exits non-zero unless every run passed:
 
 ```
-automation-v3 run BRA/tc_bra_00004.rvt --root test/data/rvts --config test/data/worker.json
-automation-v3 run BRA/tc_bra_00004.rvt --root test/data/rvts --config test/data/worker.json --variation limp-home --uut demo=1.0.0
+automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/worker.json
+automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/worker.json --variation limp-home --uut demo=1.0.0
 ```
 
 ## Code organization
@@ -74,9 +74,39 @@ or `LocalServer` (`services/worker/local.py`), which `run` uses in-process.
 
 ## Scripts
 
-Scripts are authored in git; the workspace is a read-only viewer. Each
-folder (including the root) may hold a `core.rvt` of shared definitions
-(`def`, `defn`, `defblock`). A script loads the `core.rvt` of every folder from the
+Scripts are authored in git; the workspace is a read-only viewer. A script
+is a reStructuredText (`.rst`) document whose code lives in `rvt`
+directives; each form in an `rvt` block is a step, and the prose between
+them is the script's documentation:
+
+```rst
+================
+Brake Monitoring
+================
+Checks the brake pressure stays under the limit.
+
+Requirements
+------------
+1. :req:`VMCBRA00001`
+
+.. rvt::
+   :definitions:
+
+   (def target 60)
+
+Steps
+-----
+
+.. rvt::
+
+   (set-reading :brake-pressure target)
+   (Verify (reading :brake-pressure) <= max-pressure)
+```
+
+Any `.rst` with an `rvt` block is a script (plain documents like a
+README are only documentation). Each
+folder (including the root) may hold a `core.rst` of shared definitions
+(`def`, `defn`, `defblock`). A script loads the `core.rst` of every folder from the
 root down to its own, then those of folders it imports with
 `(import FOLDER)`. Inner definitions shadow outer ones; imports only add
 definitions and never override a name the script's own chain defines. A step whose head is
@@ -118,20 +148,20 @@ requirement; its `README.rst` lists what each script shows and which ones
 fail on purpose.
 
 A script can define things too. Definitions are never reported as steps;
-a script's definitions section (marked with an `rvt` directive, and placed
-before any step) loads with the closure, and pages show it collapsed:
+a script's definitions section (an `rvt` block with the `:definitions:`
+option, placed before any step) loads with the closure, and pages show it
+collapsed:
 
-```clojure
-"
+```rst
 .. rvt::
    :definitions:
-"
-(def stop-pressure 70)
+
+   (def stop-pressure 70)
 ```
 
 Blocks compose in scripts. Called at the top level or in a plain `defn`, a
 block acts as its own step: it is reported, and a failure stops the script.
-A `defblock` (in a `core.rvt`) reports as one step with its calls nested
+A `defblock` (in a `core.rst`) reports as one step with its calls nested
 beneath it, and passes on what it returns. `(passes? (Block ...))` checks a
 block without failing, and `(quietly ...)` leaves calls out of the output:
 
@@ -146,7 +176,7 @@ Steps render through their BuildingBlock: a block can override `as_html`
 table; otherwise the step shows as code.
 
 `(environments :sim ...)` and `(uut :demo ...)` declare where a script can
-run and what it tests. They are inherited from the `core.rvt` chain and the
+run and what it tests. They are inherited from the `core.rst` chain and the
 script can override them. UUTs and environments are plugins in
 `automationv3/plugins` (see `plugins/sample`).
 
