@@ -74,16 +74,6 @@ Each step appears as rendered in the script, with:
 Blocks available to scripts
 ---------------------------
 
-The blocks you can call depend on the plugins installed. The ``core`` plugin
-provides:
-
-``(Verify actual op expected)`` / ``(Verify value)``
-   Compares two values with one of ``= == != not= < <= > >=``, or checks a
-   single value is truthy. Prints what it compared.
-
-``(Wait seconds)``
-   Waits.
-
-The sample plugin adds ``StartDemo`` and ``SnapshotDemo`` for the ``demo``
-UUT. Ask your block developers what yours provide; each block's docstring
-describes its syntax.
+The blocks you can call depend on the plugins installed. The
+:doc:`blocks` lists every one, with how to call it and what it does; the
+most common is :ref:`Verify <block-Verify>`.

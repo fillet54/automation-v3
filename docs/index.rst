@@ -53,6 +53,7 @@ Where to start
    scripts/preconditions
    scripts/composing
    scripts/documenting
+   scripts/blocks
 
 .. toctree::
    :maxdepth: 2

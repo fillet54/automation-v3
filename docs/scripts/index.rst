@@ -41,6 +41,9 @@ In this section
 :doc:`documenting`
    Making the rendered script read well: titles, variants and prose.
 
+:doc:`blocks`
+   Every BuildingBlock you can call, with its usage and documentation.
+
 A complete example
 ------------------
 

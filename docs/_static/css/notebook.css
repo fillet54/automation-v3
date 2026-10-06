@@ -99,7 +99,7 @@ a:hover { color: var(--ui-accent); text-decoration-thickness: 2px; }
   text-decoration: none;
 }
 .wy-side-nav-search > a:hover { background: none; color: var(--ui-accent); }
-.wy-side-nav-search > a .icon-home::before { content: none; }
+.wy-side-nav-search > a.icon-home::before, .wy-side-nav-search > a .icon-home::before { content: none; display: none; }
 .wy-side-nav-search > div.version {
   color: var(--ui-muted);
   font: 12px var(--ui-font-mono);
@@ -361,3 +361,10 @@ html.writer-html5 .rst-content dl.py dl.py > dt, .rst-content dl.py dl.py > dt {
 /* the version flyout, if hosted on Read the Docs */
 .rst-versions { background: var(--ui-soft); color: var(--ui-ink); border-top: 1px solid var(--ui-rule); font-family: var(--ui-font-body); }
 .rst-versions .rst-current-version { background: var(--ui-soft); color: var(--ui-accent); }
+
+/* the block reference: each block's usage leads its entry, its source closes it */
+.rst-content div.block-usage div[class^="highlight"], .rst-content div.highlight-clojure.block-usage {
+  border-left: 2px solid var(--ui-accent);
+}
+.rst-content p.block-source { font-size: 12px; color: var(--ui-muted); }
+.rst-content p.block-source code { background: none; border: 0; padding: 0; color: var(--ui-muted); }

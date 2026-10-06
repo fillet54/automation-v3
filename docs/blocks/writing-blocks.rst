@@ -31,8 +31,8 @@ Scripts call it as ``(Wait 5)``. The class name is the name scripts use;
 override ``name()`` to choose another (``TableDriven`` is called as
 ``Table-Driven``).
 
-Write the docstring with an example call: it is the block's documentation for
-script writers.
+The docstring and ``usage()`` are the block's documentation for script
+writers; see :ref:`documenting-blocks`.
 
 The parts of a block
 --------------------
@@ -66,6 +66,60 @@ The parts of a block
 ``as_html(*forms)`` / ``as_rst(*forms)``
    How a step using the block reads in a rendered script. See
    :doc:`rendering`.
+
+``usage()``
+   How scripts call the block. See :ref:`documenting-blocks`.
+
+.. _documenting-blocks:
+
+Documenting a block
+-------------------
+
+A block documents itself, and the :doc:`../scripts/blocks` is generated from
+every block the plugins define. Two things go into its entry:
+
+``usage()``
+   How scripts call the block, as a string, one call per line:
+
+   .. code-block:: python
+
+      def usage(self):
+          return "(Verify actual op expected)\n(Verify value)"
+
+   Write parameters as names, ``name?`` for an optional one, and ``name ...``
+   for repeats, with the brackets and braces of the shape the block expects
+   (``"(StartDemo {:mode mode :readings {name value ...}})"``). By default it
+   is the block's name followed by the parameters of ``execute`` (or
+   ``execute_forms``), so ``def execute(self, seconds)`` gives
+   ``(Wait seconds)``; override it whenever that doesn't show the shape.
+
+The class docstring
+   What the block does, written in reStructuredText: a one-line summary,
+   then what each parameter means, what the step prints, and an example.
+   Anything rst can do works, notes and tables included.
+
+   .. code-block:: python
+
+      class SnapshotDemo(BuildingBlock):
+          """Attach the demo UUT's state to the run as ``<label>.json``.
+
+          The file holds the installed version, mode, readings and faults, and
+          is listed with the step on the run page.
+
+          Example::
+
+              (SnapshotDemo "after-braking")
+          """
+
+   Literal blocks (``::``) are highlighted as script code. A block with no
+   docstring of its own is listed as not documented yet.
+
+The documentation is rendered with the ``building-blocks`` directive, which
+any page can use; give it a plugin package to list just that plugin's blocks:
+
+.. code-block:: rst
+
+   .. building-blocks:: automationv3.plugins.sample
 
 Results
 -------

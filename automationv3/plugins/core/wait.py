@@ -3,6 +3,16 @@ from automationv3.framework import edn, html
 
 
 class Wait(BuildingBlock):
+    """Wait a number of seconds.
+
+    .. note:: A stand-in for now: it passes straight away, without
+       waiting.
+
+    Example::
+
+        (Wait 2)
+    """
+
     def check_syntax(self, *args):
         return len(args) == 1
 
@@ -14,6 +24,23 @@ class Wait(BuildingBlock):
 
 
 class SetupSimulation(BuildingBlock):
+    """Configure the simulation from pairs of names and values.
+
+    Names and values are taken as written, not evaluated, and rendered as
+    a code block.
+
+    .. note:: A sample: it passes without configuring anything.
+
+    Example::
+
+        (SetupSimulation
+          :speed 50
+          :road "wet")
+    """
+
+    def usage(self):
+        return "(SetupSimulation name value ...)"
+
     def check_syntax(self, *args):
         return (len(args) % 2) == 0
 
@@ -40,6 +67,25 @@ class SetupSimulation(BuildingBlock):
 
 
 class TableDriven(BuildingBlock):
+    """A table of cases: named columns, one row per case.
+
+    ``headers`` is a vector of bare symbols naming the columns; ``rows`` is
+    a vector of rows, each a vector of values in column order. The step
+    renders as the table.
+
+    .. note:: A sample of a block that renders itself: it passes without
+       running the cases.
+
+    Example::
+
+        (Table-Driven [mode pressure]
+                      [[:normal 60]
+                       [:limp-home 75]])
+    """
+
+    def usage(self):
+        return "(Table-Driven [header ...] [[value ...] ...])"
+
     def name(self):
         return "Table-Driven"
 

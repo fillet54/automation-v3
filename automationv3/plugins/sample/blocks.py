@@ -11,15 +11,21 @@ READINGS = edn.Keyword("readings")
 
 
 class StartDemo(BuildingBlock):
-    """Restart the demo UUT from a configuration map::
+    """Restart the demo UUT from a configuration map.
+
+    ``:mode`` is required; ``:readings`` maps reading names to the values
+    to set. Restarting clears earlier readings and faults. Values may use
+    the script's definitions and variation symbols. In a rendered script
+    the configuration reads as written, as a table.
+
+    Example::
 
         (StartDemo {:mode :emergency
                     :readings {:brake-pressure 70}})
-
-    Values may use the script's definitions and variation symbols; the
-    block gets them evaluated. In a rendered script the configuration
-    reads as written, as a table.
     """
+
+    def usage(self):
+        return "(StartDemo {:mode mode :readings {name value ...}})"
 
     def check_syntax(self, *args):
         return len(args) == 1 and isinstance(args[0], dict) and MODE in args[0]
@@ -44,7 +50,12 @@ class StartDemo(BuildingBlock):
 
 
 class SnapshotDemo(BuildingBlock):
-    """Attach the demo UUT's state to the run as <label>.json::
+    """Attach the demo UUT's state to the run as ``<label>.json``.
+
+    The file holds the installed version, mode, readings and faults, and
+    is listed with the step on the run page.
+
+    Example::
 
         (SnapshotDemo "after-braking")
     """

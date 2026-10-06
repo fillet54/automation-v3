@@ -3,7 +3,7 @@
 import unittest
 
 from automationv3.framework import edn
-from automationv3.framework.block import BlockResult, BuildingBlock
+from automationv3.framework.block import BlockResult, BuildingBlock, all_blocks
 from automationv3.framework.executor import execute_closure
 
 from .rvt import rvt
@@ -76,3 +76,49 @@ class TestBlockArguments(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Documented(BuildingBlock):
+    """Does a thing.
+
+    Example::
+
+        (Documented 1)
+    """
+
+    def execute(self, first, optional_arg=None, *rest):
+        return BlockResult(True)
+
+
+class Shaped(BuildingBlock):
+    def usage(self):
+        return "(Shaped {:key value})"
+
+    def execute_forms(self, config):
+        return BlockResult(True)
+
+
+class TestBlockDocumentation(unittest.TestCase):
+    def test_usage_defaults_to_the_parameters_of_execute(self):
+        self.assertEqual(Documented().usage(),
+                         "(Documented first optional-arg? rest...)")
+
+    def test_usage_uses_execute_forms_when_the_block_has_it(self):
+        self.assertEqual(RecordForms().usage(), "(RecordForms forms...)")
+
+    def test_a_block_can_write_its_own_usage(self):
+        self.assertEqual(Shaped().usage(), "(Shaped {:key value})")
+
+    def test_doc_is_the_class_docstring_dedented(self):
+        self.assertEqual(Documented().doc(),
+                         "Does a thing.\n\nExample::\n\n    (Documented 1)")
+
+    def test_doc_is_empty_without_a_docstring_of_its_own(self):
+        self.assertEqual(Shaped().doc(), "")
+
+    def test_every_plugin_block_is_documented(self):
+        for block in all_blocks():
+            if type(block).__module__.startswith("automationv3.plugins."):
+                with self.subTest(block=block.name()):
+                    self.assertTrue(block.doc())
+                    self.assertTrue(block.usage().startswith("(" + block.name()))

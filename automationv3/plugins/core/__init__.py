@@ -1,3 +1,5 @@
+"""Core BuildingBlocks: available to every script"""
+
 from .verify import Verify
 from .wait import Wait
 

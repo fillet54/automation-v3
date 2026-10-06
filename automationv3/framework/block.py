@@ -7,6 +7,7 @@ blocks.
 """
 
 import importlib
+import inspect
 import pkgutil
 from dataclasses import dataclass
 
@@ -38,11 +39,41 @@ class BuildingBlock:
     symbols as names, implements `execute_forms` instead and gets the
     arguments exactly as written. `check_syntax`, `as_rst` and `as_html`
     always see the forms as written.
+
+    A block documents itself: `usage` says how scripts call it, and the
+    class docstring, written in reStructuredText, says what it does.
+    The documentation site renders both for every block.
     """
 
     def name(self):
         """The name scripts call the block by"""
         return type(self).__name__
+
+    def usage(self):
+        """How scripts call the block, one call per line, e.g.::
+
+            (Verify actual op expected)
+            (Verify value)
+
+        By default, the name and the parameters of `execute` (or
+        `execute_forms`): `name?` for an optional one, `name...` for the
+        rest. Override it when the calls take a particular shape.
+        """
+        params = inspect.signature(self.execute_forms or self.execute).parameters
+        words = [self.name()]
+        for param in params.values():
+            word = param.name.replace("_", "-")
+            if param.kind is param.VAR_POSITIONAL:
+                word += "..."
+            elif param.default is not param.empty:
+                word += "?"
+            words.append(word)
+        return f"({' '.join(words)})"
+
+    def doc(self):
+        """The block's documentation, in reStructuredText: its class
+        docstring, or "" if it has none of its own"""
+        return inspect.cleandoc(type(self).__dict__.get("__doc__") or "")
 
     def check_syntax(self, *args):
         """True if the block accepts these arguments"""

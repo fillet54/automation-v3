@@ -20,14 +20,21 @@ def show(value):
 
 
 class Verify(BuildingBlock):
-    """Check a value::
+    """Check a value against an expected one, or that a value is truthy.
+
+    Both sides are evaluated in the running script, so they can use
+    definitions, variation symbols and UUT handles. ``op`` is one of
+    ``= == != not= < <= > >=``, written as is. The step prints what it
+    compared, with the values, e.g. ``60 <= 80``.
+
+    Examples::
 
         (Verify (reading :brake-pressure) <= max-pressure)
         (Verify (demo-in-mode? :normal))
-
-    Both sides are evaluated in the running script. The operator is one
-    of = == != not= < <= > >=; with a single form, it must be truthy.
     """
+
+    def usage(self):
+        return "(Verify actual op expected)\n(Verify value)"
 
     def check_syntax(self, *forms):
         if len(forms) == 1:
