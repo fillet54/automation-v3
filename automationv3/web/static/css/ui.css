@@ -577,6 +577,25 @@ body.ui {
 .ui-defs--one { border: 0; margin: 4px 0; }
 .ui-defs--one > summary { padding: 2px 0; }
 
+/* blocks limited to variations: a rule down the side, tagged with the variations; collapsed when another is selected */
+.ui-scoped { margin: 14px 0; padding-left: 14px; border-left: 2px solid color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.ui-scoped__tag { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
+.ui-scoped__names { font-size: 12px; color: var(--ui-muted); }
+.ui-scoped--skipped { padding-left: 12px; border-left: 2px dashed var(--ui-rule); }
+.ui-scoped--skipped > summary { list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 6px 0; cursor: pointer; font-size: 13px; }
+.ui-scoped--skipped > summary::-webkit-details-marker { display: none; }
+.ui-scoped--skipped > summary:hover { background: var(--ui-soft); }
+.ui-scoped--skipped > summary .ui-icon { align-self: center; color: var(--ui-muted); transition: transform 0.15s; }
+.ui-scoped--skipped[open] > summary .ui-icon { transform: rotate(90deg); }
+.ui-scoped--skipped > .ui-scoped__body { opacity: 0.6; }
+
+/* the script view's variation selector, the selected variation's values, and the details table */
+.ui-variations { display: flex; flex-direction: column; gap: 4px; }
+.ui-variations__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.ui-variations__values { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--ui-font-mono); font-size: 12px; }
+.ui-variations__details .ui-disclosure__summary { padding: 8px 0; }
+.ui-variations__details .ui-table-wrap { margin-bottom: 8px; }
+
 /* ------------------------------------------------------------------ automation: steps and calls */
 
 /* a run's step: the statement as it renders, its calls and output, and its outcome; tinted down the left edge */

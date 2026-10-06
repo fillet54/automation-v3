@@ -1,4 +1,4 @@
-{# Collapsed definitions: the section, and lone definitions #}
+{# Collapsed definitions (the section, and lone definitions), and blocks limited to variations #}
 {% import "ui/components.html" as ui %}
 
 {% macro definitions_section(items, render) -%}
@@ -15,4 +15,33 @@
     <span class="ui-defs__names">{{ item.defines }}</span></summary>
   <div class="ui-defs__body">{{ render(item) }}</div>
 </details>
+{%- endmacro %}
+
+{#- A script's grouped entries (see web/grouping.py). Blocks limited to variations are marked with them; with
+    `selected` (a variation name), those limited to other variations collapse to a line saying so. #}
+{% macro statements(entries, render, selected=None) -%}
+{%- for kind, entry in entries %}
+  {%- if kind == "scoped" %}
+    {%- if selected and selected not in entry.variations %}
+<details class="ui-scoped ui-scoped--skipped">
+  <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Skipped for {{ selected }}</span>
+    <span class="ui-scoped__names">applies to {{ entry.variations | join(', ') }}</span></summary>
+  <div class="ui-scoped__body">{{ _unscoped(entry.entries, render) }}</div>
+</details>
+    {%- else %}
+<div class="ui-scoped">
+  <div class="ui-scoped__tag"><span class="ui-defs__label">Only for</span>{% for name in entry.variations %} {{ ui.badge(name, tone="accent", outline=True) }}{% endfor %}</div>
+  <div class="ui-scoped__body">{{ _unscoped(entry.entries, render) }}</div>
+</div>
+    {%- endif %}
+  {%- else %}{{ _unscoped([(kind, entry)], render) }}{% endif %}
+{%- endfor %}
+{%- endmacro %}
+
+{% macro _unscoped(entries, render) -%}
+{%- for kind, entry in entries %}
+  {%- if kind == "definitions" %}{{ definitions_section(entry, render) }}
+  {%- elif kind == "definition" %}{{ definition(entry, render) }}
+  {%- else %}{{ render(entry) }}{% endif %}
+{%- endfor %}
 {%- endmacro %}

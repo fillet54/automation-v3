@@ -17,6 +17,10 @@ is the step; anything else (a defn call, an if, ...) is evaluated as
 Lisp, with the blocks it calls reported as calls of that step. See
 steps.py for how composed blocks report and fail.
 
+Blocks limited to other variations (`:variations:`, see document.py)
+are skipped without being reported: their steps don't run and their
+definitions aren't loaded.
+
 The first failing step stops the script: the outcome is "fail" and
 later statements are not reported.
 
@@ -79,24 +83,27 @@ def load_definitions(env, text, keep=frozenset()):
             lisp.eval(form, env)
 
 
-def load_script_definitions(env, parts):
-    """Evaluate the script's definitions section into `env`"""
+def load_script_definitions(env, parts, variation=None):
+    """Evaluate the script's definitions section into `env`, leaving out
+    blocks limited to other variations"""
     for index in document.definitions_section(parts):
-        if is_definition(parts[index].form):
+        if is_definition(parts[index].form) and parts[index].applies(variation):
             lisp.eval(parts[index].form, env)
 
 
-def execute_script(text, observer, script=None, env=None, mode="normal"):
-    """Run the statements of `text` in order.
+def execute_script(text, observer, script=None, env=None, mode="normal",
+                   variation=None):
+    """Run the statements of `text` in order, as `variation` (a name) if
+    given.
 
     Returns "pass", "fail", "blocked", or (in probe mode) "released".
     """
     env = env if env is not None else new_env()
     with context.running(env):
-        return _execute(text, observer, script, env, mode)
+        return _execute(text, observer, script, env, mode, variation)
 
 
-def _execute(text, observer, script, env, mode):
+def _execute(text, observer, script, env, mode, variation):
     parts = document.parse(text)
     forms = [part.form for part in parts]
     observer.on_procedure_begin(script=script, statements=len(forms), mode=mode)
@@ -104,6 +111,8 @@ def _execute(text, observer, script, env, mode):
 
     outcome = "pass"
     for index, form in enumerate(forms):
+        if not parts[index].applies(variation):
+            continue
         if is_comment(form):
             observer.on_comment(index=index, text=form)
         elif is_definition(form):
@@ -158,9 +167,9 @@ def define(form, env):
         return BlockResult(False, stderr=traceback.format_exc())
 
 
-def build_env(files, load_order, imports=()):
+def build_env(files, load_order, imports=(), variation=None):
     """An env holding the definitions of every core.rst in the closure,
-    then the script's definitions section.
+    then the script's definitions section (as `variation`, if given).
 
     Files in `imports` only add definitions: they never override a name
     defined by the script's own core.rst chain. Only definition forms
@@ -174,7 +183,7 @@ def build_env(files, load_order, imports=()):
         else:
             load_definitions(env, files[path])
             chain_names = set(env)
-    load_script_definitions(env, document.parse(files[load_order[-1]]))
+    load_script_definitions(env, document.parse(files[load_order[-1]]), variation)
     return env
 
 
@@ -204,10 +213,11 @@ def execute_closure(files, load_order, observer, imports=(), variation=None,
     the script runs. `bindings` (name -> value) are bound too, e.g. the
     handles scripts use to reach their UUTs.
     """
-    env = build_env(files, load_order, imports)
+    env = build_env(files, load_order, imports, variation)
     env.update({edn.Symbol(name): value for name, value in (bindings or {}).items()})
     script = load_order[-1]
     if variation is not None:
         values = variation_values(env, find_variation(files[script], variation))
         env.update({edn.Symbol(symbol): value for symbol, value in values.items()})
-    return execute_script(files[script], observer, script=script, env=env, mode=mode)
+    return execute_script(files[script], observer, script=script, env=env, mode=mode,
+                          variation=variation)

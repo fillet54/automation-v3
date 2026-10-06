@@ -7,6 +7,7 @@ import re
 
 from flask import Blueprint, current_app, render_template, request, abort
 
+from ..framework import edn
 from ..framework.closure import is_script, resolve
 from ..framework.document import has_rvt
 from ..framework.rst import write_html_parts
@@ -133,11 +134,26 @@ def render_file(path):
     return [("statement", {"html": html}) for html in write_html_parts([text])]
 
 
-def render_view(ws, node, errors=None):
+def variation_values(variation):
+    """symbol -> value form as written, for a Variation (or None)"""
+    if variation is None:
+        return {}
+    return {
+        symbol: edn.writes(form).strip()
+        for symbol, form in zip(variation.symbols, variation.forms)
+    }
+
+
+def render_view(ws, node, errors=None, variation=None):
+    """The script viewer. `variation` (a name the script declares) narrows
+    the script to what that variation runs; None shows every variation."""
     relpath = str(node.relative_path)
     closure = None
     if not is_binary(node.path) and is_script(relpath, node.path.read_text()):
         closure = resolve(ws.root, relpath)
+    names = [v.name for v in closure.variations] if closure else []
+    selected = next((v for v in closure.variations if v.name == variation), None) \
+        if closure else None
     text = None
     try:
         parts = render_file(node.path)
@@ -152,6 +168,11 @@ def render_view(ws, node, errors=None):
         parts=parts,
         text=text,
         closure=closure,
+        variation=selected,
+        variation_values=variation_values(selected),
+        variation_names=names,
+        variation_rows=[(v.name, list(variation_values(v).values()))
+                        for v in (closure.variations if closure else [])],
         errors=(errors or []) + (closure.errors if closure else []),
     )
 
@@ -162,4 +183,4 @@ def view(id):
     node = node_or_404(ws, request.args.get("path", ""))
     if not node.is_file():
         abort(404)
-    return render_view(ws, node)
+    return render_view(ws, node, variation=request.args.get("variation"))

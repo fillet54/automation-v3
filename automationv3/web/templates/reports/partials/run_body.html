@@ -1,6 +1,6 @@
 {% import "ui/components.html" as ui %}
 {% from "reports/macros.html" import calls_list %}
-{% from "partials/definitions.html" import definitions_section, definition %}
+{% from "partials/definitions.html" import statements %}
 <div id="run-body" class="ui-stack ui-gap-large"
      {% if not finished %}
      hx-get="{{ url_for('reports.run', report_id=run.report_id, run_id=run.id) }}"
@@ -73,10 +73,6 @@
   {% endmacro %}
   {{ ui.divider() }}
   <article class="ui-doc" style="max-width: none;">
-    {% for kind, entry in rows %}
-      {% if kind == "definitions" %}{{ definitions_section(entry, render) }}
-      {% elif kind == "definition" %}{{ definition(entry, render) }}
-      {% else %}{{ render(entry) }}{% endif %}
-    {% endfor %}
+    {{ statements(rows, render) }}
   </article>
 </div>

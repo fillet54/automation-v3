@@ -16,6 +16,15 @@ code lives in `rvt` directives whose content is edn forms::
        (Wait 1)
        (Verify (reading :brake-pressure) <= stop-pressure)
 
+    .. rvt::
+       :variations: degraded, limp-home
+
+       (Verify (reading :brake-pressure) <= limp-pressure)
+
+A block marked `:variations:` (variation names, separated by commas)
+only applies when one of those variations runs; a block without it
+applies to every variation.
+
 The document is split at its rvt directives. The prose between them
 stays rst; each rvt directive is parsed by docutils (so its options are
 read properly) and its content read as edn. A document's parts are the
@@ -34,7 +43,17 @@ from docutils.parsers.rst import Directive, directives
 from . import edn
 
 RVT_START = re.compile(r"^\.\. rvt::\s*$")
-RVT_OPTIONS = {"definitions"}
+
+
+def variation_names(argument):
+    """The names of a `:variations:` option, as a list"""
+    names = [name.strip() for name in (argument or "").split(",")]
+    if not all(names):
+        raise ValueError("expected variation names separated by commas")
+    return names
+
+
+RVT_OPTIONS = {"definitions": directives.flag, "variations": variation_names}
 
 
 @dataclass
@@ -44,6 +63,15 @@ class Part:
     form: object
     options: dict = field(default_factory=dict)
     line: int = 0  # where the chunk or block starts, 1-based
+
+    @property
+    def variations(self):
+        """The variation names this part is limited to, else None (all)"""
+        return self.options.get("variations")
+
+    def applies(self, variation):
+        """True if the part runs for `variation` (None: no variation)"""
+        return variation is None or self.variations is None or variation in self.variations
 
     @property
     def prose(self):
@@ -79,11 +107,11 @@ class rvt_block(nodes.Element):
 
 class RvtDirective(Directive):
     has_content = True
-    option_spec = {name: directives.flag for name in RVT_OPTIONS}
+    option_spec = RVT_OPTIONS
 
     def run(self):
         block = rvt_block()
-        block["options"] = {k: v or "" for k, v in self.options.items()}
+        block["options"] = {k: "" if v is None else v for k, v in self.options.items()}
         block["content"] = "\n".join(self.content)
         return [block]
 

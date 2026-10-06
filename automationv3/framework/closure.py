@@ -27,6 +27,12 @@ Each variation is a display name and the values bound to the symbols
 for that run. Values are literals or expressions over definitions; they
 are kept as forms here and evaluated later.
 
+An rvt block marked `:variations: name, ...` only applies to those
+variations: its steps, preconditions and definitions are skipped when
+any other variation runs. Names must be declared by the script's
+variations form, and only scripts may scope blocks; declarations
+(import, uut, environments, variations) can't be scoped.
+
 Preconditions state what must hold before a script's steps run::
 
     (Precondition "Demo running" (demo-in-mode? :normal)
@@ -102,6 +108,8 @@ def parse_variations(path, form, errors):
         if not is_text(name):
             errors.append(f"{path}: variation name {edn.writes(name).strip()} "
                           "must be a string")
+        elif "," in name:
+            errors.append(f"{path}: variation name {name} may not contain a comma")
         elif any(v.name == name for v in variations):
             errors.append(f"{path}: variation {name} is declared twice")
         elif not isinstance(values, list) or len(values) != len(symbols):
@@ -184,10 +192,6 @@ def read_parts(path, text, errors):
         return []
 
 
-def read_forms(path, text, errors):
-    return [part.form for part in read_parts(path, text, errors) if not part.prose]
-
-
 def nested_imports(form):
     """True if an (import ...) appears anywhere below the top level"""
     for item in form[1:] if isinstance(form, list) else []:
@@ -232,6 +236,35 @@ def lint_definitions(path, parts):
                               "any step or Precondition")
         elif isinstance(form, list) and head(form) not in DIRECTIVES | DEFINITIONS:
             seen_step = True
+    return errors
+
+
+def lint_variation_scopes(path, parts, variations):
+    """`:variations:` blocks name declared variations and hold no
+    declarations; core.rst files can't scope blocks at all"""
+    errors = []
+    is_core = PurePosixPath(path).name == CORE
+    declared = {v.name for v in variations}
+    reported = set()
+    for part in parts:
+        if part.variations is None or part.prose:
+            continue
+        if is_core:
+            message = f"{path}: core.rst blocks can't be limited to variations"
+        elif not declared:
+            message = (f"{path}: a block is limited to variations, "
+                       "but the script declares none")
+        elif unknown := [n for n in part.variations if n not in declared]:
+            message = (f"{path}: no variation named {', '.join(unknown)} "
+                       f"(the script declares {', '.join(sorted(declared))})")
+        elif head(part.form) in DIRECTIVES:
+            message = (f"{path}: {head(part.form)} can't be limited to "
+                       "variations")
+        else:
+            continue
+        if message not in reported:
+            reported.add(message)
+            errors.append(message)
     return errors
 
 
@@ -283,15 +316,19 @@ def resolve(root, script, text=None):
         if path == script:
             forms = script_forms
         else:
-            forms = read_forms(path, closure.files[path], errors)
+            parts = read_parts(path, closure.files[path], errors)
+            forms = [part.form for part in parts if not part.prose]
             errors.extend(lint(path, forms))
+            errors.extend(lint_variation_scopes(path, parts, []))
         for form in forms:
             if head(form) == "uut":
                 closure.uuts = [name_of(v) for v in form[1:]]
             elif head(form) == "environments":
                 closure.environments = [name_of(v) for v in form[1:]]
     for path in imports:
-        errors.extend(lint(path, read_forms(path, closure.files[path], errors)))
+        parts = read_parts(path, closure.files[path], errors)
+        errors.extend(lint(path, [part.form for part in parts if not part.prose]))
+        errors.extend(lint_variation_scopes(path, parts, []))
 
     declared = [form for form in script_forms if head(form) == "variations"]
     if len(declared) > 1:
@@ -301,5 +338,6 @@ def resolve(root, script, text=None):
     errors.extend(lint(script, script_forms))
     errors.extend(lint_preconditions(script, script_forms))
     errors.extend(lint_definitions(script, script_parts))
+    errors.extend(lint_variation_scopes(script, script_parts, closure.variations))
 
     return closure

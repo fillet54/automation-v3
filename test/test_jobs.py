@@ -478,6 +478,11 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "BRA/modes.rst": doc("Modes :req:`R1` :req:`R2`", rvt(
                 '(variations "mode level" ["low" [:low 1] "high" [:high 50]]) '
                 "(under-limit? level)")),
+            "BRA/scoped.rst": doc(
+                rvt('(variations "level" ["low" [1] "high" [50]])'),
+                rvt("(Verify level > 0)"),
+                "High only:",
+                rvt("(Verify level = 50)", variations="high")),
             "plain/core.rst": "(environments) (uut)",
             "plain/fail.rst": FAILING,
             "plain/pass.rst": PASSING,
@@ -649,7 +654,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"under-limit?", page.data)
         self.assertIn(b"/runner/new?workspace=", page.data)
-        self.assertIn(b"2</span> variations", page.data)
+        self.assertIn(b"2 variations of mode, level", page.data)
 
         page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rst")
         self.assertIn(b"must come before the first step", page.data)
@@ -710,6 +715,28 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(f"/reports/{report_id}")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b">Red<", page.data)
+
+    def test_blocks_limited_to_variations(self):
+        view = f"/workspace/{self.branch}/view?path=BRA/scoped.rst"
+        page = self.http.get(view).get_data(True)
+        self.assertIn("Only for", page)
+        self.assertNotIn("Skipped for", page)
+        page = self.http.get(view + "&variation=low").get_data(True)
+        self.assertIn("Skipped for low", page)
+        self.assertIn("applies to high", page)
+        page = self.http.get(view + "&variation=high").get_data(True)
+        self.assertNotIn("Skipped for", page)
+        self.assertIn("level</span> = 50", page)
+
+        report_id = self.queue_requirements(
+            script="BRA/scoped.rst",
+            variation=["BRA/scoped.rst::low", "BRA/scoped.rst::high"])
+        self.assertEqual([self.worker.work_once() for _ in range(2)],
+                         ["pass", "pass"])
+        for run in store.list_runs(self.root, report_id):
+            page = self.http.get(f"/reports/{report_id}/runs/{run['id']}")
+            steps = page.get_data(True).count('class="ui-step ')
+            self.assertEqual(steps, {"low": 1, "high": 2}[run["variation"]["name"]])
 
     def test_unqueued_variations_leave_requirement_partial(self):
         report_id = self.queue_requirements(

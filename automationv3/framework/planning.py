@@ -146,8 +146,9 @@ def matches(predicate, env, values, name, index, variation_symbols):
 
 def plan_variations(script_plan, selection, predicate, errors, variation_symbols):
     closure = script_plan.closure
-    env = build_env(closure.files, closure.load_order, closure.imports)
     for index, variation in enumerate(closure.variations):
+        env = build_env(closure.files, closure.load_order, closure.imports,
+                        variation.name)
         try:
             values = variation_values(env, variation)
         except Exception as e:

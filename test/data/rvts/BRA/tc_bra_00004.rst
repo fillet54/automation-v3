@@ -10,6 +10,20 @@ Requirements
 1. :req:`VMCBRA00002`
 2. :req:`VMCBRA00003`
 
+Each mode keeps its own headroom below the limit. Limp-home runs closer
+to it, so its block below replaces the default for that variation only.
+
+.. rvt::
+   :definitions:
+
+   (def headroom 15)
+
+.. rvt::
+   :definitions:
+   :variations: limp-home
+
+   (def headroom 5)
+
 .. rvt::
 
    (variations "mode pressure"
@@ -29,3 +43,20 @@ Steps
 
    (set-reading :brake-pressure pressure)
    (brake-pressure-ok? (reading :brake-pressure))
+
+Emergency braking
+-----------------
+In emergency mode the pressure runs right at the limit, and must stay
+there.
+
+.. rvt::
+   :variations: emergency
+
+   (Verify (reading :brake-pressure) = max-pressure)
+
+Normal and limp-home braking keep their headroom below the limit.
+
+.. rvt::
+   :variations: normal, limp-home
+
+   (Verify (reading :brake-pressure) <= (- max-pressure headroom))

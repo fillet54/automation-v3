@@ -1,5 +1,5 @@
 {% import "ui/components.html" as ui %}
-{% from "partials/definitions.html" import definitions_section, definition %}
+{% from "partials/definitions.html" import statements %}
 <div id="content" class="ui-stack">
   {% set crumbs = [(workspace.id, url_for('workspace.index', id=workspace.id))] %}
   {% for part in path.split('/')[:-1] %}{% set _ = crumbs.append((part, None)) %}{% endfor %}
@@ -21,7 +21,6 @@
     <div class="ui-facts">
       {% if closure.environments %}<span>Runs in {% for e in closure.environments %}{{ ui.ident(e) }} {% endfor %}</span>{% endif %}
       {% if closure.uuts %}<span>Tests {% for u in closure.uuts %}{{ ui.ident(u) }} {% endfor %}</span>{% endif %}
-      {% if closure.variations %}<span><span class="ui-number">{{ closure.variations | length }}</span> variation{{ '' if closure.variations | length == 1 else 's' }}</span>{% endif %}
     </div>
     <div class="ui-loads"><span class="ui-muted">Loads</span>
       {% for p in closure.load_order -%}
@@ -32,16 +31,47 @@
   </div>
   {% endif %}
 
+  {% if closure and closure.variations %}
+  {% set view_url = url_for('workspace.view', id=workspace.id, path=path) %}
+  <section class="ui-variations" aria-label="Variations">
+    <div class="ui-variations__bar">
+      <span class="ui-defs__label">Variation</span>
+      {%- if closure.variations | length <= 5 %}
+      {% set items = [] %}
+      {% for name in [None] + variation_names %}
+        {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=name) %}
+        {% set _ = items.append({"label": name or "All", "href": href, "active": (variation.name if variation else None) == name,
+                                 "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=name),
+                                           "hx-target": "#content", "hx-swap": "outerHTML", "hx-push-url": href}}) %}
+      {% endfor %}
+      {{ ui.segmented(items, label="Variation") }}
+      {%- else %}
+      {% set options = [("", "All")] %}
+      {% for name in variation_names %}{% set _ = options.append((name, name)) %}{% endfor %}
+      {{ ui.select("variation", options, selected=variation.name if variation else "", id="variation-select", mono=True,
+                   attrs={"onchange": "window.location.href = '" ~ url_for('workspace.index', id=workspace.id, path=path) ~ "' + (this.value ? '&variation=' + encodeURIComponent(this.value) : '')"}) }}
+      {%- endif %}
+      {%- if variation %}
+      <span class="ui-variations__values">{% for symbol, value in variation_values.items() %}<span><span class="ui-muted">{{ symbol }}</span> = {{ value }}</span>{% endfor %}</span>
+      {%- endif %}
+    </div>
+    {% call ui.disclosure("Details", subtitle=closure.variations | length ~ " variations of " ~ closure.variations[0].symbols | join(", "), pad=False, cls="ui-variations__details") %}
+      {% call ui.table(["Variation"] + closure.variations[0].symbols, dense=True) %}
+        {% for name, values in variation_rows %}
+        <tr{% if variation and name == variation.name %} class="ui-row--selected"{% endif %}><td>{{ name }}</td>{% for value in values %}<td class="ui-mono">{{ value }}</td>{% endfor %}</tr>
+        {% endfor %}
+      {% endcall %}
+    {% endcall %}
+  </section>
+  {% endif %}
+
   {{ ui.divider() }}
 
   {% if parts is not none %}
   <article class="ui-doc">
-    {% macro render(item) %}<div>{{ item.html | safe }}</div>{% endmacro %}
-    {% for kind, entry in parts %}
-      {% if kind == "definitions" %}{{ definitions_section(entry, render) }}
-      {% elif kind == "definition" %}{{ definition(entry, render) }}
-      {% else %}{{ render(entry) }}{% endif %}
-    {% endfor %}
+    {#- The variations form is shown by the selector above #}
+    {% macro render(item) %}{% if not (closure and item.directive == "variations") %}<div>{{ item.html | safe }}</div>{% endif %}{% endmacro %}
+    {{ statements(parts, render, selected=variation.name if variation else None) }}
   </article>
   {% elif text is not none %}
   <pre class="ui-pre">{{ text }}</pre>

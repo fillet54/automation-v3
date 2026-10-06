@@ -34,7 +34,8 @@ def run_status(run):
 
 
 def statement_rows(run, finished):
-    """The rendered script, each statement paired with its step result"""
+    """The rendered script, each statement paired with its step result.
+    Statements limited to variations other than the run's are left out."""
     closure = store.read_closure(root(), run["report_id"], run["id"])
     text = closure.get(run["script"], "")
     events = store.read_events(root(), run["report_id"], run["id"])
@@ -42,9 +43,12 @@ def statement_rows(run, finished):
     started = {e["index"] for e in events if e["kind"] == "step_start"}
     ended = {e["index"]: e for e in events if e["kind"] == "step_end"}
     calls = call_trees(events)
+    variation = (run.get("variation") or {}).get("name")
 
     rows = []
     for index, statement in enumerate(get_statements(text)):
+        if variation and statement.variations and variation not in statement.variations:
+            continue  # limited to other variations: not part of this run
         form = statement.statement
         row = statement_item(
             statement,

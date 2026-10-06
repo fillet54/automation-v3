@@ -18,7 +18,7 @@
 
 {% block content %}
 {% set path = request.args.get("path") %}
-<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
+<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path, variation=request.args.get('variation')) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
   {{ ui.page_header(workspace.id, subtitle="Scripts are authored in git; this is a read-only view of the branch's rvts.", eyebrow="Workspace", mono=True) }}
   {{ ui.empty("Pick a script from the tree to read it, see what it loads, and queue it.") }}
 </div>
