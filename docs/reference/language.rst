@@ -1,0 +1,117 @@
+Script language
+===============
+
+.. rst-class:: lead
+
+   Everything a script can contain, in one place.
+
+Directives (rst)
+----------------
+
+``.. rvt:: [title]``
+   A block of script code. Options:
+
+   ``:definitions:``
+      The block only defines things; shown collapsed; only before the first
+      step.
+
+   ``:variations: name, name``
+      The block applies only to these variations.
+
+   With a title, the block's forms are collapsed under it.
+
+``.. rvt-variant::``
+   Prose and ``rvt`` blocks that apply only to some variations. Option:
+   ``:variations: name, name`` (required).
+
+``:req:`ID```
+   References a requirement the script verifies.
+
+Forms
+-----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Form
+     - Kind
+   * - ``(def name value)``
+     - definition
+   * - ``(defn name [params] body...)``
+     - definition
+   * - ``(defblock name [params] body...)``
+     - definition
+   * - ``(uut :name)``
+     - declaration
+   * - ``(environments :name ...)``
+     - declaration
+   * - ``(import FOLDER)``
+     - directive, top level only
+   * - ``(variations "sym ..." ["name" [values...] ...])``
+     - directive, once per script
+   * - ``(Precondition "text" check [:heal ["text"] heal])``
+     - precondition, before the first step
+   * - anything else in a list
+     - a step
+
+Special forms
+-------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Form
+     - Meaning
+   * - ``(if test then else?)``
+     - conditional
+   * - ``(do forms...)``
+     - evaluate in order, returning the last
+   * - ``(let [name value ...] body...)``
+     - local bindings
+   * - ``(fn name? [params] body...)``
+     - a function; ``(fn ([a] ...) ([a b] ...))`` for several arities
+   * - ``(quote form)``
+     - the form unevaluated
+   * - ``(.method obj args...)``
+     - call a method on a Python object
+   * - ``(.-attr obj)``
+     - read an attribute
+   * - ``(passes? expr)``
+     - true or false, never stopping the step
+   * - ``(quietly forms...)``
+     - run forms with their block calls left out of the output
+
+Built-in functions
+------------------
+
+Arithmetic and comparison
+   ``+ - * / > < >= <= = not=`` and ``abs``, ``max``, ``min``, ``round``,
+   ``expt``, and every function and constant of Python's ``math`` module
+   (``sqrt``, ``pi``, ...).
+
+Logic
+   ``and``, ``or`` (both evaluate every argument), ``not``.
+
+Sequences
+   ``first``, ``rest``, ``cons``, ``append``, ``count``, ``list``, ``map``,
+   ``take``, ``cycle``, ``range``, ``partition``, ``apply``.
+
+Maps
+   ``assoc``, ``dissoc`` (both return copies).
+
+Predicates
+   ``nil?``, ``some?``, ``number?``, ``symbol?``, ``list?``,
+   ``procedure?``, ``eq?``.
+
+Strings and output
+   ``str``, ``print``.
+
+Bound names
+-----------
+
+While a script runs, these are bound in addition to definitions:
+
+- each variation symbol, to the running variation's value;
+- each UUT's name (e.g. ``demo``), to its handle, if it offers one.

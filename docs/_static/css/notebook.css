@@ -1,0 +1,363 @@
+/* The "research notebook" look for the Read the Docs theme.
+ *
+ * The same tokens as the web UI (automationv3/web/static/css/ui.css): a warm paper ground, serif headings,
+ * sans-serif working text, monospace identifiers, thin rules instead of boxes and one restrained accent. This
+ * file only overrides sphinx_rtd_theme's look; its layout (sidebar, breadcrumbs, mobile menu) is unchanged.
+ * Light and dark follow the system setting.
+ */
+
+:root {
+  --ui-paper: #FFFEFA;
+  --ui-soft: #F4F3ED;
+  --ui-ink: #252C2A;
+  --ui-muted: #606A63;
+  --ui-faint: #8C948E;
+  --ui-rule: #DEDFD8;
+  --ui-rule-strong: #C6C8BF;
+
+  --ui-accent: #285F51;
+  --ui-success: #306844;
+  --ui-danger: #A03630;
+  --ui-warning: #805B10;
+  --ui-info: #285E97;
+  --ui-review: #795297;
+
+  --ui-series-2: #366A9B;
+  --ui-series-3: #986419;
+  --ui-series-4: #795297;
+  --ui-series-5: #387D7D;
+  --ui-series-6: #A2477A;
+
+  --ui-font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ui-font-heading: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --ui-font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --ui-radius: 3px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ui-paper: #181C19; --ui-soft: #222923; --ui-ink: #E6E9E6; --ui-muted: #A6B0A8; --ui-faint: #747E76;
+    --ui-rule: #39423B; --ui-rule-strong: #4D584F;
+    --ui-accent: #9BC7B3; --ui-success: #9ACBAB; --ui-danger: #F0A49B; --ui-warning: #DFC47D; --ui-info: #9DBFEF;
+    --ui-review: #C6A9E4;
+    --ui-series-2: #9DBFEF; --ui-series-3: #DFC47D; --ui-series-4: #C6A9E4; --ui-series-5: #87C9C5;
+    --ui-series-6: #E3A5C8;
+  }
+}
+
+/* ------------------------------------------------------------------ ground and type */
+
+body, .wy-body-for-nav, .wy-nav-content-wrap, .wy-nav-content {
+  background: var(--ui-paper);
+  color: var(--ui-ink);
+}
+body { font-family: var(--ui-font-body); font-size: 15px; line-height: 1.6; }
+.wy-nav-content { max-width: 860px; padding: 40px 48px 64px; }
+
+.rst-content p, .rst-content dl, .rst-content ol, .rst-content ul { line-height: 1.65; }
+.rst-content .section ul li, .rst-content section ul li { margin-bottom: 4px; }
+
+h1, h2, h3, h4, h5, h6, legend, .rst-content .toctree-wrapper > p.caption {
+  font-family: var(--ui-font-heading);
+  font-weight: 400;
+  color: var(--ui-ink);
+  letter-spacing: -0.01em;
+}
+.rst-content h1 { font-size: 38px; line-height: 1.15; letter-spacing: -0.6px; margin-bottom: 20px; }
+.rst-content h2 {
+  font-size: 26px; margin-top: 40px; padding-top: 16px;
+  border-top: 1px solid var(--ui-rule);
+}
+.rst-content h3 { font-size: 20px; margin-top: 28px; }
+.rst-content h4 { font-size: 17px; font-weight: 500; }
+.rst-content .headerlink { color: var(--ui-faint); }
+
+a, a:visited { color: var(--ui-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--ui-accent); text-decoration-thickness: 2px; }
+.rst-content .toctree-wrapper a, .rst-content a.reference.internal { text-decoration-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+
+::selection { background: color-mix(in srgb, var(--ui-accent) 22%, transparent); }
+:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+
+/* ------------------------------------------------------------------ the sidebar: ruled paper, not a dark panel */
+
+.wy-nav-side {
+  background: var(--ui-soft);
+  border-right: 1px solid var(--ui-rule);
+}
+.wy-side-nav-search {
+  background: var(--ui-soft);
+  border-bottom: 1px solid var(--ui-rule);
+  padding: 20px 16px 16px;
+  text-align: left;
+}
+.wy-side-nav-search > a, .wy-side-nav-search .wy-dropdown > a {
+  color: var(--ui-ink);
+  font: 500 24px/1.1 var(--ui-font-heading);
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+.wy-side-nav-search > a:hover { background: none; color: var(--ui-accent); }
+.wy-side-nav-search > a .icon-home::before { content: none; }
+.wy-side-nav-search > div.version {
+  color: var(--ui-muted);
+  font: 12px var(--ui-font-mono);
+  margin-top: 6px;
+}
+.wy-side-nav-search input[type="text"] {
+  border: 1px solid var(--ui-rule-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-paper);
+  color: var(--ui-ink);
+  box-shadow: none;
+  font-family: var(--ui-font-body);
+  padding: 7px 10px;
+  margin-top: 14px;
+}
+.wy-side-nav-search input[type="text"]:focus { border-color: var(--ui-accent); }
+
+.wy-menu-vertical { font-size: 14px; }
+.wy-menu-vertical header, .wy-menu-vertical p.caption {
+  color: var(--ui-muted);
+  font: 600 11px var(--ui-font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 20px;
+  padding: 0 16px;
+  height: auto;
+  line-height: 28px;
+}
+.wy-menu-vertical a, .wy-menu-vertical a:visited {
+  color: var(--ui-ink);
+  text-decoration: none;
+  padding: 5px 16px;
+}
+.wy-menu-vertical a:hover { background: color-mix(in srgb, var(--ui-ink) 6%, transparent); color: var(--ui-ink); }
+.wy-menu-vertical a button.toctree-expand { color: var(--ui-faint); }
+
+/* the current page: the accent and a rule, like the UI's current nav item */
+.wy-menu-vertical li.current { background: transparent; }
+.wy-menu-vertical li.current > a,
+.wy-menu-vertical li.on a {
+  background: var(--ui-paper);
+  color: var(--ui-accent);
+  font-weight: 500;
+  border: 0;
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+.wy-menu-vertical li.current a { border-right: 0; }
+.wy-menu-vertical li.toctree-l2.current > a,
+.wy-menu-vertical li.toctree-l2.current li.toctree-l3 > a,
+.wy-menu-vertical li.toctree-l3.current > a,
+.wy-menu-vertical li.toctree-l3.current li.toctree-l4 > a,
+.wy-menu-vertical li.toctree-l2 a, .wy-menu-vertical li.toctree-l3 a {
+  background: transparent;
+  color: var(--ui-muted);
+}
+.wy-menu-vertical li.toctree-l2 a:hover, .wy-menu-vertical li.toctree-l3 a:hover {
+  background: color-mix(in srgb, var(--ui-ink) 6%, transparent);
+  color: var(--ui-ink);
+}
+.wy-menu-vertical li.toctree-l2.current > a, .wy-menu-vertical li.toctree-l3.current > a {
+  color: var(--ui-accent);
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+.wy-menu-vertical li.current > a:hover { background: var(--ui-paper); }
+
+/* the narrow-screen top bar */
+.wy-nav-top { background: var(--ui-paper); color: var(--ui-ink); border-bottom: 1px solid var(--ui-rule); }
+.wy-nav-top a { color: var(--ui-ink); font-family: var(--ui-font-heading); font-weight: 500; text-decoration: none; }
+.wy-nav-top i { color: var(--ui-ink); }
+
+/* ------------------------------------------------------------------ breadcrumbs, footer, prev/next */
+
+.wy-breadcrumbs { font-size: 13px; color: var(--ui-muted); }
+.wy-breadcrumbs li a { color: var(--ui-muted); text-decoration: none; }
+.wy-breadcrumbs li a:hover { color: var(--ui-ink); }
+.wy-breadcrumbs li.wy-breadcrumbs-aside a { color: var(--ui-muted); }
+.rst-content > div[role="navigation"] hr, .wy-nav-content hr, footer hr {
+  border: 0; border-top: 1px solid var(--ui-rule);
+}
+
+footer { color: var(--ui-muted); font-size: 12px; }
+.rst-footer-buttons .btn, .btn-neutral, .btn-neutral:visited {
+  background: var(--ui-paper) !important;
+  color: var(--ui-ink) !important;
+  border: 1px solid var(--ui-rule-strong);
+  border-radius: var(--ui-radius);
+  box-shadow: none;
+  font: 500 13px var(--ui-font-body);
+  padding: 7px 12px;
+  text-decoration: none;
+}
+.btn-neutral:hover { background: var(--ui-soft) !important; }
+
+/* ------------------------------------------------------------------ code */
+
+.rst-content code, .rst-content tt, code {
+  font-family: var(--ui-font-mono);
+  font-size: 0.88em;
+  color: var(--ui-ink);
+  background: var(--ui-soft);
+  border: 1px solid var(--ui-rule);
+  border-radius: var(--ui-radius);
+  padding: 1px 5px;
+}
+.rst-content code.literal, .rst-content tt.literal { color: var(--ui-ink); }
+.rst-content code.xref, .rst-content a code { color: var(--ui-accent); font-weight: 500; }
+
+.rst-content div[class^="highlight"], .rst-content pre.literal-block {
+  background: var(--ui-soft);
+  border: 1px solid var(--ui-rule);
+  border-radius: var(--ui-radius);
+  margin-bottom: 20px;
+}
+.rst-content div[class^="highlight"] div[class^="highlight"] { border: 0; margin: 0; }
+.rst-content pre.literal-block, .rst-content div[class^="highlight"] pre, .highlight {
+  background: transparent;
+  font-family: var(--ui-font-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ui-ink);
+}
+.rst-content div[class^="highlight"] pre { padding: 10px 12px; }
+.rst-content .code-block-caption {
+  font: 500 12px var(--ui-font-mono);
+  color: var(--ui-muted);
+  text-align: left;
+  padding: 4px 0;
+}
+
+/* pygments tokens in the UI's tokens (the same mapping as web/static/css/code-highlighting.css) */
+.highlight .c, .highlight .c1, .highlight .cm, .highlight .cs, .highlight .ch, .highlight .cp, .highlight .cpf { color: var(--ui-muted); font-style: italic; }
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr, .highlight .nb, .highlight .bp, .highlight .ow { color: var(--ui-accent); font-weight: 500; }
+.highlight .kc, .highlight .ss { color: var(--ui-series-5); }
+.highlight .nf, .highlight .fm, .highlight .nc, .highlight .nd { color: var(--ui-series-2); font-weight: 500; }
+.highlight .nv, .highlight .n, .highlight .na, .highlight .nn, .highlight .nt { color: var(--ui-ink); }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb, .highlight .sc, .highlight .sd, .highlight .se, .highlight .sh, .highlight .si, .highlight .sx, .highlight .sa, .highlight .dl { color: var(--ui-series-3); }
+.highlight .m, .highlight .mi, .highlight .mf, .highlight .mh, .highlight .mo, .highlight .il { color: var(--ui-series-4); }
+.highlight .o { color: var(--ui-series-6); }
+.highlight .p { color: var(--ui-muted); }
+.highlight .gh, .highlight .gu { color: var(--ui-ink); font-weight: 600; }
+.highlight .gp { color: var(--ui-muted); user-select: none; }
+.highlight .go { color: var(--ui-muted); }
+.highlight .gd { color: var(--ui-danger); }
+.highlight .gi { color: var(--ui-success); }
+.highlight .err { color: var(--ui-danger); border: 0; }
+.highlight .hll { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+.highlight .w { color: inherit; }
+
+/* ------------------------------------------------------------------ admonitions: a ruled margin note, tinted */
+
+.rst-content .admonition, .rst-content .note, .rst-content .tip, .rst-content .hint, .rst-content .important,
+.rst-content .warning, .rst-content .caution, .rst-content .attention, .rst-content .danger, .rst-content .error,
+.rst-content .seealso {
+  --ui-tone: var(--ui-info);
+  background: color-mix(in srgb, var(--ui-tone) 6%, var(--ui-paper));
+  border-left: 2px solid var(--ui-tone);
+  border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+  padding: 12px 16px;
+  color: var(--ui-ink);
+}
+.rst-content .tip, .rst-content .hint, .rst-content .seealso { --ui-tone: var(--ui-accent); }
+.rst-content .important { --ui-tone: var(--ui-review); }
+.rst-content .warning, .rst-content .caution, .rst-content .attention { --ui-tone: var(--ui-warning); }
+.rst-content .danger, .rst-content .error { --ui-tone: var(--ui-danger); }
+.rst-content .admonition-title, .rst-content .admonition .admonition-title {
+  background: transparent !important;
+  color: var(--ui-tone);
+  font: 600 11px var(--ui-font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 6px;
+  padding: 0;
+}
+.rst-content .admonition-title::before { content: none; }
+.rst-content .admonition p:last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ tables: thin rules, no zebra, no boxes */
+
+.rst-content table.docutils, .wy-table-bordered-all, .rst-content table.field-list {
+  border: 0;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.rst-content table.docutils thead { background: transparent; }
+.rst-content table.docutils thead th {
+  border: 0;
+  border-bottom: 1px solid var(--ui-rule-strong);
+  color: var(--ui-muted);
+  font: 600 11px var(--ui-font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  padding: 8px 12px;
+}
+.rst-content table.docutils td {
+  border: 0;
+  border-bottom: 1px solid var(--ui-rule);
+  background: transparent !important;
+  padding: 8px 12px;
+  vertical-align: top;
+}
+.rst-content table.docutils td, .rst-content table.docutils th { white-space: normal; }
+.rst-content table.docutils:not(.field-list) tr:nth-child(2n-1) td { background: transparent; }
+.wy-table-responsive table td, .wy-table-responsive table th { white-space: normal; }
+.rst-content table.docutils caption { color: var(--ui-muted); font: 500 12px var(--ui-font-body); text-align: left; }
+
+/* ------------------------------------------------------------------ API reference (autodoc) */
+
+html.writer-html5 .rst-content dl.py > dt, .rst-content dl.py > dt {
+  background: var(--ui-soft);
+  color: var(--ui-ink);
+  border: 0;
+  border-left: 2px solid var(--ui-accent);
+  font-family: var(--ui-font-mono);
+  font-size: 13px;
+  padding: 6px 10px;
+}
+html.writer-html5 .rst-content dl.py dl.py > dt, .rst-content dl.py dl.py > dt {
+  background: transparent;
+  border-left: 2px solid var(--ui-rule-strong);
+}
+.rst-content dl dt .sig-name, .rst-content code.descname { color: var(--ui-ink); font-weight: 600; background: none; border: 0; padding: 0; }
+.rst-content code.descclassname, .rst-content dl dt .sig-prename { color: var(--ui-muted); background: none; border: 0; padding: 0; }
+.rst-content dl dt .property { color: var(--ui-muted); }
+.rst-content dl dt .sig-paren, .rst-content dl dt em.sig-param { font-style: normal; }
+.rst-content .viewcode-link, .rst-content .viewcode-back { color: var(--ui-muted); }
+
+/* plain definition lists: the term in the heading face's weight, the body indented under a rule */
+.rst-content dl:not(.py):not(.glossary):not(.field-list) > dt {
+  background: none; border: 0; padding: 0; margin-top: 14px;
+  font-family: var(--ui-font-body); font-size: 15px; font-weight: 600; color: var(--ui-ink);
+}
+.rst-content dl:not(.py):not(.glossary):not(.field-list) > dd {
+  margin: 4px 0 12px 0; padding-left: 16px; border-left: 1px solid var(--ui-rule);
+}
+
+/* the glossary: terms in mono, like identifiers */
+.rst-content dl.glossary dt { font-family: var(--ui-font-mono); font-weight: 500; font-size: 13px; }
+
+/* ------------------------------------------------------------------ project pieces */
+
+/* a lead paragraph under a page title */
+.rst-content p.lead, .rst-content .lead p { font-size: 17px; color: var(--ui-muted); line-height: 1.55; }
+
+/* status words, as the UI shows them: :status:`passed` etc. */
+.ui-status-word {
+  --ui-tone: var(--ui-muted);
+  display: inline-block; min-width: 6.75em; padding: 1px 7px;
+  border-radius: var(--ui-radius);
+  font: 500 11px/1.45 var(--ui-font-body);
+  color: var(--ui-tone);
+  background: color-mix(in srgb, var(--ui-tone) 10%, var(--ui-paper));
+}
+.ui-status-word--passed { --ui-tone: var(--ui-success); }
+.ui-status-word--failed, .ui-status-word--error { --ui-tone: var(--ui-danger); }
+.ui-status-word--partial, .ui-status-word--blocked { --ui-tone: var(--ui-warning); }
+.ui-status-word--running, .ui-status-word--queued { --ui-tone: var(--ui-info); }
+
+/* the version flyout, if hosted on Read the Docs */
+.rst-versions { background: var(--ui-soft); color: var(--ui-ink); border-top: 1px solid var(--ui-rule); font-family: var(--ui-font-body); }
+.rst-versions .rst-current-version { background: var(--ui-soft); color: var(--ui-accent); }
