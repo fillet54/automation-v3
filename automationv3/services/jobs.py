@@ -108,19 +108,48 @@ def closure_hash(files, load_order):
     return Closure(load_order[-1], files, load_order).hash
 
 
-def queue_plan(conn, root, plan):
-    """Queue every run of `plan` under one new report.
+def create_report(root, workspace, name="", uut_versions=None):
+    """An empty report for one workspace. Its UUT versions (name ->
+    {id, digest}) are the default for every addition."""
+    return store.create_report(root, name=name, workspace=workspace,
+                               uut_versions=uut_versions or {}, requirements={},
+                               scripts=[], additions=[])
 
-    Returns (report_id, run_ids). Raises QueueError if the plan has
-    errors or nothing to run.
-    """
-    runs = plan.runs()
-    if plan.errors or not runs:
+
+def check_runnable(plan):
+    """Raise QueueError if the plan has errors or nothing to run"""
+    if plan.errors or not plan.runs():
         errors = list(plan.errors) or ["Nothing to run"]
         errors += [f"{s.script}: {s.skipped}" for s in plan.scripts if s.skipped]
         raise QueueError(errors)
 
-    report_id = store.create_report(root, **plan.summary())
+
+def add_plan(conn, root, report_id, plan, requirements=None):
+    """Queue every run of `plan` in an existing report. `requirements`
+    (id -> linked scripts) join the report's tracked requirements.
+
+    Returns the run ids. Raises QueueError if nothing can run.
+    """
+    check_runnable(plan)
+    runs = plan.runs()
+    report = store.load_report(root, report_id)
+    summary = plan.summary()
+    store.update_report(
+        root,
+        report_id,
+        requirements={**report.get("requirements", {}), **(requirements or {})},
+        scripts=merge_scripts(report.get("scripts", []), summary["scripts"]),
+        additions=[*report.get("additions", []), {
+            "added": store.now_iso(),
+            "requirements": sorted(requirements or {}),
+            "scripts": [s.script for s in plan.scripts],
+            "environments": plan.environments,
+            "uut_versions": plan.uut_versions,
+            "filter": plan.filter,
+            "runs": len(runs),
+        }],
+    )
+
     run_ids = []
     for script_plan, environment, variation in runs:
         closure = script_plan.closure
@@ -139,7 +168,59 @@ def queue_plan(conn, root, plan):
             closure.imports,
             variation,
         ))
-    return report_id, run_ids
+    return run_ids
+
+
+def merge_scripts(entries, added):
+    """A report's script entries with an addition's merged in: a script
+    added again keeps every combination it was expected to cover"""
+    merged = {entry["script"]: entry for entry in entries if isinstance(entry, dict)}
+    for entry in added:
+        before = merged.get(entry["script"], {})
+        expected = [*before.get("expected", []),
+                    *[c for c in entry["expected"] if c not in before.get("expected", [])]]
+        requirements = sorted({*before.get("requirements", []), *entry["requirements"]})
+        merged[entry["script"]] = {**entry, "expected": expected,
+                                   "requirements": requirements}
+    return list(merged.values())
+
+
+def queue_plan(conn, root, plan, name=None):
+    """Queue every run of `plan` under one new report, tracking the
+    requirements it covers: the one-step path from a selection.
+
+    Returns (report_id, run_ids). Raises QueueError if the plan has
+    errors or nothing to run.
+    """
+    check_runnable(plan)
+    report_id = create_report(root, plan.workspace, name or default_name(plan),
+                              plan.uut_versions)
+    return report_id, add_plan(conn, root, report_id, plan, plan.requirements)
+
+
+def default_name(plan):
+    """What a report queued in one step covers, e.g. "R1, R2 and 3 more" """
+    names = list(plan.requirements) or [s.script.split("/")[-1] for s in plan.scripts]
+    if len(names) > 3:
+        return f"{', '.join(names[:2])} and {len(names) - 2} more"
+    return ", ".join(names)
+
+
+def reports_for(root, workspace):
+    """Reports of `workspace` a selection can be added to, newest first"""
+    if not root or not workspace:
+        return []
+    return [r for r in store.list_reports(root) if r.get("workspace") == workspace]
+
+
+def passed_combinations(root, report_id):
+    """(script, environment, variation) whose latest run in the report
+    passed"""
+    latest = {}
+    for run in store.list_runs(root, report_id):  # oldest first
+        variation = (run.get("variation") or {}).get("name")
+        latest[(run["script"], run.get("environment"), variation)] = run
+    return {key for key, run in latest.items() if run.get("outcome") == "pass"}
 
 
 def queue_script(conn, root, workspace_root, script, text=None,

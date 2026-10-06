@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% block title %}New report{% endblock %}
+
+{% block content %}
+{{ ui.page_header("New report", crumbs=[("Reports", url_for('reports.index')), ("New", None)],
+                  subtitle="A report tests one build: add requirements and tests to it as you go, and it rolls them all up.") }}
+
+{% if errors %}
+{% call ui.alert("danger", title="Can't create the report yet") %}
+  <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+{% endcall %}
+{% endif %}
+
+<form method="post" class="ui-form ui-stack" style="max-width: 560px;">
+  {% call ui.field("Name", "report-name", hint="e.g. the build or release it covers") %}
+    {{ ui.input("name", form.get("name", ""), id="report-name", required=True) }}
+  {% endcall %}
+  {% call ui.field("Workspace", "report-workspace") %}
+    {{ ui.select("workspace", workspaces, selected=form.get("workspace"), id="report-workspace", mono=True) }}
+  {% endcall %}
+  {% if choices %}
+  {% call ui.fieldset("UUT versions", "The default for every addition; an addition can override them.") %}
+    {% for uut, ids in choices.items() %}
+    {% call ui.field(uut, "version-" ~ uut) %}
+      {{ ui.select("version-" ~ uut, ids, selected=form.get("version-" ~ uut), id="version-" ~ uut, mono=True) }}
+    {% endcall %}
+    {% endfor %}
+  {% endcall %}
+  {% endif %}
+  {% call ui.toolbar() %}
+    {{ ui.button("Create report", variant="primary", type="submit") }}
+    {{ ui.button("Cancel", href=url_for('reports.index')) }}
+  {% endcall %}
+</form>
+{% endblock %}

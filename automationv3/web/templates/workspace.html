@@ -9,7 +9,8 @@
 {% call ui.field("Workspace", "workspace-select") %}
 {{ ui.select("workspace", options, selected=url_for('workspace.index', id=workspace.id), id="workspace-select", mono=True, attrs={"onchange": "window.location.href = this.value"}) }}
 {% endcall %}
-<nav class="ui-tree" id="treeview" aria-label="Scripts"
+{% if report %}<input type="hidden" id="target-report" name="report" value="{{ report.id }}">{% endif %}
+<nav class="ui-tree" id="treeview" aria-label="Scripts"{% if report %} hx-include="#target-report"{% endif %}
      hx-get="{{ url_for('workspace.tree', id=workspace.id) }}"
      hx-trigger="load">
   <div class="ui-row ui-muted"><span class="ui-spinner"></span> Loading</div>
@@ -18,9 +19,13 @@
 
 {% block content %}
 {% set path = request.args.get("path") %}
-<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path, variation=request.args.get('variation')) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
+<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path, variation=request.args.get('variation'), report=request.args.get('report')) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
   {{ ui.page_header(workspace.id, subtitle="Scripts are authored in git; this is a read-only view of the branch's rvts.", eyebrow="Workspace", mono=True) }}
+  {% if report %}
+  {% call ui.alert("info", title="Adding a test to " ~ (report.name or "a report")) %}Pick a script from the tree, then add it to the report.{% endcall %}
+  {% else %}
   {{ ui.empty("Pick a script from the tree to read it, see what it loads, and queue it.") }}
+  {% endif %}
 </div>
 {% endblock %}
 

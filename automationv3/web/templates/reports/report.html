@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% set nav_current = "reports" %}
-{% block title %}Report {{ report.id[:8] }}{% endblock %}
+{% block title %}{{ report.name or ("Report " ~ report.id[:8]) }}{% endblock %}
 
 {% block content %}
 {% include "reports/partials/report_body.html" %}

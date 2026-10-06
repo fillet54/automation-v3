@@ -13,9 +13,9 @@
       {%- if closure.variations and closure.variations | length <= 5 %}
       {% set items = [] %}
       {% for name in [None] + variation_names %}
-        {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=name) %}
+        {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=name, report=target or None) %}
         {% set _ = items.append({"label": name or "All", "href": href, "active": (variation.name if variation else None) == name,
-                                 "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=name),
+                                 "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=name, report=target or None),
                                            "hx-target": "#content", "hx-swap": "outerHTML", "hx-push-url": href}}) %}
       {% endfor %}
       {{ ui.segmented(items, label="Variation") }}
@@ -27,7 +27,17 @@
       {%- endif %}
     </div>
     {%- if queueable %}
-    {{ ui.button("Queue…", variant="primary", icon="play", href=url_for('jobqueue.new', workspace=workspace.id, script=path)) }}
+    <form method="get" action="{{ url_for('jobqueue.new') }}" class="ui-toolbar">
+      <input type="hidden" name="workspace" value="{{ workspace.id }}">
+      <input type="hidden" name="script" value="{{ path }}">
+      {%- if reports %}
+      {% set options = [("", "a new report")] %}
+      {% for r in reports %}{% set _ = options.append((r.id, r.name or r.id[:8])) %}{% endfor %}
+      <label class="ui-row" for="view-report"><span class="ui-field__label">Queue in</span>
+      {{ ui.select("report", options, selected=target, id="view-report") }}</label>
+      {%- endif %}
+      {{ ui.button("Queue…", variant="primary", icon="play", type="submit") }}
+    </form>
     {%- endif %}
   </div>
   {% endif %}

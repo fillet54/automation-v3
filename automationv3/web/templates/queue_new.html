@@ -3,7 +3,12 @@
 {% block title %}Queue runs{% endblock %}
 
 {% block content %}
+{% if report %}
+{{ ui.page_header("Add to " ~ (report.name or "report"), crumbs=[("Reports", url_for('reports.index')), (report.name or report.id[:8], url_for('reports.report', report_id=report.id)), ("Add", None)],
+                  subtitle="Pick where the scripts run and which variations to include. What already passed in this report is left out.") }}
+{% else %}
 {{ ui.page_header("Queue runs", crumbs=[("Queue", url_for('jobqueue.list')), ("New", None)],
                   subtitle="Pick where the scripts run, the UUT versions to install and which variations to include.") }}
+{% endif %}
 {% include "partials/queue_form.html" %}
 {% endblock %}

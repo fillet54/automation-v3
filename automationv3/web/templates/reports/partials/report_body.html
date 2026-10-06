@@ -9,9 +9,14 @@
   {% set meta = [] %}
   {% if report.workspace %}{% set _ = meta.append("workspace " ~ report.workspace) %}{% endif %}
   {% for uut, version in (report.uut_versions or {}).items() %}{% set _ = meta.append(uut ~ " " ~ version.id) %}{% endfor %}
+  {% for uut, counts in mix.items() %}{% for id, n in counts.items() %}{% set _ = meta.append("also " ~ uut ~ " " ~ id ~ " in " ~ n ~ " run" ~ ('' if n == 1 else 's')) %}{% endfor %}{% endfor %}
   {% if report.filter %}{% set _ = meta.append("filter " ~ report.filter) %}{% endif %}
-  {% call ui.page_header("Report", crumbs=[("Reports", url_for('reports.index')), (report.id[:8], None)], meta=meta) %}
+  {% call ui.page_header(report.name or "Report", crumbs=[("Reports", url_for('reports.index')), (report.name or report.id[:8], None)], meta=meta) %}
     {% if in_progress %}<span class="ui-row ui-muted" style="font-size: 12px;"><span class="ui-spinner"></span>Runs in progress</span>{% endif %}
+    {% if report.workspace %}
+    {{ ui.button("Add requirements…", icon="plus", href=url_for('requirements.list', workspace=report.workspace, report=report.id)) }}
+    {{ ui.button("Add a test…", icon="plus", href=url_for('workspace.index', id=report.workspace, report=report.id)) }}
+    {% endif %}
   {% endcall %}
 
   {% call ui.stats("Summary") %}
@@ -50,6 +55,7 @@
   {% endcall %}
   {% endif %}
 
+  {% if rows %}
   {% call ui.section("Runs", subtitle="The latest run of each combination; earlier runs are reruns") %}
   {% call ui.table(["Script", "Environment", "Variation", "Latest", "Earlier"]) %}
     {% for row in rows %}
@@ -62,11 +68,30 @@
         {%- for run in row.earlier %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=run.id) }}">{{ run.status }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
       </td>
     </tr>
-    {% else %}
-    {{ ui.empty_row("No runs.", 5) }}
     {% endfor %}
   {% endcall %}
   {% endcall %}
+  {% endif %}
+
+  {% if not rows and not report.additions %}
+  {{ ui.empty("Nothing added yet. Add requirements to run every test linked to them, or add a single test.") }}
+  {% endif %}
+
+  {% if report.additions %}
+  {% call ui.section("Additions", subtitle="What was added to the report, oldest first") %}
+  {% call ui.table(["Added", "Requirements", "Tests", "UUT versions", {"label": "Runs", "align": "end"}]) %}
+    {% for a in report.additions %}
+    <tr style="vertical-align: top;">
+      <td>{{ ui.timestamp(a.added) }}</td>
+      <td>{% for r in a.requirements %}{{ ui.ident(r) }} {% else %}<span class="ui-muted">—</span>{% endfor %}</td>
+      <td>{% for s in a.scripts %}{{ ui.ident(s, plain=True) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      <td class="ui-mono">{% for uut, v in a.uut_versions.items() %}{{ uut }} {{ v.id }}{% if report.uut_versions and report.uut_versions[uut] and report.uut_versions[uut].id != v.id %} {{ ui.badge("override", "warning", outline=True) }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      <td class="ui-end ui-number">{{ a.runs }}</td>
+    </tr>
+    {% endfor %}
+  {% endcall %}
+  {% endcall %}
+  {% endif %}
 
   {% if skipped %}
   {% call ui.section("Skipped") %}

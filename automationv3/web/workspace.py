@@ -12,6 +12,8 @@ from ..framework.closure import is_script, resolve
 from ..framework.document import has_rvt
 from ..framework.rst import write_html_parts
 from ..framework.statements import get_statements
+from ..services import jobs
+from ..services.reports import store
 from ..services.workspace import FileNode, find_worktrees, is_binary
 from .db import get_db
 from .grouping import group, statement_item
@@ -73,10 +75,18 @@ def node_or_404(workspace, path):
         abort(404)
 
 
+def target_report():
+    """The report a test is being added to (`report` argument), or None"""
+    report_id = request.args.get("report")
+    return store.load_report(current_app.config["REPORTS_PATH"], report_id) \
+        if report_id else None
+
+
 @bp.route("/<path:id>", methods=["GET"])
 def index(id):
     return render_template(
-        "workspace.html", workspaces=list(worktrees()), workspace=workspace_or_404(id)
+        "workspace.html", workspaces=list(worktrees()), workspace=workspace_or_404(id),
+        report=target_report(),
     )
 
 
@@ -168,6 +178,9 @@ def render_view(ws, node, errors=None, variation=None):
         variation_names=names,
         variation_rows=[(v.name, written_values(v))
                         for v in (closure.variations if closure else [])],
+        reports=jobs.reports_for(current_app.config["REPORTS_PATH"], ws.id)
+        if closure and not closure.errors else [],
+        target=request.args.get("report", ""),
         errors=(errors or []) + (closure.errors if closure else []),
     )
 

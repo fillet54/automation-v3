@@ -766,7 +766,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(f"/workspace/{self.branch}/view?path=BRA/modes.rst")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"under-limit?", page.data)
-        self.assertIn(b"/runner/new?workspace=", page.data)
+        self.assertIn(b'action="/runner/new"', page.data)
+        self.assertIn(b'name="script" value="BRA/modes.rst"', page.data)
         details = page.data.split(b"ui-script-details")[1].split(b"</details>")[0]
         self.assertIn(b"<td>low</td>", details)  # every variation, as All is shown
         self.assertIn(b"<td>high</td>", details)
@@ -878,6 +879,92 @@ class TestWorkerAgainstServer(unittest.TestCase):
             self.assertNotIn("<pre", summary)  # output stays inside
             phases = [s.split('"')[0] for s in body.split('class="ui-step ui-step--')[1:]]
             self.assertEqual(phases, states, script)
+
+    def new_report(self, name="Build 7", version="1.0.0"):
+        response = self.http.post("/reports/new", data={
+            "name": name, "workspace": self.branch, "version-demo": version})
+        self.assertEqual(response.status_code, 302, response.get_data(True))
+        return response.headers["Location"].rstrip("/").split("/")[-1]
+
+    def add(self, report_id, **form):
+        response = self.http.post("/runner/queue", data={
+            "report": report_id, "configured": "1", "environment": "sim", **form})
+        self.assertEqual(response.status_code, 302, response.get_data(True))
+        self.assertTrue(response.headers["Location"].endswith(report_id))
+
+    def test_a_report_grows_by_requirements_and_single_tests(self):
+        report_id = self.new_report()
+        report = store.load_report(self.root, report_id)
+        self.assertEqual((report["name"], report["workspace"]), ("Build 7", self.branch))
+        self.assertEqual(report["uut_versions"]["demo"]["id"], "1.0.0")
+        self.assertIn("Nothing added yet", self.http.get(f"/reports/{report_id}").get_data(True))
+
+        # A requirement adds every linked test and is tracked
+        self.add(report_id, requirement="R1",
+                 variation=["BRA/modes.rst::low", "BRA/modes.rst::high"])
+        # A single test is added on its own: its requirement R2 isn't tracked
+        self.add(report_id, script="BRA/tc.rst")
+        report = store.load_report(self.root, report_id)
+        self.assertEqual(list(report["requirements"]), ["R1"])
+        self.assertEqual([a["requirements"] for a in report["additions"]], [["R1"], []])
+        self.assertEqual(sorted(s["script"] for s in report["scripts"]),
+                         ["BRA/modes.rst", "BRA/tc.rst"])
+        runs = store.list_runs(self.root, report_id)
+        self.assertEqual(len(runs), 3)
+        self.assertEqual({r["uut_versions"]["demo"]["id"] for r in runs}, {"1.0.0"})
+
+        self.worker.work_until_idle()
+        rows = rollup.combinations(report, store.list_runs(self.root, report_id),
+                                   lambda run: "pending")
+        (r1,) = rollup.requirement_rollup(report, rows)
+        self.assertEqual((r1["id"], r1["passed"], r1["total"]), ("R1", 1, 2))
+
+        page = self.http.get(f"/reports/{report_id}").get_data(True)
+        self.assertIn("Build 7", page)
+        self.assertIn("Additions", page)
+        self.assertIn(f"report={report_id}", page)  # the Add actions
+
+    def test_adding_leaves_out_what_already_passed(self):
+        report_id = self.new_report()
+        self.add(report_id, script="BRA/tc.rst")
+        self.assertEqual(self.worker.work_once(), "pass")
+
+        dialog = self.http.get("/runner/new", query_string={
+            "report": report_id, "script": "BRA/tc.rst"}).get_data(True)
+        self.assertIn("Run again what already passed", dialog)
+        self.assertIn("Add 0 runs to the report", dialog)
+        response = self.http.post("/runner/queue", data={
+            "report": report_id, "configured": "1", "environment": "sim",
+            "script": "BRA/tc.rst"})
+        self.assertIn("Nothing to run", response.get_data(True))
+
+        self.add(report_id, script="BRA/tc.rst", rerun="BRA/tc.rst")
+        self.assertEqual(len(store.list_runs(self.root, report_id)), 2)
+
+    def test_an_addition_can_override_the_reports_uut_version(self):
+        report_id = self.new_report(version="1.0.0")
+        dialog = self.http.get("/runner/new", query_string={
+            "report": report_id, "script": "BRA/tc.rst"}).get_data(True)
+        self.assertRegex(dialog, r'<option value="1.0.0" selected')
+
+        self.add(report_id, script="BRA/tc.rst", **{"version-demo": "1.1.0"})
+        (run,) = store.list_runs(self.root, report_id)
+        self.assertEqual(run["uut_versions"]["demo"]["id"], "1.1.0")
+        page = self.http.get(f"/reports/{report_id}").get_data(True)
+        self.assertIn("also demo 1.1.0 in 1 run", page)
+        self.assertIn("override", page)
+
+    def test_add_to_report_from_requirements_and_viewer(self):
+        report_id = self.new_report()
+        page = self.http.get("/requirements/", query_string={
+            "workspace": self.branch, "report": report_id}).get_data(True)
+        self.assertRegex(page, rf'<option value="{report_id}" selected')
+        view = self.http.get(f"/workspace/{self.branch}/view", query_string={
+            "path": "BRA/tc.rst", "report": report_id}).get_data(True)
+        self.assertRegex(view, rf'<option value="{report_id}" selected')
+        workspace = self.http.get(f"/workspace/{self.branch}",
+                                  query_string={"report": report_id}).get_data(True)
+        self.assertIn('id="target-report"', workspace)
 
     def test_unqueued_variations_leave_requirement_partial(self):
         report_id = self.queue_requirements(

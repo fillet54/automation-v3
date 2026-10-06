@@ -11,11 +11,15 @@ from flask import (
     url_for,
 )
 
+from dataclasses import asdict
+
 from ..framework.language import DIRECTIVES, head
 from ..framework.statements import get_statements
+from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import rollup, store
 from ..services.requirements import models as requirement_models
+from ..services.workspace import find_worktrees
 from .db import get_db
 from .grouping import group, statement_item
 
@@ -172,6 +176,52 @@ def index():
     return render_template("reports/reports.html", reports=all_reports)
 
 
+def uut_choices():
+    """UUT name -> version ids, newest first, for every UUT plugin"""
+    return {name: [v.id for v in reversed(cls().list_versions())]
+            for name, cls in sorted(uut_types().items())}
+
+
+@reports.route("/new", methods=["GET", "POST"])
+def new():
+    """Create an empty report for one build: a name, a workspace and one
+    version per UUT type"""
+    workspaces = sorted(find_worktrees(current_app.config["WORKSPACE_PATH"]))
+    choices = uut_choices()
+    errors = []
+    if request.method == "POST":
+        form = request.form
+        name = form.get("name", "").strip()
+        workspace = form.get("workspace")
+        versions = {}
+        for uut, cls in uut_types().items():
+            version = cls().find_version(form.get(f"version-{uut}", ""))
+            if version is not None:
+                versions[uut] = asdict(version)
+        if not name:
+            errors.append("A report needs a name")
+        if workspace not in workspaces:
+            errors.append("Pick a workspace")
+        if not errors:
+            report_id = models.create_report(root(), workspace, name, versions)
+            return redirect(url_for("reports.report", report_id=report_id))
+    return render_template("reports/new.html", workspaces=workspaces, choices=choices,
+                           form=request.form, errors=errors)
+
+
+def version_mix(report, runs):
+    """uut -> {version id: runs} for runs using a version other than the
+    report's"""
+    defaults = {uut: v["id"] for uut, v in (report.get("uut_versions") or {}).items()}
+    mix = {}
+    for run in runs:
+        for uut, version in (run.get("uut_versions") or {}).items():
+            if version["id"] != defaults.get(uut):
+                counts = mix.setdefault(uut, {})
+                counts[version["id"]] = counts.get(version["id"], 0) + 1
+    return mix
+
+
 @reports.route("/<report_id>", methods=["GET"])
 def report(report_id):
     report = store.load_report(root(), report_id) or abort(404)
@@ -203,6 +253,7 @@ def report(report_id):
         texts=texts,
         skipped=skipped,
         in_progress=in_progress,
+        mix=version_mix(report, runs),
     )
 
 

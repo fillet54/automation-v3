@@ -3,11 +3,14 @@
 {% block title %}Reports{% endblock %}
 
 {% block content %}
-{{ ui.page_header("Reports", subtitle="Each report is one queuing: the runs it planned and how its requirements came out.") }}
-{% call ui.table(["Created", "Workspace", "Covers", {"label": "Runs", "align": "end"}]) %}
+{% call ui.page_header("Reports", subtitle="A report tests one build: the requirements and tests added to it, and how they came out.") %}
+  {{ ui.button("New report", variant="primary", icon="plus", href=url_for('reports.new')) }}
+{% endcall %}
+{% call ui.table(["Report", "Created", "Workspace", "Covers", {"label": "Runs", "align": "end"}]) %}
   {% for report in reports %}
   <tr class="ui-row--link" data-href="{{ url_for('reports.report', report_id=report.id) }}">
-    <td><a href="{{ url_for('reports.report', report_id=report.id) }}">{{ ui.timestamp(report.created) }}</a></td>
+    <td><a href="{{ url_for('reports.report', report_id=report.id) }}">{{ report.name or report.id[:8] }}</a></td>
+    <td>{{ ui.timestamp(report.created) }}</td>
     <td>{% if report.workspace %}{{ ui.ident(report.workspace) }}{% endif %}</td>
     <td>
       {%- if report.requirements %}{% for r in report.requirements %}{{ ui.ident(r) }} {% endfor %}
@@ -18,7 +21,7 @@
     <td class="ui-end ui-number">{{ report.runs | length }}</td>
   </tr>
   {% else %}
-  {{ ui.empty_row("No reports yet. Queue scripts from the workspace or the requirements page.", 4) }}
+  {{ ui.empty_row("No reports yet. Create one, or queue scripts from the workspace or the requirements page.", 5) }}
   {% endfor %}
 {% endcall %}
 {% endblock %}

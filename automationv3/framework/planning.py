@@ -15,6 +15,9 @@ is an error rather than a silent exclusion.
 The plan also lists every combination that *could* run (all declared
 variations in the selected environments) so a report can count the
 ones left out as not run.
+
+When adding to a report, combinations whose latest run there already
+passed are left out, unless the script is picked to run them again.
 """
 
 from dataclasses import asdict, dataclass, field
@@ -43,6 +46,8 @@ class ScriptPlan:
     environments: list = field(default_factory=list)  # selected and supported
     variations: list = field(default_factory=list)  # VariationChoice, [] if none
     skipped: str = ""
+    passed: list = field(default_factory=list)  # (environment, variation) to leave out
+    rerun_passed: bool = False  # run the passed combinations again anyway
 
     @property
     def variation_names(self):
@@ -54,7 +59,8 @@ class ScriptPlan:
         names = [v.name for v in self.variations if v.selected]
         if self.variations and not names:
             return []
-        return list(product(self.environments or [None], names or [None]))
+        combos = product(self.environments or [None], names or [None])
+        return [c for c in combos if self.rerun_passed or c not in self.passed]
 
     def expected(self):
         """Every (environment, variation) that a complete run would cover"""
@@ -183,15 +189,18 @@ def plan_variations(script_plan, selection, predicate, errors, variation_symbols
 
 def build_plan(workspace, root, scripts, requirements=None, environments=None,
                versions=None, variations=None, filter_source="", links=None,
-               texts=None):
+               texts=None, passed=None, rerun_passed=()):
     """Plan a queue request.
 
     `links` maps requirement id -> scripts referencing it; requirements
     pull in their linked scripts. `environments` None selects every
     supported environment. `variations` is None (all) or a set of
     "script::name" keys. `versions` maps UUT name -> version id. `texts`
-    overrides scripts' content on disk.
+    overrides scripts' content on disk. `passed` is a set of (script,
+    environment, variation) already passed, left out unless the script
+    is in `rerun_passed`.
     """
+    passed = passed or set()
     links = links or {}
     texts = texts or {}
     plan = Plan(workspace, filter=filter_source or "")
@@ -202,7 +211,7 @@ def build_plan(workspace, root, scripts, requirements=None, environments=None,
     ))
 
     for script in wanted:
-        script_plan = ScriptPlan(script)
+        script_plan = ScriptPlan(script, rerun_passed=script in rerun_passed)
         plan.scripts.append(script_plan)
         script_plan.requirements = sorted(r for r, s in links.items() if script in s)
         try:
@@ -255,6 +264,8 @@ def build_plan(workspace, root, scripts, requirements=None, environments=None,
             )
         plan_variations(script_plan, variations, predicate, plan.errors,
                         variation_symbols)
+        script_plan.passed = [combo for combo in script_plan.expected()
+                              if (script_plan.script, *combo) in passed]
 
     versions = versions or {}
     for name, ids in plan.uut_choices.items():

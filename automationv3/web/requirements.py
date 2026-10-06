@@ -2,6 +2,7 @@
 
 from flask import Blueprint, current_app, render_template, request, abort
 
+from ..services import jobs
 from ..services.requirements import links, models
 from ..services.workspace import find_worktrees
 from .db import get_db
@@ -43,6 +44,8 @@ def list():
         hx_request=request.headers.get("HX-Request", False),
         selected_subsystem=subsystem,
         subsystems=subsystems,
+        reports=jobs.reports_for(current_app.config.get("REPORTS_PATH"), workspace),
+        target=request.args.get("report", ""),
     )
 
 

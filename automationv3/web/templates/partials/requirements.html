@@ -7,6 +7,12 @@
                  attrs={"hx-get": url_for('requirements.list', subsystem=selected_subsystem), "hx-target": "#requirements",
                         "hx-swap": "innerHTML", "hx-push-url": "true"}) }}</label>
     <span class="ui-spacer"></span>
+    {% if reports %}
+    <label class="ui-row" for="req-report"><span class="ui-field__label">Add to</span>
+    {% set options = [("", "a new report")] %}
+    {% for r in reports %}{% set _ = options.append((r.id, r.name or r.id[:8])) %}{% endfor %}
+    {{ ui.select("report", options, selected=target, id="req-report") }}</label>
+    {% endif %}
     {{ ui.button("Queue selected…", variant="primary", icon="play", type="submit") }}
   {% endcall %}
   {% endif %}

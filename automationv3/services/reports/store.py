@@ -79,6 +79,14 @@ def create_report(root, **meta):
     return report_id
 
 
+def update_report(root, report_id, **fields):
+    path = report_dir(root, report_id) / "report.json"
+    report = _read_json(path)
+    report.update(fields)
+    _write_json(path, report)
+    return report
+
+
 def create_run(root, report_id, script, closure):
     """Create a run folder holding the closure (relative path -> text)"""
     run_id = uuid7()

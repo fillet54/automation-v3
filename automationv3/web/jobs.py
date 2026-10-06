@@ -22,6 +22,7 @@ from flask import (
 
 from ..framework.planning import build_plan
 from ..services import jobs as models
+from ..services.reports import store
 from ..services.requirements import links
 from ..services.workspace import find_worktrees
 from .db import get_db
@@ -59,27 +60,43 @@ def live_environments():
     return live
 
 
+def target_report(args):
+    """The report a queue dialog adds to (its `report` argument), or None
+    for a new one"""
+    report_id = args.get("report")
+    if not report_id:
+        return None
+    return store.load_report(reports_root(), report_id) or abort(404)
+
+
 def plan_from(args):
-    """The plan for a queue dialog request (query string or form)"""
-    workspace = args.get("workspace", "")
+    """The plan for a queue dialog request (query string or form). Adding
+    to a report uses its workspace, defaults to its UUT versions and
+    leaves out combinations that already passed there."""
+    report = target_report(args)
+    workspace = report["workspace"] if report else args.get("workspace", "")
     root = workspace_root(workspace)
     if root is None:
         abort(404)
     conn = get_db()
     links.refresh(conn, workspace, root)
 
+    versions = {uut: v["id"] for uut, v in (report or {}).get("uut_versions", {}).items()}
+    versions.update({
+        key[len("version-"):]: value
+        for key, value in args.items()
+        if key.startswith("version-") and value
+    })
     configured = args.get("configured") == "1"
     options = dict(
         scripts=args.getlist("script"),
         requirements=args.getlist("requirement"),
-        versions={
-            key[len("version-"):]: value
-            for key, value in args.items()
-            if key.startswith("version-") and value
-        },
+        versions=versions,
         variations=set(args.getlist("variation")) if configured else None,
         filter_source=args.get("filter", ""),
         links=links.scripts_by_requirement(conn, workspace),
+        passed=models.passed_combinations(reports_root(), report["id"]) if report else None,
+        rerun_passed=set(args.getlist("rerun")),
     )
     environments = args.getlist("environment") if configured else None
     plan = build_plan(workspace, root, environments=environments, **options)
@@ -91,13 +108,14 @@ def plan_from(args):
     return plan
 
 
-def render_dialog(plan, errors=()):
+def render_dialog(plan, report=None, errors=()):
     template = "queue_new.html"
     if request.headers.get("HX-Request"):
         template = "partials/queue_form.html"
     return render_template(
         template,
         plan=plan,
+        report=report,
         runs=plan.runs(),
         live=live_environments(),
         errors=[*errors, *plan.errors],
@@ -107,16 +125,25 @@ def render_dialog(plan, errors=()):
 @jobqueue.route("/new", methods=["GET"])
 def new():
     """Queue dialog: choose environments, versions and variations"""
-    return render_dialog(plan_from(request.args))
+    return render_dialog(plan_from(request.args), target_report(request.args))
 
 
 @jobqueue.route("/queue", methods=["POST"])
 def queue():
+    """Queue the dialog's selection as a new report, or add it to the
+    report it targets: requirements added there are tracked, tests added
+    on their own are not"""
     plan = plan_from(request.form)
+    report = target_report(request.form)
     try:
-        report_id, _ = models.queue_plan(get_db(), reports_root(), plan)
+        if report is None:
+            report_id, _ = models.queue_plan(get_db(), reports_root(), plan)
+        else:
+            report_id = report["id"]
+            tracked = plan.requirements if request.form.getlist("requirement") else {}
+            models.add_plan(get_db(), reports_root(), report_id, plan, tracked)
     except models.QueueError as e:
-        return render_dialog(plan, e.errors)
+        return render_dialog(plan, report, e.errors)
     target = url_for("reports.report", report_id=report_id)
     if request.headers.get("HX-Request"):
         resp = make_response("", 204)

@@ -6,10 +6,12 @@
       hx-swap="outerHTML">
   <input type="hidden" name="workspace" value="{{ plan.workspace }}">
   <input type="hidden" name="configured" value="1">
+  {% if report %}<input type="hidden" name="report" value="{{ report.id }}">{% endif %}
   {% for req in plan.requirements %}<input type="hidden" name="requirement" value="{{ req }}">{% endfor %}
   {% for s in request.values.getlist('script') %}<input type="hidden" name="script" value="{{ s }}">{% endfor %}
 
   <div class="ui-facts">
+    {% if report %}<span>Adding to {{ ui.ident(report.name or report.id[:8], url_for('reports.report', report_id=report.id), plain=True) }}</span>{% endif %}
     <span>Workspace {{ ui.ident(plan.workspace) }}</span>
     {% if plan.requirements %}<span>Requirements {% for r in plan.requirements %}{{ ui.ident(r) }} {% endfor %}</span>{% endif %}
   </div>
@@ -36,7 +38,8 @@
     {% call ui.fieldset("UUT versions", "Installed on the environment before the run, if it isn't already.") %}
       {% for uut, ids in plan.uut_choices.items() %}
       {% set selected = plan.uut_versions[uut].id if plan.uut_versions[uut] else None %}
-      {% call ui.field(uut, "version-" ~ uut) %}
+      {% set default = report.uut_versions[uut].id if report and report.uut_versions and report.uut_versions[uut] else None %}
+      {% call ui.field(uut, "version-" ~ uut, hint=("Overrides the report's " ~ default ~ " for this addition") if default and selected != default else None) %}
         {{ ui.select("version-" ~ uut, ids | reverse | list, selected=selected, mono=True) }}
       {% endcall %}
       {% endfor %}
@@ -72,6 +75,13 @@
             {% if v.reason == 'filtered out' %}{{ ui.badge("filtered out", outline=True) }}{% endif %}
           </label>
         {% endfor %}
+        {% if s.passed %}
+          <label class="ui-check">
+            <input type="checkbox" name="rerun" value="{{ s.script }}"{% if s.rerun_passed %} checked{% endif %}>
+            <span>Run again what already passed:
+              <span class="ui-text-caption ui-mono">{% for env, var in s.passed %}{{ [env, var] | select | join(" · ") or "the test" }}{% if not loop.last %}, {% endif %}{% endfor %}</span></span>
+          </label>
+        {% endif %}
         </div>
       </td>
     </tr>
@@ -80,7 +90,8 @@
 
   {% call ui.toolbar() %}
     {% set n = runs | length %}
-    {{ ui.button("Queue " ~ n ~ " run" ~ ('' if n == 1 else 's'), variant="primary", icon="play", disabled=not runs,
+    {% set label = ("Add " ~ n ~ " run" ~ ('' if n == 1 else 's') ~ " to the report") if report else ("Queue " ~ n ~ " run" ~ ('' if n == 1 else 's')) %}
+    {{ ui.button(label, variant="primary", icon="play", disabled=not runs,
                  attrs={"hx-post": url_for('jobqueue.queue'), "hx-include": "#queue-form", "hx-target": "#queue-form", "hx-swap": "outerHTML"}) }}
     {% set skipped = plan.scripts | selectattr('skipped') | list %}
     {% if skipped %}<span class="ui-muted">{{ skipped | length }} script{{ '' if skipped | length == 1 else 's' }} skipped</span>{% endif %}
