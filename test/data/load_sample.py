@@ -27,7 +27,7 @@ from docopt import docopt
 
 from automationv3.services.database import connect, init_db
 from automationv3.services.requirements import models
-from automationv3.framework.requirement import Requirement
+from automationv3.demo import parse_requirement
 
 SAMPLE_DATA_PATH = Path(__file__).resolve().parent / 'sample_requirements.txt'
 
@@ -38,24 +38,12 @@ def load_sample():
     dbpath = args['--dbpath']
     data = args['--data']
 
-    def line_to_requirement(line):
-        line = line.strip()
-        idx = line.rfind("[")
-        requirement_text = line[:idx].strip()
-        requirement_id = line[idx + 1:-2].strip()
-        subsystem = requirement_id.split("VMC")[1].split("0")[0].strip()
-        return Requirement(
-            id=requirement_id, 
-            text=requirement_text, 
-            subsystem=subsystem
-        )
-
     with (
         open(data, 'r') as file,
         closing(connect(dbpath)) as conn
     ):
         init_db(conn)
-        models.insert(conn, [line_to_requirement(line) for line in file])
+        models.insert(conn, [parse_requirement(line) for line in file if line.strip()])
 
 if __name__ == '__main__':
     load_sample()

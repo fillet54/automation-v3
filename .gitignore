@@ -99,3 +99,6 @@ celerybeat-schedule
 
 test/data/git_repos/
 /reports/
+
+# automation-v3 demo
+/demo/

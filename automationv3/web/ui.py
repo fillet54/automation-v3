@@ -84,7 +84,10 @@ def iso(value):
 
 
 def _nav():
-    return [{"key": key, "label": label, "href": url_for(endpoint)} for key, label, endpoint in NAV]
+    items = [{"key": key, "label": label, "href": url_for(endpoint)} for key, label, endpoint in NAV]
+    if current_app.config.get("DOCS_PATH"):
+        items.append({"key": "docs", "label": "Docs", "href": url_for("docs")})
+    return items
 
 
 def init_app(app):

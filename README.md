@@ -1,30 +1,48 @@
 
 # Automation-v3
 
-## Quick Start
-1. Create virtual env
+## Try the demo
+
+From a clone of this repository:
+
 ```
 python -m venv .venv
-source .venv/bin/activate.sh
+source .venv/bin/activate
+pip install -e ".[docs]"
+automation-v3 demo
 ```
-2. Install dependencies
-```
-pip install -r requirements.txt
-python setup.py develop
-```
-3. Create sample db
+
+Then open http://localhost:8080.
+
+`demo` sets up everything in a fresh `./demo` folder and serves it, with a
+worker in the same process:
+
+- a workspace: a git repository of the sample scripts (`test/data/rvts`)
+  on `master`, with three more branches as worktrees;
+- the sample requirements, loaded into the demo's database;
+- the `sim` and `bench` environments, working under `demo/environments`;
+- this project's documentation, built and linked as **Docs** in the
+  app's navigation.
+
+Each run deletes the earlier demo and starts again; it won't delete a
+folder it didn't make. Use `--path` for another folder, `--port` for
+another port, and `--no-docs` to skip building the documentation. The
+install must be editable (`-e`): the demo reads the sample scripts and
+documentation sources from the checkout. Without the `[docs]` extra the
+demo runs without documentation.
+
+## Running it yourself
+
+1. Install as above, then make the sample database and workspace:
 ```
 python test/data/load_sample.py
-```
-4. Create sample workspace
-```
 python test/data/make_workspaces.py
 ```
-5. Run!
+2. Run!
 ```
 automation-v3 server --workspace-path ./test/data/git_repos/master
 ```
-6. Start a worker (in another terminal) to execute queued scripts. The
+3. Start a worker (in another terminal) to execute queued scripts. The
    config names the environments it hosts; this one hosts the sample `sim`
    and `bench`.
 ```
@@ -42,6 +60,13 @@ worker; it takes jobs straight from the server's database. Separate workers
 can still connect as well:
 ```
 automation-v3 server --workspace-path ./test/data/git_repos/master --local-worker --config test/data/worker.json
+```
+
+To serve the documentation at `/docs` (with a **Docs** link in the
+navigation), build it and pass `--docs-path`:
+```
+make -C docs html
+automation-v3 server --workspace-path ./test/data/git_repos/master --docs-path docs/_build/html
 ```
 
 ### Running scripts without a server

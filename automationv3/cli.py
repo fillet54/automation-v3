@@ -1,9 +1,11 @@
 """Automation Framework
 
 Usage:
+    automation-v3 demo [--path PATH] [--port PORT] [--no-docs]
     automation-v3 server [--port PORT] [--dbpath PATH]
                          [--workspace-path PATH] [--reports-path PATH]
-                         [--local-worker] [--config PATH] [--debug]
+                         [--docs-path PATH] [--local-worker] [--config PATH]
+                         [--debug]
     automation-v3 worker [--port PORT] [--config PATH]
                          [--central-server URL] [--no-http] [--debug]
     automation-v3 run SCRIPT... [--root PATH] [--config PATH]
@@ -12,6 +14,9 @@ Usage:
     automation-v3 (-h | --help)
 
 Commands:
+    demo                   set up a demo (sample scripts, requirements and
+                           these docs) in a fresh folder, and serve it with
+                           a worker. Deletes an earlier demo at --path
     server                 serve the web app and the job API, optionally
                            with a worker in the same process
     worker                 take jobs from a server and run them
@@ -25,6 +30,9 @@ Options:
     --workspace-path=PATH  path to git repo [default: ./]
     --reports-path=PATH    directory holding reports and runs
                            [default: ./reports]
+    --docs-path=PATH       built HTML documentation to serve at /docs
+    --path=PATH            the demo's folder [default: ./demo]
+    --no-docs              don't build the documentation
     --central-server=URL   host:port of the central server
     --config=PATH          worker config (JSON) naming the environments
                            it hosts
@@ -71,7 +79,9 @@ def main(argv=None):
         sys.exit(run(args))
 
     print(__banner__)
-    if args["server"]:
+    if args["demo"]:
+        start_demo(args)
+    elif args["server"]:
         start_server(args)
     else:
         start_worker(args)
@@ -115,12 +125,36 @@ def start_server(args):
         init_db(conn)
         cleanup_finished(conn, reports_path)
 
+    docs_path = args.get("--docs-path")
+    if docs_path and not (Path(docs_path) / "index.html").exists():
+        sys.exit("--docs-path=PATH should hold built HTML (an index.html)")
+
     app = create_app(
-        DB_PATH=db_path, WORKSPACE_PATH=workspace_path, REPORTS_PATH=reports_path
+        DB_PATH=db_path, WORKSPACE_PATH=workspace_path, REPORTS_PATH=reports_path,
+        DOCS_PATH=Path(docs_path).resolve() if docs_path else None,
     )
     if args["--local-worker"] and serving_process(args):
         start_local_worker(db_path, reports_path, args["--config"])
     serve(app, args, "Server")
+
+
+def start_demo(args):
+    """Set up a fresh demo and serve it, with a worker in-process"""
+    from .demo import DemoError, setup
+
+    try:
+        demo = setup(args["--path"], docs=not args["--no-docs"])
+    except DemoError as e:
+        sys.exit(str(e))
+    start_server({
+        **args,
+        "--dbpath": demo.db_path,
+        "--workspace-path": demo.workspace,
+        "--reports-path": demo.reports,
+        "--docs-path": demo.docs,
+        "--config": demo.config,
+        "--local-worker": True,
+    })
 
 
 def serving_process(args):

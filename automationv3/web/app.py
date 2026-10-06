@@ -1,6 +1,6 @@
 """The server's Flask app"""
 
-from flask import Flask, has_app_context, redirect, url_for
+from flask import Flask, abort, has_app_context, redirect, send_from_directory, url_for
 
 from ..framework import rst
 from ..services.requirements import models as requirements
@@ -17,7 +17,8 @@ def requirement_lookup(id):
 
 
 def create_app(**config):
-    """The server app. Config: DB_PATH, WORKSPACE_PATH, REPORTS_PATH."""
+    """The server app. Config: DB_PATH, WORKSPACE_PATH, REPORTS_PATH, and
+    DOCS_PATH (built HTML documentation, served at /docs) if there is one."""
     app = Flask(__name__)
     app.config.update(config)
     ui.init_app(app)
@@ -34,5 +35,13 @@ def create_app(**config):
     def index():
         first = next(iter(find_worktrees(app.config["WORKSPACE_PATH"])))
         return redirect(url_for("workspace.index", id=first))
+
+    @app.route("/docs/", defaults={"filename": "index.html"})
+    @app.route("/docs/<path:filename>")
+    def docs(filename):
+        """The documentation, if the server was given a build of it"""
+        if not app.config.get("DOCS_PATH"):
+            abort(404)
+        return send_from_directory(app.config["DOCS_PATH"], filename)
 
     return app

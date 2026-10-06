@@ -10,9 +10,11 @@ Command line
    Automation Framework
 
    Usage:
+       automation-v3 demo [--path PATH] [--port PORT] [--no-docs]
        automation-v3 server [--port PORT] [--dbpath PATH]
                             [--workspace-path PATH] [--reports-path PATH]
-                            [--local-worker] [--config PATH] [--debug]
+                            [--docs-path PATH] [--local-worker] [--config PATH]
+                            [--debug]
        automation-v3 worker [--port PORT] [--config PATH]
                             [--central-server URL] [--no-http] [--debug]
        automation-v3 run SCRIPT... [--root PATH] [--config PATH]
@@ -21,6 +23,9 @@ Command line
        automation-v3 (-h | --help)
 
    Commands:
+       demo                   set up a demo (sample scripts, requirements and
+                              these docs) in a fresh folder, and serve it with
+                              a worker. Deletes an earlier demo at --path
        server                 serve the web app and the job API, optionally
                               with a worker in the same process
        worker                 take jobs from a server and run them
@@ -34,6 +39,9 @@ Command line
        --workspace-path=PATH  path to git repo [default: ./]
        --reports-path=PATH    directory holding reports and runs
                               [default: ./reports]
+       --docs-path=PATH       built HTML documentation to serve at /docs
+       --path=PATH            the demo's folder [default: ./demo]
+       --no-docs              don't build the documentation
        --central-server=URL   host:port of the central server
        --config=PATH          worker config (JSON) naming the environments
                               it hosts
@@ -48,13 +56,20 @@ Command line
        --uut=NAME=VERSION     UUT version to use (default: newest)
        --debug                enables autoload [default: false]
 
+``demo``
+--------
+
+Sets up a fresh demo folder (sample scripts, requirements and these docs)
+and serves it with a worker in-process. See :doc:`../overview/getting-started`.
+
 ``server``
 ----------
 
 Serves the web app and the job API. ``--workspace-path`` is the git checkout
 scripts are read from; ``--reports-path`` is where finished runs are stored.
 With ``--local-worker`` it also runs a worker in-process, hosting the
-environments in ``--config``.
+environments in ``--config``. ``--docs-path`` serves a build of these docs
+at ``/docs``, with a **Docs** link in the navigation.
 
 ``worker``
 ----------

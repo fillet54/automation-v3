@@ -6,39 +6,56 @@ Getting started
    Run the sample test set on one machine: a server, a worker, the simulated
    ``demo`` UUT and a dozen example scripts.
 
-Install
--------
+The demo
+--------
 
-Automation v3 needs Python 3.10 or newer.
+From a clone of the repository, with Python 3.10 or newer:
 
 .. code-block:: bash
 
    python -m venv .venv
    source .venv/bin/activate
-   pip install -r requirements.txt
-   pip install -e .
+   pip install -e ".[docs]"
+   automation-v3 demo
 
-Load the sample data
---------------------
+Open http://localhost:8080.
 
-The sample database holds the requirements the example scripts reference, and
-the sample workspace is a git repository of those scripts (from
-``test/data/rvts``):
+``demo`` builds a fresh ``./demo`` folder and serves it with a worker in the
+same process. It holds a workspace (a git repository of the sample scripts,
+with three more branches), the sample requirements, the ``sim`` and ``bench``
+environments' work directories, and these docs, linked as **Docs** in the
+app's navigation. Running it again deletes the earlier demo and starts over;
+it never deletes a folder it didn't make.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Option
+     - Meaning
+   * - ``--path PATH``
+     - the demo's folder (default ``./demo``)
+   * - ``--port PORT``
+     - the port to serve on (default 8080)
+   * - ``--no-docs``
+     - don't build the documentation
+
+The install must be editable: the demo reads the sample scripts and these
+docs' sources from the checkout.
+
+Setting it up by hand
+---------------------
+
+To run against the sample set without the demo, load the sample data and
+start a server and a worker:
 
 .. code-block:: bash
 
    python test/data/load_sample.py
    python test/data/make_workspaces.py
-
-Start the server and a worker
------------------------------
-
-.. code-block:: bash
-
    automation-v3 server --workspace-path ./test/data/git_repos/master
 
-In a second terminal, start a worker. Its config names the environments it
-hosts; the sample one hosts ``sim`` and ``bench``:
+In a second terminal:
 
 .. code-block:: bash
 
@@ -50,7 +67,8 @@ Or run everything in one process, with a worker inside the server:
 
    automation-v3 server --workspace-path ./test/data/git_repos/master --local-worker --config test/data/worker.json
 
-Open http://localhost:8080.
+Add ``--docs-path docs/_build/html`` to serve a build of these docs at
+``/docs``.
 
 A first tour
 ------------

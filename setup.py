@@ -17,7 +17,18 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
     ],
-    install_requires=[],
+    install_requires=[
+        "flask",
+        "jinja2",
+        "waitress",
+        "docutils",
+        "docopt",
+        "requests",
+        "pygments",
+    ],
+    extras_require={
+        "docs": ["sphinx", "sphinx-rtd-theme"],
+    },
     python_requires='>=3.10',
     include_package_data=True,
     entry_points = {
