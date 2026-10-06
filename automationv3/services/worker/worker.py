@@ -65,6 +65,10 @@ class ReportObserver:
     def on_call_start(self, **kw):
         self.send("call_start", **kw)
 
+    def on_attach(self, name, data, index=None):
+        stored = self.server.attach(self.job_id, name, data)
+        self.send("attachment", name=stored, index=index, size=len(data))
+
     def on_call_end(self, **kw):
         self.send("call_end", **kw)
 

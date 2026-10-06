@@ -201,7 +201,8 @@ def rerun(conn, root, report_id, run_id, force=False):
             extra["non_identical"] = True
         else:
             raise Drift(run.get("environment"), {
-                url: fingerprint_diff(run["fingerprint"], fp) for url, fp in live.items()
+                url: fingerprint_diff(run["fingerprint"], fingerprint)
+                for url, fingerprint in live.items()
             })
     return enqueue(conn, root, report_id, run["script"], files,
                    run.get("load_order", [run["script"]]),
@@ -236,8 +237,8 @@ def flatten(value, prefix=""):
         return {prefix: value}
     flat = {}
     for key, item in value.items():
-        flat.update(flatten(item, f"{prefix}{key}." if isinstance(item, dict)
-                             else f"{prefix}{key}"))
+        nested = isinstance(item, dict)
+        flat.update(flatten(item, f"{prefix}{key}." if nested else f"{prefix}{key}"))
     return flat
 
 
@@ -561,6 +562,12 @@ def release_job(conn, root, id, worker_url):
 def record_events(conn, root, id, worker_url, events):
     job = held_job(conn, id, worker_url)
     store.append_events(root, job.report_id, job.id, events)
+
+
+def attach_file(conn, root, id, worker_url, name, data):
+    """Store a file with the job's run. Returns the name it was stored as."""
+    job = held_job(conn, id, worker_url)
+    return store.save_file(root, job.report_id, job.id, name, data)
 
 
 def complete_job(conn, root, id, worker_url, outcome, installed=None,

@@ -1,5 +1,7 @@
 """The central server's job API over HTTP, as one worker sees it"""
 
+import base64
+
 import requests
 
 
@@ -42,6 +44,13 @@ class ServerClient:
 
     def post_events(self, job_id, events):
         self._post(f"/jobs/{job_id}/events", events=events)
+
+    def attach(self, job_id, name, data):
+        """Store a file with the job's run; returns the name it was stored as"""
+        response = self._post(f"/jobs/{job_id}/files", name=name,
+                              data=base64.b64encode(data).decode())
+        response.raise_for_status()
+        return response.json()["name"]
 
     def complete(self, job_id, outcome, **details):
         self._post(f"/jobs/{job_id}/complete", outcome=outcome, **details)

@@ -52,6 +52,10 @@
     {% set fingerprint %}<span class="ui-mono ui-text-caption">{% for key, value in run.fingerprint | flatten %}{{ key }} = {{ value }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span>{% endset %}
     {% set _ = facts.append(("Fingerprint", fingerprint)) %}
   {% endif %}
+  {% if files %}
+    {% set links %}{% for name in files %}<a href="{{ url_for('reports.run_file', report_id=run.report_id, run_id=run.id, name=name) }}" class="ui-mono">{{ name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endset %}
+    {% set _ = facts.append(("Files", links)) %}
+  {% endif %}
   {% if run.identity %}{% set _ = facts.append(("Identity", '<span class="ui-mono ui-text-caption">' | safe ~ run.identity ~ '</span>' | safe)) %}{% endif %}
   {% if run.rerun_of %}
     {% set rerun_of %}<a href="{{ url_for('reports.run', report_id=run.report_id, run_id=run.rerun_of) }}" class="ui-mono">{{ run.rerun_of[:8] }}</a>{% if run.non_identical %} · not identical: its environment had drifted{% endif %}{% endset %}
@@ -74,7 +78,7 @@
   {% for error in errors %}{{ ui.code_block(error.traceback, label="Error") }}{% endfor %}
 
   {#- One step (or precondition phase): its form, block calls and output, with its duration and state #}
-  {% macro step_row(body, state, result, calls) %}
+  {% macro step_row(body, state, result, calls, attachments=()) %}
     {% set kind = {"not run": "not-run"}.get(state, state) %}
     <div class="ui-step ui-step--{{ kind }}">
       <div class="ui-step__body">
@@ -90,6 +94,11 @@
         {% endif %}
         {% if result and (result.stdout or result.stderr) %}
         <pre class="ui-pre">{{ result.stdout }}{% if result.stderr %}<span class="ui-step__fail">{{ result.stderr }}</span>{% endif %}</pre>
+        {% endif %}
+        {% if attachments %}
+        <div class="ui-attachments">{{ ui.icon("file", 12) }}
+          {%- for a in attachments %} <a href="{{ url_for('reports.run_file', report_id=run.report_id, run_id=run.id, name=a.name) }}" class="ui-mono">{{ a.name }}</a>{% if not loop.last %},{% endif %}{% endfor %}
+        </div>
         {% endif %}
       </div>
       <div class="ui-step__state">
@@ -120,7 +129,7 @@
 
   {% macro render(row) %}
     {% if row.step and row.precondition %}{{ precondition_row(row) }}
-    {% elif row.step %}{{ step_row(row.html | safe, row.state, row.result, row.calls) }}
+    {% elif row.step %}{{ step_row(row.html | safe, row.state, row.result, row.calls, row.attachments) }}
     {% elif row.directive != "variations" %}{# the variations form: shown in the details above #}
     <div>{{ row.html | safe }}</div>
     {% endif %}

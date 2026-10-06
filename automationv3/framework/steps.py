@@ -101,6 +101,15 @@ class Runtime:
         return result
 
 
+def attach(name, data):
+    """Attach a file (bytes or text) to the running step's run. Observers
+    store it; on a report it is listed with the step."""
+    runtime = current_runtime()
+    if isinstance(data, str):
+        data = data.encode()
+    runtime.observer.on_attach(index=runtime.index, name=name, data=data)
+
+
 def elapsed(started):
     """Seconds since `started` (a time.monotonic()), to the millisecond"""
     return round(time.monotonic() - started, 3)

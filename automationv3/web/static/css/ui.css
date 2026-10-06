@@ -628,6 +628,7 @@ body.ui {
 .ui-duration { min-width: 5.5em; text-align: right; font-family: var(--ui-font-mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ui-muted); white-space: nowrap; }
 .ui-step .ui-pre { margin-top: 6px; }
 .ui-step__fail { color: var(--ui-danger); }
+.ui-attachments { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; font-size: 12px; color: var(--ui-muted); }
 
 /* the block calls a step made: form, outcome and output; a defblock's calls nest under it */
 .ui-calls { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }

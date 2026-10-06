@@ -102,6 +102,33 @@ def create_run(root, report_id, script, closure):
     return run_id
 
 
+def save_file(root, report_id, run_id, name, data):
+    """Store `data` (bytes) in the run's files/ folder under `name`, or a
+    numbered variant of it if taken. Returns the name used."""
+    folder = run_dir(root, report_id, run_id) / "files"
+    folder.mkdir(exist_ok=True)
+    name = Path(name).name.lstrip(".") or "file"
+    stem, suffix = Path(name).stem, Path(name).suffix
+    stored, n = name, 1
+    while (folder / stored).exists():
+        n += 1
+        stored = f"{stem}-{n}{suffix}"
+    (folder / stored).write_bytes(data)
+    return stored
+
+
+def list_files(root, report_id, run_id):
+    """Names of the files attached to a run"""
+    folder = run_dir(root, report_id, run_id) / "files"
+    return sorted(p.name for p in folder.iterdir()) if folder.is_dir() else []
+
+
+def file_path(root, report_id, run_id, name):
+    """The path of an attached file, or None if there is no such file"""
+    path = run_dir(root, report_id, run_id) / "files" / Path(name).name
+    return path if path.is_file() else None
+
+
 def read_closure(root, report_id, run_id):
     base = run_dir(root, report_id, run_id) / "closure"
     return {

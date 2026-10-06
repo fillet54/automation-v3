@@ -4,6 +4,7 @@ The API is a thin HTTP adapter over services.jobs; workers can equally
 use those functions in-process (services.worker.local).
 """
 
+import base64
 from dataclasses import asdict
 from datetime import datetime
 
@@ -248,6 +249,19 @@ def release_job(id):
 def post_events(id):
     _, error = api_call(models.record_events, id, worker_url(), request.json["events"])
     return error or jsonify({"status": "ok"})
+
+
+@jobqueue.route("/jobs/<id>/files", methods=["POST"])
+def attach_file(id):
+    """JSON body: worker_url, name, data (base64)"""
+    data = request.json or {}
+    try:
+        content = base64.b64decode(data.get("data", ""), validate=True)
+    except ValueError:
+        return jsonify({"error": "data must be base64"}), 400
+    name, error = api_call(models.attach_file, id, worker_url(),
+                           data.get("name", ""), content)
+    return error or jsonify({"name": name})
 
 
 @jobqueue.route("/jobs/<id>/complete", methods=["POST"])

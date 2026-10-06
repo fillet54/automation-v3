@@ -510,6 +510,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
                 ".. rvt-variant::\n   :variations: high\n\n   High only: the level is high.\n\n"
                 + textwrap.indent(rvt("(Verify level = 50)", title="Level is high"), "   ")),
             "BRA/pre.rst": rvt('(Precondition "Low" (under-limit? 1)) (Wait 0)'),
+            "BRA/snap.rst": rvt('(StartDemo {:mode :normal}) (SnapshotDemo "state") '
+                                '(SnapshotDemo "state")'),
             "BRA/unmet.rst": rvt('(Precondition "High" (under-limit? 50)) (Wait 0)'),
             "plain/core.rst": "(environments) (uut)",
             "plain/fail.rst": FAILING,
@@ -725,6 +727,29 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertNotEqual(forced["identity"], first["identity"])
         page = self.http.get(f"/reports/{ids['report_id']}/runs/{forced['id']}")
         self.assertIn("Not identical", page.get_data(True))
+
+    def test_blocks_attach_files_to_their_run(self):
+        ids = self.queue("BRA/snap.rst")
+        self.assertEqual(self.worker.work_once(), "pass")
+        self.assertEqual(store.list_files(self.root, ids["report_id"], ids["run_id"]),
+                         ["state-2.json", "state.json"])  # a taken name is numbered
+
+        base = f"/reports/{ids['report_id']}/runs/{ids['run_id']}"
+        page = self.http.get(base).get_data(True)
+        self.assertIn(f'href="{base}/files/state.json"', page)
+        self.assertEqual(page.count('class="ui-attachments"'), 2)  # one per step
+        snapshot = self.http.get(f"{base}/files/state.json")
+        self.assertEqual(snapshot.status_code, 200)
+        self.assertIn('"mode": ":normal"', snapshot.get_data(True))
+        self.assertEqual(self.http.get(f"{base}/files/../run.json").status_code, 404)
+
+    def test_only_the_worker_holding_a_job_attaches_to_it(self):
+        ids = self.queue("plain/pass.rst")
+        other = ServerClient("http://server", "http://w2",
+                             session=FlaskSession(self.http, "http://server"))
+        with self.assertRaises(AssertionError):  # the test session's HTTP error
+            other.attach(ids["run_id"], "x.txt", b"x")
+        self.assertEqual(store.list_files(self.root, ids["report_id"], ids["run_id"]), [])
 
     def test_fingerprint_diff(self):
         self.assertEqual(

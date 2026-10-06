@@ -6,6 +6,7 @@ from flask import (
     current_app,
     redirect,
     render_template,
+    send_file,
     request,
     url_for,
 )
@@ -44,6 +45,10 @@ def statement_rows(run, finished):
     ended = {e["index"]: e for e in events if e["kind"] == "step_end"}
     calls = call_trees(events)
     phases = precondition_phases(events, calls)
+    attachments = {}
+    for event in events:
+        if event["kind"] == "attachment":
+            attachments.setdefault(event.get("index"), []).append(event)
     variation = (run.get("variation") or {}).get("name")
 
     rows = []
@@ -56,6 +61,7 @@ def statement_rows(run, finished):
             step=isinstance(form, list) and head(form) not in DIRECTIVES,
             calls=calls.get(index, []),
             phases=phases.get(index, []),
+            attachments=attachments.get(index, []),
         )
         if statement.definition:
             # Definitions aren't steps; only a failed one has a result
@@ -210,9 +216,16 @@ def run(report_id, run_id):
     template = "reports/run.html"
     if request.headers.get("HX-Request"):
         template = "reports/partials/run_body.html"
-    return render_template(
-        template, run=run, status=status, finished=finished, rows=rows, errors=errors
-    )
+    files = store.list_files(root(), report_id, run_id)
+    return render_template(template, run=run, status=status, finished=finished,
+                           rows=rows, errors=errors, files=files)
+
+
+@reports.route("/<report_id>/runs/<run_id>/files/<name>", methods=["GET"])
+def run_file(report_id, run_id, name):
+    """A file attached to the run"""
+    path = store.file_path(root(), report_id, run_id, name) or abort(404)
+    return send_file(path)
 
 
 @reports.route("/<report_id>/runs/<run_id>/rerun", methods=["POST"])

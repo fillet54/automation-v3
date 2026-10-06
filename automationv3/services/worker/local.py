@@ -57,6 +57,10 @@ class LocalServer:
     def post_events(self, job_id, events):
         jobs.record_events(self.conn, self.root, job_id, self.worker_url, events)
 
+    def attach(self, job_id, name, data):
+        return jobs.attach_file(self.conn, self.root, job_id, self.worker_url,
+                                name, data)
+
     def complete(self, job_id, outcome, **details):
         jobs.complete_job(self.conn, self.root, job_id, self.worker_url, outcome,
                           **details)

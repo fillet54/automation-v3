@@ -1,7 +1,10 @@
 """Sample BuildingBlocks for the demo UUT"""
 
+import json
+
 from automationv3.framework import context, edn, html
 from automationv3.framework.block import BlockResult, BuildingBlock
+from automationv3.framework.steps import attach
 
 MODE = edn.Keyword("mode")
 READINGS = edn.Keyword("readings")
@@ -38,3 +41,23 @@ class StartDemo(BuildingBlock):
             "<div><strong>Start the demo UUT</strong></div>"
             + html.mapping(config, caption="Configuration")
         )
+
+
+class SnapshotDemo(BuildingBlock):
+    """Attach the demo UUT's state to the run as <label>.json::
+
+        (SnapshotDemo "after-braking")
+    """
+
+    def check_syntax(self, *args):
+        return len(args) == 1 and isinstance(args[0], str)
+
+    def execute(self, label):
+        demo = context.lookup("demo")
+        name = f"{label}.json"
+        attach(name, json.dumps(demo.uut.state(demo.env), indent=2, sort_keys=True))
+        return BlockResult(True, stdout=f"attached {name}")
+
+    def as_html(self, label):
+        name = html.text(label)
+        return f"<span><strong>Snapshot the demo UUT</strong> as {name}.json</span>"

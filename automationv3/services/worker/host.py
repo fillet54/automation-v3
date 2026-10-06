@@ -67,5 +67,7 @@ class Host:
     def capabilities(self):
         return {
             "uut_types": sorted(self.uuts),
-            "environments": {name: self.fingerprint(name) for name in self.environments},
+            "environments": {
+                name: self.fingerprint(name) for name in self.environments
+            },
         }
