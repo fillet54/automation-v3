@@ -672,6 +672,66 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(report_page.status_code, 200)
         self.assertIn(b"pending", report_page.data)
 
+    def drift(self, worker, platform="something else"):
+        """Make `worker`'s sim report a different fingerprint from now on"""
+        sim = worker.host.environments["sim"]
+        original = type(sim).fingerprint
+        sim.fingerprint = lambda: {**original(sim), "platform": platform}
+        worker.check_in()
+
+    def test_identity_is_recorded_and_an_identical_rerun_matches_it(self):
+        ids = self.queue("BRA/tc.rst")
+        self.worker.work_once()
+        run = store.load_run(self.root, ids["report_id"], ids["run_id"])
+        self.assertEqual(run["fingerprint"]["environment"], "sim")
+        self.assertIn("version", run["fingerprint"]["framework"])
+        self.assertEqual(run["fingerprint_hash"], models.fingerprint_hash(run["fingerprint"]))
+        self.assertEqual(len(run["identity"]), 64)
+
+        # A worker whose sim differs can't take the pinned rerun
+        other = Worker(ServerClient("http://server", "http://w2",
+                                    session=FlaskSession(self.http, "http://server")),
+                       Host.from_config({"environments": {"sim": {"workdir": str(self.simdir)}}}))
+        other.check_in(started=True)
+        self.drift(other)
+        self.http.post(f"/reports/{ids['report_id']}/runs/{ids['run_id']}/rerun")
+        self.assertIsNone(other.work_once())
+
+        self.assertEqual(self.worker.work_once(), "pass")
+        first, again = store.list_runs(self.root, ids["report_id"])
+        self.assertEqual(again["rerun_of"], first["id"])
+        self.assertEqual(again["identity"], first["identity"])
+        self.assertNotIn("non_identical", again)
+
+    def test_a_drifted_environment_refuses_the_rerun_unless_forced(self):
+        ids = self.queue("BRA/tc.rst")
+        self.worker.work_once()
+        self.drift(self.worker)
+        url = f"/reports/{ids['report_id']}/runs/{ids['run_id']}/rerun"
+
+        page = self.http.post(url)
+        self.assertEqual(page.status_code, 409)
+        text = page.get_data(True)
+        self.assertIn("can&#39;t be repeated exactly", text)
+        self.assertIn("http://w1", text)
+        self.assertIn('<td class="ui-mono">platform</td>', text)
+        self.assertIn("something else", text)
+        self.assertEqual(len(store.list_runs(self.root, ids["report_id"])), 1)
+
+        self.assertEqual(self.http.post(url, data={"force": "1"}).status_code, 302)
+        self.assertEqual(self.worker.work_once(), "pass")
+        first, forced = store.list_runs(self.root, ids["report_id"])
+        self.assertTrue(forced["non_identical"])
+        self.assertNotEqual(forced["identity"], first["identity"])
+        page = self.http.get(f"/reports/{ids['report_id']}/runs/{forced['id']}")
+        self.assertIn("Not identical", page.get_data(True))
+
+    def test_fingerprint_diff(self):
+        self.assertEqual(
+            models.fingerprint_diff({"a": 1, "f": {"git": "x", "dev": False}},
+                                    {"a": 1, "f": {"git": "y"}, "b": 2}),
+            [("b", None, 2), ("f.dev", False, None), ("f.git", "x", "y")])
+
     def test_queue_and_reports_pages(self):
         self.queue("plain/pass.rst")
         self.assertEqual(self.http.get("/runner/").status_code, 200)

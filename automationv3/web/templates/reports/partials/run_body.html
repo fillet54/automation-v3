@@ -18,6 +18,7 @@
       {%- endif %}
     </div>
     <div class="ui-toolbar">
+      {% if run.non_identical %}{{ ui.badge("Not identical", "warning", outline=True) }}{% endif %}
       {{ ui.outcome(status) }}
       {% if finished %}
       <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
@@ -47,6 +48,15 @@
     {% set _ = facts.append(("Loaded", loads)) %}
   {% endif %}
   {% if run.closure_hash %}{% set _ = facts.append(("Closure", '<span class="ui-mono ui-text-caption">' | safe ~ run.closure_hash ~ '</span>' | safe)) %}{% endif %}
+  {% if run.fingerprint %}
+    {% set fingerprint %}<span class="ui-mono ui-text-caption">{% for key, value in run.fingerprint | flatten %}{{ key }} = {{ value }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span>{% endset %}
+    {% set _ = facts.append(("Fingerprint", fingerprint)) %}
+  {% endif %}
+  {% if run.identity %}{% set _ = facts.append(("Identity", '<span class="ui-mono ui-text-caption">' | safe ~ run.identity ~ '</span>' | safe)) %}{% endif %}
+  {% if run.rerun_of %}
+    {% set rerun_of %}<a href="{{ url_for('reports.run', report_id=run.report_id, run_id=run.rerun_of) }}" class="ui-mono">{{ run.rerun_of[:8] }}</a>{% if run.non_identical %} · not identical: its environment had drifted{% endif %}{% endset %}
+    {% set _ = facts.append(("Rerun of", rerun_of)) %}
+  {% endif %}
   <details class="ui-defs ui-script-details">
     <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Details</span></summary>
     <div class="ui-defs__body ui-stack ui-gap-small">

@@ -75,6 +75,12 @@ def statement_rows(run, finished):
 
 
 @reports.app_template_filter()
+def flatten(fingerprint):
+    """A fingerprint's (dotted key, value) pairs, sorted"""
+    return sorted(models.flatten(fingerprint).items())
+
+
+@reports.app_template_filter()
 def duration(seconds):
     """A step's duration to the millisecond: 7 ms, 1.234 s, 2:05.012"""
     if seconds is None:
@@ -211,7 +217,12 @@ def run(report_id, run_id):
 
 @reports.route("/<report_id>/runs/<run_id>/rerun", methods=["POST"])
 def rerun(report_id, run_id):
-    """Queue the same closure, environment and versions as a new run"""
-    store.load_run(root(), report_id, run_id) or abort(404)
-    new_id = models.rerun(get_db(), root(), report_id, run_id)
+    """Queue the same closure, environment and versions as a new run; if
+    the environment drifted, show how (unless forced)"""
+    run = store.load_run(root(), report_id, run_id) or abort(404)
+    force = request.form.get("force") == "1"
+    try:
+        new_id = models.rerun(get_db(), root(), report_id, run_id, force=force)
+    except models.Drift as drift:
+        return render_template("reports/drift.html", run=run, drift=drift), 409
     return redirect(url_for("reports.run", report_id=report_id, run_id=new_id))

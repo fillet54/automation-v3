@@ -158,7 +158,7 @@ class Worker:
         )
         env = host.environments.get(job["environment"])
         if env is not None:
-            details["fingerprint"] = env.fingerprint()
+            details["fingerprint"] = host.fingerprint(job["environment"])
         try:
             if mode == "force":
                 details["installed"] = install_uuts(host, job)

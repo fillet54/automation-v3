@@ -26,11 +26,12 @@ class Job:
     worker_url: str
     queued_at: datetime
     claimed_at: datetime
+    fingerprint_hash: str = None  # a CM rerun's: only matching workers run it
 
 
 def _job(row):
     (id, report_id, script, environment, variation, uut_versions,
-     status, worker_url, queued_at, claimed_at) = row
+     status, worker_url, queued_at, claimed_at, fingerprint_hash) = row
     return Job(
         id,
         report_id,
@@ -42,12 +43,13 @@ def _job(row):
         worker_url,
         datetime.fromisoformat(queued_at),
         datetime.fromisoformat(claimed_at) if claimed_at else None,
+        fingerprint_hash,
     )
 
 
 JOB_COLUMNS = (
     "id, report_id, script, environment, variation, uut_versions, "
-    "status, worker_url, queued_at, claimed_at"
+    "status, worker_url, queued_at, claimed_at, fingerprint_hash"
 )
 
 
@@ -60,10 +62,13 @@ class QueueError(Exception):
 
 
 def enqueue(conn, root, report_id, script, files, load_order,
-            environment=None, uut_versions=None, imports=(), variation=None):
+            environment=None, uut_versions=None, imports=(), variation=None,
+            fingerprint_hash=None, **run_fields):
     """Create a run folder in the report and queue it as a job.
 
     `variation` is None or {"name", "values"} (values as edn text).
+    `fingerprint_hash` pins the job to workers whose environment has that
+    fingerprint; `run_fields` are recorded in run.json as they are.
     """
     uut_versions = uut_versions or {}
     run_id = store.create_run(root, report_id, script, files)
@@ -77,13 +82,14 @@ def enqueue(conn, root, report_id, script, files, load_order,
         environment=environment,
         variation=variation,
         uut_versions=uut_versions,
+        **run_fields,
     )
     with conn:
         conn.execute(
             """
             INSERT INTO jobs(id, report_id, script, environment, variation,
-                             uut_versions)
-            VALUES (?, ?, ?, ?, ?, ?)
+                             uut_versions, fingerprint_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
@@ -92,6 +98,7 @@ def enqueue(conn, root, report_id, script, files, load_order,
                 environment,
                 variation["name"] if variation else None,
                 json.dumps(uut_versions),
+                fingerprint_hash,
             ),
         )
     return run_id
@@ -162,14 +169,91 @@ def queue_script(conn, root, workspace_root, script, text=None,
     return report_id, run_ids[0]
 
 
-def rerun(conn, root, report_id, run_id):
-    """Queue an identical run (same closure, environment, variation, versions)"""
+class Drift(Exception):
+    """No live worker offers the run's environment with its fingerprint.
+
+    `diffs` maps each live worker offering the environment to how its
+    fingerprint differs: [(key, then, now)].
+    """
+
+    def __init__(self, environment, diffs):
+        super().__init__(f"No live worker offers {environment} as it was")
+        self.environment = environment
+        self.diffs = diffs
+
+
+def rerun(conn, root, report_id, run_id, force=False):
+    """Queue the run again, exactly: the same closure, environment,
+    variation and UUT versions, as a new run in the same report.
+
+    A run that recorded its environment's fingerprint is rerun only on
+    a worker whose environment still has it; if no live worker does,
+    Drift is raised. `force` queues it anyway, marked non_identical.
+    """
     run = store.load_run(root, report_id, run_id)
     files = store.read_closure(root, report_id, run_id)
+    pin, extra = None, {"rerun_of": run_id}
+    if run.get("fingerprint") is not None:
+        live = live_fingerprints(conn, run.get("environment"))
+        if run["fingerprint_hash"] in {fingerprint_hash(fp) for fp in live.values()}:
+            pin = run["fingerprint_hash"]
+        elif force:
+            extra["non_identical"] = True
+        else:
+            raise Drift(run.get("environment"), {
+                url: fingerprint_diff(run["fingerprint"], fp) for url, fp in live.items()
+            })
     return enqueue(conn, root, report_id, run["script"], files,
                    run.get("load_order", [run["script"]]),
                    run.get("environment"), run.get("uut_versions"),
-                   run.get("imports", []), run.get("variation"))
+                   run.get("imports", []), run.get("variation"),
+                   fingerprint_hash=pin, **extra)
+
+
+def live_fingerprints(conn, environment):
+    """worker url -> current fingerprint, for live workers offering
+    `environment`"""
+    since = datetime.utcnow() - MISSING_AFTER
+    return {
+        worker.url: worker.environments[environment]
+        for worker in find_workers(conn, since=since)
+        if environment in worker.environments
+    }
+
+
+def fingerprint_diff(then, now):
+    """[(key, value then, value now)] for every key that differs; nested
+    keys are dotted (framework.git)"""
+    then, now = flatten(then), flatten(now)
+    return [(key, then.get(key), now.get(key))
+            for key in sorted(then.keys() | now.keys())
+            if then.get(key) != now.get(key)]
+
+
+def flatten(value, prefix=""):
+    """A nested dict as {dotted key: value}"""
+    if not isinstance(value, dict):
+        return {prefix: value}
+    flat = {}
+    for key, item in value.items():
+        flat.update(flatten(item, f"{prefix}{key}." if isinstance(item, dict)
+                             else f"{prefix}{key}"))
+    return flat
+
+
+def identity_hash(run):
+    """What makes two runs the same test: the closure, the variation's
+    values, the UUT versions and digests and the environment's fingerprint"""
+    variation = run.get("variation") or {}
+    identity = {
+        "closure": run.get("closure_hash"),
+        "variation": variation.get("values"),
+        "uut_versions": {name: {"id": v["id"], "digest": v["digest"]}
+                         for name, v in (run.get("uut_versions") or {}).items()},
+        "fingerprint": run.get("fingerprint_hash"),
+    }
+    canonical = json.dumps(identity, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def get_job(conn, id):
@@ -187,6 +271,8 @@ def jobs_for_worker(conn, worker_url):
         for job in find_jobs(conn, "pending")
         if (job.environment is None or job.environment in worker.environments)
         and set(job.uut_versions) <= set(worker.uut_types)
+        and (job.fingerprint_hash is None or job.fingerprint_hash
+             == fingerprint_hash(worker.environments[job.environment]))
     ]
 
 
@@ -484,5 +570,9 @@ def complete_job(conn, root, id, worker_url, outcome, installed=None,
         raise ValueError(f"outcome must be one of {OUTCOMES}")
     job = held_job(conn, id, worker_url)
     details = {"installed": installed, "fingerprint": fingerprint, "mode": mode}
+    if fingerprint is not None:
+        details["fingerprint_hash"] = fingerprint_hash(fingerprint)
+    run = store.load_run(root, job.report_id, job.id)
+    details["identity"] = identity_hash({**run, **details})
     finish(conn, root, job, outcome,
            **{key: value for key, value in details.items() if value is not None})

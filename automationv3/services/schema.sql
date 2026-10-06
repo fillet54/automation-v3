@@ -1,6 +1,7 @@
 -- Application schema. Applied on every startup, so every statement
--- must be idempotent. There are no migrations: if a table changes
--- shape, delete the database and reload it.
+-- must be idempotent. There are no migrations: a column added to an
+-- existing table is also listed in database.ADDED_COLUMNS; any other
+-- change of shape means deleting the database and reloading it.
 
 -- Requirements
 CREATE TABLE IF NOT EXISTS requirements(
@@ -32,6 +33,8 @@ CREATE TABLE IF NOT EXISTS worker_environments(
 -- uuidv7; a row is removed once its run.json has an outcome.
 -- environment is NULL when the script declares none (any worker may run
 -- it); uut_versions is JSON: uut name -> {"id", "digest"}.
+-- fingerprint_hash pins an identical rerun to workers whose environment
+-- still has that fingerprint.
 CREATE TABLE IF NOT EXISTS jobs(
     id TEXT PRIMARY KEY,
     report_id TEXT NOT NULL,
@@ -42,7 +45,8 @@ CREATE TABLE IF NOT EXISTS jobs(
     status TEXT NOT NULL DEFAULT 'pending',
     worker_url TEXT,
     queued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    claimed_at TEXT
+    claimed_at TEXT,
+    fingerprint_hash TEXT
 );
 
 -- Requirement links: a derived index of the :req: references in each

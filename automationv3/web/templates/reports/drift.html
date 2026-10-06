@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% block title %}Rerun refused · {{ run.script.split('/')[-1] }}{% endblock %}
+
+{% block content %}
+<div class="ui-stack">
+  <header class="ui-page-header">{{ ui.breadcrumbs([("Reports", url_for('reports.index')), (run.report_id[:8], url_for('reports.report', report_id=run.report_id)), (run.script, url_for('reports.run', report_id=run.report_id, run_id=run.id)), ("Rerun", None)]) }}</header>
+
+  {% call ui.alert("warning", title="This run can't be repeated exactly") %}
+    {% if drift.diffs %}
+    No live worker offers {{ ui.ident(drift.environment) }} with the fingerprint this run had. Below is how each one differs now.
+    {% else %}
+    No live worker offers {{ ui.ident(drift.environment) }} right now, so nothing can match the fingerprint this run had.
+    {% endif %}
+  {% endcall %}
+
+  {% for worker, diff in drift.diffs.items() %}
+  {% call ui.section(worker, subtitle=(diff | length) ~ " difference" ~ ('' if diff | length == 1 else 's')) %}
+    {% call ui.table(["Fingerprint", "This run", "Now"], dense=True) %}
+      {% for key, then, now in diff %}
+      <tr><td class="ui-mono">{{ key }}</td><td class="ui-mono">{{ "—" if then is none else then }}</td><td class="ui-mono">{{ "—" if now is none else now }}</td></tr>
+      {% endfor %}
+    {% endcall %}
+  {% endcall %}
+  {% endfor %}
+
+  {% call ui.toolbar() %}
+    <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
+      <input type="hidden" name="force" value="1">
+      {{ ui.button("Rerun anyway", variant="primary", icon="refresh", type="submit") }}
+    </form>
+    {{ ui.button("Back to the run", href=url_for('reports.run', report_id=run.report_id, run_id=run.id)) }}
+    <span class="ui-muted">A forced rerun is marked not identical.</span>
+  {% endcall %}
+</div>
+{% endblock %}

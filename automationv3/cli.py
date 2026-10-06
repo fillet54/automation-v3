@@ -40,7 +40,7 @@ Options:
     --debug                enables autoload [default: false]
 
 """
-__version__ = "3.0.0"
+from . import __version__
 __banner__ = (
     r"""\
                 _                        _   _              __      ______
