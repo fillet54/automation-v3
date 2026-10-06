@@ -19,9 +19,10 @@ Requirements
 
    (Precondition "Demo configured for a hard stop"
      (reading-is? :brake-pressure stop-pressure)
-     :heal (StartDemo {:mode :emergency
-                       :readings {:brake-pressure stop-pressure
-                                  :brake-temperature stop-temperature}}))
+     :heal "Start the demo braking hard"
+     (StartDemo {:mode :emergency
+                 :readings {:brake-pressure stop-pressure
+                            :brake-temperature stop-temperature}}))
 
 Steps
 -----

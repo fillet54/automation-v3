@@ -82,9 +82,28 @@ class TestStatements(unittest.TestCase):
     def test_precondition_renders_check_and_heal(self):
         (statement,) = get_statements(rvt(
             '(Precondition "Ready" (ready?) :heal (StartWithConfig {:mode :x}))'))
-        self.assertIn("<strong>Precondition:</strong> Ready", statement.html)
-        self.assertIn("ready?", statement.html)
-        self.assertIn('<table class="config">', statement.html)  # the heal's block
+        summary, body = statement.html.split("</summary>")
+        self.assertIn('<details class="ui-precondition">', summary)
+        self.assertIn('ui-precondition__name">Ready<', summary)
+        self.assertIn("Heals if not met", summary)  # only marked, not described
+        self.assertIn("ready?", body)
+        self.assertIn("If not, heal by", body)
+        self.assertNotIn("ui-precondition__heal-name", body)
+        self.assertIn('<table class="config">', body)  # the heal's block
+
+    def test_heal_description_shows_when_expanded(self):
+        (statement,) = get_statements(rvt(
+            '(Precondition "Ready" (ready?) :heal "Start <it>" (start))'))
+        summary, body = statement.html.split("</summary>")
+        self.assertNotIn("Start", summary)
+        self.assertIn('heal by</span><span class="ui-precondition__heal-name">'
+                      "Start &lt;it&gt;</span>", body)
+
+    def test_precondition_without_heal(self):
+        (statement,) = get_statements(rvt('(Precondition "Ready" (ready?))'))
+        summary, body = statement.html.split("</summary>")
+        self.assertNotIn("Heals", summary)
+        self.assertNotIn("heal by", body)
 
     def test_sample_start_demo_block(self):
         (statement,) = get_statements(rvt(

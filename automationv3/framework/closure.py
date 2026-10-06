@@ -36,10 +36,11 @@ variations form, and only scripts may scope blocks; declarations
 Preconditions state what must hold before a script's steps run::
 
     (Precondition "Demo running" (demo-in-mode? :normal)
-      :heal (start-demo :normal))
+      :heal "Start the demo in normal mode" (start-demo :normal))
 
 They come before the first regular step. The check and the optional
-heal are step forms.
+heal are step forms; the heal may be described by a string after
+:heal.
 """
 
 import hashlib
@@ -120,15 +121,25 @@ def parse_variations(path, form, errors):
     return variations
 
 
+@dataclass
+class PreconditionParts:
+    name: str
+    check: list
+    heal: list = None
+    heal_name: str = None  # the heal's description, if given
+
+
 def parse_precondition(form):
-    """(name, check, heal) of a Precondition form, or None if malformed"""
-    if len(form) not in (3, 5) or not is_text(form[1]) or not isinstance(form[2], list):
+    """The PreconditionParts of a Precondition form, or None if malformed"""
+    if len(form) not in (3, 5, 6) or not is_text(form[1]) or not isinstance(form[2], list):
         return None
-    if len(form) == 5:
-        if form[3] != edn.Keyword("heal") or not isinstance(form[4], list):
-            return None
-        return form[1], form[2], form[4]
-    return form[1], form[2], None
+    if len(form) == 3:
+        return PreconditionParts(form[1], form[2])
+    heal_name = form[4] if len(form) == 6 else None
+    if (form[3] != edn.Keyword("heal") or not isinstance(form[-1], list)
+            or (len(form) == 6 and not is_text(heal_name))):
+        return None
+    return PreconditionParts(form[1], form[2], form[-1], heal_name)
 
 
 def lint_preconditions(path, forms):
@@ -139,7 +150,7 @@ def lint_preconditions(path, forms):
         if name == PRECONDITION:
             if parse_precondition(form) is None:
                 errors.append(f'{path}: Precondition takes "name" (check) '
-                              "and optionally :heal (form)")
+                              'and optionally :heal "description" (form)')
             if seen_step:
                 label = form[1] if len(form) > 1 else ""
                 errors.append(f"{path}: Precondition {label} "

@@ -61,7 +61,7 @@ def run_precondition(form, env, runtime):
     parsed = parse_precondition(form)
     if parsed is None:
         return BlockResult(False, stderr="Malformed Precondition")
-    _, check, heal = parsed
+    check, heal = parsed.check, parsed.heal
     result = run_statement(check, env, runtime)
     if result or heal is None:
         return result

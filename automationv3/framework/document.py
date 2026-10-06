@@ -25,6 +25,14 @@ A block marked `:variations:` (variation names, separated by commas)
 only applies when one of those variations runs; a block without it
 applies to every variation.
 
+A block may have a title, which says what its forms do as a step of
+the procedure; pages show a titled block collapsed to its title::
+
+    .. rvt:: Apply the brakes fully
+
+       (set-reading :brake-pressure max-pressure)
+       (Verify (reading :brake-pressure) = max-pressure)
+
 The document is split at its rvt directives. The prose between them
 stays rst; each rvt directive is parsed by docutils (so its options are
 read properly) and its content read as edn. A document's parts are the
@@ -42,7 +50,7 @@ from docutils.parsers.rst import Directive, directives
 
 from . import edn
 
-RVT_START = re.compile(r"^\.\. rvt::\s*$")
+RVT_START = re.compile(r"^\.\. rvt::(\s.*)?$")
 
 
 def variation_names(argument):
@@ -63,6 +71,7 @@ class Part:
     form: object
     options: dict = field(default_factory=dict)
     line: int = 0  # where the chunk or block starts, 1-based
+    title: str = None  # the block's title, if it has one
 
     @property
     def variations(self):
@@ -107,10 +116,13 @@ class rvt_block(nodes.Element):
 
 class RvtDirective(Directive):
     has_content = True
+    optional_arguments = 1
+    final_argument_whitespace = True
     option_spec = RVT_OPTIONS
 
     def run(self):
         block = rvt_block()
+        block["title"] = " ".join(self.arguments[0].split()) if self.arguments else None
         block["options"] = {k: "" if v is None else v for k, v in self.options.items()}
         block["content"] = "\n".join(self.content)
         return [block]
@@ -124,7 +136,7 @@ class RvtError(ValueError):
 
 
 def parse_rvt(source):
-    """(options, content) of one rvt directive, parsed by docutils"""
+    """(options, content, title) of one rvt directive, parsed by docutils"""
     stream = _Collect()
     tree = docutils.core.publish_doctree(
         source, settings_overrides={"warning_stream": stream, "report_level": 2,
@@ -132,7 +144,7 @@ def parse_rvt(source):
     blocks = list(tree.findall(rvt_block))
     if stream.messages or len(blocks) != 1:
         raise RvtError(" ".join(stream.messages) or "not an rvt directive")
-    return blocks[0]["options"], blocks[0]["content"]
+    return blocks[0]["options"], blocks[0]["content"], blocks[0]["title"]
 
 
 class _Collect:
@@ -152,9 +164,9 @@ def parse(text):
         if not is_rvt:
             parts.append(Part(source.strip("\n"), line=line))
             continue
-        options, content = parse_rvt(source)
+        options, content, title = parse_rvt(source)
         for form in edn.read_all(content):
-            parts.append(Part(form, options, line))
+            parts.append(Part(form, options, line, title))
     return parts
 
 

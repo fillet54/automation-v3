@@ -1,4 +1,4 @@
-{# Collapsed definitions (the section, and lone definitions), and blocks limited to variations #}
+{# Collapsed definitions (the section, and lone definitions), titled blocks, and blocks limited to variations #}
 {% import "ui/components.html" as ui %}
 
 {% macro definitions_section(items, render) -%}
@@ -38,9 +38,20 @@
 {%- endfor %}
 {%- endmacro %}
 
+{#- A titled rvt block collapsed to its title, with its steps' state on a run's page; open if it failed or is
+    running, so a run shows where it stands. #}
+{% macro titled_block(entry, render) -%}
+<details class="ui-titled"{% if entry.state in ("fail", "running") %} open{% endif %}>
+  <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-titled__title">{{ entry.title }}</span>
+    {%- if entry.state %}<span class="ui-titled__state">{{ ui.outcome(entry.state) }}</span>{% endif %}</summary>
+  <div class="ui-titled__body">{{ _unscoped(entry.entries, render) }}</div>
+</details>
+{%- endmacro %}
+
 {% macro _unscoped(entries, render) -%}
 {%- for kind, entry in entries %}
-  {%- if kind == "definitions" %}{{ definitions_section(entry, render) }}
+  {%- if kind == "titled" %}{{ titled_block(entry, render) }}
+  {%- elif kind == "definitions" %}{{ definitions_section(entry, render) }}
   {%- elif kind == "definition" %}{{ definition(entry, render) }}
   {%- else %}{{ render(entry) }}{% endif %}
 {%- endfor %}

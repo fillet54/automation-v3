@@ -577,6 +577,33 @@ body.ui {
 .ui-defs--one { border: 0; margin: 4px 0; }
 .ui-defs--one > summary { padding: 2px 0; }
 
+/* preconditions: collapsed to their name and heal; expanded, the check and heal forms */
+.ui-precondition { margin: 10px 0; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
+.ui-precondition > summary { list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 8px 0; cursor: pointer; font-size: 14px; }
+.ui-precondition > summary::-webkit-details-marker { display: none; }
+.ui-precondition > summary:hover { background: var(--ui-soft); }
+.ui-precondition > summary .ui-icon { align-self: center; color: var(--ui-muted); transition: transform 0.15s; }
+.ui-precondition[open] > summary .ui-icon { transform: rotate(90deg); }
+.ui-precondition__label { font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+.ui-precondition__name { font-weight: 500; }
+.ui-precondition__heals { display: inline-flex; align-self: center; color: var(--ui-faint); }
+.ui-precondition__body { padding: 0 0 8px 22px; }
+.ui-precondition__body > .ui-precondition__label { margin: 8px 0 4px; }
+.ui-precondition__heal { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 12px 0 4px; }
+.ui-precondition__heal-name { font-size: 14px; }
+
+/* titled rvt blocks: collapsed to the title, which reads as a step of the procedure */
+.ui-titled { margin: 10px 0; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
+.ui-titled + .ui-titled { margin-top: -11px; }
+.ui-titled > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 9px 0; cursor: pointer; }
+.ui-titled > summary::-webkit-details-marker { display: none; }
+.ui-titled > summary:hover { background: var(--ui-soft); }
+.ui-titled > summary .ui-icon { color: var(--ui-muted); transition: transform 0.15s; flex: none; }
+.ui-titled[open] > summary .ui-icon { transform: rotate(90deg); }
+.ui-titled__title { flex: 1 1 auto; font-weight: 500; }
+.ui-titled__state { flex: none; }
+.ui-titled__body { padding: 0 0 8px 22px; }
+
 /* blocks limited to variations: a rule down the side, tagged with the variations; collapsed when another is selected */
 .ui-scoped { margin: 14px 0; padding-left: 14px; border-left: 2px solid color-mix(in srgb, var(--ui-accent) 45%, transparent); }
 .ui-scoped__tag { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }

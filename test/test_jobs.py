@@ -278,6 +278,15 @@ class TestPreconditions(unittest.TestCase):
         self.assertTrue(ends[0]["precondition"])
         self.assertTrue(ends[0]["stdout"].startswith("healed"))
 
+    def test_heal_with_a_description(self):
+        state = State()
+        outcome, ends = self.run_script(
+            '(Precondition "on" (on?) :heal "Turn it on" (turn-on)) (Wait 1)',
+            "probe", state)
+        self.assertEqual(outcome, "pass")
+        self.assertTrue(state.on)
+        self.assertTrue(ends[0]["stdout"].startswith("healed"))
+
     def test_unhealable_precondition_releases_or_blocks(self):
         script = '(Precondition "on" (on?)) (Wait 1)'
         self.assertEqual(self.run_script(script, "probe", State())[0], "released")
@@ -291,13 +300,15 @@ class TestPreconditions(unittest.TestCase):
         try:
             write_tree(root, {
                 "late.rst": '(Wait 1) (Precondition "on" (on?))',
-                "bad.rst": '(Precondition (on?)) (Precondition "x" (on?) :cure (x))',
-                "ok.rst": '(import FUE) (Precondition "on" (on?) :heal (x)) (Wait 1)',
+                "bad.rst": '(Precondition (on?)) (Precondition "x" (on?) :cure (x)) '
+                           '(Precondition "y" (on?) :heal :named (x))',
+                "ok.rst": '(import FUE) (Precondition "on" (on?) :heal (x)) '
+                          '(Precondition "on" (on?) :heal "Fix it" (x)) (Wait 1)',
                 "FUE/core.rst": "",
             })
             self.assertIn("must come before the first step",
                           resolve(root, "late.rst").errors[0])
-            self.assertEqual(len(resolve(root, "bad.rst").errors), 2)
+            self.assertEqual(len(resolve(root, "bad.rst").errors), 3)
             self.assertEqual(resolve(root, "ok.rst").errors, [])
         finally:
             shutil.rmtree(root)
@@ -480,7 +491,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
                 "(under-limit? level)")),
             "BRA/scoped.rst": doc(
                 rvt('(variations "level" ["low" [1] "high" [50]])'),
-                rvt("(Verify level > 0)"),
+                rvt("(Verify level > 0)", title="Level is positive"),
                 "High only:",
                 rvt("(Verify level = 50)", variations="high")),
             "plain/core.rst": "(environments) (uut)",
@@ -727,6 +738,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(view + "&variation=high").get_data(True)
         self.assertNotIn("Skipped for", page)
         self.assertIn("level</span> = 50", page)
+        self.assertIn('ui-titled__title">Level is positive<', page)
 
         report_id = self.queue_requirements(
             script="BRA/scoped.rst",
@@ -737,6 +749,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
             page = self.http.get(f"/reports/{report_id}/runs/{run['id']}")
             steps = page.get_data(True).count('class="ui-step ')
             self.assertEqual(steps, {"low": 1, "high": 2}[run["variation"]["name"]])
+            summary = page.get_data(True).split('ui-titled__title">Level is positive<')[1]
+            self.assertIn("ui-outcome--pass", summary.split("</summary>")[0])
 
     def test_unqueued_variations_leave_requirement_partial(self):
         report_id = self.queue_requirements(

@@ -3,10 +3,11 @@
 import textwrap
 
 
-def rvt(code, *options, **values):
-    """An rvt block holding `code`, e.g. rvt("(Wait 1)", "definitions") or
-    rvt("(Wait 1)", variations="low, high")"""
-    head = ".. rvt::\n" + "".join(f"   :{option}:\n" for option in options)
+def rvt(code, *options, title=None, **values):
+    """An rvt block holding `code`, e.g. rvt("(Wait 1)", "definitions"),
+    rvt("(Wait 1)", variations="low, high") or rvt("(Wait 1)", title="Pause")"""
+    head = f".. rvt::{' ' + title if title else ''}\n"
+    head += "".join(f"   :{option}:\n" for option in options)
     head += "".join(f"   :{name}: {value}\n" for name, value in values.items())
     return head + "\n" + textwrap.indent(textwrap.dedent(code).strip(), "   ") + "\n"
 

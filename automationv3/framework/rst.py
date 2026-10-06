@@ -158,13 +158,37 @@ def variations_html(form):
     )
 
 
+CHEVRON = ('<svg class="ui-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" '
+           'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
+           'aria-hidden="true"><path d="M6 4 L10 8 L6 12"/></svg>')
+HEALS = ('<span class="ui-precondition__heals" title="Heals if not met">'
+         '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" '
+         'stroke-width="1.5" stroke-linecap="round" aria-hidden="true">'
+         '<path d="M13 8 A5 5 0 1 1 11.5 4.4 M13 2.5 L13 5.5 L10 5.5"/></svg>'
+         '<span class="ui-sr-only">Heals if not met</span></span>')
+
+
 def precondition_rst(form):
-    """The precondition's name, then its check and heal as they render"""
-    name, check, heal = parse_precondition(form)
-    rst = f"**Precondition:** {name}\n\n{repr_rst(check)}"
-    if heal is not None:
-        rst += f"\n\n*If not, heal by:*\n\n{repr_rst(heal)}"
-    return rst
+    """The precondition collapsed to its name, marked if it can heal;
+    expanded, its check and heal (with the heal's description) as they
+    render"""
+    parts = parse_precondition(form)
+    summary = (f'{CHEVRON}<span class="ui-precondition__label">Precondition</span>'
+               f'<span class="ui-precondition__name">{html.text(parts.name)}</span>')
+    if parts.heal is not None:
+        summary += HEALS
+    rst = raw_html(f'<details class="ui-precondition"><summary>{summary}</summary>'
+                   '<div class="ui-precondition__body">'
+                   '<div class="ui-precondition__label">Check</div>')
+    rst += repr_rst(parts.check) + "\n\n"
+    if parts.heal is not None:
+        described = (f'<span class="ui-precondition__heal-name">{html.text(parts.heal_name)}</span>'
+                     if parts.heal_name else "")
+        rst += raw_html(f'<div class="ui-precondition__heal">'
+                        f'<span class="ui-precondition__label">If not, heal by</span>'
+                        f'{described}</div>')
+        rst += repr_rst(parts.heal) + "\n\n"
+    return rst + raw_html("</div></details>")
 
 
 def write_html_parts(rst_statements):

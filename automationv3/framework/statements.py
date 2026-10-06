@@ -20,17 +20,21 @@ class Statement:
     `in_definitions` is set for the forms of the script's definitions
     section (rvt blocks marked :definitions:), and `definition` for every
     def, defn or defblock; pages show these collapsed. `variations` is
-    the names its block is limited to, else None (every variation).
+    the names its block is limited to, else None (every variation);
+    `block` is where its rvt block starts (None for prose) and `title`
+    that block's title, if it has one.
     """
 
     def __init__(self, statement, html=None, rst=None, in_definitions=False,
-                 variations=None):
+                 variations=None, block=None, title=None):
         self.statement = statement
         self.html = html or ""
         self.rst = rst or ""
         self.in_definitions = in_definitions
         self.definition = is_definition(statement)
         self.variations = variations
+        self.block = block
+        self.title = title
 
     @property
     def defines(self):
@@ -60,6 +64,7 @@ def get_statements(text):
     html = write_html_parts(rst)
     section = set(document.definitions_section(parts))
     return [
-        Statement(part.form, h, r, index in section, part.variations)
+        Statement(part.form, h, r, index in section, part.variations,
+                  None if part.prose else part.line, part.title)
         for index, (part, h, r) in enumerate(zip(parts, html, rst))
     ]

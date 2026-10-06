@@ -13,7 +13,8 @@ Requirements
 
    (Precondition "Demo running in normal mode"
      (demo-in-mode? :normal)
-     :heal (start-demo :normal))
+     :heal "Start the demo in normal mode"
+     (start-demo :normal))
 
 Steps
 -----
