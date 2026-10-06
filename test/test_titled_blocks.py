@@ -4,7 +4,8 @@ import unittest
 
 from automationv3.framework import document
 from automationv3.framework.statements import get_statements
-from automationv3.web.grouping import block_state, group, statement_item
+from automationv3.web.grouping import block_duration, block_state, group, statement_item
+from automationv3.web.reports import duration
 
 from .rvt import doc, rvt
 from .test_definitions import run
@@ -71,3 +72,18 @@ class TestGrouping(unittest.TestCase):
         self.assertEqual(block_state(items("pass", "fail", "not run")), "fail")
         self.assertEqual(block_state(items("pass", "running", "pending")), "running")
         self.assertEqual(block_state(items("not run", "not run")), "not run")
+
+
+class TestDurations(unittest.TestCase):
+    def test_formatting(self):
+        cases = [(None, ""), (0, "0 ms"), (0.0074, "7 ms"), (0.999, "999 ms"),
+                 (1, "1.000 s"), (1.2345, "1.234 s"), (59.9994, "59.999 s"),
+                 (125.0123, "2:05.012")]
+        for seconds, text in cases:
+            self.assertEqual(duration(seconds), text, seconds)
+
+    def test_a_blocks_duration_sums_its_finished_steps(self):
+        items = [{"result": {"duration": 0.25}}, {"result": {"duration": 1.001}},
+                 {"step": True}, {}]
+        self.assertEqual(block_duration(items), 1.251)
+        self.assertIsNone(block_duration([{"step": True}]))

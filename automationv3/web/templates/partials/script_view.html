@@ -1,42 +1,16 @@
 {% import "ui/components.html" as ui %}
-{% from "partials/definitions.html" import statements %}
+{% from "partials/definitions.html" import statements, precondition_block, precondition_parts %}
 <div id="content" class="ui-stack">
   {% set crumbs = [(workspace.id, url_for('workspace.index', id=workspace.id))] %}
   {% for part in path.split('/')[:-1] %}{% set _ = crumbs.append((part, None)) %}{% endfor %}
   {% set _ = crumbs.append((path.split('/')[-1], None)) %}
-  {% call ui.page_header(None, crumbs=crumbs, eyebrow="Script" if closure else "File") %}
-    {%- if closure and not closure.errors %}
-    {{ ui.button("Queue…", variant="primary", icon="play", href=url_for('jobqueue.new', workspace=workspace.id, script=path)) }}
-    {%- endif %}
-  {% endcall %}
+  <header class="ui-page-header">{{ ui.breadcrumbs(crumbs) }}</header>
 
-  {% if errors %}
-  {% call ui.alert("danger", title="This script can't be queued") %}
-    <ul class="ui-plain-list">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
-  {% endcall %}
-  {% endif %}
-
-  {% if closure and not closure.errors %}
-  <div class="ui-stack ui-gap-small">
-    <div class="ui-facts">
-      {% if closure.environments %}<span>Runs in {% for e in closure.environments %}{{ ui.ident(e) }} {% endfor %}</span>{% endif %}
-      {% if closure.uuts %}<span>Tests {% for u in closure.uuts %}{{ ui.ident(u) }} {% endfor %}</span>{% endif %}
-    </div>
-    <div class="ui-loads"><span class="ui-muted">Loads</span>
-      {% for p in closure.load_order -%}
-        {{ ui.ident(p) }}{% if p in closure.imports %} {{ ui.badge("imported", outline=True) }}{% endif %}
-        {%- if not loop.last %}<span class="ui-loads__sep" aria-hidden="true">→</span>{% endif %}
-      {%- endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  {% if closure and closure.variations %}
-  {% set view_url = url_for('workspace.view', id=workspace.id, path=path) %}
-  <section class="ui-variations" aria-label="Variations">
-    <div class="ui-variations__bar">
-      <span class="ui-defs__label">Variation</span>
-      {%- if closure.variations | length <= 5 %}
+  {% set queueable = closure and not closure.errors %}
+  {% if closure and (queueable or closure.variations) %}
+  <div class="ui-script-bar">
+    <div class="ui-script-bar__variations">
+      {%- if closure.variations and closure.variations | length <= 5 %}
       {% set items = [] %}
       {% for name in [None] + variation_names %}
         {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=name) %}
@@ -45,32 +19,59 @@
                                            "hx-target": "#content", "hx-swap": "outerHTML", "hx-push-url": href}}) %}
       {% endfor %}
       {{ ui.segmented(items, label="Variation") }}
-      {%- else %}
-      {% set options = [("", "All")] %}
+      {%- elif closure.variations %}
+      {% set options = [("", "All variations")] %}
       {% for name in variation_names %}{% set _ = options.append((name, name)) %}{% endfor %}
       {{ ui.select("variation", options, selected=variation.name if variation else "", id="variation-select", mono=True,
-                   attrs={"onchange": "window.location.href = '" ~ url_for('workspace.index', id=workspace.id, path=path) ~ "' + (this.value ? '&variation=' + encodeURIComponent(this.value) : '')"}) }}
-      {%- endif %}
-      {%- if variation %}
-      <span class="ui-variations__values">{% for symbol, value in variation_values.items() %}<span><span class="ui-muted">{{ symbol }}</span> = {{ value }}</span>{% endfor %}</span>
+                   attrs={"aria-label": "Variation", "onchange": "window.location.href = '" ~ url_for('workspace.index', id=workspace.id, path=path) ~ "' + (this.value ? '&variation=' + encodeURIComponent(this.value) : '')"}) }}
       {%- endif %}
     </div>
-    {% call ui.disclosure("Details", subtitle=closure.variations | length ~ " variations of " ~ closure.variations[0].symbols | join(", "), pad=False, cls="ui-variations__details") %}
-      {% call ui.table(["Variation"] + closure.variations[0].symbols, dense=True) %}
-        {% for name, values in variation_rows %}
-        <tr{% if variation and name == variation.name %} class="ui-row--selected"{% endif %}><td>{{ name }}</td>{% for value in values %}<td class="ui-mono">{{ value }}</td>{% endfor %}</tr>
-        {% endfor %}
-      {% endcall %}
-    {% endcall %}
-  </section>
+    {%- if queueable %}
+    {{ ui.button("Queue…", variant="primary", icon="play", href=url_for('jobqueue.new', workspace=workspace.id, script=path)) }}
+    {%- endif %}
+  </div>
   {% endif %}
 
-  {{ ui.divider() }}
+  {% if errors %}
+  {% call ui.alert("danger", title="This script can't be queued") %}
+    <ul class="ui-plain-list">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endcall %}
+  {% endif %}
+
+  {#- What the script needs, collapsed: most readers only want the script #}
+  {% if closure %}
+  {% set facts = [] %}
+  {% if closure.environments %}{% set envs %}{% for e in closure.environments %}{{ ui.ident(e) }} {% endfor %}{% endset %}{% set _ = facts.append(("Runs in", envs)) %}{% endif %}
+  {% if closure.uuts %}{% set uuts %}{% for u in closure.uuts %}{{ ui.ident(u) }} {% endfor %}{% endset %}{% set _ = facts.append(("Tests", uuts)) %}{% endif %}
+  {% set loads %}<span class="ui-loads">
+    {%- for p in closure.load_order -%}
+      {{ ui.ident(p) }}{% if p in closure.imports %} {{ ui.badge("imported", outline=True) }}{% endif %}
+      {%- if not loop.last %}<span class="ui-loads__sep" aria-hidden="true">→</span>{% endif %}
+    {%- endfor %}</span>{% endset %}
+  {% set _ = facts.append(("Loads", loads)) %}
+  <details class="ui-defs ui-script-details">
+    <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Details</span></summary>
+    <div class="ui-defs__body ui-stack ui-gap-small">
+      {{ ui.dl(facts) }}
+      {% if closure.variations %}
+      {% set rows = variation_rows | selectattr(0, "equalto", variation.name) | list if variation else variation_rows %}
+      {% call ui.table(["Variation"] + closure.variations[0].symbols, dense=True) %}
+        {% for name, values in rows %}
+        <tr{% if variation %} class="ui-row--selected"{% endif %}><td>{{ name }}</td>{% for value in values %}<td class="ui-mono">{{ value }}</td>{% endfor %}</tr>
+        {% endfor %}
+      {% endcall %}
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
 
   {% if parts is not none %}
   <article class="ui-doc">
-    {#- The variations form is shown by the selector above #}
-    {% macro render(item) %}{% if not (closure and item.directive == "variations") %}<div>{{ item.html | safe }}</div>{% endif %}{% endmacro %}
+    {#- The variations form is shown in the details above #}
+    {% macro render(item) %}
+      {%- if item.precondition %}{% call precondition_block(item.precondition) %}{{ precondition_parts(item.precondition) }}{% endcall %}
+      {%- elif not (closure and item.directive == "variations") %}<div>{{ item.html | safe }}</div>{% endif %}
+    {%- endmacro %}
     {{ statements(parts, render, selected=variation.name if variation else None) }}
   </article>
   {% elif text is not none %}

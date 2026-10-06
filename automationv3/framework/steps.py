@@ -16,7 +16,8 @@ happens decides how it reports and fails:
   step, and returns true or false.
 
 Every reported block call gets an id within its statement, its parent
-call (a defblock) if any, a depth, and its quiet / checked flags.
+call (a defblock) if any, a depth, and its quiet / checked flags; in a
+precondition, also the phase (check or heal) it was made in.
 """
 
 import contextvars
@@ -59,6 +60,7 @@ class Runtime:
         self.index = index
         self.calls = 0
         self.frames = [Frame()]
+        self.phase = None  # the precondition phase running, numbered from 1
 
     @property
     def frame(self):
@@ -81,6 +83,8 @@ class Runtime:
         call = self.calls
         details = dict(index=self.index, call=call, parent=frame.parent,
                        depth=frame.depth, quiet=frame.quiet, checked=frame.checking)
+        if self.phase is not None:
+            details["phase"] = self.phase
         self.observer.on_call_start(form=form, **details)
         started = time.monotonic()
         try:

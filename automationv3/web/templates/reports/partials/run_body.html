@@ -1,29 +1,35 @@
 {% import "ui/components.html" as ui %}
 {% from "reports/macros.html" import calls_list %}
-{% from "partials/definitions.html" import statements %}
-<div id="run-body" class="ui-stack ui-gap-large"
+{% from "partials/definitions.html" import statements, precondition_block, precondition_parts %}
+<div id="run-body" class="ui-stack"
      {% if not finished %}
      hx-get="{{ url_for('reports.run', report_id=run.report_id, run_id=run.id) }}"
      hx-trigger="every 2s"
      hx-swap="outerHTML"
      {% endif %}>
-  {% call ui.page_header(None, eyebrow="Run",
-                         crumbs=[("Reports", url_for('reports.index')), (run.report_id[:8], url_for('reports.report', report_id=run.report_id)), (run.script, None)]) %}
-    {{ ui.outcome(status) }}
-    {% if finished %}
-    <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
-      {{ ui.button("Rerun", icon="refresh", type="submit", size="sm") }}
-    </form>
-    {% endif %}
-  {% endcall %}
+  <header class="ui-page-header">{{ ui.breadcrumbs([("Reports", url_for('reports.index')), (run.report_id[:8], url_for('reports.report', report_id=run.report_id)), (run.script, None)]) }}</header>
+
+  {#- Laid out like the script view: the variation that ran (as the script view shows a selected one), then the
+      outcome and Rerun at the far end #}
+  <div class="ui-script-bar">
+    <div class="ui-script-bar__variations">
+      {%- if run.variation %}
+      <div class="ui-segmented" role="group" aria-label="Variation"><span class="ui-segmented__item" aria-current="page">{{ run.variation.name }}</span></div>
+      {%- endif %}
+    </div>
+    <div class="ui-toolbar">
+      {{ ui.outcome(status) }}
+      {% if finished %}
+      <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
+        {{ ui.button("Rerun", icon="refresh", type="submit", size="sm") }}
+      </form>
+      {% endif %}
+    </div>
+  </div>
 
   {% set facts = [] %}
   {% set _ = facts.append(("Script", ui.ident(run.script))) %}
   {% if run.environment %}{% set _ = facts.append(("Environment", ui.ident(run.environment))) %}{% endif %}
-  {% if run.variation %}
-    {% set values %}{% for symbol, value in run.variation["values"].items() %}{{ symbol }} = {{ value }}{% if not loop.last %}, {% endif %}{% endfor %}{% endset %}
-    {% set _ = facts.append(("Variation", ui.ident(run.variation.name) ~ (' <span class="ui-text-caption ui-mono">' | safe) ~ values ~ ('</span>' | safe))) %}
-  {% endif %}
   {% for uut, version in (run.uut_versions or {}).items() %}
     {% set installed = (" · " ~ run.installed[uut].action) if run.installed and run.installed[uut] else "" %}
     {% set _ = facts.append((uut, ui.ident(version.id) ~ installed ~ (' <span class="ui-text-caption ui-mono" title="digest">' | safe) ~ version.digest[:12] ~ ('</span>' | safe))) %}
@@ -41,19 +47,30 @@
     {% set _ = facts.append(("Loaded", loads)) %}
   {% endif %}
   {% if run.closure_hash %}{% set _ = facts.append(("Closure", '<span class="ui-mono ui-text-caption">' | safe ~ run.closure_hash ~ '</span>' | safe)) %}{% endif %}
-  {{ ui.dl(facts, cols=True) }}
+  <details class="ui-defs ui-script-details">
+    <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Details</span></summary>
+    <div class="ui-defs__body ui-stack ui-gap-small">
+      {{ ui.dl(facts) }}
+      {% if run.variation %}
+      {% set values = run.variation["values"] %}
+      {% call ui.table(["Variation"] + values.keys() | list, dense=True) %}
+        <tr class="ui-row--selected"><td>{{ run.variation.name }}</td>{% for value in values.values() %}<td class="ui-mono">{{ value }}</td>{% endfor %}</tr>
+      {% endcall %}
+      {% endif %}
+    </div>
+  </details>
 
   {% if run.error %}{% call ui.alert("danger", title="The run failed") %}{{ run.error }}{% endcall %}{% endif %}
   {% for error in errors %}{{ ui.code_block(error.traceback, label="Error") }}{% endfor %}
 
-  {% macro render(row) %}
-    {% if row.step %}
-    {% set kind = {"not run": "not-run"}.get(row.state, row.state) %}
+  {#- One step (or precondition phase): its form, block calls and output, with its duration and state #}
+  {% macro step_row(body, state, result, calls) %}
+    {% set kind = {"not run": "not-run"}.get(state, state) %}
     <div class="ui-step ui-step--{{ kind }}">
       <div class="ui-step__body">
-        {{ row.html | safe }}
-        {% set top = row.calls | rejectattr('depth') | list %}
-        {% set nested = row.calls | selectattr('depth') | list %}
+        {{ body }}
+        {% set top = calls | rejectattr('depth') | list %}
+        {% set nested = calls | selectattr('depth') | list %}
         {% if top %}{{ calls_list(top) }}{% endif %}
         {% if nested %}
         <details class="ui-calls">
@@ -61,17 +78,43 @@
           {{ calls_list(nested) }}
         </details>
         {% endif %}
+        {% if result and (result.stdout or result.stderr) %}
+        <pre class="ui-pre">{{ result.stdout }}{% if result.stderr %}<span class="ui-step__fail">{{ result.stderr }}</span>{% endif %}</pre>
+        {% endif %}
+      </div>
+      <div class="ui-step__state">
+        {%- if result %}<span class="ui-duration" title="Duration">{{ result.duration | duration }}</span>{% endif %}
+        {{- ui.outcome(state) }}</div>
+    </div>
+  {% endmacro %}
+
+  {#- A precondition reads like a titled block: the phases it ran (check, heal, check again) are its steps. Runs
+      from before phases were reported show its parts and its one result instead. #}
+  {% macro precondition_row(row) %}
+    {% set p = row.precondition %}
+    {% call precondition_block(p, row.state, row.result.duration if row.result else None) %}
+      {% for phase in row.phases %}
+        {% set body %}
+          {%- if phase.action == "heal" %}<div class="ui-precondition__label">Heal{% if p.heal_name %} <span class="ui-precondition__heal-name">{{ p.heal_name }}</span>{% endif %}</div>{{ p.heal_html | safe }}
+          {%- else %}<div class="ui-precondition__label">{{ "Check again" if not loop.first else "Check" }}</div>{{ p.check_html | safe }}{% endif %}
+        {% endset %}
+        {{ step_row(body, phase.state, phase.result, phase.calls) }}
+      {% else %}
+        {{ precondition_parts(p) }}
         {% if row.result and (row.result.stdout or row.result.stderr) %}
         <pre class="ui-pre">{{ row.result.stdout }}{% if row.result.stderr %}<span class="ui-step__fail">{{ row.result.stderr }}</span>{% endif %}</pre>
         {% endif %}
-      </div>
-      <div class="ui-step__state">{{ ui.outcome(row.state) }}</div>
-    </div>
-    {% else %}
+      {% endfor %}
+    {% endcall %}
+  {% endmacro %}
+
+  {% macro render(row) %}
+    {% if row.step and row.precondition %}{{ precondition_row(row) }}
+    {% elif row.step %}{{ step_row(row.html | safe, row.state, row.result, row.calls) }}
+    {% elif row.directive != "variations" %}{# the variations form: shown in the details above #}
     <div>{{ row.html | safe }}</div>
     {% endif %}
   {% endmacro %}
-  {{ ui.divider() }}
   <article class="ui-doc" style="max-width: none;">
     {{ statements(rows, render) }}
   </article>

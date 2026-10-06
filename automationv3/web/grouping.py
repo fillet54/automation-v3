@@ -23,7 +23,8 @@ STATE_ORDER = ["fail", "running", "pending", "not run", "pass"]
 
 def group(items, variation=None):
     """Entries of ("statement", item), ("definitions", [items]),
-    ("definition", item), ("titled", {"title", "state", "entries"}) or
+    ("definition", item), ("titled", {"title", "state", "duration",
+    "entries"}) or
     ("scoped", {"variations", "entries"}). Scoped entries hold any of
     the others; titled entries hold the first three kinds. `items` have
     in_definitions / definition / variations / block / title.
@@ -74,6 +75,7 @@ def group_blocks(items):
             entries.extend(group_definitions(run))
         else:
             entries.append(("titled", {"title": key[1], "state": block_state(run),
+                                       "duration": block_duration(run),
                                        "entries": group_definitions(run)}))
     return entries
 
@@ -82,6 +84,13 @@ def block_state(items):
     """The state of a titled block's steps, None if it has no results"""
     states = [item["state"] for item in items if item.get("step") and "state" in item]
     return min(states, key=STATE_ORDER.index) if states else None
+
+
+def block_duration(items):
+    """Seconds a titled block's finished steps took, None if none finished"""
+    times = [item["result"]["duration"] for item in items
+             if item.get("result") and item["result"].get("duration") is not None]
+    return round(sum(times), 3) if times else None
 
 
 def group_definitions(items):
@@ -109,5 +118,6 @@ def statement_item(statement, **extra):
         "directive": head(statement.statement),
         "block": statement.block,
         "title": statement.title,
+        "precondition": statement.precondition,
         **extra,
     }

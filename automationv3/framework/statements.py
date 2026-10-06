@@ -10,7 +10,7 @@ code.
 import functools
 
 from . import document, edn
-from .closure import is_definition
+from .closure import PRECONDITION, head, is_definition, parse_precondition
 from .rst import repr_rst, write_html_parts
 
 
@@ -22,7 +22,9 @@ class Statement:
     def, defn or defblock; pages show these collapsed. `variations` is
     the names its block is limited to, else None (every variation);
     `block` is where its rvt block starts (None for prose) and `title`
-    that block's title, if it has one.
+    that block's title, if it has one. A Precondition's `precondition`
+    holds its name, its heal's description and its check and heal
+    rendered on their own, for pages that show it like a titled block.
     """
 
     def __init__(self, statement, html=None, rst=None, in_definitions=False,
@@ -35,6 +37,7 @@ class Statement:
         self.variations = variations
         self.block = block
         self.title = title
+        self.precondition = None
 
     @property
     def defines(self):
@@ -61,10 +64,27 @@ def get_statements(text):
     parts = document.parse(text)
     forms = [part.form for part in parts]
     rst = [repr_rst(form) for form in forms]
-    html = write_html_parts(rst)
+    # A precondition's check and heal render with the rest, in one pass
+    pieces = []
+    for index, form in enumerate(forms):
+        parsed = head(form) == PRECONDITION and parse_precondition(form)
+        if parsed:
+            pieces.append((index, parsed, repr_rst(parsed.check),
+                           repr_rst(parsed.heal) if parsed.heal is not None else ""))
+    rendered = write_html_parts(rst + [r for *_, check, heal in pieces
+                                       for r in (check, heal)])
+    html, extra = rendered[:len(rst)], rendered[len(rst):]
     section = set(document.definitions_section(parts))
-    return [
+    statements = [
         Statement(part.form, h, r, index in section, part.variations,
                   None if part.prose else part.line, part.title)
         for index, (part, h, r) in enumerate(zip(parts, html, rst))
     ]
+    for n, (index, parsed, _, _) in enumerate(pieces):
+        statements[index].precondition = {
+            "name": parsed.name,
+            "heal_name": parsed.heal_name,
+            "check_html": extra[2 * n],
+            "heal_html": extra[2 * n + 1] if parsed.heal is not None else None,
+        }
+    return statements

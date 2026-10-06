@@ -135,14 +135,9 @@ def render_file(path, variation=None):
     return [("statement", {"html": html}) for html in write_html_parts([text])]
 
 
-def variation_values(variation):
-    """symbol -> value form as written, for a Variation (or None)"""
-    if variation is None:
-        return {}
-    return {
-        symbol: edn.writes(form).strip()
-        for symbol, form in zip(variation.symbols, variation.forms)
-    }
+def written_values(variation):
+    """A Variation's value forms, as written"""
+    return [edn.writes(form).strip() for form in variation.forms]
 
 
 def render_view(ws, node, errors=None, variation=None):
@@ -170,9 +165,8 @@ def render_view(ws, node, errors=None, variation=None):
         text=text,
         closure=closure,
         variation=selected,
-        variation_values=variation_values(selected),
         variation_names=names,
-        variation_rows=[(v.name, list(variation_values(v).values()))
+        variation_rows=[(v.name, written_values(v))
                         for v in (closure.variations if closure else [])],
         errors=(errors or []) + (closure.errors if closure else []),
     )

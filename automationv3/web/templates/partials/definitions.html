@@ -49,9 +49,34 @@
 {% macro titled_block(entry, render, only=None) -%}
 <details class="ui-titled"{% if entry.state in ("fail", "running") %} open{% endif %}>
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-titled__title">{{ entry.title }}</span>{{ only_for(only) }}
-    {%- if entry.state %}<span class="ui-titled__state">{{ ui.outcome(entry.state) }}</span>{% endif %}</summary>
+    {%- if entry.state %}<span class="ui-titled__state">
+      {%- if entry.duration is not none %}<span class="ui-duration" title="Duration of its steps">{{ entry.duration | duration }}</span>{% endif %}
+      {{- ui.outcome(entry.state) }}</span>{% endif %}</summary>
   <div class="ui-titled__body">{{ _unscoped(entry.entries, render) }}</div>
 </details>
+{%- endmacro %}
+
+{#- A Precondition, shown like a titled block: its name, marked if it can heal, and (on a run's page) its state and
+    duration; open if it failed. caller = the body: its parts, or on a run's page the phases it ran. #}
+{% macro precondition_block(p, state=None, duration=None) -%}
+<details class="ui-titled ui-precondition"{% if state == "fail" %} open{% endif %}>
+  <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-precondition__label">Precondition</span>
+    <span class="ui-titled__title">{{ p.name }}
+      {%- if p.heal_html %} <span class="ui-precondition__heals" title="Heals if not met">{{ ui.icon("refresh", 12) }}<span class="ui-sr-only">Heals if not met</span></span>{% endif %}</span>
+    {%- if state %}<span class="ui-titled__state">
+      {%- if duration is not none %}<span class="ui-duration" title="Duration">{{ duration | duration }}</span>{% endif %}
+      {{- ui.outcome(state) }}</span>{% endif %}</summary>
+  <div class="ui-titled__body">{{ caller() }}</div>
+</details>
+{%- endmacro %}
+
+{#- A precondition's check and heal as written #}
+{% macro precondition_parts(p) -%}
+<div class="ui-precondition__part"><div class="ui-precondition__label">Check</div>{{ p.check_html | safe }}</div>
+{%- if p.heal_html %}
+<div class="ui-precondition__part"><div class="ui-precondition__label">If not, heal by
+  {%- if p.heal_name %} <span class="ui-precondition__heal-name">{{ p.heal_name }}</span>{% endif %}</div>{{ p.heal_html | safe }}</div>
+{%- endif %}
 {%- endmacro %}
 
 {% macro _unscoped(entries, render, only=None) -%}

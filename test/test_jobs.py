@@ -288,6 +288,20 @@ class TestPreconditions(unittest.TestCase):
         self.assertTrue(state.on)
         self.assertTrue(ends[0]["stdout"].startswith("healed"))
 
+    def test_phases_are_reported(self):
+        recorder = Recorder()
+        execute_closure({"core.rst": self.CORE, "s.rst": rvt(
+            '(Precondition "on" (on?) :heal (turn-on)) (Wait 1)')},
+            ["core.rst", "s.rst"], recorder, bindings={"h": State()})
+        phases = [(kind, kw["phase"], kw["action"], kw.get("passed"))
+                  for kind, kw in recorder.events if kind.startswith("phase")]
+        self.assertEqual(phases, [
+            ("phase_start", 1, "check", None), ("phase_end", 1, "check", False),
+            ("phase_start", 2, "heal", None), ("phase_end", 2, "heal", True),
+            ("phase_start", 3, "check", None), ("phase_end", 3, "check", True)])
+        steps = [kind for kind, _ in recorder.events if kind.startswith("step")]
+        self.assertEqual(steps, ["step_start", "step_end"] * 2)  # as before
+
     def test_unhealable_precondition_releases_or_blocks(self):
         script = '(Precondition "on" (on?)) (Wait 1)'
         self.assertEqual(self.run_script(script, "probe", State())[0], "released")
@@ -495,6 +509,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
                 rvt("(Verify level > 0)", title="Level is positive"),
                 ".. rvt-variant::\n   :variations: high\n\n   High only: the level is high.\n\n"
                 + textwrap.indent(rvt("(Verify level = 50)", title="Level is high"), "   ")),
+            "BRA/pre.rst": rvt('(Precondition "Low" (under-limit? 1)) (Wait 0)'),
+            "BRA/unmet.rst": rvt('(Precondition "High" (under-limit? 50)) (Wait 0)'),
             "plain/core.rst": "(environments) (uut)",
             "plain/fail.rst": FAILING,
             "plain/pass.rst": PASSING,
@@ -666,7 +682,9 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"under-limit?", page.data)
         self.assertIn(b"/runner/new?workspace=", page.data)
-        self.assertIn(b"2 variations of mode, level", page.data)
+        details = page.data.split(b"ui-script-details")[1].split(b"</details>")[0]
+        self.assertIn(b"<td>low</td>", details)  # every variation, as All is shown
+        self.assertIn(b"<td>high</td>", details)
 
         page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rst")
         self.assertIn(b"must come before the first step", page.data)
@@ -740,7 +758,9 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertNotIn("Level is high", page)
         page = self.http.get(view + "&variation=high").get_data(True)
         self.assertNotIn("Skipped for", page)
-        self.assertIn("level</span> = 50", page)
+        details = page.split("ui-script-details")[1].split("</details>")[0]
+        self.assertIn('<tr class="ui-row--selected"><td>high</td>', details)
+        self.assertNotIn("<td>low</td>", details)  # only the selected one
         self.assertIn('ui-titled__title">Level is positive<', page)
 
         report_id = self.queue_requirements(
@@ -753,7 +773,26 @@ class TestWorkerAgainstServer(unittest.TestCase):
             steps = page.get_data(True).count('class="ui-step ')
             self.assertEqual(steps, {"low": 1, "high": 2}[run["variation"]["name"]])
             summary = page.get_data(True).split('ui-titled__title">Level is positive<')[1]
-            self.assertIn("ui-outcome--pass", summary.split("</summary>")[0])
+            summary = summary.split("</summary>")[0]
+            self.assertIn("ui-outcome--pass", summary)
+            self.assertRegex(summary, r'class="ui-duration"[^>]*>\d+ ms<')
+            self.assertRegex(page.get_data(True),
+                             r'ui-step__state"><span class="ui-duration"[^>]*>\d+ ms<')
+
+    def test_preconditions_show_like_titled_blocks(self):
+        for script, outcome, states in [("BRA/pre.rst", "pass", ["true"]),
+                                        ("BRA/unmet.rst", "blocked", ["false"])]:
+            ids = self.queue(script)
+            self.assertEqual(self.worker.work_once(), outcome)
+            page = self.http.get(
+                f"/reports/{ids['report_id']}/runs/{ids['run_id']}").get_data(True)
+            block = page.split('<details class="ui-titled ui-precondition"')[1]
+            self.assertEqual(block.startswith(" open>"), outcome != "pass", script)
+            summary, body = block.split("</details>")[0].split("</summary>", 1)
+            self.assertIn("ui-duration", summary)
+            self.assertNotIn("<pre", summary)  # output stays inside
+            phases = [s.split('"')[0] for s in body.split('class="ui-step ui-step--')[1:]]
+            self.assertEqual(phases, states, script)
 
     def test_unqueued_variations_leave_requirement_partial(self):
         report_id = self.queue_requirements(

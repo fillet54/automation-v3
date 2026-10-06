@@ -56,6 +56,12 @@ class ReportObserver:
     def on_step_end(self, **kw):
         self.send("step_end", **kw)
 
+    def on_phase_start(self, **kw):
+        self.send("phase_start", **kw)
+
+    def on_phase_end(self, **kw):
+        self.send("phase_end", **kw)
+
     def on_call_start(self, **kw):
         self.send("call_start", **kw)
 

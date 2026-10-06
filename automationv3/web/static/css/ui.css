@@ -577,20 +577,13 @@ body.ui {
 .ui-defs--one { border: 0; margin: 4px 0; }
 .ui-defs--one > summary { padding: 2px 0; }
 
-/* preconditions: collapsed to their name and heal; expanded, the check and heal forms */
-.ui-precondition { margin: 10px 0; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
-.ui-precondition > summary { list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 8px 0; cursor: pointer; font-size: 14px; }
-.ui-precondition > summary::-webkit-details-marker { display: none; }
-.ui-precondition > summary:hover { background: var(--ui-soft); }
-.ui-precondition > summary .ui-icon { align-self: center; color: var(--ui-muted); transition: transform 0.15s; }
-.ui-precondition[open] > summary .ui-icon { transform: rotate(90deg); }
+/* preconditions: shown like titled blocks (see .ui-titled), labelled, with their check and heal as steps */
 .ui-precondition__label { font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
-.ui-precondition__name { font-weight: 500; }
-.ui-precondition__heals { display: inline-flex; align-self: center; color: var(--ui-faint); }
-.ui-precondition__body { padding: 0 0 8px 22px; }
-.ui-precondition__body > .ui-precondition__label { margin: 8px 0 4px; }
-.ui-precondition__heal { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 12px 0 4px; }
-.ui-precondition__heal-name { font-size: 14px; }
+.ui-precondition > summary > .ui-precondition__label { flex: none; }
+.ui-precondition__heals { display: inline-flex; vertical-align: -1px; margin-left: 4px; color: var(--ui-faint); }
+.ui-precondition__heal-name { margin-left: 8px; font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ui-ink); }
+.ui-precondition__part { margin: 8px 0; }
+.ui-precondition .ui-step__body > .ui-precondition__label, .ui-precondition__part > .ui-precondition__label { margin-bottom: 4px; }
 
 /* titled rvt blocks: collapsed to the title, which reads as a step of the procedure */
 .ui-titled { margin: 10px 0; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
@@ -611,12 +604,9 @@ body.ui {
 .ui-scoped > .ui-defs:first-child, .ui-scoped > .ui-titled:first-child { margin-top: 0; }
 .ui-scoped > .ui-defs:last-child, .ui-scoped > .ui-titled:last-child { margin-bottom: 0; }
 
-/* the script view's variation selector, the selected variation's values, and the details table */
-.ui-variations { display: flex; flex-direction: column; gap: 4px; }
-.ui-variations__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
-.ui-variations__values { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--ui-font-mono); font-size: 12px; }
-.ui-variations__details .ui-disclosure__summary { padding: 8px 0; }
-.ui-variations__details .ui-table-wrap { margin-bottom: 8px; }
+/* the script view's top row: the variation selector, and the Queue button at the far end */
+.ui-script-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.ui-script-details .ui-defs__body { padding-top: 4px; }
 
 /* ------------------------------------------------------------------ automation: steps and calls */
 
@@ -632,7 +622,10 @@ body.ui {
 .ui-step--not-run, .ui-step--pending { --ui-tone: var(--ui-rule); }
 .ui-step__body { min-width: 0; }
 .ui-step__body > :first-child { margin-top: 0; }
+.ui-step__state, .ui-titled__state { display: flex; align-items: center; gap: 10px; }
 .ui-step__state { padding-top: 2px; }
+/* a step's (or titled block's) duration, just left of its outcome, right-aligned so times line up */
+.ui-duration { min-width: 5.5em; text-align: right; font-family: var(--ui-font-mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ui-muted); white-space: nowrap; }
 .ui-step .ui-pre { margin-top: 6px; }
 .ui-step__fail { color: var(--ui-danger); }
 

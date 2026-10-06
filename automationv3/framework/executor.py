@@ -25,7 +25,10 @@ The first failing step stops the script: the outcome is "fail" and
 later statements are not reported.
 
 Preconditions run like steps: the check, then (if it failed and there
-is one) the heal and the check again. A precondition that still fails
+is one) the heal and the check again. Each of these is reported as a
+phase of the precondition's step (phase_start / phase_end, with the
+block calls it makes tagged with its phase), so pages can show a
+precondition like a titled block. A precondition that still fails
 ends the script before its steps. In "probe" mode the outcome is then
 "released": the worker gives the job back because this environment
 isn't ready for it. In any other mode the outcome is "blocked".
@@ -56,19 +59,33 @@ def new_env():
     return lisp.Env(outer=lisp.global_env)
 
 
+def run_phase(action, form, env, runtime):
+    """Run one phase (a check or the heal) of a precondition, reported as
+    such. Returns a BlockResult."""
+    runtime.phase = (runtime.phase or 0) + 1
+    details = dict(index=runtime.index, phase=runtime.phase, action=action)
+    runtime.observer.on_phase_start(form=edn.writes(form).strip(), **details)
+    started = time.monotonic()
+    result = run_statement(form, env, runtime)
+    runtime.observer.on_phase_end(
+        passed=bool(result), stdout=result.stdout, stderr=result.stderr,
+        duration=round(time.monotonic() - started, 3), **details)
+    return result
+
+
 def run_precondition(form, env, runtime):
     """Check, heal if needed, check again. Returns a BlockResult."""
     parsed = parse_precondition(form)
     if parsed is None:
         return BlockResult(False, stderr="Malformed Precondition")
     check, heal = parsed.check, parsed.heal
-    result = run_statement(check, env, runtime)
+    result = run_phase("check", check, env, runtime)
     if result or heal is None:
         return result
-    healed = run_statement(heal, env, runtime)
+    healed = run_phase("heal", heal, env, runtime)
     if healed.stderr:  # the heal itself raised or had no block
         return BlockResult(False, stdout=result.stdout, stderr=healed.stderr)
-    result = run_statement(check, env, runtime)
+    result = run_phase("check", check, env, runtime)
     return BlockResult(bool(result), stdout=f"healed; {result.stdout}".strip("; "),
                        stderr=result.stderr)
 

@@ -10,7 +10,7 @@ from flask import (
     url_for,
 )
 
-from ..framework.closure import DIRECTIVES, PRECONDITION, head
+from ..framework.closure import DIRECTIVES, head
 from ..framework.statements import get_statements
 from ..services import jobs as models
 from ..services.reports import rollup, store
@@ -43,6 +43,7 @@ def statement_rows(run, finished):
     started = {e["index"] for e in events if e["kind"] == "step_start"}
     ended = {e["index"]: e for e in events if e["kind"] == "step_end"}
     calls = call_trees(events)
+    phases = precondition_phases(events, calls)
     variation = (run.get("variation") or {}).get("name")
 
     rows = []
@@ -53,8 +54,8 @@ def statement_rows(run, finished):
         row = statement_item(
             statement,
             step=isinstance(form, list) and head(form) not in DIRECTIVES,
-            precondition=head(form) == PRECONDITION,
             calls=calls.get(index, []),
+            phases=phases.get(index, []),
         )
         if statement.definition:
             # Definitions aren't steps; only a failed one has a result
@@ -71,6 +72,50 @@ def statement_rows(run, finished):
 
     errors = [e for e in events if e["kind"] == "error"]
     return group(rows, variation), errors
+
+
+@reports.app_template_filter()
+def duration(seconds):
+    """A step's duration to the millisecond: 7 ms, 1.234 s, 2:05.012"""
+    if seconds is None:
+        return ""
+    ms = round(seconds * 1000)
+    if ms < 1000:
+        return f"{ms} ms"
+    if ms < 60_000:
+        return f"{ms / 1000:.3f} s"
+    minutes, ms = divmod(ms, 60_000)
+    return f"{minutes}:{ms / 1000:06.3f}"
+
+
+def precondition_phases(events, calls):
+    """statement index -> the phases its precondition ran (check, heal,
+    check again), in order: each has its action, state, result and the
+    block calls made in it"""
+    phases = {}
+    for event in events:
+        if event["kind"] in ("phase_start", "phase_end"):
+            phase = phases.setdefault((event["index"], event["phase"]), {})
+            phase.update({k: v for k, v in event.items()
+                          if k not in ("kind", "seq", "ts")})
+            if event["kind"] == "phase_end":
+                phase["result"] = event
+    by_index = {}
+    for (index, number), phase in sorted(phases.items()):
+        phase["state"] = phase_state(phase)
+        phase["calls"] = [c for c in calls.get(index, []) if c.get("phase") == number]
+        by_index.setdefault(index, []).append(phase)
+    return by_index
+
+
+def phase_state(phase):
+    """A check is true or false (false is expected before a heal); a heal
+    passes or fails"""
+    if "result" not in phase:
+        return "running"
+    if phase["action"] == "check":
+        return "true" if phase["passed"] else "false"
+    return "pass" if phase["passed"] else "fail"
 
 
 def call_state(call):
