@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% set nav_current = "scratch" %}
+{% block title %}Scratch{% endblock %}
+
+{% block content %}
+<div class="ui-stack ui-gap-large">
+{{ ui.page_header("Scratch", subtitle="Try scripts while you develop them: they run the workspace's files as they are now, uncommitted changes included, and never count toward a report.") }}
+
+{% if errors %}
+{% call ui.alert("danger", title="Can't run that") %}
+  <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+{% endcall %}
+{% endif %}
+
+<form method="post" action="{{ url_for('scratch.run') }}" class="ui-form ui-stack">
+  {% call ui.grid(3) %}
+    {% call ui.field("Workspace", "scratch-workspace") %}
+      {{ ui.select("workspace", workspaces, selected=workspace, id="scratch-workspace", mono=True,
+                   attrs={"onchange": "window.location.href = '" ~ url_for('scratch.index') ~ "?workspace=' + encodeURIComponent(this.value)"}) }}
+    {% endcall %}
+    {% call ui.field("Environment", "scratch-environment", hint="Blank runs each script in every environment it supports.") %}
+      {% set options = [("", "every supported")] %}
+      {% for env in environments %}{% set _ = options.append((env, env)) %}{% endfor %}
+      {{ ui.select("environment", options, selected=form.get("environment", ""), id="scratch-environment", mono=True) }}
+    {% endcall %}
+    {% for uut, ids in choices.items() %}
+    {% call ui.field(uut ~ " version", "version-" ~ uut) %}
+      {{ ui.select("version-" ~ uut, ids, selected=form.get("version-" ~ uut), id="version-" ~ uut, mono=True) }}
+    {% endcall %}
+    {% endfor %}
+  {% endcall %}
+  {% call ui.field("Scripts", "scratch-scripts", hint="Every variation of each runs. Hold Ctrl or Shift to pick several.") %}
+    {% set picked = form.getlist("script") if form.getlist is defined else [] %}
+    <select class="ui-select ui-select--mono" name="script" id="scratch-scripts" multiple size="{{ [scripts | length, 10] | min }}" required>
+      {% for s in scripts %}<option value="{{ s }}"{% if s in picked %} selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  {% endcall %}
+  {% call ui.toolbar() %}
+    {{ ui.button("Run", variant="primary", icon="play", type="submit") }}
+  {% endcall %}
+</form>
+
+{% call ui.section("Recent runs", subtitle="Newest first") %}
+  {% if runs | selectattr("outcome") | list %}
+  <form method="post" action="{{ url_for('scratch.clear') }}" style="margin-bottom: 8px;">
+    <input type="hidden" name="workspace" value="{{ workspace }}">
+    {{ ui.button("Clear finished runs", size="sm", type="submit") }}
+  </form>
+  {% endif %}
+  {% call ui.table(["Script", "Environment", "Variation", "State", "Queued", {"label": "", "sr": True}]) %}
+    {% for run in runs %}
+    <tr>
+      <td>{{ ui.ident(run.script, url_for('reports.run', report_id=run.report_id, run_id=run.id), plain=True) }}</td>
+      <td>{% if run.environment %}{{ ui.ident(run.environment) }}{% endif %}</td>
+      <td>{% if run.variation %}<span class="ui-mono">{{ run.variation.name }}</span>{% endif %}</td>
+      <td>{{ ui.outcome(run.status) }}</td>
+      <td>{{ ui.timestamp(run.created) }}</td>
+      <td class="ui-end">
+        <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">
+          {{ ui.button("Run again", size="sm", icon="refresh", type="submit") }}
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    {{ ui.empty_row("No scratch runs. Pick scripts above and run them.", 6) }}
+    {% endfor %}
+  {% endcall %}
+{% endcall %}
+</div>
+{% endblock %}

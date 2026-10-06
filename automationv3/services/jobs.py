@@ -177,8 +177,8 @@ def merge_scripts(entries, added):
     merged = {entry["script"]: entry for entry in entries if isinstance(entry, dict)}
     for entry in added:
         before = merged.get(entry["script"], {})
-        expected = [*before.get("expected", []),
-                    *[c for c in entry["expected"] if c not in before.get("expected", [])]]
+        expected = list(before.get("expected", []))
+        expected += [combo for combo in entry["expected"] if combo not in expected]
         requirements = sorted({*before.get("requirements", []), *entry["requirements"]})
         merged[entry["script"]] = {**entry, "expected": expected,
                                    "requirements": requirements}
@@ -664,3 +664,60 @@ def complete_job(conn, root, id, worker_url, outcome, installed=None,
     details["identity"] = identity_hash({**run, **details})
     finish(conn, root, job, outcome,
            **{key: value for key, value in details.items() if value is not None})
+
+
+# The scratch space: runs of scripts under development. They live in the
+# reserved `scratch` folder of the reports root, which has no
+# report.json, so they never appear in a report or a rollup. They run
+# the workspace's files as they are on disk, uncommitted changes
+# included, and can be cleared.
+
+SCRATCH = "scratch"
+
+
+def queue_scratch(conn, root, plan):
+    """Queue every run of `plan` in the scratch space. Returns the run ids."""
+    check_runnable(plan)
+    run_ids = []
+    for script_plan, environment, variation in plan.runs():
+        closure = script_plan.closure
+        if variation is not None:
+            choice = next(v for v in script_plan.variations if v.name == variation)
+            variation = {"name": choice.name, "values": choice.values}
+        run_ids.append(enqueue(
+            conn, root, SCRATCH, closure.script, closure.files, closure.load_order,
+            environment, {name: plan.uut_versions[name] for name in closure.uuts},
+            closure.imports, variation, workspace=plan.workspace,
+        ))
+    return run_ids
+
+
+def scratch_runs(root):
+    """Scratch runs, newest first"""
+    return list(reversed(store.list_runs(root, SCRATCH)))
+
+
+def run_again(conn, root, workspace_root, run_id):
+    """Queue a scratch run again with the script as it is now: the same
+    script, environment, variation and UUT versions. Returns the run id."""
+    run = store.load_run(root, SCRATCH, run_id)
+    variation = (run.get("variation") or {}).get("name")
+    plan = build_plan(
+        run.get("workspace", ""),
+        workspace_root,
+        [run["script"]],
+        environments=[run["environment"]] if run.get("environment") else None,
+        versions={uut: v["id"] for uut, v in (run.get("uut_versions") or {}).items()},
+        variations={f"{run['script']}::{variation}"} if variation else None,
+    )
+    (run_id,) = queue_scratch(conn, root, plan)
+    return run_id
+
+
+def clear_scratch(root):
+    """Delete the finished scratch runs; queued and running ones stay.
+    Returns how many were deleted."""
+    finished = [run for run in store.list_runs(root, SCRATCH) if run.get("outcome")]
+    for run in finished:
+        store.delete_run(root, SCRATCH, run["id"])
+    return len(finished)

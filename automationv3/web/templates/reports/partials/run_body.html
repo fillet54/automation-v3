@@ -7,7 +7,12 @@
      hx-trigger="every 2s"
      hx-swap="outerHTML"
      {% endif %}>
+  {% set scratch = run.report_id == "scratch" %}
+  {% if scratch %}
+  <header class="ui-page-header">{{ ui.breadcrumbs([("Scratch", url_for('scratch.index')), (run.script, None)]) }}</header>
+  {% else %}
   <header class="ui-page-header">{{ ui.breadcrumbs([("Reports", url_for('reports.index')), (run.report_id[:8], url_for('reports.report', report_id=run.report_id)), (run.script, None)]) }}</header>
+  {% endif %}
 
   {#- Laid out like the script view: the variation that ran (as the script view shows a selected one), then the
       outcome and Rerun at the far end #}
@@ -20,7 +25,12 @@
     <div class="ui-toolbar">
       {% if run.non_identical %}{{ ui.badge("Not identical", "warning", outline=True) }}{% endif %}
       {{ ui.outcome(status) }}
-      {% if finished %}
+      {% if scratch %}
+      {% if run.workspace %}{{ ui.button("Queue in a report…", size="sm", href=url_for('jobqueue.new', workspace=run.workspace, script=run.script)) }}{% endif %}
+      <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">
+        {{ ui.button("Run again", icon="refresh", type="submit", size="sm") }}
+      </form>
+      {% elif finished %}
       <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
         {{ ui.button("Rerun", icon="refresh", type="submit", size="sm") }}
       </form>

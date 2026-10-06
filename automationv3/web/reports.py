@@ -224,6 +224,8 @@ def version_mix(report, runs):
 
 @reports.route("/<report_id>", methods=["GET"])
 def report(report_id):
+    if report_id == models.SCRATCH:
+        return redirect(url_for("scratch.index"))
     report = store.load_report(root(), report_id) or abort(404)
     runs = store.list_runs(root(), report_id)
     for run in runs:

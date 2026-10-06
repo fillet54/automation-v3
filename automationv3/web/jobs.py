@@ -81,7 +81,8 @@ def plan_from(args):
     conn = get_db()
     links.refresh(conn, workspace, root)
 
-    versions = {uut: v["id"] for uut, v in (report or {}).get("uut_versions", {}).items()}
+    defaults = (report or {}).get("uut_versions", {})
+    versions = {uut: version["id"] for uut, version in defaults.items()}
     versions.update({
         key[len("version-"):]: value
         for key, value in args.items()
@@ -95,7 +96,8 @@ def plan_from(args):
         variations=set(args.getlist("variation")) if configured else None,
         filter_source=args.get("filter", ""),
         links=links.scripts_by_requirement(conn, workspace),
-        passed=models.passed_combinations(reports_root(), report["id"]) if report else None,
+        passed=(models.passed_combinations(reports_root(), report["id"])
+                if report else None),
         rerun_passed=set(args.getlist("rerun")),
     )
     environments = args.getlist("environment") if configured else None

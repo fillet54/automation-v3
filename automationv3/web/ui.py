@@ -32,6 +32,7 @@ NAV = [
     ("requirements", "Requirements", "requirements.list"),
     ("queue", "Queue", "jobqueue.list"),
     ("reports", "Reports", "reports.index"),
+    ("scratch", "Scratch", "scratch.index"),
     ("workers", "Workers", "jobqueue.list_workers"),
 ]
 

@@ -5,7 +5,7 @@ from flask import Flask, has_app_context, redirect, url_for
 from ..framework import rst
 from ..services.requirements import models as requirements
 from ..services.workspace import find_worktrees
-from . import jobs, reports, requirements as requirement_pages, ui, workspace
+from . import jobs, reports, requirements as requirement_pages, scratch, ui, workspace
 from .db import close_db, get_db
 
 
@@ -26,6 +26,7 @@ def create_app(**config):
     app.register_blueprint(requirement_pages.requirements, url_prefix="/requirements")
     app.register_blueprint(jobs.jobqueue, url_prefix="/runner")
     app.register_blueprint(reports.reports, url_prefix="/reports")
+    app.register_blueprint(scratch.scratch, url_prefix="/scratch")
     app.teardown_appcontext(close_db)
     rst.set_requirement_lookup(requirement_lookup)
 

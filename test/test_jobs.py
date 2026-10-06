@@ -966,6 +966,60 @@ class TestWorkerAgainstServer(unittest.TestCase):
                                   query_string={"report": report_id}).get_data(True)
         self.assertIn('id="target-report"', workspace)
 
+    def scratch(self, *scripts, **form):
+        response = self.http.post("/scratch/run", data={
+            "workspace": self.branch, "script": list(scripts), "environment": "sim",
+            **form})
+        self.assertEqual(response.status_code, 302, response.get_data(True))
+
+    def test_scratch_runs_stay_out_of_reports(self):
+        self.scratch("BRA/modes.rst", "plain/pass.rst")
+        runs = models.scratch_runs(self.root)
+        self.assertEqual(sorted((r["script"], (r["variation"] or {}).get("name"))
+                                for r in runs),
+                         [("BRA/modes.rst", "high"), ("BRA/modes.rst", "low"),
+                          ("plain/pass.rst", None)])
+        self.assertEqual(store.list_reports(self.root), [])
+        self.assertEqual(self.http.get("/reports/").status_code, 200)
+        self.assertEqual(self.http.get("/reports/scratch").status_code, 302)
+
+        self.assertEqual(sorted(self.worker.work_until_idle()), ["fail", "pass", "pass"])
+        page = self.http.get("/scratch/").get_data(True)
+        self.assertIn("BRA/modes.rst", page)
+        self.assertIn("Clear finished runs", page)
+        run = self.http.get(f"/reports/scratch/runs/{runs[0]['id']}").get_data(True)
+        self.assertIn('href="/scratch/"', run)  # breadcrumbs back to scratch
+        self.assertIn("Run again", run)
+        self.assertIn("Queue in a report", run)
+        self.assertNotIn("/rerun", run)
+
+    def test_run_again_uses_the_script_as_it_is_now(self):
+        self.scratch("plain/pass.rst")
+        (first,) = models.scratch_runs(self.root)
+        self.assertEqual(self.worker.work_once(), "pass")
+
+        script = find_worktrees(self.gitdir)[self.branch] / "plain/pass.rst"
+        script.write_text(FAILING)  # an uncommitted edit
+        response = self.http.post(f"/scratch/runs/{first['id']}/again")
+        self.assertEqual(response.status_code, 302)
+        again, _ = models.scratch_runs(self.root)
+        self.assertNotEqual(again["closure_hash"], first["closure_hash"])
+        self.assertEqual(self.worker.work_once(), "fail")
+
+    def test_clearing_scratch_keeps_queued_runs(self):
+        self.scratch("plain/pass.rst")
+        self.worker.work_once()
+        self.scratch("plain/fail.rst")
+        self.http.post("/scratch/clear", data={"workspace": self.branch})
+        (left,) = models.scratch_runs(self.root)
+        self.assertEqual((left["script"], left["outcome"]), ("plain/fail.rst", None))
+
+    def test_scratch_reports_what_cant_run(self):
+        response = self.http.post("/scratch/run", data={
+            "workspace": self.branch, "script": "plain/lint.rst"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("must come before the first step", response.get_data(True))
+
     def test_unqueued_variations_leave_requirement_partial(self):
         report_id = self.queue_requirements(
             requirement="R1", variation="BRA/modes.rst::low")

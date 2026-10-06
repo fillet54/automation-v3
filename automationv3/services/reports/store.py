@@ -18,6 +18,7 @@ uuidv7 ids sort by creation time, so sorting run ids gives run order.
 
 import json
 import os
+import shutil
 import threading
 import time
 import uuid
@@ -176,6 +177,10 @@ def update_run(root, report_id, run_id, **fields):
     run.update(fields)
     _write_json(path, run)
     return run
+
+
+def delete_run(root, report_id, run_id):
+    shutil.rmtree(run_dir(root, report_id, run_id), ignore_errors=True)
 
 
 def load_run(root, report_id, run_id):
