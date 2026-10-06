@@ -29,7 +29,8 @@ are kept as forms here and evaluated later.
 
 An rvt block marked `:variations: name, ...` only applies to those
 variations: its steps, preconditions and definitions are skipped when
-any other variation runs. Names must be declared by the script's
+any other variation runs. So does everything in an rvt-variant
+directive, prose included (see document.py). Names must be declared by the script's
 variations form, and only scripts may scope blocks; declarations
 (import, uut, environments, variations) can't be scoped.
 
@@ -258,7 +259,7 @@ def lint_variation_scopes(path, parts, variations):
     declared = {v.name for v in variations}
     reported = set()
     for part in parts:
-        if part.variations is None or part.prose:
+        if part.variations is None:
             continue
         if is_core:
             message = f"{path}: core.rst blocks can't be limited to variations"

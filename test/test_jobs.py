@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+import textwrap
 import unittest
 import uuid
 from datetime import datetime, timedelta
@@ -492,8 +493,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "BRA/scoped.rst": doc(
                 rvt('(variations "level" ["low" [1] "high" [50]])'),
                 rvt("(Verify level > 0)", title="Level is positive"),
-                "High only:",
-                rvt("(Verify level = 50)", variations="high")),
+                ".. rvt-variant::\n   :variations: high\n\n   High only: the level is high.\n\n"
+                + textwrap.indent(rvt("(Verify level = 50)", title="Level is high"), "   ")),
             "plain/core.rst": "(environments) (uut)",
             "plain/fail.rst": FAILING,
             "plain/pass.rst": PASSING,
@@ -732,9 +733,11 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(view).get_data(True)
         self.assertIn("Only for", page)
         self.assertNotIn("Skipped for", page)
+        self.assertIn("High only", page)
+        self.assertIn("ui-scoped__tag", page)  # prose and a block: a tag line
         page = self.http.get(view + "&variation=low").get_data(True)
-        self.assertIn("Skipped for low", page)
-        self.assertIn("applies to high", page)
+        self.assertNotIn("High only", page)  # the variant's prose and block
+        self.assertNotIn("Level is high", page)
         page = self.http.get(view + "&variation=high").get_data(True)
         self.assertNotIn("Skipped for", page)
         self.assertIn("level</span> = 50", page)

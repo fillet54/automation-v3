@@ -25,6 +25,22 @@ A block marked `:variations:` (variation names, separated by commas)
 only applies when one of those variations runs; a block without it
 applies to every variation.
 
+Prose and rvt blocks that belong to some variations only can be
+wrapped together in an `rvt-variant` directive, whose content is split
+like a document of its own and limited to its `:variations:`::
+
+    .. rvt-variant::
+       :variations: emergency
+
+       In emergency mode the pressure stays at the limit.
+
+       .. rvt::
+
+          (Verify (reading :brake-pressure) = max-pressure)
+
+An rvt block inside one may narrow it with `:variations:` of its own,
+naming some of the variant's.
+
 A block may have a title, which says what its forms do as a step of
 the procedure; pages show a titled block collapsed to its title::
 
@@ -51,6 +67,8 @@ from docutils.parsers.rst import Directive, directives
 from . import edn
 
 RVT_START = re.compile(r"^\.\. rvt::(\s.*)?$")
+VARIANT_START = re.compile(r"^\.\. rvt-variant::\s*$")
+ANY_RVT = re.compile(r"^\s*\.\. rvt::(\s.*)?$")
 
 
 def variation_names(argument):
@@ -89,25 +107,27 @@ class Part:
 
 
 def split(text):
-    """Chunks of (is_rvt, source, line): prose and rvt directives, in order.
+    """Chunks of (kind, source, line): "prose", "rvt" and "variant"
+    (rvt-variant) directives, in order.
 
-    An rvt directive runs from its `.. rvt::` line through every
-    indented or blank line after it.
+    A directive runs from its `.. rvt::` (or `.. rvt-variant::`) line
+    through every indented or blank line after it.
     """
-    chunks, current, line_no, start = [], [], 0, 1
-    in_rvt = False
+    chunks, current, start = [], [], 1
+    kind = "prose"
     for line_no, line in enumerate(text.splitlines(), start=1):
-        if in_rvt and line.strip() and not line[0].isspace():
-            chunks.append((True, "\n".join(current), start))
-            current, start, in_rvt = [], line_no, False
-        if not in_rvt and RVT_START.match(line):
+        if kind != "prose" and line.strip() and not line[0].isspace():
+            chunks.append((kind, "\n".join(current), start))
+            current, start, kind = [], line_no, "prose"
+        if kind == "prose" and (RVT_START.match(line) or VARIANT_START.match(line)):
             if current:
-                chunks.append((False, "\n".join(current), start))
-            current, start, in_rvt = [], line_no, True
+                chunks.append((kind, "\n".join(current), start))
+            kind = "rvt" if RVT_START.match(line) else "variant"
+            current, start = [], line_no
         current.append(line)
     if current:
-        chunks.append((in_rvt, "\n".join(current), start))
-    return [c for c in chunks if c[0] or c[1].strip()]
+        chunks.append((kind, "\n".join(current), start))
+    return [c for c in chunks if c[0] != "prose" or c[1].strip()]
 
 
 class rvt_block(nodes.Element):
@@ -131,20 +151,59 @@ class RvtDirective(Directive):
 directives.register_directive("rvt", RvtDirective)
 
 
+class rvt_variant(nodes.Element):
+    """A parsed rvt-variant directive: its variations and unparsed content"""
+
+
+class RvtVariantDirective(Directive):
+    has_content = True
+    option_spec = {"variations": variation_names}
+
+    def run(self):
+        if "variations" not in self.options:
+            raise self.error("rvt-variant needs a :variations: option")
+        node = rvt_variant()
+        node["variations"] = self.options["variations"]
+        node["content"] = "\n".join(self.content)
+        node["offset"] = self.content_offset  # lines before the content
+        return [node]
+
+
+directives.register_directive("rvt-variant", RvtVariantDirective)
+
+
 class RvtError(ValueError):
     pass
 
 
-def parse_rvt(source):
-    """(options, content, title) of one rvt directive, parsed by docutils"""
+def parse_directive(source, node_class, name):
+    """The one `node_class` node of a directive's source, parsed by docutils"""
     stream = _Collect()
     tree = docutils.core.publish_doctree(
         source, settings_overrides={"warning_stream": stream, "report_level": 2,
                                     "halt_level": 5})
-    blocks = list(tree.findall(rvt_block))
-    if stream.messages or len(blocks) != 1:
-        raise RvtError(" ".join(stream.messages) or "not an rvt directive")
-    return blocks[0]["options"], blocks[0]["content"], blocks[0]["title"]
+    found = list(tree.findall(node_class))
+    if stream.messages or len(found) != 1:
+        raise RvtError(" ".join(stream.messages) or f"not an {name} directive")
+    return found[0]
+
+
+def parse_rvt(source):
+    """(options, content, title) of one rvt directive"""
+    block = parse_directive(source, rvt_block, "rvt")
+    return block["options"], block["content"], block["title"]
+
+
+def limit(options, variations):
+    """`options` limited to `variations`, or to the ones it names already,
+    which must be among them"""
+    if "variations" in options:
+        outside = [v for v in options["variations"] if v not in variations]
+        if outside:
+            raise RvtError(f"{', '.join(outside)} is outside its rvt-variant "
+                           f"({', '.join(variations)})")
+        return options
+    return {**options, "variations": variations}
 
 
 class _Collect:
@@ -156,17 +215,23 @@ class _Collect:
             self.messages.append(" ".join(text.split()))
 
 
-def parse(text):
-    """The document's parts. Raises RvtError for a malformed rvt block
-    and edn errors for unreadable forms."""
+def parse(text, first_line=1):
+    """The document's parts. Raises RvtError for a malformed rvt or
+    rvt-variant directive and edn errors for unreadable forms."""
     parts = []
-    for is_rvt, source, line in split(text):
-        if not is_rvt:
+    for kind, source, line in split(text):
+        line += first_line - 1
+        if kind == "prose":
             parts.append(Part(source.strip("\n"), line=line))
-            continue
-        options, content, title = parse_rvt(source)
-        for form in edn.read_all(content):
-            parts.append(Part(form, options, line, title))
+        elif kind == "rvt":
+            options, content, title = parse_rvt(source)
+            for form in edn.read_all(content):
+                parts.append(Part(form, options, line, title))
+        else:
+            variant = parse_directive(source, rvt_variant, "rvt-variant")
+            for part in parse(variant["content"], line + variant["offset"]):
+                part.options = limit(part.options, variant["variations"])
+                parts.append(part)
     return parts
 
 
@@ -176,7 +241,7 @@ def forms(text):
 
 def has_rvt(text):
     """True if the document has any rvt block (i.e. it's a script)"""
-    return any(RVT_START.match(line) for line in text.splitlines())
+    return any(ANY_RVT.match(line) for line in text.splitlines())
 
 
 def definitions_section(parts):

@@ -70,7 +70,7 @@ def statement_rows(run, finished):
         rows.append(row)
 
     errors = [e for e in events if e["kind"] == "error"]
-    return group(rows), errors
+    return group(rows, variation), errors
 
 
 def call_state(call):

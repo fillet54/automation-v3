@@ -1,38 +1,44 @@
-{# Collapsed definitions (the section, and lone definitions), titled blocks, and blocks limited to variations #}
+{# Collapsed definitions (the section, and lone definitions), titled blocks, and blocks limited to variations.
+   `only` (variation names) marks a collapsed entry as limited to them, on its summary line. #}
 {% import "ui/components.html" as ui %}
 
-{% macro definitions_section(items, render) -%}
+{#- Entry kinds shown collapsed, which can carry their variations on their summary line #}
+{% set COLLAPSED = ("titled", "definitions", "definition") %}
+
+{% macro only_for(names) -%}
+{%- if names %}<span class="ui-scoped__inline"><span class="ui-defs__label">Only for</span>{% for name in names %} {{ ui.badge(name, tone="accent", outline=True) }}{% endfor %}</span>{% endif %}
+{%- endmacro %}
+
+{% macro definitions_section(items, render, only=None) -%}
 <details class="ui-defs">
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Definitions</span>
-    <span class="ui-defs__names">{{ items | selectattr('defines') | map(attribute='defines') | join(', ') }}</span></summary>
+    <span class="ui-defs__names">{{ items | selectattr('defines') | map(attribute='defines') | join(', ') }}</span>{{ only_for(only) }}</summary>
   <div class="ui-defs__body">{% for item in items %}{{ render(item) }}{% endfor %}</div>
 </details>
 {%- endmacro %}
 
-{% macro definition(item, render) -%}
+{% macro definition(item, render, only=None) -%}
 <details class="ui-defs ui-defs--one">
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Definition</span>
-    <span class="ui-defs__names">{{ item.defines }}</span></summary>
+    <span class="ui-defs__names">{{ item.defines }}</span>{{ only_for(only) }}</summary>
   <div class="ui-defs__body">{{ render(item) }}</div>
 </details>
 {%- endmacro %}
 
-{#- A script's grouped entries (see web/grouping.py). Blocks limited to variations are marked with them; with
-    `selected` (a variation name), those limited to other variations collapse to a line saying so. #}
+{#- A script's grouped entries (see web/grouping.py). Blocks limited to variations are marked with them: on the
+    summary line of collapsed entries, else on a line of their own. With `selected` (a variation name), those
+    limited to other variations are left out. #}
 {% macro statements(entries, render, selected=None) -%}
 {%- for kind, entry in entries %}
   {%- if kind == "scoped" %}
-    {%- if selected and selected not in entry.variations %}
-<details class="ui-scoped ui-scoped--skipped">
-  <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Skipped for {{ selected }}</span>
-    <span class="ui-scoped__names">applies to {{ entry.variations | join(', ') }}</span></summary>
-  <div class="ui-scoped__body">{{ _unscoped(entry.entries, render) }}</div>
-</details>
-    {%- else %}
+    {%- if selected and selected not in entry.variations %}{# not part of this variation #}
+    {%- elif entry.entries | rejectattr(0, "in", COLLAPSED) | list %}
 <div class="ui-scoped">
-  <div class="ui-scoped__tag"><span class="ui-defs__label">Only for</span>{% for name in entry.variations %} {{ ui.badge(name, tone="accent", outline=True) }}{% endfor %}</div>
+  <div class="ui-scoped__tag">{{ only_for(entry.variations) }}</div>
   <div class="ui-scoped__body">{{ _unscoped(entry.entries, render) }}</div>
 </div>
+    {%- else %}
+<div class="ui-scoped">{{ _unscoped(entry.entries, render, only=entry.variations) }}</div>
     {%- endif %}
   {%- else %}{{ _unscoped([(kind, entry)], render) }}{% endif %}
 {%- endfor %}
@@ -40,19 +46,19 @@
 
 {#- A titled rvt block collapsed to its title, with its steps' state on a run's page; open if it failed or is
     running, so a run shows where it stands. #}
-{% macro titled_block(entry, render) -%}
+{% macro titled_block(entry, render, only=None) -%}
 <details class="ui-titled"{% if entry.state in ("fail", "running") %} open{% endif %}>
-  <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-titled__title">{{ entry.title }}</span>
+  <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-titled__title">{{ entry.title }}</span>{{ only_for(only) }}
     {%- if entry.state %}<span class="ui-titled__state">{{ ui.outcome(entry.state) }}</span>{% endif %}</summary>
   <div class="ui-titled__body">{{ _unscoped(entry.entries, render) }}</div>
 </details>
 {%- endmacro %}
 
-{% macro _unscoped(entries, render) -%}
+{% macro _unscoped(entries, render, only=None) -%}
 {%- for kind, entry in entries %}
-  {%- if kind == "titled" %}{{ titled_block(entry, render) }}
-  {%- elif kind == "definitions" %}{{ definitions_section(entry, render) }}
-  {%- elif kind == "definition" %}{{ definition(entry, render) }}
+  {%- if kind == "titled" %}{{ titled_block(entry, render, only) }}
+  {%- elif kind == "definitions" %}{{ definitions_section(entry, render, only) }}
+  {%- elif kind == "definition" %}{{ definition(entry, render, only) }}
   {%- else %}{{ render(entry) }}{% endif %}
 {%- endfor %}
 {%- endmacro %}

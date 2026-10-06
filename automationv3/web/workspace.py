@@ -122,15 +122,16 @@ def expand(id):
 # Read-only script viewer
 
 
-def render_file(path):
-    """The file as grouped entries for display (see grouping.group)"""
+def render_file(path, variation=None):
+    """The file as grouped entries for display (see grouping.group), for
+    `variation` (a name) if given"""
     if is_binary(path):
         return None
     text = path.read_text()
     if path.suffix != ".rst":
         return None
     if has_rvt(text):  # a script or core.rst: statements, with results' layout
-        return group([statement_item(s) for s in get_statements(text)])
+        return group([statement_item(s) for s in get_statements(text)], variation)
     return [("statement", {"html": html}) for html in write_html_parts([text])]
 
 
@@ -156,7 +157,7 @@ def render_view(ws, node, errors=None, variation=None):
         if closure else None
     text = None
     try:
-        parts = render_file(node.path)
+        parts = render_file(node.path, selected.name if selected else None)
     except Exception as e:  # unreadable script: show it raw
         parts, errors = None, (errors or []) + [f"Could not render: {e}"]
     if parts is None and not is_binary(node.path):

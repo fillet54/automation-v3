@@ -6,6 +6,11 @@ A titled rvt block's statements are kept together as one titled entry,
 which pages show collapsed to the title. Consecutive statements limited
 to the same variations are kept together as one scoped entry, so a page
 can tag or collapse them as a unit.
+
+For one variation, the definitions section is rolled up into a single
+section of what that variation loads: blocks limited to other
+variations are left out, and a name defined more than once shows only
+its last definition (the one that wins).
 """
 
 from itertools import groupby
@@ -16,12 +21,15 @@ from ..framework.closure import head
 STATE_ORDER = ["fail", "running", "pending", "not run", "pass"]
 
 
-def group(items):
+def group(items, variation=None):
     """Entries of ("statement", item), ("definitions", [items]),
     ("definition", item), ("titled", {"title", "state", "entries"}) or
     ("scoped", {"variations", "entries"}). Scoped entries hold any of
     the others; titled entries hold the first three kinds. `items` have
-    in_definitions / definition / variations / block / title."""
+    in_definitions / definition / variations / block / title.
+    With `variation` (a name), the definitions section is rolled up."""
+    if variation is not None:
+        items = roll_up_definitions(items, variation)
     entries = []
     for variations, run in groupby(items, key=lambda item: item["variations"]):
         inner = group_blocks(list(run))
@@ -30,6 +38,24 @@ def group(items):
         else:
             entries.append(("scoped", {"variations": variations, "entries": inner}))
     return entries
+
+
+def roll_up_definitions(items, variation):
+    """`items` with the definitions section as one unscoped run, holding
+    each name's last definition that applies to `variation`"""
+    section = [item for item in items if item["in_definitions"] and
+               (item["variations"] is None or variation in item["variations"])]
+    last = {item["defines"]: item for item in section}
+    rolled = [{**item, "variations": None} for item in section
+              if last[item["defines"]] is item]
+    rest, placed = [], False
+    for item in items:
+        if not item["in_definitions"]:
+            rest.append(item)
+        elif not placed:
+            rest.extend(rolled)
+            placed = True
+    return rest
 
 
 def titled_block(item):
