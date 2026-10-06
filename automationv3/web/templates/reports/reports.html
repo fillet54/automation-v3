@@ -1,32 +1,33 @@
-{% set show_nav = False %}
 {% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% block title %}Reports{% endblock %}
 
 {% block content %}
-<div class="flex justify-center w-full">
-  <div class="prose py-4" style="width: 900px; max-width: 100%">
-    <h1>Reports</h1>
-    {% if not reports %}
-    <p>No reports yet. Queue scripts from the workspace or the requirements page.</p>
-    {% else %}
-    <table>
-      <thead>
-        <tr><th>Created</th><th>Workspace</th><th>Covers</th><th>Runs</th></tr>
-      </thead>
-      <tbody>
-      {% for report in reports %}
-        <tr>
-          <td><a href="{{ url_for('reports.report', report_id=report.id) }}">{{ report.created }}</a></td>
-          <td>{{ report.workspace or '' }}</td>
-          <td>
-            {% if report.requirements %}{{ report.requirements | list | join(', ') }}
-            {% else %}{{ report.scripts | map(attribute='script', default='') | join(', ') if report.scripts and report.scripts[0] is mapping else (report.scripts or []) | join(', ') }}{% endif %}
-          </td>
-          <td>{{ report.runs | length }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-  </div>
-</div>
+{{ ui.page_header("Reports", subtitle="Each report is one queuing: the runs it planned and how its requirements came out.") }}
+{% call ui.table(["Created", "Workspace", "Covers", {"label": "Runs", "align": "end"}]) %}
+  {% for report in reports %}
+  <tr class="ui-row--link" data-href="{{ url_for('reports.report', report_id=report.id) }}">
+    <td><a href="{{ url_for('reports.report', report_id=report.id) }}">{{ ui.timestamp(report.created) }}</a></td>
+    <td>{% if report.workspace %}{{ ui.ident(report.workspace) }}{% endif %}</td>
+    <td>
+      {%- if report.requirements %}{% for r in report.requirements %}{{ ui.ident(r) }} {% endfor %}
+      {%- else %}
+      {%- for s in report.scripts or [] %}{{ ui.ident(s.script if s is mapping else s, plain=True) }}{% if not loop.last %}, {% endif %}{% endfor %}
+      {%- endif %}
+    </td>
+    <td class="ui-end ui-number">{{ report.runs | length }}</td>
+  </tr>
+  {% else %}
+  {{ ui.empty_row("No reports yet. Queue scripts from the workspace or the requirements page.", 4) }}
+  {% endfor %}
+{% endcall %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("click", function (event) {
+    var row = event.target.closest("tr[data-href]");
+    if (row && !event.target.closest("a, button")) window.location.href = row.dataset.href;
+  });
+</script>
 {% endblock %}

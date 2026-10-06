@@ -1,33 +1,26 @@
 {% if hx_request %}
 {% include "partials/requirements.html" %}
 {% else %}
-{% import "icons/icon.j2" as icon %}
 {% extends "layout.html" %}
+{% set nav_current = "requirements" %}
+{% set browse = True %}
+{% block title %}Requirements{% endblock %}
 
-{% block menucontent %}
-<div class="subsystems">
-    <h2 class="font-medium leading-tight text-2xl mt-0 mb-2 ">Subsystems</h2>
-    <ul>
-        {% for subsystem in subsystems|sort() %}
-        <li class="flex subsystem-link {{'bg-blue-300' if subsystem == selected_subsystem }}"
-            hx-get="{{ url_for('requirements.list', subsystem=subsystem) }}" hx-target="#requirements"
-            hx-swap="innerHTML" 
-            hx-push-url="true"
-            _="on click 
-               remove .bg-blue-300 from <li.subsystem-link/>
-               add .bg-blue-300 to me">
-          {{ icon.solid('rectangle-group', 'h-5 w-5 mr-1') }}
-          {{ subsystem }}
-        </li>
-        {% endfor %}
-    </ul>
-</div>
+{% block side %}
+{{ ui.section_label("Subsystems") }}
+<ul class="ui-sidenav">
+  <li><a href="{{ url_for('requirements.list') }}"{% if not selected_subsystem %} aria-current="page"{% endif %}>All requirements</a></li>
+  {% for subsystem in subsystems | sort %}
+  <li><a href="{{ url_for('requirements.list', subsystem=subsystem) }}"{% if subsystem == selected_subsystem %} aria-current="page"{% endif %}>{{ ui.icon("layers", 14) }}<span class="ui-mono">{{ subsystem }}</span></a></li>
+  {% endfor %}
+</ul>
 {% endblock %}
 
 {% block content %}
-<div class="requirements p-2 max-w-prose" id="requirements">
-    {% include "partials/requirements.html" %}
+{{ ui.page_header(selected_subsystem or "Requirements", eyebrow="Subsystem" if selected_subsystem else None, mono=selected_subsystem,
+                  subtitle="Pick requirements to queue every script that tests them.") }}
+<div id="requirements">
+  {% include "partials/requirements.html" %}
 </div>
 {% endblock %}
-
-{%endif %}
+{% endif %}

@@ -52,6 +52,6 @@ class Verify(BuildingBlock):
     def as_html(self, *forms):
         return (
             "<span><strong>Verify</strong> "
-            f'<span class="font-mono">{" ".join(html.text(f) for f in forms)}</span>'
+            f'<span class="ui-mono">{" ".join(html.text(f) for f in forms)}</span>'
             "</span>"
         )

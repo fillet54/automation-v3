@@ -1,17 +1,37 @@
 {% extends "layout.html" %}
+{% set nav_current = "workspace" %}
+{% set browse = True %}
+{% block title %}{{ workspace.id }} · Workspace{% endblock %}
 
-{% block menucontent %}
-<div>
-  {% include "partials/workspace_select.html" %}
-</div>
-<div id="treeview"
+{% block side %}
+{% set options = [] %}
+{% for other in workspaces %}{% set _ = options.append((url_for('workspace.index', id=other), other)) %}{% endfor %}
+{% call ui.field("Workspace", "workspace-select") %}
+{{ ui.select("workspace", options, selected=url_for('workspace.index', id=workspace.id), id="workspace-select", mono=True, attrs={"onchange": "window.location.href = this.value"}) }}
+{% endcall %}
+<nav class="ui-tree" id="treeview" aria-label="Scripts"
      hx-get="{{ url_for('workspace.tree', id=workspace.id) }}"
      hx-trigger="load">
-</div>
+  <div class="ui-row ui-muted"><span class="ui-spinner"></span> Loading</div>
+</nav>
 {% endblock %}
 
 {% block content %}
-  <div id="content" class="p-4 text-gray-500">
-    Select a script to view it.
-  </div>
+{% set path = request.args.get("path") %}
+<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
+  {{ ui.page_header(workspace.id, subtitle="Scripts are authored in git; this is a read-only view of the branch's rvts.", eyebrow="Workspace", mono=True) }}
+  {{ ui.empty("Pick a script from the tree to read it, see what it loads, and queue it.") }}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Mark the file being viewed in the tree
+  document.addEventListener("click", function (event) {
+    var row = event.target.closest(".ui-tree__row--file");
+    if (!row) return;
+    document.querySelectorAll(".ui-tree__row[aria-current]").forEach(function (r) { r.removeAttribute("aria-current"); });
+    row.setAttribute("aria-current", "true");
+  });
+</script>
 {% endblock %}

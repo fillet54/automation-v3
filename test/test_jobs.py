@@ -526,9 +526,9 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(f"/reports/{ids['report_id']}/runs/{ids['run_id']}")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"No BuildingBlock or definition matches (Missing X)", page.data)
-        self.assertIn(b">pass<", page.data)
-        self.assertIn(b">fail<", page.data)
-        self.assertIn(b">not run<", page.data)
+        self.assertIn(b"ui-step--pass", page.data)
+        self.assertIn(b"ui-step--fail", page.data)
+        self.assertIn(b"ui-step--not-run", page.data)
 
     def test_installs_uut_once_and_records_it(self):
         ids = self.queue("BRA/tc.rst", uut_versions={"demo": "1.0.0"})
@@ -649,7 +649,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"under-limit?", page.data)
         self.assertIn(b"/runner/new?workspace=", page.data)
-        self.assertIn(b"2 variations", page.data)
+        self.assertIn(b"2</span> variations", page.data)
 
         page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rst")
         self.assertIn(b"must come before the first step", page.data)
@@ -741,7 +741,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def test_requirements_page_lists_linked_scripts(self):
         page = self.http.get(f"/requirements/?workspace={self.branch}")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"Tested by BRA/modes.rst", page.data)
+        self.assertIn(b"?path=BRA%2Fmodes.rst\">BRA/modes.rst</a>", page.data)
         self.assertIn(b'value="R2"', page.data)
 
 

@@ -1,39 +1,35 @@
-<form method="get" action="/runner/new">
+{% import "ui/components.html" as ui %}
+<form method="get" action="{{ url_for('jobqueue.new') }}" class="ui-stack">
   {% if workspace %}
-  <div class="flex items-center justify-between gap-4 mb-3 sticky top-0 bg-white py-2 border-b">
-    <label class="text-sm">
-      Workspace
-      <select name="workspace" class="border rounded px-2 py-1"
-              hx-get="{{ url_for('requirements.list', subsystem=selected_subsystem) }}"
-              hx-target="#requirements" hx-swap="innerHTML" hx-push-url="true">
-        {% for ws in workspaces %}
-        <option value="{{ ws }}" {% if ws == workspace %}selected{% endif %}>{{ ws }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <button class="border rounded border-gray-300 hover:bg-gray-600 hover:text-white px-3 py-1 text-sm font-semibold">
-      Queue selected&hellip;
-    </button>
-  </div>
+  {% call ui.toolbar() %}
+    <label class="ui-row" for="req-workspace"><span class="ui-field__label">Workspace</span>
+    {{ ui.select("workspace", workspaces, selected=workspace, id="req-workspace", mono=True,
+                 attrs={"hx-get": url_for('requirements.list', subsystem=selected_subsystem), "hx-target": "#requirements",
+                        "hx-swap": "innerHTML", "hx-push-url": "true"}) }}</label>
+    <span class="ui-spacer"></span>
+    {{ ui.button("Queue selected…", variant="primary", icon="play", type="submit") }}
+  {% endcall %}
   {% endif %}
 
-  <ul>
+  {% call ui.table(([{"label": "Select", "sr": True}] if workspace else []) + ["Requirement", "Text", "Tested by"]) %}
     {% for requirement in requirements %}
     {% set scripts = linked.get(requirement.id, []) %}
-    <li class="flex gap-3 items-start">
+    <tr style="vertical-align: top;">
       {% if workspace %}
-      <input type="checkbox" name="requirement" value="{{ requirement.id }}" class="mt-1"
-             {% if not scripts %}disabled title="No scripts reference this requirement"{% endif %}>
+      <td style="width: 1%;"><input type="checkbox" name="requirement" value="{{ requirement.id }}" aria-label="Select {{ requirement.id }}"
+                 style="width: 16px; height: 16px; accent-color: var(--ui-accent);"
+                 {% if not scripts %}disabled title="No scripts reference this requirement"{% endif %}></td>
       {% endif %}
-      <div class="flex-1">
-        {{ requirement.__repr_html__() | safe }}
-        {% if workspace %}
-        <div class="text-xs text-gray-500 -mt-1 mb-2">
-          {% if scripts %}Tested by {{ scripts | join(', ') }}{% else %}No linked scripts{% endif %}
-        </div>
-        {% endif %}
-      </div>
-    </li>
+      <td style="white-space: nowrap;">{{ ui.ident(requirement.id) }}</td>
+      <td class="ui-requirement">{% if requirement.text %}{{ requirement.__repr_html__() | safe }}{% else %}<span class="ui-muted">Not in the requirements database</span>{% endif %}</td>
+      <td>
+        {% if not workspace %}<span class="ui-muted">—</span>
+        {% elif scripts %}<ul class="ui-plain-list">{% for s in scripts %}<li>{{ ui.ident(s, url_for('workspace.index', id=workspace, path=s), plain=True) }}</li>{% endfor %}</ul>
+        {% else %}<span class="ui-muted">No linked scripts</span>{% endif %}
+      </td>
+    </tr>
+    {% else %}
+    {{ ui.empty_row("No requirements yet.", 4 if workspace else 3) }}
     {% endfor %}
-  </ul>
+  {% endcall %}
 </form>

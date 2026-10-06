@@ -1,18 +1,13 @@
 {% if hx_request %}
 {% include "partials/workers_table.html" %}
 {% else %}
-{% import "icons/icon.j2" as icon %}
-{% set show_nav = False %}
 {% extends "layout.html" %}
+{% set nav_current = "workers" %}
+{% block title %}Workers{% endblock %}
 
 {% block content %}
-<div class="flex justify-center w-full">
-  <div class="prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1"> 
-  <div id="workers-content"
-       class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8" style='width: 900px'>
-     {% include "partials/workers_table.html" %}
-  </div>
-  </div>
+<div id="workers-content" class="ui-stack">
+  {% include "partials/workers_table.html" %}
 </div>
 {% endblock %}
 {% endif %}

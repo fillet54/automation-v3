@@ -1,10 +1,7 @@
-{% set show_nav = False %}
 {% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% block title %}{{ run.script.split('/')[-1] }} · Run{% endblock %}
 
 {% block content %}
-<div class="flex justify-center w-full">
-  <div class="py-4" style="width: 900px; max-width: 100%">
-    {% include "reports/partials/run_body.html" %}
-  </div>
-</div>
+{% include "reports/partials/run_body.html" %}
 {% endblock %}

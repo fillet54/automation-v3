@@ -1,53 +1,51 @@
-<div id="content" class="flex flex-col h-full">
-  <div class="flex items-center justify-between border-b px-4 py-2 bg-gray-50">
-    <span class="font-medium">{{ path }}</span>
-  </div>
+{% import "ui/components.html" as ui %}
+{% from "partials/definitions.html" import definitions_section, definition %}
+<div id="content" class="ui-stack">
+  {% set crumbs = [(workspace.id, url_for('workspace.index', id=workspace.id))] %}
+  {% for part in path.split('/')[:-1] %}{% set _ = crumbs.append((part, None)) %}{% endfor %}
+  {% set _ = crumbs.append((path.split('/')[-1], None)) %}
+  {% call ui.page_header(None, crumbs=crumbs, eyebrow="Script" if closure else "File") %}
+    {%- if closure and not closure.errors %}
+    {{ ui.button("Queue…", variant="primary", icon="play", href=url_for('jobqueue.new', workspace=workspace.id, script=path)) }}
+    {%- endif %}
+  {% endcall %}
 
-  <div class="flex-1 overflow-auto px-4 py-2">
-    {% if errors %}
-    <div class="rounded border border-red-300 bg-red-50 text-red-800 text-sm p-2 my-2">
-      <p class="font-semibold">This script can't be queued:</p>
-      <ul class="list-disc ml-5">
-        {% for error in errors %}<li>{{ error }}</li>{% endfor %}
-      </ul>
+  {% if errors %}
+  {% call ui.alert("danger", title="This script can't be queued") %}
+    <ul class="ui-plain-list">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endcall %}
+  {% endif %}
+
+  {% if closure and not closure.errors %}
+  <div class="ui-stack ui-gap-small">
+    <div class="ui-facts">
+      {% if closure.environments %}<span>Runs in {% for e in closure.environments %}{{ ui.ident(e) }} {% endfor %}</span>{% endif %}
+      {% if closure.uuts %}<span>Tests {% for u in closure.uuts %}{{ ui.ident(u) }} {% endfor %}</span>{% endif %}
+      {% if closure.variations %}<span><span class="ui-number">{{ closure.variations | length }}</span> variation{{ '' if closure.variations | length == 1 else 's' }}</span>{% endif %}
     </div>
-    {% endif %}
-
-    {% if closure and not closure.errors %}
-    <div class="flex flex-wrap items-center gap-4 rounded border p-3 my-2 text-sm">
-      <a href="{{ url_for('jobqueue.new', workspace=workspace.id, script=path) }}"
-         class="border rounded border-gray-300 text-gray-600 hover:bg-gray-500 hover:text-white px-3 py-1 no-underline">
-        Queue&hellip;
-      </a>
-      <span class="text-gray-500">
-        {% if closure.environments %}Runs in {{ closure.environments | join(', ') }}{% endif %}
-        {% if closure.uuts %} &middot; tests {{ closure.uuts | join(', ') }}{% endif %}
-        {% if closure.variations %} &middot; {{ closure.variations | length }} variations{% endif %}
-      </span>
-      <span class="text-gray-400 text-xs basis-full">
-        Loads
-        {% for path in closure.load_order -%}
-          {{ path }}{% if path in closure.imports %} (imported){% endif %}
-          {%- if not loop.last %} → {% endif %}
-        {%- endfor %}
-      </span>
-    </div>
-    {% endif %}
-
-    <div class="prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1" style="max-width: 100%">
-      {% if parts is not none %}
-        {% from "partials/definitions.html" import definitions_section, definition %}
-        {% macro render(item) %}<div>{{ item.html | safe }}</div>{% endmacro %}
-        {% for kind, entry in parts %}
-          {% if kind == "definitions" %}{{ definitions_section(entry, render) }}
-          {% elif kind == "definition" %}{{ definition(entry, render) }}
-          {% else %}{{ render(entry) }}{% endif %}
-        {% endfor %}
-      {% elif text is not none %}
-        <pre>{{ text }}</pre>
-      {% else %}
-        <p class="text-gray-500">Binary file</p>
-      {% endif %}
+    <div class="ui-loads"><span class="ui-muted">Loads</span>
+      {% for p in closure.load_order -%}
+        {{ ui.ident(p) }}{% if p in closure.imports %} {{ ui.badge("imported", outline=True) }}{% endif %}
+        {%- if not loop.last %}<span class="ui-loads__sep" aria-hidden="true">→</span>{% endif %}
+      {%- endfor %}
     </div>
   </div>
+  {% endif %}
+
+  {{ ui.divider() }}
+
+  {% if parts is not none %}
+  <article class="ui-doc">
+    {% macro render(item) %}<div>{{ item.html | safe }}</div>{% endmacro %}
+    {% for kind, entry in parts %}
+      {% if kind == "definitions" %}{{ definitions_section(entry, render) }}
+      {% elif kind == "definition" %}{{ definition(entry, render) }}
+      {% else %}{{ render(entry) }}{% endif %}
+    {% endfor %}
+  </article>
+  {% elif text is not none %}
+  <pre class="ui-pre">{{ text }}</pre>
+  {% else %}
+  {{ ui.empty("Binary file") }}
+  {% endif %}
 </div>

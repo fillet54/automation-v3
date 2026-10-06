@@ -5,7 +5,7 @@ from flask import Flask, has_app_context, redirect, url_for
 from ..framework import rst
 from ..services.requirements import models as requirements
 from ..services.workspace import find_worktrees
-from . import jobs, reports, requirements as requirement_pages, workspace
+from . import jobs, reports, requirements as requirement_pages, ui, workspace
 from .db import close_db, get_db
 
 
@@ -20,6 +20,7 @@ def create_app(**config):
     """The server app. Config: DB_PATH, WORKSPACE_PATH, REPORTS_PATH."""
     app = Flask(__name__)
     app.config.update(config)
+    ui.init_app(app)
     # Scripts are authored in git; the workspace is a read-only viewer
     app.register_blueprint(workspace.bp, url_prefix="/workspace")
     app.register_blueprint(requirement_pages.requirements, url_prefix="/requirements")

@@ -17,4 +17,4 @@ class Requirement:
             )
         else:
             markup = f"<strong>[{self.id}]</strong>"
-        return f'<div class="mb-2">{markup}</div>'
+        return f'<span class="ui-requirement">{markup}</span>'

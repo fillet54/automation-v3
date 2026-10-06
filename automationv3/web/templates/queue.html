@@ -1,30 +1,19 @@
-{% from "reports/macros.html" import badge %}
-{% set show_nav = False %}
 {% extends "layout.html" %}
+{% set nav_current = "queue" %}
+{% block title %}Queue{% endblock %}
 
 {% block content %}
-<div class="flex justify-center w-full">
-  <div class="prose py-4" style="width: 900px; max-width: 100%">
-    <h1>Job Queue</h1>
-    {% if not jobs %}
-    <p>The queue is empty.</p>
-    {% else %}
-    <table>
-      <thead>
-        <tr><th>Script</th><th>Status</th><th>Worker</th><th>Queued</th></tr>
-      </thead>
-      <tbody>
-      {% for job in jobs %}
-        <tr>
-          <td><a href="{{ url_for('reports.run', report_id=job.report_id, run_id=job.id) }}">{{ job.script }}</a></td>
-          <td>{{ badge(job.status) }}</td>
-          <td>{{ job.worker_url or '' }}</td>
-          <td>{{ job.queued_at | humanize_ts }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-  </div>
-</div>
+{{ ui.page_header("Queue", subtitle="Every job, oldest first. Workers claim pending jobs; each job is one run of a report.") }}
+{% call ui.table(["Script", "Status", "Worker", "Queued"]) %}
+  {% for job in jobs %}
+  <tr>
+    <td>{{ ui.ident(job.script, url_for('reports.run', report_id=job.report_id, run_id=job.id), plain=True) }}</td>
+    <td>{{ ui.outcome(job.status) }}</td>
+    <td>{% if job.worker_url %}{{ ui.ident(job.worker_url, plain=True) }}{% else %}<span class="ui-muted">—</span>{% endif %}</td>
+    <td>{{ ui.timestamp(job.queued_at) }}</td>
+  </tr>
+  {% else %}
+  {{ ui.empty_row("The queue is empty. Queue scripts from the workspace or the requirements page.", 4) }}
+  {% endfor %}
+{% endcall %}
 {% endblock %}

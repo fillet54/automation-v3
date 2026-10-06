@@ -1,112 +1,45 @@
-{% if show_nav is not defined %}
-  {% set show_nav = True %}
-{% endif %}
+{#- Page shell. Extend it:
 
-<html>
+    {% extends "layout.html" %}
+    {% set nav_current = "reports" %}      (the current header nav item: a key of ui.NAV)
+    {% set browse = True %}                (a side column: fill the `side` block)
+    {% block title %}Reports{% endblock %}
+    {% block content %}...{% endblock %}
 
+    Blocks: title, head (extra <head> tags), side, content, scripts.
+-#}
+{% import "ui/components.html" as ui %}
+<!doctype html>
+<html lang="en"{% if ui_theme in ("light", "dark") %} data-ui-theme="{{ ui_theme }}"{% endif %}>
 <head>
-    <title>My App</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <script src="{{ url_for('static', filename='js/tailwindcss/tailwindcss.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/_hyperscript/_hyperscript.min.js') }}"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}"/>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/code-highlighting.css') }}"/>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        ngblue: "#00269a"
-                    },
-                    typography: {
-                        DEFAULT: {
-                          css: {
-                            maxWidth: '90ch'
-                          }
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    <style type="text/tailwindcss">
-        @layer utilities {
-        .content-auto {
-          content-visibility: auto;
-        }
-      }
-    </style>
-    <style>
-      .gutter {
-        cursor: col-resize;
-      }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ ui_brand }}{% endblock %}{% if ui_marking %} · {{ ui_marking.text }}{% endif %}</title>
+  {%- if ui_fonts_css %}
+  <link rel="stylesheet" href="{{ ui_fonts_css }}">
+  {%- endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/code-highlighting.css') }}">
+  <script src="{{ url_for('static', filename='js/htmx/htmx.min.js') }}"></script>
+  {% block head %}{% endblock %}
 </head>
-
-<body>
-    <div>
-        <div class="h-screen flex flex-col bg-gray-50">
-            <div class="bg-ngblue p-2 flex items-center gap-6">
-                <img src="/static/img/automation-logo.png" class="h-8"></img>
-                <nav class="flex gap-4 text-sm text-white">
-                    <a href="/" class="hover:underline">Workspace</a>
-                    <a href="/runner/" class="hover:underline">Queue</a>
-                    <a href="/reports/" class="hover:underline">Reports</a>
-                    <a href="/runner/workers" class="hover:underline">Workers</a>
-                </nav>
-            </div>
-            <div class="flex-grow flex flex-row overflow-hidden justify-center">
-                {% if show_nav %}
-                <!-- lhs -->
-                <div id="left-nav" class="flex-shrink-0 w-1/4 p-4">
-                    {% block menucontent %} {% endblock %}
-                </div>
-                {% endif %}
-                <!-- center -->
-                <div id="page-content" class="flex-1 flex flex-col bg-white">
-                    <main class="flex-1 overflow-y-auto">
-                        <div class="relative">
-                            {% block content %} {% endblock %}
-                        </div>
-                    </main>
-                </div>
-            </div>
-            <!-- footer -->
-            <div id="page-content" class="p-2 text-center text-xs text-gray-500 border">
-                Copyright 2023
-            </div>
-        </div>
+<body class="ui"{% if not ui_marking %} style="--ui-marking-h: 0px;"{% endif %}>
+  <a class="ui-skip" href="#main">Skip to content</a>
+  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "top") }}{% endif %}
+  {{ ui.app_header(ui_nav(), nav_current | default(None), brand=ui_brand, home=url_for("index")) }}
+  <main id="main" class="ui-main">
+    {%- if browse %}
+    <div class="ui-browse">
+      <aside class="ui-browse__side">{% block side %}{% endblock %}</aside>
+      <div class="ui-stack">
+    {%- endif %}
+    {% block content %}{% endblock %}
+    {%- if browse %}
+      </div>
     </div>
-
-    <script src="/static/js/htmx/htmx.min.js" defer></script>
-
-
-    {% if show_nav %}
-    <script src="/static/js/split.js/split.min.js"></script>
-    <script>
-      (function() {
-        var sizes = localStorage.getItem('split-sizes')
-
-        if (sizes) {
-            sizes = JSON.parse(sizes)
-        } else {
-            sizes = [25, 75] // default sizes
-        }
-        
-        var split = Split(['#left-nav', '#page-content'], {
-            sizes: sizes,
-            minSize: 250,
-            onDragEnd: function (sizes) {
-                localStorage.setItem('split-sizes', JSON.stringify(sizes))
-            },
-        })
-      })();
-    </script>
-    {% endif %}
-
+    {%- endif %}
+  </main>
+  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "bottom") }}{% endif %}
+  {% block scripts %}{% endblock %}
 </body>
-
 </html>

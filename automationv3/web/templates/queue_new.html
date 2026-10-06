@@ -1,11 +1,9 @@
-{% set show_nav = False %}
 {% extends "layout.html" %}
+{% set nav_current = "queue" %}
+{% block title %}Queue runs{% endblock %}
 
 {% block content %}
-<div class="flex justify-center w-full">
-  <div class="py-4" style="width: 1000px; max-width: 100%">
-    <h1 class="text-2xl font-semibold mb-2">Queue</h1>
-    {% include "partials/queue_form.html" %}
-  </div>
-</div>
+{{ ui.page_header("Queue runs", crumbs=[("Queue", url_for('jobqueue.list')), ("New", None)],
+                  subtitle="Pick where the scripts run, the UUT versions to install and which variations to include.") }}
+{% include "partials/queue_form.html" %}
 {% endblock %}

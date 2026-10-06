@@ -1,4 +1,5 @@
-<form id="queue-form" class="text-sm"
+{% import "ui/components.html" as ui %}
+<form id="queue-form" class="ui-form"
       hx-get="{{ url_for('jobqueue.new') }}"
       hx-trigger="change"
       hx-target="#queue-form"
@@ -8,109 +9,80 @@
   {% for req in plan.requirements %}<input type="hidden" name="requirement" value="{{ req }}">{% endfor %}
   {% for s in request.values.getlist('script') %}<input type="hidden" name="script" value="{{ s }}">{% endfor %}
 
-  <p class="text-gray-500 mb-3">
-    Workspace <strong>{{ plan.workspace }}</strong>
-    {% if plan.requirements %}&middot; requirements {{ plan.requirements | list | join(', ') }}{% endif %}
-  </p>
+  <div class="ui-facts">
+    <span>Workspace {{ ui.ident(plan.workspace) }}</span>
+    {% if plan.requirements %}<span>Requirements {% for r in plan.requirements %}{{ ui.ident(r) }} {% endfor %}</span>{% endif %}
+  </div>
 
   {% if errors %}
-  <div class="rounded border border-red-300 bg-red-50 text-red-800 p-2 mb-3">
-    <ul class="list-disc ml-5">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
-  </div>
+  {% call ui.alert("danger", title="Can't queue yet") %}
+    <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endcall %}
   {% endif %}
 
-  <div class="flex flex-wrap gap-8 mb-4">
+  {% call ui.grid(3) %}
     {% if plan.available_environments %}
-    <fieldset>
-      <legend class="font-semibold mb-1">Environments</legend>
+    {% call ui.fieldset("Environments", "Runs go to workers that offer them.") %}
       {% for env in plan.available_environments %}
-      <label class="flex items-center gap-2">
-        <input type="checkbox" name="environment" value="{{ env }}"
-               {% if env in plan.environments %}checked{% endif %}>
-        {{ env }}
-        {% if env not in live %}<span class="text-gray-400">(no live worker)</span>{% endif %}
-      </label>
+      <div class="ui-row">
+        {{ ui.checkbox("environment", env, checked=env in plan.environments, value=env) }}
+        {% if env not in live %}{{ ui.badge("no live worker", "warning", outline=True) }}{% endif %}
+      </div>
       {% endfor %}
-    </fieldset>
+    {% endcall %}
     {% endif %}
 
     {% if plan.uut_choices %}
-    <fieldset>
-      <legend class="font-semibold mb-1">UUT versions</legend>
+    {% call ui.fieldset("UUT versions", "Installed on the environment before the run, if it isn't already.") %}
       {% for uut, ids in plan.uut_choices.items() %}
-      <label class="flex items-center gap-2 mb-1">
-        <span class="w-16">{{ uut }}</span>
-        <select name="version-{{ uut }}" class="border rounded px-2 py-1">
-          {% for id in ids | reverse %}
-          <option value="{{ id }}" {% if plan.uut_versions[uut] and plan.uut_versions[uut].id == id %}selected{% endif %}>{{ id }}</option>
-          {% endfor %}
-        </select>
-      </label>
+      {% set selected = plan.uut_versions[uut].id if plan.uut_versions[uut] else None %}
+      {% call ui.field(uut, "version-" ~ uut) %}
+        {{ ui.select("version-" ~ uut, ids | reverse | list, selected=selected, mono=True) }}
+      {% endcall %}
       {% endfor %}
-    </fieldset>
+    {% endcall %}
     {% endif %}
 
-    <fieldset class="flex-1 min-w-[16rem]">
-      <legend class="font-semibold mb-1">Variation filter</legend>
-      <input type="text" name="filter" value="{{ plan.filter }}"
-             placeholder="e.g. (= mode :normal) or (= index 0)"
-             class="border rounded px-2 py-1 w-full font-mono">
-      <p class="text-gray-400 text-xs mt-1">
-        An EDN predicate over each variation's symbols plus <code>name</code> and
-        <code>index</code>. Variations missing a symbol it uses are left out.
-      </p>
-    </fieldset>
-  </div>
+    {% call ui.fieldset("Variation filter") %}
+      {% call ui.field("Predicate", "filter", hint="An EDN predicate over each variation's symbols plus name and index. Variations missing a symbol it uses are left out.") %}
+        {{ ui.input("filter", plan.filter, placeholder="e.g. (= mode :normal) or (= index 0)", mono=True) }}
+      {% endcall %}
+    {% endcall %}
+  {% endcall %}
 
-  <table class="w-full border-collapse mb-4">
-    <thead>
-      <tr class="text-left border-b">
-        <th class="py-1 pr-3">Script</th>
-        <th class="py-1 pr-3">Requirements</th>
-        <th class="py-1 pr-3">Environments</th>
-        <th class="py-1">Variations</th>
-      </tr>
-    </thead>
-    <tbody>
+  {% call ui.table(["Script", "Requirements", "Environments", "Variations"]) %}
     {% for s in plan.scripts %}
-      <tr class="border-b align-top {{ 'text-gray-400' if s.skipped }}">
-        <td class="py-1 pr-3">{{ s.script }}</td>
-        <td class="py-1 pr-3">{{ s.requirements | join(', ') }}</td>
-        <td class="py-1 pr-3">
-          {% if s.skipped %}<span class="text-red-700">skipped: {{ s.skipped }}</span>
-          {% else %}{{ s.environments | join(', ') or 'any worker' }}{% endif %}
-        </td>
-        <td class="py-1">
-          {% for v in s.variations %}
-          <label class="flex items-center gap-2">
-            <input type="checkbox" name="variation" value="{{ s.script }}::{{ v.name }}"
-                   {% if v.reason != 'unticked' %}checked{% endif %}>
-            <span class="{{ 'line-through text-gray-400' if not v.selected }}">{{ v.name }}</span>
-            <span class="text-gray-400 text-xs">
-              {% for sym, val in v["values"].items() %}{{ sym }}={{ val }}{% if not loop.last %}, {% endif %}{% endfor %}
-              {% if v.reason == 'filtered out' %}(filtered out){% endif %}
+    <tr style="vertical-align: top;">
+      <td>{{ ui.ident(s.script, plain=True) }}</td>
+      <td>{% for r in s.requirements %}{{ ui.ident(r) }} {% endfor %}</td>
+      <td>
+        {% if s.skipped %}<span class="ui-tone-danger">Skipped: {{ s.skipped }}</span>
+        {% elif s.environments %}{% for e in s.environments %}{{ ui.ident(e) }} {% endfor %}
+        {% else %}<span class="ui-muted">any worker</span>{% endif %}
+      </td>
+      <td>
+        <div class="ui-stack ui-gap-small" style="--ui-gap: 2px;">
+        {% for v in s.variations %}
+          <label class="ui-check">
+            <input type="checkbox" name="variation" value="{{ s.script }}::{{ v.name }}"{% if v.reason != 'unticked' %} checked{% endif %}>
+            <span class="ui-mono"{% if not v.selected %} style="text-decoration: line-through; color: var(--ui-muted);"{% endif %}>{{ v.name }}</span>
+            <span class="ui-text-caption ui-mono">
+              {%- for sym, val in v["values"].items() %}{{ sym }}={{ val }}{% if not loop.last %}, {% endif %}{% endfor %}
             </span>
+            {% if v.reason == 'filtered out' %}{{ ui.badge("filtered out", outline=True) }}{% endif %}
           </label>
-          {% endfor %}
-        </td>
-      </tr>
+        {% endfor %}
+        </div>
+      </td>
+    </tr>
     {% endfor %}
-    </tbody>
-  </table>
+  {% endcall %}
 
-  <div class="flex items-center gap-4">
-    <button type="button"
-            hx-post="{{ url_for('jobqueue.queue') }}"
-            hx-include="#queue-form"
-            hx-target="#queue-form"
-            hx-swap="outerHTML"
-            class="border rounded border-gray-300 bg-white hover:bg-gray-600 hover:text-white px-3 py-1 font-semibold"
-            {% if not runs %}disabled{% endif %}>
-      Queue {{ runs | length }} run{{ '' if runs | length == 1 else 's' }}
-    </button>
-    <span class="text-gray-500">
-      {% set skipped = plan.scripts | selectattr('skipped') | list %}
-      {% if skipped %}{{ skipped | length }} script{{ '' if skipped | length == 1 else 's' }} skipped{% endif %}
-    </span>
-  </div>
+  {% call ui.toolbar() %}
+    {% set n = runs | length %}
+    {{ ui.button("Queue " ~ n ~ " run" ~ ('' if n == 1 else 's'), variant="primary", icon="play", disabled=not runs,
+                 attrs={"hx-post": url_for('jobqueue.queue'), "hx-include": "#queue-form", "hx-target": "#queue-form", "hx-swap": "outerHTML"}) }}
+    {% set skipped = plan.scripts | selectattr('skipped') | list %}
+    {% if skipped %}<span class="ui-muted">{{ skipped | length }} script{{ '' if skipped | length == 1 else 's' }} skipped</span>{% endif %}
+  {% endcall %}
 </form>

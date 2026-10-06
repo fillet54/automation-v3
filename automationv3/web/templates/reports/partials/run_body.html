@@ -1,89 +1,82 @@
-{% from "reports/macros.html" import badge, calls_list %}
+{% import "ui/components.html" as ui %}
+{% from "reports/macros.html" import calls_list %}
 {% from "partials/definitions.html" import definitions_section, definition %}
-<div id="run-body"
+<div id="run-body" class="ui-stack ui-gap-large"
      {% if not finished %}
      hx-get="{{ url_for('reports.run', report_id=run.report_id, run_id=run.id) }}"
      hx-trigger="every 2s"
      hx-swap="outerHTML"
      {% endif %}>
-  <div class="prose prose-li:my-0 prose-p:my-1 prose-headings:my-3 prose-pre:my-1" style="max-width: 100%">
-    <p class="text-sm">
-      <a href="{{ url_for('reports.report', report_id=run.report_id) }}">Report</a>
-    </p>
-    <div class="flex items-center justify-between">
-      <h2 class="my-0">{{ run.script }}</h2>
-      <div class="flex items-center gap-2">
-        {{ badge(status) }}
-        {% if finished %}
-        <form method="post" class="m-0"
-              action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
-          <button class="border rounded border-gray-300 text-gray-500 hover:bg-gray-500 hover:text-white px-2">Rerun</button>
-        </form>
+  {% call ui.page_header(None, eyebrow="Run",
+                         crumbs=[("Reports", url_for('reports.index')), (run.report_id[:8], url_for('reports.report', report_id=run.report_id)), (run.script, None)]) %}
+    {{ ui.outcome(status) }}
+    {% if finished %}
+    <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
+      {{ ui.button("Rerun", icon="refresh", type="submit", size="sm") }}
+    </form>
+    {% endif %}
+  {% endcall %}
+
+  {% set facts = [] %}
+  {% set _ = facts.append(("Script", ui.ident(run.script))) %}
+  {% if run.environment %}{% set _ = facts.append(("Environment", ui.ident(run.environment))) %}{% endif %}
+  {% if run.variation %}
+    {% set values %}{% for symbol, value in run.variation["values"].items() %}{{ symbol }} = {{ value }}{% if not loop.last %}, {% endif %}{% endfor %}{% endset %}
+    {% set _ = facts.append(("Variation", ui.ident(run.variation.name) ~ (' <span class="ui-text-caption ui-mono">' | safe) ~ values ~ ('</span>' | safe))) %}
+  {% endif %}
+  {% for uut, version in (run.uut_versions or {}).items() %}
+    {% set installed = (" · " ~ run.installed[uut].action) if run.installed and run.installed[uut] else "" %}
+    {% set _ = facts.append((uut, ui.ident(version.id) ~ installed ~ (' <span class="ui-text-caption ui-mono" title="digest">' | safe) ~ version.digest[:12] ~ ('</span>' | safe))) %}
+  {% endfor %}
+  {% if run.mode %}
+    {% set probes %}{% if run.probes %} <span class="ui-text-caption">released {{ run.probes }} time{{ '' if run.probes == 1 else 's' }} by probes first</span>{% endif %}{% endset %}
+    {% set _ = facts.append(("Mode", run.mode ~ probes)) %}
+  {% endif %}
+  {% if run.worker %}{% set _ = facts.append(("Worker", ui.ident(run.worker, plain=True))) %}{% endif %}
+  {% set _ = facts.append(("Queued", ui.timestamp(run.created, seconds=True))) %}
+  {% if run.started %}{% set _ = facts.append(("Started", ui.timestamp(run.started, seconds=True))) %}{% endif %}
+  {% if run.ended %}{% set _ = facts.append(("Ended", ui.timestamp(run.ended, seconds=True))) %}{% endif %}
+  {% if run.load_order %}
+    {% set loads %}<span class="ui-loads">{% for p in run.load_order %}{{ ui.ident(p) }}{% if not loop.last %}<span class="ui-loads__sep" aria-hidden="true">→</span>{% endif %}{% endfor %}</span>{% endset %}
+    {% set _ = facts.append(("Loaded", loads)) %}
+  {% endif %}
+  {% if run.closure_hash %}{% set _ = facts.append(("Closure", '<span class="ui-mono ui-text-caption">' | safe ~ run.closure_hash ~ '</span>' | safe)) %}{% endif %}
+  {{ ui.dl(facts, cols=True) }}
+
+  {% if run.error %}{% call ui.alert("danger", title="The run failed") %}{{ run.error }}{% endcall %}{% endif %}
+  {% for error in errors %}{{ ui.code_block(error.traceback, label="Error") }}{% endfor %}
+
+  {% macro render(row) %}
+    {% if row.step %}
+    {% set kind = {"not run": "not-run"}.get(row.state, row.state) %}
+    <div class="ui-step ui-step--{{ kind }}">
+      <div class="ui-step__body">
+        {{ row.html | safe }}
+        {% set top = row.calls | rejectattr('depth') | list %}
+        {% set nested = row.calls | selectattr('depth') | list %}
+        {% if top %}{{ calls_list(top) }}{% endif %}
+        {% if nested %}
+        <details class="ui-calls">
+          <summary>{{ nested | length }} nested call{{ '' if nested | length == 1 else 's' }}</summary>
+          {{ calls_list(nested) }}
+        </details>
+        {% endif %}
+        {% if row.result and (row.result.stdout or row.result.stderr) %}
+        <pre class="ui-pre">{{ row.result.stdout }}{% if row.result.stderr %}<span class="ui-step__fail">{{ row.result.stderr }}</span>{% endif %}</pre>
         {% endif %}
       </div>
+      <div class="ui-step__state">{{ ui.outcome(row.state) }}</div>
     </div>
-    <p class="text-sm text-gray-500">
-      Run {{ run.id }} &middot; queued {{ run.created }}
-      {% if run.started %} &middot; started {{ run.started }}{% endif %}
-      {% if run.ended %} &middot; ended {{ run.ended }}{% endif %}
-      {% if run.worker %} &middot; worker {{ run.worker }}{% endif %}
-    </p>
-    <dl class="text-sm grid grid-cols-[max-content_1fr] gap-x-4 my-2">
-      {% if run.mode %}<dt class="text-gray-500">Mode</dt><dd class="m-0">{{ run.mode }}
-        {%- if run.probes %} <span class="text-gray-400 text-xs">(released {{ run.probes }} time{{ '' if run.probes == 1 else 's' }} by probes first)</span>{% endif %}</dd>{% endif %}
-      {% if run.environment %}<dt class="text-gray-500">Environment</dt><dd class="m-0">{{ run.environment }}</dd>{% endif %}
-      {% if run.variation %}
-      <dt class="text-gray-500">Variation</dt>
-      <dd class="m-0">{{ run.variation.name }}
-        <span class="text-gray-400 text-xs">
-          {% for symbol, value in run.variation["values"].items() %}{{ symbol }} = {{ value }}{% if not loop.last %}, {% endif %}{% endfor %}
-        </span></dd>
-      {% endif %}
-      {% for uut, version in (run.uut_versions or {}).items() %}
-      <dt class="text-gray-500">{{ uut }}</dt>
-      <dd class="m-0">{{ version.id }}
-        {%- if run.installed and run.installed[uut] %} ({{ run.installed[uut].action }}){% endif %}
-        <span class="text-gray-400 text-xs">{{ version.digest[:12] }}</span></dd>
-      {% endfor %}
-      {% if run.load_order %}<dt class="text-gray-500">Loaded</dt><dd class="m-0">{{ run.load_order | join(' → ') }}</dd>{% endif %}
-      {% if run.closure_hash %}<dt class="text-gray-500">Closure</dt><dd class="m-0 text-xs text-gray-400">{{ run.closure_hash }}</dd>{% endif %}
-    </dl>
-    {% if run.error %}
-    <p class="text-red-700">{{ run.error }}</p>
+    {% else %}
+    <div>{{ row.html | safe }}</div>
     {% endif %}
-    {% for error in errors %}
-    <pre class="text-red-700">{{ error.traceback }}</pre>
-    {% endfor %}
-
-    {% macro render(row) %}
-      {% if row.step %}
-      <div class="flex gap-3 items-start border-l-4 pl-3 my-2
-                  {{ {'pass': 'border-green-500', 'fail': 'border-red-500', 'running': 'border-blue-500'}.get(row.state, 'border-gray-200') }}">
-        <div class="flex-1 min-w-0">
-          {{ row.html | safe }}
-          {% set top = row.calls | rejectattr('depth') | list %}
-          {% set nested = row.calls | selectattr('depth') | list %}
-          {% if top %}{{ calls_list(top) }}{% endif %}
-          {% if nested %}
-          <details>
-            <summary class="cursor-pointer text-xs text-gray-500">{{ nested | length }} nested call{{ '' if nested | length == 1 else 's' }}</summary>
-            {{ calls_list(nested) }}
-          </details>
-          {% endif %}
-          {% if row.result and (row.result.stdout or row.result.stderr) %}
-          <pre class="text-xs">{{ row.result.stdout }}{{ row.result.stderr }}</pre>
-          {% endif %}
-        </div>
-        <div class="pt-2 flex-shrink-0">{{ badge(row.state) }}</div>
-      </div>
-      {% else %}
-      <div>{{ row.html | safe }}</div>
-      {% endif %}
-    {% endmacro %}
+  {% endmacro %}
+  {{ ui.divider() }}
+  <article class="ui-doc" style="max-width: none;">
     {% for kind, entry in rows %}
       {% if kind == "definitions" %}{{ definitions_section(entry, render) }}
       {% elif kind == "definition" %}{{ definition(entry, render) }}
       {% else %}{{ render(entry) }}{% endif %}
     {% endfor %}
-  </div>
+  </article>
 </div>
