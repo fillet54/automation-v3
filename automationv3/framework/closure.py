@@ -232,6 +232,8 @@ def resolve(root, script, text=None):
         parts = parsed[path] = read_parts(path, closure.files[path], errors)
         core_forms[path] = [part.form for part in parts if not part.prose]
         errors.extend(lint(path, core_forms[path]))
+        if any(part.table is not None for part in parts):
+            errors.append(f"{path}: core.rst blocks can't be tables")
         errors.extend(lint_variation_scopes(path, parts, []))
 
     # Declarations: the chain's, then the script's; the last one wins.

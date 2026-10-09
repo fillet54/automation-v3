@@ -40,7 +40,7 @@ from . import document, edn, lisp
 from .block import all_blocks, block_names
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_text, name_of,
-    parse_precondition,
+    parse_precondition, parse_table,
 )
 
 ERROR = "error"
@@ -259,11 +259,24 @@ class Analyzer:
         names.available |= variation_symbols
 
         seen_section = {id(d.form) for d in section}
+        table, row_symbols = None, set()
         for index, part in enumerate(self.parts[self.script]):
+            if part.table != table:  # leaving a table block
+                names.available -= row_symbols
+                table, row_symbols = part.table, set()
             if part.prose or not part.applies(variation):
                 continue
             form = part.form
             name = head(form)
+            if part.table_rows:
+                row_symbols = self.table_rows(part, names)
+                names.available |= row_symbols
+                continue
+            if part.table is not None and (name in DEFINITIONS | DIRECTIVES
+                                           or name == PRECONDITION):
+                self.error(f"{name} can't be in a :table: block: its steps run "
+                           "once per row", form)
+                continue
             if name in DEFINITIONS:
                 if id(form) in seen_section:
                     continue
@@ -286,6 +299,19 @@ class Analyzer:
                 self.expression(form, names, frozenset(), eager=True, top=True)
 
         self.report_core_free(core_defs, names)
+
+    def table_rows(self, part, names):
+        """Check a table block's rows; returns the symbols they bind"""
+        errors = []
+        rows = parse_table(self.script, part.form, errors)
+        for message in errors:
+            self.error(message.split(": ", 1)[-1], part.form)
+        if "definitions" in part.options:
+            self.error("a :table: block can't be in the definitions section", part.form)
+        for row in rows:
+            for value in row.forms:
+                self.expression(value, names, frozenset(), eager=True)
+        return set(rows[0].symbols) if rows else set()
 
     def shadowing(self, core_order, script_defs, core_defs):
         for definition in core_order + script_defs:

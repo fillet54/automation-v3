@@ -11,7 +11,7 @@ from flask import (
     url_for,
 )
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 from ..framework.excerpt import failure_view
 from ..framework.language import DIRECTIVES, head
@@ -22,7 +22,7 @@ from ..services.reports import rollup, store
 from ..services.requirements import models as requirement_models
 from ..services.workspace import find_worktrees
 from .db import get_db
-from .grouping import group, statement_item
+from .grouping import STATE_ORDER, group, statement_item
 
 reports = Blueprint("reports", __name__)
 
@@ -39,54 +39,134 @@ def run_status(run):
     return job.status if job else "unknown"
 
 
+def key(event):
+    """A step's events are keyed by its statement index, and its row when
+    it ran in a table block"""
+    return (event.get("index"), event.get("row"))
+
+
 def statement_rows(run, finished):
     """The rendered script, each statement paired with its step result.
-    Statements limited to variations other than the run's are left out."""
+    Statements limited to variations other than the run's are left out.
+    A table block's rows become one entry, holding each row's steps."""
     closure = store.read_closure(root(), run["report_id"], run["id"])
     text = closure.get(run["script"], "")
     events = store.read_events(root(), run["report_id"], run["id"])
 
-    started = {e["index"] for e in events if e["kind"] == "step_start"}
-    ended = {e["index"]: e for e in events if e["kind"] == "step_end"}
-    calls = call_trees(events)
-    phases = precondition_phases(events, calls)
+    found = Results(
+        started={key(e) for e in events if e["kind"] == "step_start"},
+        ended={key(e): e for e in events if e["kind"] == "step_end"},
+        calls=call_trees(events),
+        attachments={},
+        closure=closure,
+        finished=finished,
+    )
+    phases = precondition_phases(events, {i: c for (i, r), c in found.calls.items()
+                                          if r is None})
     for index_phases in phases.values():
         for phase in index_phases:
             phase["failure"] = failure_of(closure, phase.get("result"))
-    attachments = {}
     for event in events:
         if event["kind"] == "attachment":
-            attachments.setdefault(event.get("index"), []).append(event)
+            found.attachments.setdefault(key(event), []).append(event)
+    table_rows = {e["index"]: e["rows"] for e in events if e["kind"] == "table_start"}
+    row_events = {}
+    for event in events:
+        if event["kind"] in ("row_start", "row_end"):
+            row_events.setdefault((event["index"], event["row"]), {}).update(
+                {k: v for k, v in event.items() if k not in ("seq", "ts")})
     variation = (run.get("variation") or {}).get("name")
 
+    statements = get_statements(text)
+    in_table = set()
     rows = []
-    for index, statement in enumerate(get_statements(text)):
+    for index, statement in enumerate(statements):
+        if index in in_table:
+            continue
         if variation and statement.variations and variation not in statement.variations:
             continue  # limited to other variations: not part of this run
-        form = statement.statement
-        row = statement_item(
-            statement,
-            step=isinstance(form, list) and head(form) not in DIRECTIVES,
-            calls=calls.get(index, []),
-            phases=phases.get(index, []),
-            attachments=attachments.get(index, []),
-        )
-        if statement.definition:
-            # Definitions aren't steps; only a failed one has a result
-            row["step"] = index in ended
-        if row["step"]:
-            if index in ended:
-                row["state"] = step_state(ended[index])
-                row["result"] = ended[index]
-                row["failure"] = failure_of(closure, ended[index])
-            elif index in started:
-                row["state"] = "running"
-            else:
-                row["state"] = "not run" if finished else "pending"
-        rows.append(row)
+        if statement.table_rows:
+            steps = [i for i in range(index + 1, len(statements))
+                     if statements[i].table == statement.table]
+            steps = steps[:next((n for n, i in enumerate(steps)
+                                 if i != index + 1 + n), len(steps))]
+            in_table.update(steps)
+            rows.append(table_item(statement, index, steps, statements, found,
+                                   table_rows.get(index), row_events, variation))
+            continue
+        item = step_item(statement, index, None, found, phases.get(index, []))
+        rows.append(item)
 
     errors = [e for e in events if e["kind"] == "error"]
     return group(rows, variation), errors
+
+
+@dataclass
+class Results:
+    started: set
+    ended: dict
+    calls: dict
+    attachments: dict
+    closure: dict
+    finished: bool
+
+
+def step_item(statement, index, row, found, phases=()):
+    """One statement with its result (in `row`, for a table block's step)"""
+    form = statement.statement
+    item = statement_item(
+        statement,
+        step=isinstance(form, list) and head(form) not in DIRECTIVES,
+        calls=found.calls.get((index, row), []),
+        phases=phases,
+        attachments=found.attachments.get((index, row), []),
+    )
+    if statement.definition:
+        # Definitions aren't steps; only a failed one has a result
+        item["step"] = (index, row) in found.ended
+    if item["step"]:
+        if (index, row) in found.ended:
+            ended = found.ended[(index, row)]
+            item["state"] = step_state(ended)
+            item["result"] = ended
+            item["failure"] = failure_of(found.closure, ended)
+        elif (index, row) in found.started:
+            item["state"] = "running"
+        else:
+            item["state"] = "not run" if found.finished else "pending"
+    return item
+
+
+def table_item(statement, index, steps, statements, found, names, row_events,
+               variation):
+    """A table block as one entry: its rows table, then each row with its
+    steps' results"""
+    item = statement_item(statement, step=True)
+    if names is None:  # not reached: the rows as written
+        from ..framework.language import parse_table
+        names = [row.name for row in parse_table("", statement.statement, [])]
+    item["rows"] = []
+    for name in names:
+        event = row_events.get((index, name), {})
+        if "outcome" in event:
+            state = {"pass": "pass", "fail": "fail", "error": "error"}[event["outcome"]]
+        elif event:
+            state = "running"
+        else:
+            state = "not run" if found.finished else "pending"
+        row_steps = [step_item(statements[i], i, name, found) for i in steps
+                     if not (variation and statements[i].variations
+                             and variation not in statements[i].variations)]
+        if state == "pass" and any(s.get("state") == "tbd" for s in row_steps):
+            state = "tbd"
+        item["rows"].append({"name": name, "values": event.get("values", {}),
+                             "state": state, "message": event.get("message"),
+                             "steps": row_steps})
+    states = [row["state"] for row in item["rows"]]
+    item["state"] = min(states, key=STATE_ORDER.index) if states else "not run"
+    if "result" not in item:
+        item["result"] = None
+    return item
 
 
 @reports.app_template_filter()
@@ -169,25 +249,26 @@ def call_state(call):
 
 
 def call_trees(events):
-    """statement index -> its block calls as a tree, quiet calls left out.
-
-    Each call has its `children` (calls made inside a step form)."""
+    """(statement index, row) -> its block calls as a tree, quiet calls
+    left out. Each call has its `children` (calls made inside a step
+    form)."""
     calls = {}
     for event in events:
         if event["kind"] not in ("call_start", "call_end") or event.get("quiet"):
             continue
-        call = calls.setdefault((event["index"], event["call"]), {"children": []})
+        call = calls.setdefault((*key(event), event["call"]), {"children": []})
         call.update({k: v for k, v in event.items() if k not in ("kind", "seq", "ts")})
     for call in calls.values():
         call["state"] = call_state(call)
 
     trees = {}
-    for (index, _), call in sorted(calls.items()):
-        parent = calls.get((index, call.get("parent")))
+    for (index, row, _), call in sorted(calls.items(), key=lambda kv: (
+            kv[0][0], str(kv[0][1]), kv[0][2])):
+        parent = calls.get((index, row, call.get("parent")))
         if parent is not None:
             parent["children"].append(call)
         else:
-            trees.setdefault(index, []).append(call)
+            trees.setdefault((index, row), []).append(call)
     return trees
 
 

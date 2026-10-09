@@ -79,7 +79,8 @@ def variation_names(argument):
     return names
 
 
-RVT_OPTIONS = {"definitions": directives.flag, "variations": variation_names}
+RVT_OPTIONS = {"definitions": directives.flag, "variations": variation_names,
+               "table": directives.flag}
 
 
 @dataclass
@@ -91,6 +92,8 @@ class Part:
     line: int = 0  # where the chunk or block starts, 1-based
     title: str = None  # the block's title, if it has one
     span: object = None  # where the form is in the file (an edn.Span)
+    table: int = None  # for the forms of a :table: block: the block's line
+    table_rows: bool = False  # the table block's first form: its rows
 
     @property
     def variations(self):
@@ -259,10 +262,13 @@ def parse(text, first_line=1, path=None, first_col=0):
             block = parse_directive(source, rvt_block, "rvt")
             options, content, title = block["options"], block["content"], block["title"]
             line_in, col_shift = content_position(source, content, block["offset"])
-            for form, span in edn.read_all_with_spans(content):
+            for position, (form, span) in enumerate(edn.read_all_with_spans(content)):
                 edn.move_spans(form, lambda i: line + line_in(i),
                                lambda i: first_col + col_shift(i), path)
                 part = Part(form, options, line, title)
+                if "table" in options:
+                    part.table = line
+                    part.table_rows = position == 0
                 if span is not None:
                     part.span = span.moved(lambda i: line + line_in(i),
                                            lambda i: first_col + col_shift(i), path)
@@ -284,6 +290,16 @@ def forms(text, path=None):
 def has_rvt(text):
     """True if the document has any rvt block (i.e. it's a script)"""
     return any(ANY_RVT.match(line) for line in text.splitlines())
+
+
+def table_block(parts, index):
+    """Indexes of the steps of the table block whose rows are at `index`"""
+    found = []
+    for later in range(index + 1, len(parts)):
+        if parts[later].table != parts[index].table:
+            break
+        found.append(later)
+    return found
 
 
 def definitions_section(parts):

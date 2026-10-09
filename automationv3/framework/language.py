@@ -18,6 +18,24 @@ run in order. The others:
   Each variation is a display name and the values bound to the symbols
   for that run. Values are literals or expressions over definitions;
   they are kept as forms and evaluated when the script runs.
+- A table runs the steps of one rvt block once per row, in the same
+  run. The block has the ``:table:`` option, and its first form names
+  the symbols and gives the rows, like variations::
+
+      .. rvt:: Command each transition
+         :table:
+
+         ("from to allowed"
+           ["STANDBY to NOMINAL" [:standby :nominal true]
+            "NOMINAL to MANEUVER" [:nominal :maneuver false]])
+
+         (BringToMode from)
+         (Verify (SendTC :set-mode :mode to) = ...)
+
+  Use a variation when each case needs its own run: the unit restarted
+  or set up differently (a hardware configuration, a one-time event
+  like separation). Use a table when the cases can run one after the
+  other on the unit as it is.
 - A Precondition states what must hold before a script's steps run,
   and optionally how to get there::
 
@@ -110,6 +128,25 @@ def parse_variations(path, form, errors):
         else:
             variations.append(Variation(name, symbols, list(values)))
     return variations
+
+
+def is_table_rows(form):
+    """True for a table block's first form: ("symbols" [rows])"""
+    return (isinstance(form, list) and not isinstance(form, edn.Vector)
+            and len(form) == 2 and is_text(form[0]) and isinstance(form[1], list))
+
+
+def parse_table(path, form, errors):
+    """The rows (as Variations) of a table block's first form"""
+    if not is_table_rows(form):
+        errors.append(f'{path}: a :table: block starts with its rows: '
+                      '("symbol ..." ["row" [value ...] ...])')
+        return []
+    found = []
+    rows = parse_variations(path, [edn.Symbol("table"), form[0], form[1]], found)
+    errors.extend(message.replace("variations", "table rows")
+                  .replace("variation", "row") for message in found)
+    return rows
 
 
 @dataclass

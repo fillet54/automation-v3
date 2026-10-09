@@ -121,5 +121,7 @@ def statement_item(statement, **extra):
         "block": statement.block,
         "title": statement.title,
         "precondition": statement.precondition,
+        "table": statement.table,
+        "table_rows": statement.table_rows,
         **extra,
     }

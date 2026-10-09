@@ -13,7 +13,10 @@ from docutils.writers.html4css1 import Writer, HTMLTranslator
 
 from . import edn, html
 from .block import code_block, find_block, raw_html
-from .language import PRECONDITION, head, is_text, parse_precondition, parse_variations
+from .language import (
+    PRECONDITION, head, is_table_rows, is_text, parse_precondition, parse_table,
+    parse_variations,
+)
 from .requirement import Requirement
 
 # How a :req:`ID` reference finds its requirement. Applications with a
@@ -111,6 +114,8 @@ def repr_rst(form):
     name = head(form)
     if name == "variations" and (table := variations_html(form)):
         return raw_html(table)
+    if is_table_rows(form) and (table := table_html(form)):
+        return raw_html(table)
     if name == PRECONDITION and parse_precondition(form):
         return precondition_rst(form)
     if block := find_block(form):
@@ -129,6 +134,16 @@ def variations_html(form):
         [[v.name, *v.forms] for v in variations],
         caption="Variations",
     )
+
+
+def table_html(form):
+    """A table block's rows as a table, one row per case"""
+    errors = []
+    rows = parse_table("", form, errors)
+    if errors or not rows:
+        return None
+    return html.table(["Case", *rows[0].symbols], [[r.name, *r.forms] for r in rows],
+                      caption="For each row")
 
 
 def precondition_rst(form):

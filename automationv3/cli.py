@@ -235,6 +235,14 @@ class ConsoleObserver:
         shown = stdout or (f"-> {value}" if value is not None else "")
         print(f"{indent}{mark} {label}{': ' + shown if shown else ''}")
 
+    def on_row_start(self, row=None, values=None, **kw):
+        shown = ", ".join(f"{k}={v}" for k, v in (values or {}).items())
+        print(f"    row {row}{': ' + shown if shown else ''}")
+
+    def on_row_end(self, row=None, outcome=None, **kw):
+        if outcome != "pass":
+            print(f"    row {row} -> {outcome}")
+
     def on_procedure_end(self, outcome=None, **kw):
         print(f"  -> {outcome}")
 

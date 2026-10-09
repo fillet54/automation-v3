@@ -21,6 +21,11 @@ Blocks limited to other variations (`:variations:`, see document.py)
 are skipped without being reported: their steps don't run and their
 definitions aren't loaded.
 
+A table block (an rvt block with :table:) runs its steps once per row,
+with the row's symbols bound, each row reported between row_start and
+row_end, and its steps' events tagged with the row. A failing row stops
+only itself: the other rows run, and the block fails at the end.
+
 Steps not written yet, (TBD "..."), are reported as such and the run
 goes on; a run that reached any can't pass: if nothing else stopped it,
 its outcome is "incomplete".
@@ -53,6 +58,7 @@ from .language import (
     is_definition,
     is_step,
     parse_precondition,
+    parse_table,
     parse_variations,
 )
 from .steps import Runtime, elapsed, error_line, run_statement, running_statement
@@ -141,11 +147,20 @@ def _execute(text, observer, script, env, mode, variation):
 
     outcome = "pass"
     placeholders = 0
+    in_table = set()
     for index, part in enumerate(parts):
         form = part.form
-        if not part.applies(variation):
+        if not part.applies(variation) or index in in_table:
             continue
-        if part.prose:
+        if part.table_rows:
+            steps = document.table_block(parts, index)
+            in_table.update(steps)
+            outcome, reached = _run_table(index, steps, parts, env, observer,
+                                          variation, script)
+            placeholders += reached
+            if outcome != "pass":
+                break
+        elif part.prose:
             observer.on_comment(index=index, text=form)
         elif is_definition(form):
             if index in preloaded and dict.__contains__(env, form[1]):
@@ -195,13 +210,57 @@ def _define(form, env, observer, index):
         return False
 
 
-def _run_step(form, env, observer, index):
+def _run_table(index, steps, parts, env, observer, variation, script):
+    """Run a table block's steps once per row. Returns its outcome ("pass",
+    "fail" or "error": the worst row's) and the TBD steps it reached."""
+    errors = []
+    rows = parse_table(script or "", parts[index].form, errors)
+    if errors:
+        observer.on_step_start(form=edn.writes(parts[index].form), index=index)
+        observer.on_step_end(passed=False, error=True, stdout="", stderr="; ".join(errors),
+                             message="; ".join(errors), trace=[], duration=0, index=index)
+        return "error", 0
+    observer.on_table_start(index=index, rows=[row.name for row in rows])
+    outcome, placeholders = "pass", 0
+    for row in rows:
+        row_env = lisp.Env(outer=env)
+        try:
+            for symbol, value in zip(row.symbols, row.forms):
+                row_env[edn.Symbol(symbol)] = lisp.eval(value, env)
+        except Exception as e:
+            observer.on_row_start(index=index, row=row.name, values={})
+            observer.on_row_end(index=index, row=row.name, outcome="error",
+                                message=error_line(e))
+            outcome = "error"
+            continue
+        observer.on_row_start(index=index, row=row.name, values={
+            symbol: edn.writes(row_env[edn.Symbol(symbol)]) for symbol in row.symbols})
+        row_outcome = "pass"
+        with context.running(row_env):
+            for step in steps:
+                part = parts[step]
+                if not part.applies(variation) or not is_step(part.form):
+                    continue
+                result = _run_step(part.form, row_env, observer, step, row=row.name)
+                placeholders += getattr(result, "placeholders", 0)
+                if not result:
+                    row_outcome = "error" if result.error else "fail"
+                    break
+        observer.on_row_end(index=index, row=row.name, outcome=row_outcome)
+        if row_outcome == "error" or (row_outcome == "fail" and outcome == "pass"):
+            outcome = row_outcome
+    return outcome, placeholders
+
+
+def _run_step(form, env, observer, index, row=None):
     """Run and report one step (or Precondition). Returns its BlockResult."""
     precondition = head(form) == PRECONDITION
     details = dict(index=index, precondition=precondition)
+    if row is not None:
+        details["row"] = row
     observer.on_step_start(form=edn.writes(form), **details)
     started = time.monotonic()
-    runtime = Runtime(observer, index)
+    runtime = Runtime(observer, index, row)
     run = run_precondition if precondition else run_statement
     with running_statement(runtime):
         result = run(form, env, runtime)

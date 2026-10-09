@@ -68,9 +68,10 @@ class Frame:
 class Runtime:
     """Reports and runs the block calls of one statement"""
 
-    def __init__(self, observer, index):
+    def __init__(self, observer, index, row=None):
         self.observer = observer
         self.index = index
+        self.row = row  # the table row running, if any
         self.calls = 0
         self.frames = [Frame()]
         self.phase = None  # the precondition phase running, numbered from 1
@@ -103,6 +104,8 @@ class Runtime:
                        suppressed=frame.suppressed, block_kind=kind)
         if title is not None:
             details["title"] = title
+        if self.row is not None:
+            details["row"] = self.row
         if self.phase is not None:
             details["phase"] = self.phase
         self.observer.on_call_start(form=form, **details)
@@ -149,7 +152,8 @@ def attach(name, data):
     runtime = current_runtime()
     if isinstance(data, str):
         data = data.encode()
-    runtime.observer.on_attach(index=runtime.index, name=name, data=data)
+    details = {"row": runtime.row} if runtime.row is not None else {}
+    runtime.observer.on_attach(index=runtime.index, name=name, data=data, **details)
 
 
 def elapsed(started):

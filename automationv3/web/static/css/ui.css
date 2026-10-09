@@ -703,3 +703,8 @@ body.ui {
 .ui-requirement--blocks > p { margin: 0 0 4px; }
 .ui-requirement--blocks > ul, .ui-requirement--blocks > ol { margin: 2px 0 4px; padding-left: 20px; }
 .ui-requirement--blocks li > p { margin: 0; }
+
+/* A table block's rows on a run page */
+.ui-table-rows { display: flex; flex-direction: column; margin-top: 6px; }
+.ui-table-row > summary { gap: 10px; }
+.ui-table-row .ui-text-caption { margin-left: 4px; }

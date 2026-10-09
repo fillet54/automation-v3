@@ -39,6 +39,8 @@ class Statement:
         self.title = title
         self.precondition = None
         self.span = None  # where the form is in the script (an edn.Span)
+        self.table = None  # the line of its :table: block, if in one
+        self.table_rows = False  # the table block's rows
 
     @property
     def defines(self):
@@ -83,6 +85,8 @@ def get_statements(text):
     ]
     for statement, part in zip(statements, parts):
         statement.span = part.span
+        statement.table = part.table
+        statement.table_rows = part.table_rows
     for n, (index, parsed, _, _) in enumerate(pieces):
         statements[index].precondition = {
             "name": parsed.name,

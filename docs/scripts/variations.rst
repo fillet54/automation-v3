@@ -26,6 +26,41 @@ and evaluated when the script runs, so they can use definitions.
 Each variation runs as its own job, so a script with three variations in two
 environments queues six runs, and the report rolls them up together.
 
+Variation or table?
+-------------------
+
+A variation is a separate run. Use one when a case needs the unit restarted or
+set up differently: a hardware configuration, a software load, or a one-time
+event such as separation that can't be undone within a run. Each variation is
+queued, run, reported and rolled up on its own.
+
+When the cases can run one after the other on the unit as it is, use a
+**table** instead: an ``rvt`` block with the ``:table:`` option runs its steps
+once per row, in the same run. Its first form names the symbols and gives the
+rows, shaped like variations:
+
+.. code-block:: rst
+
+   .. rvt:: Each commanded transition
+      :table:
+
+      ("from to allowed"
+        ["STANDBY to NOMINAL"  [:standby :nominal true]
+         "NOMINAL to MANEUVER" [:nominal :maneuver false]])
+
+      (BringToMode from)
+      (Verify (SendTC :set-mode :mode to)
+              = (if allowed :executed :rejected-transition))
+
+The script page shows the rows as a table above the steps. The run page shows
+each row with its steps' results. A failing row stops only itself: the other
+rows still run, so one run shows every failing case, and the block, and so the
+script, fails at the end. The row symbols are bound only within the block, and
+a table block can't hold definitions, directives or preconditions.
+
+A script can use both: variations for the setups that need their own runs, and
+tables for the cases each setup runs through.
+
 Choosing variations to run
 --------------------------
 
