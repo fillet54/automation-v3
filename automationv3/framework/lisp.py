@@ -16,7 +16,18 @@ import math
 import operator as op
 from itertools import count, cycle, islice
 
-from .edn import Keyword, List, Map, Set, Symbol, Vector
+from .edn import Keyword, List, Map, Set, Symbol, Vector, span_of
+
+
+class UnboundName(KeyError):
+    """A symbol with no binding"""
+
+    def __init__(self, name):
+        super().__init__(name)
+        self.name = name
+
+    def __str__(self):
+        return f"{self.name} not found."
 
 
 class Env(dict):
@@ -38,7 +49,7 @@ class Env(dict):
             return super().__getitem__(key)
         if self.outer is not None and key in self.outer:
             return self.outer[key]
-        raise KeyError(f"{key} not found.")
+        raise UnboundName(key)
 
 
 def partition(n, seq):
@@ -221,12 +232,40 @@ def dot_form(x, env):
     return getattr(eval(obj, env), member)(*[eval(arg, env) for arg in args])
 
 
+def trace(e):
+    """Where an exception raised while evaluating went through, innermost
+    first: the form it was raised in, then each call that led there (as
+    edn.Spans)"""
+    return getattr(e, "lisp_trace", [])
+
+
+def _note(e, x, call):
+    """Record `x` in the exception's trace: the innermost form always,
+    then only calls (functions and blocks), not the forms around them"""
+    try:
+        frames = e.__dict__.setdefault("lisp_trace", [])
+    except AttributeError:
+        return
+    span = span_of(x)
+    if span is None or (frames and frames[-1] == span):
+        return
+    if not frames or call:
+        frames.append(span)
+
+
 def eval(x, env=global_env):
-    """Evaluate the form `x` in `env`"""
+    """Evaluate the form `x` in `env`.
+
+    An exception raised inside records the forms it came through (see
+    `trace`), so it can be reported where the script wrote them."""
     if isinstance(x, Keyword):
         return x
     if isinstance(x, Symbol):
-        return env[x]
+        try:
+            return env[x]
+        except UnboundName as e:
+            _note(e, x, call=False)
+            raise
     if isinstance(x, Vector):
         return Vector(eval(item, env) for item in x)
     if isinstance(x, dict):
@@ -235,7 +274,12 @@ def eval(x, env=global_env):
         return Set(eval(item, env) for item in x)
     if not isinstance(x, List) or not x:
         return x
-    if special := get_special_form(x[0]):
-        return special(x, env)
-    proc = eval(x[0], env)
-    return proc(*[eval(arg, env) for arg in x[1:]])
+    special = get_special_form(x[0])
+    try:
+        if special:
+            return special(x, env)
+        proc = eval(x[0], env)
+        return proc(*[eval(arg, env) for arg in x[1:]])
+    except Exception as e:
+        _note(e, x, call=not special or getattr(special, "is_call", False))
+        raise

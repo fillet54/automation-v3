@@ -1,5 +1,6 @@
 {% import "ui/components.html" as ui %}
 {% from "partials/definitions.html" import statements, precondition_block, precondition_parts %}
+{% from "partials/diagnostics.html" import diagnostic %}
 <div id="content" class="ui-stack">
   {% set crumbs = [(workspace.id, url_for('workspace.index', id=workspace.id))] %}
   {% for part in path.split('/')[:-1] %}{% set _ = crumbs.append((part, None)) %}{% endfor %}
@@ -42,9 +43,23 @@
   </div>
   {% endif %}
 
-  {% if errors %}
+  {#- Static analysis findings show by the statement they are about (inline: listed briefly here), or here in full
+      when they are in another file, e.g. a core.rst #}
+  {% set diagnostic_errors = diagnostics | selectattr("severity", "equalto", "error") | list %}
+  {% set diagnostic_warnings = diagnostics | selectattr("severity", "equalto", "warning") | list %}
+  {% if errors or diagnostic_errors %}
   {% call ui.alert("danger", title="This script can't be queued") %}
-    <ul class="ui-plain-list">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    <ul class="ui-plain-list ui-stack ui-gap-small">
+      {%- for error in errors %}<li>{{ error }}</li>{% endfor %}
+      {%- for d in diagnostic_errors %}<li>{{ diagnostic(d, brief=d.inline) }}</li>{% endfor %}
+    </ul>
+  {% endcall %}
+  {% endif %}
+  {% if diagnostic_warnings %}
+  {% call ui.alert("warning", title="Warnings") %}
+    <ul class="ui-plain-list ui-stack ui-gap-small">
+      {%- for d in diagnostic_warnings %}<li>{{ diagnostic(d, brief=d.inline) }}</li>{% endfor %}
+    </ul>
   {% endcall %}
   {% endif %}
 
@@ -81,6 +96,12 @@
     {% macro render(item) %}
       {%- if item.precondition %}{% call precondition_block(item.precondition) %}{{ precondition_parts(item.precondition) }}{% endcall %}
       {%- elif not (closure and item.directive == "variations") %}<div>{{ item.html | safe }}</div>{% endif %}
+      {%- if item.diagnostics %}
+      {%- set worst = "error" if item.diagnostics | selectattr("severity", "equalto", "error") | list else "warning" %}
+      <div class="ui-diagnostics-inline ui-diagnostics-inline--{{ worst }}">
+        {%- for d in item.diagnostics %}{{ diagnostic(d) }}{% endfor %}
+      </div>
+      {%- endif %}
     {%- endmacro %}
     {{ statements(parts, render, selected=variation.name if variation else None) }}
   </article>

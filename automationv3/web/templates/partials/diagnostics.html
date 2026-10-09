@@ -1,0 +1,41 @@
+{% import "ui/components.html" as ui %}
+
+{#- Lines of a file with the part a span covers marked: rows from excerpt.excerpt #}
+{% macro source_excerpt(ex, label=None) -%}
+<figure class="ui-excerpt">
+  <figcaption class="ui-excerpt__where">{% if label %}<span class="ui-excerpt__label">{{ label }}</span> {% endif %}{{ ex.where }}</figcaption>
+  <pre class="ui-excerpt__code">
+  {%- for row in ex.rows -%}
+  <span class="ui-excerpt__no">{{ row.no }}</span>
+  {%- if row.mark %}{{ row.before }}<mark class="ui-excerpt__mark">{{ row.marked }}</mark>{{ row.after }}
+  {%- else %}{{ row.text }}{% endif %}
+{% endfor -%}
+  </pre>
+</figure>
+{%- endmacro %}
+
+{#- Why a step failed and where: the message, the code it failed at (then each call that led there), and the
+    traceback on request. `view` comes from excerpt.failure_view. #}
+{% macro failure_box(view, state="fail") -%}
+<div class="ui-failure ui-failure--{{ state }}" role="group" aria-label="Failure">
+  <div class="ui-failure__message">{{ view.message }}</div>
+  {%- for ex in view.excerpts %}
+  {{ source_excerpt(ex, None if loop.first else "called from") }}
+  {%- endfor %}
+  {%- if view.traceback %}
+  <details class="ui-failure__traceback">
+    <summary>Traceback</summary>
+    <pre class="ui-pre">{{ view.traceback }}</pre>
+  </details>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{#- One static-analysis finding: severity, message, and the code it is about unless `brief` #}
+{% macro diagnostic(d, brief=False) -%}
+<div class="ui-diagnostic ui-diagnostic--{{ d.severity }}">
+  <div class="ui-diagnostic__message">{{ ui.outcome("error" if d.severity == "error" else "partial", d.severity | capitalize) }}
+    <span>{{ d.message }}</span>{% if brief and d.where %} <span class="ui-text-caption ui-mono">{{ d.where }}</span>{% endif %}</div>
+  {%- if not brief and d.excerpt %}{{ source_excerpt(d.excerpt) }}{% endif %}
+</div>
+{%- endmacro %}

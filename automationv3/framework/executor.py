@@ -51,7 +51,7 @@ from .language import (
     parse_precondition,
     parse_variations,
 )
-from .steps import Runtime, elapsed, run_statement, running_statement
+from .steps import Runtime, elapsed, error_line, run_statement, running_statement
 
 
 def new_env():
@@ -69,8 +69,11 @@ def run_phase(action, form, env, runtime):
     result = run_statement(form, env, runtime)
     if action == "check" and result and not result.value:
         result.passed = False
+        result.message = f"{edn.writes(form)} came out {edn.writes(result.value)}"
+        span = edn.span_of(form)
+        result.trace = [span._asdict()] if span else []
     runtime.observer.on_phase_end(passed=bool(result), error=result.error,
-                                  stdout=result.stdout,
+                                  **failure_details(result), stdout=result.stdout,
                                   stderr=result.stderr, duration=elapsed(started),
                                   **details)
     return result
@@ -80,25 +83,28 @@ def run_precondition(form, env, runtime):
     """Check, heal if needed, check again. Returns a BlockResult."""
     parsed = parse_precondition(form)
     if parsed is None:
-        return BlockResult(False, stderr="Malformed Precondition")
+        result = BlockResult(False, stderr="Malformed Precondition")
+        result.message, result.trace = "Malformed Precondition", []
+        return result
     check, heal = parsed.check, parsed.heal
     result = run_phase("check", check, env, runtime)
     if result or heal is None:
         return result
     healed = run_phase("heal", heal, env, runtime)
     if not healed:  # the heal itself failed
-        return BlockResult(False, stdout=result.stdout, stderr=healed.stderr)
+        healed.stdout = result.stdout
+        return healed
     result = run_phase("check", check, env, runtime)
-    return BlockResult(bool(result), stdout=f"healed; {result.stdout}".strip("; "),
-                       stderr=result.stderr)
+    result.stdout = f"healed; {result.stdout}".strip("; ")
+    return result
 
 
-def load_definitions(env, text, keep=frozenset()):
+def load_definitions(env, text, keep=frozenset(), path=None):
     """Evaluate the definitions (def, defn) of a core.rst into `env`.
 
     Names in `keep` are already defined and are not overridden.
     """
-    for form in document.forms(text):
+    for form in document.forms(text, path=path):
         if head(form) in DEFINITIONS and form[1] not in keep:
             lisp.eval(form, env)
 
@@ -125,7 +131,7 @@ def execute_script(text, observer, script=None, env=None, mode="normal",
 
 
 def _execute(text, observer, script, env, mode, variation):
-    parts = document.parse(text)
+    parts = document.parse(text, path=script)
     observer.on_procedure_begin(script=script, statements=len(parts), mode=mode)
     preloaded = set(document.definitions_section(parts))
 
@@ -155,17 +161,28 @@ def _execute(text, observer, script, env, mode, variation):
     return outcome
 
 
+def failure_details(result):
+    """What a failed step's report says about why and where"""
+    if result:
+        return {}
+    return {"message": getattr(result, "message", "") or "",
+            "trace": getattr(result, "trace", None) or []}
+
+
 def _define(form, env, observer, index):
     """Evaluate a definition where it is in the script; only a failure is
     reported (as a step). Returns whether it succeeded."""
     try:
         lisp.eval(form, env)
         return True
-    except Exception:
+    except Exception as e:
         details = dict(index=index, definition=True)
+        trace = lisp.trace(e) or [edn.span_of(form)]
         observer.on_step_start(form=edn.writes(form), **details)
         observer.on_step_end(passed=False, error=True, stdout="",
-                             stderr=traceback.format_exc(), duration=0, **details)
+                             stderr=traceback.format_exc(), duration=0,
+                             message=error_line(e),
+                             trace=[span._asdict() for span in trace if span], **details)
         return False
 
 
@@ -181,7 +198,8 @@ def _run_step(form, env, observer, index):
         result = run(form, env, runtime)
     observer.on_step_end(passed=bool(result), error=result.error,
                          stdout=result.stdout, stderr=result.stderr,
-                         duration=elapsed(started), **details)
+                         duration=elapsed(started), **failure_details(result),
+                         **details)
     return result
 
 
@@ -197,11 +215,12 @@ def build_env(files, load_order, imports=(), variation=None):
     chain_names = set()
     for path in load_order[:-1]:
         if path in imports:
-            load_definitions(env, files[path], keep=chain_names)
+            load_definitions(env, files[path], keep=chain_names, path=path)
         else:
-            load_definitions(env, files[path])
+            load_definitions(env, files[path], path=path)
             chain_names = set(env)
-    load_script_definitions(env, document.parse(files[load_order[-1]]), variation)
+    script = load_order[-1]
+    load_script_definitions(env, document.parse(files[script], path=script), variation)
     return env
 
 

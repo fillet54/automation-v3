@@ -38,6 +38,7 @@ class Statement:
         self.block = block
         self.title = title
         self.precondition = None
+        self.span = None  # where the form is in the script (an edn.Span)
 
     @property
     def defines(self):
@@ -80,6 +81,8 @@ def get_statements(text):
                   None if part.prose else part.line, part.title)
         for index, (part, h, r) in enumerate(zip(parts, html, rst))
     ]
+    for statement, part in zip(statements, parts):
+        statement.span = part.span
     for n, (index, parsed, _, _) in enumerate(pieces):
         statements[index].precondition = {
             "name": parsed.name,

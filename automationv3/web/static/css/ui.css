@@ -676,3 +676,18 @@ body.ui {
   .ui-browse__side { display: none; }
   .ui-table thead { display: table-header-group; }
 }
+
+/* Failures and diagnostics: the message, then the code it is about with the offending form marked */
+.ui-failure { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-left: 3px solid var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 5%, var(--ui-paper)); border-radius: 2px; }
+.ui-failure__message, .ui-diagnostic__message { font-family: var(--ui-font-mono); font-size: 12px; color: var(--ui-ink); overflow-wrap: anywhere; }
+.ui-failure__traceback > summary { cursor: pointer; color: var(--ui-muted); font-size: 12px; }
+.ui-excerpt { margin: 0; }
+.ui-excerpt__where { font-family: var(--ui-font-mono); font-size: 11px; color: var(--ui-muted); }
+.ui-excerpt__label { font-family: inherit; }
+.ui-excerpt__code { margin: 2px 0 0; padding: 6px 8px; font-family: var(--ui-font-mono); font-size: 12px; line-height: 1.5; background: var(--ui-paper); border: 1px solid var(--ui-rule); border-radius: 2px; overflow-x: auto; white-space: pre; }
+.ui-excerpt__no { display: inline-block; min-width: 3ch; margin-right: 1.5ch; text-align: right; color: var(--ui-muted); user-select: none; }
+.ui-excerpt__mark { background: none; color: inherit; text-decoration: underline wavy var(--ui-danger); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.ui-diagnostic { display: flex; flex-direction: column; gap: 4px; }
+.ui-diagnostic--warning .ui-excerpt__mark { text-decoration-color: var(--ui-warning, #b7791f); }
+.ui-diagnostics-inline { margin: 4px 0 8px; display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; border-left: 3px solid var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 4%, var(--ui-paper)); }
+.ui-diagnostics-inline--warning { border-left-color: var(--ui-warning, #b7791f); background: color-mix(in srgb, var(--ui-warning, #b7791f) 5%, var(--ui-paper)); }

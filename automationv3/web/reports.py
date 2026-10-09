@@ -13,6 +13,7 @@ from flask import (
 
 from dataclasses import asdict
 
+from ..framework.excerpt import failure_view
 from ..framework.language import DIRECTIVES, head
 from ..framework.statements import get_statements
 from ..framework.uut import uut_types
@@ -49,6 +50,9 @@ def statement_rows(run, finished):
     ended = {e["index"]: e for e in events if e["kind"] == "step_end"}
     calls = call_trees(events)
     phases = precondition_phases(events, calls)
+    for index_phases in phases.values():
+        for phase in index_phases:
+            phase["failure"] = failure_of(closure, phase.get("result"))
     attachments = {}
     for event in events:
         if event["kind"] == "attachment":
@@ -74,6 +78,7 @@ def statement_rows(run, finished):
             if index in ended:
                 row["state"] = step_state(ended[index])
                 row["result"] = ended[index]
+                row["failure"] = failure_of(closure, ended[index])
             elif index in started:
                 row["state"] = "running"
             else:
@@ -132,6 +137,15 @@ def phase_state(phase):
     if phase["action"] == "check":
         return "true" if phase["passed"] else "false"
     return step_state(phase)
+
+
+def failure_of(files, ended):
+    """Why and where a step (or phase) failed, for display, or None. Runs
+    from before failures carried a message have none."""
+    if not ended or ended.get("passed") or "message" not in ended:
+        return None
+    return failure_view(files, ended["message"], ended.get("trace"),
+                        ended.get("stderr", "") if ended.get("error") else "")
 
 
 def step_state(ended):

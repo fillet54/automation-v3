@@ -1,5 +1,6 @@
 {% import "ui/components.html" as ui %}
 {% from "reports/macros.html" import calls_list %}
+{% from "partials/diagnostics.html" import failure_box %}
 {% from "partials/definitions.html" import statements, precondition_block, precondition_parts %}
 <div id="run-body" class="ui-stack"
      {% if not finished %}
@@ -88,7 +89,7 @@
   {% for error in errors %}{{ ui.code_block(error.traceback, label="Error") }}{% endfor %}
 
   {#- One step (or precondition phase): its form, block calls and output, with its duration and state #}
-  {% macro step_row(body, state, result, calls, attachments=()) %}
+  {% macro step_row(body, state, result, calls, attachments=(), failure=None) %}
     {% set kind = {"not run": "not-run"}.get(state, state) %}
     <div class="ui-step ui-step--{{ kind }}">
       <div class="ui-step__body">
@@ -102,7 +103,10 @@
           {{ calls_list(nested) }}
         </details>
         {% endif %}
-        {% if result and (result.stdout or result.stderr) %}
+        {% if failure %}
+        {% if result.stdout and result.stdout not in failure.message %}<pre class="ui-pre">{{ result.stdout }}</pre>{% endif %}
+        {{ failure_box(failure, state) }}
+        {% elif result and (result.stdout or result.stderr) %}
         <pre class="ui-pre">{{ result.stdout }}{% if result.stderr %}<span class="ui-step__fail">{{ result.stderr }}</span>{% endif %}</pre>
         {% endif %}
         {% if attachments %}
@@ -127,7 +131,7 @@
           {%- if phase.action == "heal" %}<div class="ui-precondition__label">Heal{% if p.heal_name %} <span class="ui-precondition__heal-name">{{ p.heal_name }}</span>{% endif %}</div>{{ p.heal_html | safe }}
           {%- else %}<div class="ui-precondition__label">{{ "Check again" if not loop.first else "Check" }}</div>{{ p.check_html | safe }}{% endif %}
         {% endset %}
-        {{ step_row(body, phase.state, phase.result, phase.calls) }}
+        {{ step_row(body, phase.state, phase.result, phase.calls, failure=phase.failure if phase.state != "false" or loop.last else None) }}
       {% else %}
         {{ precondition_parts(p) }}
         {% if row.result and (row.result.stdout or row.result.stderr) %}
@@ -139,7 +143,7 @@
 
   {% macro render(row) %}
     {% if row.step and row.precondition %}{{ precondition_row(row) }}
-    {% elif row.step %}{{ step_row(row.html | safe, row.state, row.result, row.calls, row.attachments) }}
+    {% elif row.step %}{{ step_row(row.html | safe, row.state, row.result, row.calls, row.attachments, row.failure) }}
     {% elif row.directive != "variations" %}{# the variations form: shown in the details above #}
     <div>{{ row.html | safe }}</div>
     {% endif %}

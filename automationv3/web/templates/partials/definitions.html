@@ -10,7 +10,7 @@
 {%- endmacro %}
 
 {% macro definitions_section(items, render, only=None) -%}
-<details class="ui-defs">
+<details class="ui-defs"{% if items | selectattr('diagnostics') | list %} open{% endif %}>
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Definitions</span>
     <span class="ui-defs__names">{{ items | selectattr('defines') | map(attribute='defines') | join(', ') }}</span>{{ only_for(only) }}</summary>
   <div class="ui-defs__body">{% for item in items %}{{ render(item) }}{% endfor %}</div>
@@ -18,7 +18,7 @@
 {%- endmacro %}
 
 {% macro definition(item, render, only=None) -%}
-<details class="ui-defs ui-defs--one">
+<details class="ui-defs ui-defs--one"{% if item.diagnostics or item.state in ("fail", "error") %} open{% endif %}>
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Definition</span>
     <span class="ui-defs__names">{{ item.defines }}</span>{{ only_for(only) }}</summary>
   <div class="ui-defs__body">{{ render(item) }}</div>
@@ -47,7 +47,7 @@
 {#- A titled rvt block collapsed to its title, with its steps' state on a run's page; open if it failed or is
     running, so a run shows where it stands. #}
 {% macro titled_block(entry, render, only=None) -%}
-<details class="ui-titled"{% if entry.state in ("fail", "running") %} open{% endif %}>
+<details class="ui-titled"{% if entry.state in ("fail", "error", "running") or entry.diagnostics %} open{% endif %}>
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-titled__title">{{ entry.title }}</span>{{ only_for(only) }}
     {%- if entry.state %}<span class="ui-titled__state">
       {%- if entry.duration is not none %}<span class="ui-duration" title="Duration of its steps">{{ entry.duration | duration }}</span>{% endif %}
@@ -59,7 +59,7 @@
 {#- A Precondition, shown like a titled block: its name, marked if it can heal, and (on a run's page) its state and
     duration; open if it failed. caller = the body: its parts, or on a run's page the phases it ran. #}
 {% macro precondition_block(p, state=None, duration=None) -%}
-<details class="ui-titled ui-precondition"{% if state == "fail" %} open{% endif %}>
+<details class="ui-titled ui-precondition"{% if state in ("fail", "error", "blocked") %} open{% endif %}>
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-precondition__label">Precondition</span>
     <span class="ui-titled__title">{{ p.name }}
       {%- if p.heal_html %} <span class="ui-precondition__heals" title="Heals if not met">{{ ui.icon("refresh", 12) }}<span class="ui-sr-only">Heals if not met</span></span>{% endif %}</span>

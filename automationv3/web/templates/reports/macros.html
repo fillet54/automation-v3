@@ -18,7 +18,9 @@
       {%- else %}<span class="ui-call__form">{{ call.form }}</span>{% endif %}
       {%- if value_call and call.value is defined %}<span class="ui-call__out">&rarr; {{ call.value }}</span>{% endif %}
       {%- if call.stdout %}<span class="ui-call__out">{{ call.stdout }}</span>{% endif %}
-      {%- if call.stderr %}<pre class="ui-pre">{{ call.stderr }}</pre>{% endif %}
+      {%- if call.stderr and call.error and "Traceback (most recent call last)" in call.stderr %}
+      <details class="ui-failure__traceback"><summary>{{ call.stderr.strip().splitlines()[-1] }}</summary><pre class="ui-pre">{{ call.stderr }}</pre></details>
+      {%- elif call.stderr %}<pre class="ui-pre">{{ call.stderr }}</pre>{% endif %}
     </div>
     {%- if call.children %}
     <details{% if call.state in ("fail", "error") %} open{% endif %}>

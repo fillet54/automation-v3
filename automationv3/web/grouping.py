@@ -76,6 +76,7 @@ def group_blocks(items):
         else:
             entries.append(("titled", {"title": key[1], "state": block_state(run),
                                        "duration": block_duration(run),
+                                       "diagnostics": any(i.get("diagnostics") for i in run),
                                        "entries": group_definitions(run)}))
     return entries
 

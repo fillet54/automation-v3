@@ -107,8 +107,8 @@ class Runtime:
         try:
             result = run(call)
         except StepFailed as failed:
-            self.end(details, started, BlockResult(
-                False, stderr=f"{failed.form} failed", error=failed.result.error))
+            # The call that failed inside is reported on its own
+            self.end(details, started, BlockResult(False, error=failed.result.error))
             raise
         except Exception as e:
             self.end(details, started, BlockResult(False, stderr=error_line(e),
@@ -116,7 +116,10 @@ class Runtime:
             raise
         self.end(details, started, result, kind)
         if not result:
-            raise StepFailed(form, result)
+            failed = StepFailed(form, result)
+            # Where inside the block's arguments it raised, if it did
+            failed.lisp_trace = list(lisp.trace(getattr(result, "exception", None)))
+            raise failed
         return result
 
     def end(self, details, started, result, kind=None):
@@ -130,6 +133,10 @@ class Runtime:
 
 def error_line(e):
     """A one-line description of an exception"""
+    if isinstance(e, lisp.UnboundName):
+        return f"unknown name {e.name}"
+    if isinstance(e, (RemovedForm, SyntaxError)):
+        return str(e)
     return f"{type(e).__name__}: {e}"
 
 
@@ -209,6 +216,7 @@ def is_block_name(symbol):
 
 @lisp.special_form(is_block_name)
 def block_special_form(x, env):
+    """A block call, reported through the running statement's runtime"""
     if x[0] in env:  # a script definition shadows the block
         proc = env[x[0]]
         return proc(*[lisp.eval(arg, env) for arg in x[1:]])
@@ -219,6 +227,9 @@ def block_special_form(x, env):
     result = current_runtime().call(text(x), lambda call: run_block(block, env),
                                     kind=block.block.kind)
     return call_value(block, result)
+
+
+block_special_form.is_call = True  # traces keep block calls
 
 
 def usage_of(name):
@@ -313,35 +324,74 @@ def run_statement(form, env, runtime):
     other form is evaluated: its block calls report through `runtime`,
     and it passes unless one of them failed or it raised. The result's
     value is what the form came to.
+
+    A result that didn't pass says why in `message` (one line) and
+    where in `trace`: the spans (as dicts) the failure came through,
+    innermost first. `stderr` keeps the whole story (a traceback, for an
+    error).
     """
+    result = _run_statement(form, env, runtime)
+    if not result:
+        if not getattr(result, "trace", None):
+            result.trace = [edn.span_of(form)] if edn.span_of(form) else []
+        result.trace = [span._asdict() for span in result.trace if span is not None]
+        if not getattr(result, "message", None):
+            result.message = (result.stderr.strip().splitlines() or [""])[-1] \
+                if result.error else result.stdout
+    return result
+
+
+def failure(message, stderr=None, error=True, stdout="", trace=()):
+    result = BlockResult(False, stdout=stdout, error=error,
+                         stderr=message if stderr is None else stderr)
+    result.message = message
+    result.trace = list(trace)
+    return result
+
+
+def _run_statement(form, env, runtime):
     name = form[0] if form else None
     try:
         if is_block_name(name) and name not in env:
             block = find_block(form)
             if block is None:
-                return BlockResult(False, error=True,
-                                   stderr=f"No form of {name} matches {text(form)}: "
-                                          f"see its usage, {usage_of(name)}")
+                return failure(f"No form of {name} matches {text(form)}: "
+                               f"see its usage, {usage_of(name)}")
             result = run_block(block, env)
             if result:
                 result.value = call_value(block, result)
+            elif result.error:
+                e = getattr(result, "exception", None)
+                result.message = f"{text(form)} raised {error_line(e)}" if e else \
+                    f"{text(form)} failed"
+                result.trace = (lisp.trace(e) if e else []) + [edn.span_of(form)]
+            else:
+                detail = f": {result.stdout}" if result.stdout else ""
+                result.message = f"{text(form)} failed{detail}"
             return result
 
         if (isinstance(name, edn.Symbol) and name not in env
                 and not lisp.get_special_form(name)):
-            return BlockResult(
-                False, error=True,
-                stderr=f"No BuildingBlock or definition matches {text(form)}")
+            return failure(f"No BuildingBlock or definition matches {text(form)}",
+                           trace=[edn.item_span(form, 0) or edn.span_of(form)])
 
         try:
             value = lisp.eval(form, env)
         except StepFailed as failed:
-            stderr = f"{failed.form} failed\n{failed.result.stderr}".strip()
-            return BlockResult(False, stdout=failed.result.stdout, stderr=stderr,
-                               error=failed.result.error)
+            inner = failed.result
+            stderr = f"{failed.form} failed\n{inner.stderr}".strip()
+            if inner.error:
+                e = getattr(inner, "exception", None)
+                message = f"{failed.form} raised {error_line(e)}" if e else \
+                    f"{failed.form} failed"
+            else:
+                detail = f": {inner.stdout}" if inner.stdout else ""
+                message = f"{failed.form} failed{detail}"
+            return failure(message, stderr, inner.error, inner.stdout,
+                           lisp.trace(failed))
         stdout = f"returned {text(value)}" if value is not None else ""
         return BlockResult(True, stdout=stdout, value=value)
     except Exception as e:
-        result = BlockResult(False, stderr=traceback.format_exc(), error=True)
+        result = failure(error_line(e), traceback.format_exc(), trace=lisp.trace(e))
         result.exception = e
         return result

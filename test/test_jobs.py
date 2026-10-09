@@ -534,6 +534,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "plain/fail.rst": FAILING,
             "plain/pass.rst": PASSING,
             "plain/lint.rst": "(Wait 1) (Precondition \"late\" (Wait 2))",
+            "plain/unknown.rst": rvt("(Verify nope = 1) (- 1 1)"),
             "LIB/core.rst": "(def limit 99)",
             "BRA/imports.rst": "(import LIB) (Verify (under-limit? 50))",
         })
@@ -577,7 +578,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         page = self.http.get(f"/reports/{ids['report_id']}/runs/{ids['run_id']}")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"1 = 2", page.data)
+        self.assertIn(b"(Verify 1 = 2) failed: 1 = 2", page.data)
+        self.assertIn(b'<mark class="ui-excerpt__mark">(Verify 1 = 2)</mark>', page.data)
         self.assertIn(b"ui-step--pass", page.data)
         self.assertIn(b"ui-step--fail", page.data)
         self.assertIn(b"ui-step--not-run", page.data)
@@ -792,6 +794,14 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(f"/workspace/{self.branch}/view?path=plain/lint.rst")
         self.assertIn(b"must come before the first step", page.data)
         self.assertNotIn(b"/runner/new", page.data)
+
+        # Static analysis: shown by the statement, with the name marked
+        page = self.http.get(f"/workspace/{self.branch}/view?path=plain/unknown.rst")
+        self.assertIn(b"This script can&#39;t be queued", page.data)
+        inline = page.data.split(b"ui-diagnostics-inline--")[1]
+        self.assertIn(b"unknown name nope", inline)
+        self.assertIn(b'<mark class="ui-excerpt__mark">nope</mark>', inline)
+        self.assertIn(b"the value of (- 1 1) is not used", page.data)
 
     def dialog(self, **params):
         return self.http.get("/runner/new", query_string={
