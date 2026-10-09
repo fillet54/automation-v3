@@ -4,10 +4,21 @@ Tests of the Vehicle Manager (VM), the flight software on the satellite
 platform's bus computer. The requirements are the ``VM-*`` set in
 ``test/data/requirements/vehicle_manager.rst``.
 
-The tests are written as flows first: most steps are ``(TBD "...")``
-placeholders, to be replaced once the test bench can drive the VM. Steps
-that can be checked already, such as a test's table of expected results
-against the requirement, are real.
+They run against the simulated Vehicle Manager (the ``vm`` UUT of the
+``vm`` plugin), reached through the ``vm`` handle: its telecommand and
+telemetry link through the ``SendTC`` and ``Telemetry`` blocks, and the
+test bench around it (battery and solar array simulators, fault
+injection, power supply) through the handle's methods.
+
+The mode management, power and telecommand tests (``MOD``, ``EPS``,
+``TC``) are written in full. The others are still flows: most of their
+steps are ``(TBD "...")`` placeholders, to be written once the
+simulation covers their subsystem. Every test's first step checks its
+table of cases against the requirement, as written below.
+
+.. rvt::
+
+   (uut :vm)
 
 Numbers from the requirements
 -----------------------------
@@ -78,15 +89,22 @@ on the bench.
 
 Driving the platform
 --------------------
-Shared steps of every test, not written yet.
+Shared steps of every test.
 
 .. rvt::
 
    (defn platform-in-mode? [mode]
-     (TBD "Read the VM mode from housekeeping telemetry and compare it with the given mode"))
+     (= (Telemetry :mode) mode))
 
    (defn command-mode [mode]
-     (TBD "Send the mode transition telecommand for the given mode and wait for its acceptance report"))
+     (BringToMode mode)
+     (Verify (Telemetry :mode) = mode))
 
    (defn power-cycle-bus-computer []
-     (TBD "Power cycle the bus computer from the bench power supply and wait for the first housekeeping packet"))
+     (.reset vm :power-on))
+
+   (defn line-on? [line]
+     (.get (Telemetry :line line) :on))
+
+   (defn now []
+     (Telemetry :time))

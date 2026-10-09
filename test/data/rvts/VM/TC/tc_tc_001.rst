@@ -31,19 +31,26 @@ Steps
 
 .. rvt:: Enable authentication
 
-   (TBD "Enable command authentication and load the test key")
+   (Verify (SendTC :auth-enable :key 42) = :executed)
 
 .. rvt:: Send through transponder A
 
-   (TBD "Send a NO-OP telecommand with the variation's defect through transponder A")
-   (TBD "Verify the result is expected-result, reported within tc-report-limit-s (2 s)")
-   (TBD "Verify the NO-OP counter incremented only if expected-result is executed")
+   (def count-before (Telemetry :noop-count))
+   (Verify (SendTC :noop :defect defect :via :a) = expected-result)
+   (Verify (Telemetry :last-report-latency) <= tc-report-limit-s)
+   (Verify (Telemetry :noop-count)
+           = (if (= expected-result :executed) (+ count-before 1) count-before))
 
 .. rvt:: Send through transponder B
 
-   (TBD "Repeat through transponder B and verify the same result")
+   (Verify (SendTC :noop :defect defect :via :b) = expected-result)
 
 .. rvt:: Order of execution
 
-   (TBD "Send five valid NO-OP telecommands with sequence numbers 1 to 5 in one uplink frame")
-   (TBD "Verify their acceptance reports appear in order 1 to 5")
+   (step "Five NO-OPs, numbered"
+     (SendTC :noop :seq 1)
+     (SendTC :noop :seq 2)
+     (SendTC :noop :seq 3)
+     (SendTC :noop :seq 4)
+     (SendTC :noop :seq 5))
+   (Verify (.report_seqs vm 5) = [1 2 3 4 5])

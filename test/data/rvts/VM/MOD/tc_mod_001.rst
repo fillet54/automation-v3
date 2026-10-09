@@ -2,7 +2,8 @@
 Commanded Mode Transitions
 ==========================
 Commands every mode transition, allowed or not, and checks only the
-allowed ones are made.
+allowed ones are made: an allowed one is executed and reported as a mode
+transition event; any other is rejected and leaves the mode as it was.
 
 Requirements
 ------------
@@ -38,9 +39,17 @@ Steps
 
    (Verify (transition-allowed? from to) = allowed)
 
+.. rvt:: Out of LAUNCH's minimum time
+
+   (if (= from :launch)
+     (RunFor (* 60 launch-mode-minimum-min)))
+
 .. rvt:: Command the transition
 
-   (TBD "Send the mode transition telecommand for the variation's to mode")
-   (TBD "If allowed, verify the mode becomes to within 1 s and a mode transition event is generated")
-   (TBD "If not allowed, verify the telecommand is rejected and the mode is still from")
-   (TBD "Verify exactly one mode is reported active throughout")
+   (def sent-at (now))
+   (Verify (SendTC :set-mode :mode to) = (if allowed :executed :rejected-transition))
+
+.. rvt:: The mode after
+
+   (Verify (Telemetry :mode) = (if allowed to from))
+   (Verify (.had_event vm (if allowed :mode-transition :tc-rejection) sent-at))

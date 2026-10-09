@@ -2,7 +2,13 @@
 Load Shedding
 =============
 Discharges the battery past each state of charge threshold and checks the
-loads shed at each, and that nothing comes back until commanded.
+loads shed at each, then recharges it and checks nothing comes back until
+commanded.
+
+.. note::
+
+   Fails on purpose with VM 3.1.0, which restores shed loads by itself
+   once the battery recovers past 65% (a known defect, fixed in 3.2.0).
 
 Requirements
 ------------
@@ -31,18 +37,37 @@ Steps
 
    (Verify (loads-shed soc-percent) = shed)
 
+.. rvt:: Start from a known state
+
+   (.set_sun vm false)
+   (Verify (SendTC :restore-loads) = :executed)
+   (Verify (SendTC :line-on :line :payload) = :executed)
+
 .. rvt:: State of charge
 
-   (TBD "Set the battery simulator to a known 70% state of charge")
-   (TBD "Verify the reported state of charge is 70% +/- 2% and updates every major frame")
+   (.set_battery vm 70.0)
+   (RunFor 1)
+   (Verify (Telemetry :soc) = 70.0)
+   (Verify (Telemetry :shed) = :none)
 
 .. rvt:: Discharge
 
-   (TBD "Discharge the battery simulator to soc-percent at 2% per minute")
-   (TBD "Verify exactly the loads for shed are off, and each was shed in the load shedding table's order")
+   (.discharge_to vm soc-percent 2.0)
+   (RunFor (* 30 (- 70.0 soc-percent)))
+   (RunFor 5)
+   (Verify (Telemetry :soc) = soc-percent)
+   (Verify (Telemetry :shed) = shed)
+   (Verify (line-on? :payload) = (= shed :none))
+   (Verify (line-on? :bus-computer))
 
 .. rvt:: Recharge
 
-   (TBD "Charge back to 80%")
-   (TBD "Verify the shed loads are still off")
-   (TBD "Command each shed load on and verify it powers on")
+   (.set_sun vm true)
+   (RunFor 8000)
+   (Verify (Telemetry :soc) >= 80.0)
+   (Verify (Telemetry :shed) = shed)
+
+.. rvt:: Restore by command
+
+   (Verify (SendTC :restore-loads) = :executed)
+   (Verify (Telemetry :shed) = :none)

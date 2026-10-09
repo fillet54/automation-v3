@@ -8,10 +8,13 @@ other VMC subsystems are left without scripts on purpose.
 The VM folder tests the Vehicle Manager, the flight software of a
 satellite platform, against its requirements in
 ``test/data/requirements/vehicle_manager.rst`` (written for this project,
-in rst). The tests are written as flows to review: most of their steps
-are ``(TBD "...")`` placeholders, so every run comes out incomplete.
-Their first steps are real: each checks the test's table of expected
-values against the requirement, written once in ``VM/core.rst``.
+in rst), running against a simulated Vehicle Manager (the ``vm`` UUT).
+The MOD, EPS and TC tests are written in full and pass; with VM 3.1.0,
+whose known defect restores shed loads by itself, the load shedding test
+fails. The other subsystems' tests are still flows to review: most of
+their steps are ``(TBD "...")`` placeholders, so they come out
+incomplete. Every VM test first checks its table of expected values
+against the requirement, written once in ``VM/core.rst``.
 
 ================  =================================  =========================
 Script            Shows                              Expected outcome
@@ -28,5 +31,6 @@ FUE/tc_fue_00001  folder core.rst                    pass
 FUE/tc_fue_00002  variations                         pass
 FUE/tc_fue_00003  UUT handle: faults                 pass
 FUE/tc_fue_00004  imports                            pass
-VM/*/tc_*         Vehicle Manager, as TBD flows      incomplete
+VM/MOD, EPS, TC   Vehicle Manager, written in full   pass; EPS 001 fails 3.1.0
+VM/ (the rest)    Vehicle Manager, as TBD flows      incomplete
 ================  =================================  =========================

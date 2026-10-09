@@ -12,6 +12,8 @@ Requirements
 
 .. rvt::
 
+   (def battery-ah 40.0)
+
    (Precondition "Platform in STANDBY"
      (platform-in-mode? :standby)
      :heal "Command the platform to STANDBY"
@@ -22,17 +24,28 @@ Steps
 
 .. rvt:: Charging
 
-   (TBD "Set the battery simulator to 50% and the solar array simulator to full sunlight")
-   (TBD "Verify charge current never exceeds C/5")
-   (TBD "Verify charging stops at 95% state of charge")
+   (Verify (SendTC :line-on :line :star-tracker) = :executed)
+   (.set_battery vm 50.0)
+   (.set_sun vm true)
+   (RunFor 36000)
+   (Verify (Telemetry :max-charge-current) <= (/ battery-ah 5))
+   (Verify (Telemetry :soc) = 95.0)
+   (Verify (Telemetry :charge-current) = 0.0)
 
 .. rvt:: Switching
 
-   (TBD "Switch each power line on and off by telecommand")
-   (TBD "Verify each switches within 100 ms, and telemetry reports its state and current")
+   (Verify (SendTC :line-off :line :star-tracker) = :executed)
+   (Verify (line-on? :star-tracker) = false)
+   (Verify (.get (Telemetry :line :star-tracker) :switch_ms) <= 100)
+   (Verify (SendTC :line-on :line :star-tracker) = :executed)
+   (Verify (line-on? :star-tracker))
 
 .. rvt:: Overcurrent trip
 
-   (TBD "Draw 120% of the star tracker line's trip limit for 5 ms: verify the line stays on")
-   (TBD "Draw it for 15 ms: verify the line switches off")
-   (TBD "Remove the overload and wait 60 s: verify the line stays off")
+   (.overload vm :star-tracker 1.2 5)
+   (Verify (line-on? :star-tracker))
+   (.overload vm :star-tracker 1.2 15)
+   (Verify (line-on? :star-tracker) = false)
+   (Verify (.get (Telemetry :line :star-tracker) :tripped))
+   (RunFor 60)
+   (Verify (line-on? :star-tracker) = false)

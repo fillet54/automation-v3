@@ -1,6 +1,6 @@
-======================
+=======================
 Launch Mode and Resets
-======================
+=======================
 Checks LAUNCH mode after separation, and the mode the VM comes back in
 after each kind of processor reset.
 
@@ -27,14 +27,17 @@ Steps
 
 .. rvt:: First boot after separation
 
-   (TBD "Set the separation switches to separated and clear the first-boot flag")
-   (power-cycle-bus-computer)
-   (TBD "Verify the mode is LAUNCH")
-   (TBD "Command SAFE before launch-mode-minimum-min (30 min) and verify it is rejected")
-   (TBD "Wait 30 minutes, command SAFE and verify the mode becomes SAFE")
+   (.separate vm)
+   (Verify (Telemetry :mode) = :launch)
+   (RunFor (- (* 60 launch-mode-minimum-min) 60))
+   (Verify (SendTC :set-mode :mode :safe) = :rejected-launch-minimum)
+   (RunFor 60)
+   (Verify (SendTC :set-mode :mode :safe) = :executed)
+   (Verify (Telemetry :mode) = :safe)
 
 .. rvt:: Reset and recover
 
    (command-mode before)
-   (TBD "Cause the variation's reset")
-   (TBD "Verify the mode after boot is the variation's after mode")
+   (.reset vm cause)
+   (Verify (Telemetry :reset-cause) = cause)
+   (Verify (Telemetry :mode) = after)

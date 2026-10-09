@@ -21,18 +21,22 @@ Steps
 
 .. rvt:: Fill the queue
 
-   (TBD "Clear the time-tagged queue")
-   (TBD "Upload time-tag-capacity (1000) NO-OP telecommands tagged 1 s apart, starting 60 s from now")
-   (TBD "Verify all 1000 are accepted and the queue reports full")
-   (TBD "Upload one more and verify it is rejected as queue full")
+   (Verify (SendTC :tt-clear) = :executed)
+   (Verify (SendTC :tt-resume) = :executed)
+   (Verify (Telemetry :tt-queue-count) = 0)
+   (Verify (.upload_noops vm time-tag-capacity 60 1) = time-tag-capacity)
+   (Verify (Telemetry :tt-queue-count) = time-tag-capacity)
+   (Verify (SendTC :noop :at (+ (now) 2000)) = :rejected-queue-full)
 
 .. rvt:: Execution times
 
-   (TBD "Wait for the queue to empty, recording each NO-OP's execution time from its event packet")
-   (TBD "Verify every NO-OP executed within 1 s of its time tag")
+   (def count-before (Telemetry :noop-count))
+   (RunFor (+ 60 time-tag-capacity 5))
+   (Verify (Telemetry :tt-queue-count) = 0)
+   (Verify (Telemetry :noop-count) = (+ count-before time-tag-capacity))
+   (Verify (.max_tt_lateness vm) <= 1)
 
 .. rvt:: A stale time tag
 
-   (TBD "Upload a NO-OP tagged stale-time-tag-s + 1 (11 s) in the past")
-   (TBD "Verify it is rejected and does not execute")
-   (TBD "Upload a NO-OP tagged 9 s in the past and verify it executes at once")
+   (Verify (SendTC :noop :at (- (now) (+ stale-time-tag-s 1))) = :rejected-stale)
+   (Verify (SendTC :noop :at (- (now) 9)) = :executed)

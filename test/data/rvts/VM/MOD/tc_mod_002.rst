@@ -1,8 +1,9 @@
 =============================
 Autonomous Entry to SAFE Mode
 =============================
-Requests SAFE mode through FDIR from each mode and checks what the VM
-does on entering it, and that only a telecommand takes it out again.
+Requests SAFE mode through FDIR from each mode, with an attitude error
+held past its persistence time, and checks what the VM does on entering
+SAFE, and that only a telecommand takes it out again.
 
 Requirements
 ------------
@@ -27,20 +28,24 @@ Steps
 
 .. rvt:: Request SAFE mode
 
-   (TBD "Load a time-tagged NO-OP for 10 minutes from now")
-   (TBD "Force an FDIR SAFE request by injecting a 15 deg attitude error for 61 s")
-   (TBD "Verify the mode becomes SAFE")
+   (def noops-before (Telemetry :noop-count))
+   (Verify (SendTC :noop :at (+ (now) 600)) = :queued)
+   (.inject vm :attitude-error 15.0)
+   (RunFor 61)
+   (Verify (Telemetry :mode) = :safe)
 
 .. rvt:: Within 5 s of entering SAFE
 
-   (TBD "Verify the payload power line is off")
-   (TBD "Verify the AOCS reports Sun-pointing as its commanded mode")
-   (TBD "Verify the non-essential loads are off")
-   (TBD "Verify the time-tagged queue reports suspended")
+   (Verify (.safe_entry_delay vm) <= safe-mode-actions-s)
+   (Verify (line-on? :payload) = false)
+   (Verify (Telemetry :attitude-mode) = :sun-pointing)
+   (Verify (line-on? :heater-non-essential) = false)
+   (Verify (Telemetry :tt-suspended))
 
 .. rvt:: Staying in SAFE
 
-   (TBD "Clear the injected attitude error and wait 10 minutes")
-   (TBD "Verify the mode is still SAFE and the time-tagged NO-OP did not execute")
+   (.inject vm :attitude-error 0.0)
+   (RunFor 600)
+   (Verify (Telemetry :mode) = :safe)
+   (Verify (Telemetry :noop-count) = noops-before)
    (command-mode :standby)
-   (TBD "Verify the mode is STANDBY")

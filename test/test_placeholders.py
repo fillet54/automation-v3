@@ -61,27 +61,70 @@ if __name__ == "__main__":
 
 
 class TestVehicleManagerExamples(unittest.TestCase):
-    """The VM sample scripts: clean, and incomplete when run"""
+    """The VM sample scripts against the simulated Vehicle Manager: the
+    MOD, EPS and TC ones pass, the others (still TBD flows) are incomplete"""
 
-    def test_every_variation_runs_to_incomplete(self):
+    WRITTEN = ("MOD", "EPS", "TC")
+
+    def test_every_variation(self):
+        import shutil
+        import tempfile
         from pathlib import Path
 
         from automationv3.framework.closure import resolve
         from automationv3.framework.executor import execute_closure
+        from automationv3.plugins.sample.demo import Sim
+        from automationv3.plugins.vm.sim import VehicleManager
 
         from .test_compose import Recorder
 
         root = Path(__file__).resolve().parent / "data" / "rvts"
         scripts = sorted(str(p.relative_to(root)) for p in (root / "VM").rglob("tc_*.rst"))
         self.assertEqual(len(scripts), 24)
+        workdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, workdir)
+        env, uut = Sim(workdir=workdir), VehicleManager()
+        version = uut.list_versions()[-1]
+        uut.install(version, env)
         for script in scripts:
             closure = resolve(root, script)
             self.assertEqual(closure.errors, [], script)
+            expected = "pass" if script.split("/")[1] in self.WRITTEN else "incomplete"
             for variation in [v.name for v in closure.variations] or [None]:
                 with self.subTest(script=script, variation=variation):
-                    outcome = execute_closure(closure.files, closure.load_order,
-                                              Recorder(), closure.imports, variation)
-                    self.assertEqual(outcome, "incomplete")
+                    uut.start(version, env)
+                    recorder = Recorder()
+                    outcome = execute_closure(
+                        closure.files, closure.load_order, recorder, closure.imports,
+                        variation, bindings={"vm": uut.handle(version, env)})
+                    failed = [e.get("message") for e in recorder.of("step_end")
+                              if not e["passed"]]
+                    self.assertEqual(outcome, expected, failed)
+
+    def test_the_known_defect_of_3_1_0_fails_load_shedding(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+
+        from automationv3.framework.closure import resolve
+        from automationv3.framework.executor import execute_closure
+        from automationv3.plugins.sample.demo import Sim
+        from automationv3.plugins.vm.sim import VehicleManager
+
+        from .test_compose import Recorder
+
+        root = Path(__file__).resolve().parent / "data" / "rvts"
+        closure = resolve(root, "VM/EPS/tc_eps_001.rst")
+        workdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, workdir)
+        env, uut = Sim(workdir=workdir), VehicleManager()
+        old = next(v for v in uut.list_versions() if v.id == "3.1.0")
+        uut.install(old, env)
+        uut.start(old, env)
+        outcome = execute_closure(closure.files, closure.load_order, Recorder(),
+                                  closure.imports, "below-60",
+                                  bindings={"vm": uut.handle(old, env)})
+        self.assertEqual(outcome, "fail")
 
 
 if __name__ == "__main__":
