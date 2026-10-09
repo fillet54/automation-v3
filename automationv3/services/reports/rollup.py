@@ -7,7 +7,8 @@ its latest run:
 
 - red: the latest run of any linked combination failed
 - green: the latest run of every linked combination passed
-- partial: anything else (not run yet, pending, blocked or error)
+- partial: anything else (not run yet, pending, blocked, error, or
+  incomplete: a script with steps still to be written)
 
 Linked scripts that weren't queued, and variations that were left out,
 count as not run.

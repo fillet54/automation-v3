@@ -566,7 +566,7 @@ def find_workers(conn, since=None):
 # call these, so the rules live in one place: only the worker holding a
 # job may act on it.
 
-OUTCOMES = ["pass", "fail", "blocked", "error"]
+OUTCOMES = ["pass", "fail", "blocked", "error", "incomplete"]
 
 
 class NoSuchJob(LookupError):

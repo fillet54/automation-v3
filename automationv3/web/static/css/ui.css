@@ -474,6 +474,7 @@ body.ui {
 .ui-outcome--claimed, .ui-outcome--running { --ui-tone: var(--ui-info); }
 .ui-outcome--pending { background: transparent; border-color: color-mix(in srgb, var(--ui-tone) 40%, transparent); }
 .ui-outcome--not-run { --ui-tone: var(--ui-faint); background: transparent; border: 1px dotted currentColor; }
+.ui-outcome--incomplete, .ui-outcome--tbd { --ui-tone: var(--ui-info); background: transparent; border: 1px dashed color-mix(in srgb, var(--ui-tone) 60%, transparent); }
 .ui-outcome--true { --ui-tone: var(--ui-ink); background: transparent; border-color: color-mix(in srgb, var(--ui-tone) 30%, transparent); }
 .ui-outcome--false { background: transparent; border-color: color-mix(in srgb, var(--ui-tone) 30%, transparent); }
 
@@ -691,3 +692,9 @@ body.ui {
 .ui-diagnostic--warning .ui-excerpt__mark { text-decoration-color: var(--ui-warning, #b7791f); }
 .ui-diagnostics-inline { margin: 4px 0 8px; display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; border-left: 3px solid var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 4%, var(--ui-paper)); }
 .ui-diagnostics-inline--warning { border-left-color: var(--ui-warning, #b7791f); background: color-mix(in srgb, var(--ui-warning, #b7791f) 5%, var(--ui-paper)); }
+
+/* Steps not written yet: (TBD "...") */
+.ui-step--tbd { --ui-tone: var(--ui-info); }
+.ui-tbd { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border: 1px dashed color-mix(in srgb, var(--ui-info) 55%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-paper)); }
+.ui-tbd__label { flex: none; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-info); }
+.ui-tbd__text { color: var(--ui-ink); }

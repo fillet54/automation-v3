@@ -40,7 +40,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 
 from . import context, edn, lisp
-from .block import ASSERTION, VALUE, BlockResult, block_names, find_block
+from .block import ASSERTION, PLACEHOLDER, VALUE, BlockResult, block_names, find_block
 
 
 class StepFailed(Exception):
@@ -74,6 +74,7 @@ class Runtime:
         self.calls = 0
         self.frames = [Frame()]
         self.phase = None  # the precondition phase running, numbered from 1
+        self.placeholders = 0  # TBD steps reached
 
     @property
     def frame(self):
@@ -95,6 +96,8 @@ class Runtime:
         frame = self.frame
         self.calls += 1
         call = self.calls
+        if kind == PLACEHOLDER:
+            self.placeholders += 1
         details = dict(index=self.index, call=call, parent=frame.parent,
                        depth=frame.depth, quiet=frame.quiet,
                        suppressed=frame.suppressed, block_kind=kind)
@@ -357,6 +360,8 @@ def _run_statement(form, env, runtime):
             if block is None:
                 return failure(f"No form of {name} matches {text(form)}: "
                                f"see its usage, {usage_of(name)}")
+            if block.block.kind == PLACEHOLDER:
+                runtime.placeholders += 1
             result = run_block(block, env)
             if result:
                 result.value = call_value(block, result)

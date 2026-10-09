@@ -47,7 +47,7 @@
 {#- A titled rvt block collapsed to its title, with its steps' state on a run's page; open if it failed or is
     running, so a run shows where it stands. #}
 {% macro titled_block(entry, render, only=None) -%}
-<details class="ui-titled"{% if entry.state in ("fail", "error", "running") or entry.diagnostics %} open{% endif %}>
+<details class="ui-titled"{% if entry.state in ("fail", "error", "running") or entry.diagnostics or entry.todo %} open{% endif %}>
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-titled__title">{{ entry.title }}</span>{{ only_for(only) }}
     {%- if entry.state %}<span class="ui-titled__state">
       {%- if entry.duration is not none %}<span class="ui-duration" title="Duration of its steps">{{ entry.duration | duration }}</span>{% endif %}

@@ -22,7 +22,8 @@ and returns Diagnostics:
   block accepts, a malformed special form, a removed form (defblock,
   passes?);
 - warnings: a definition that shadows a block, a builtin or a core.rst
-  definition, and a step whose value is thrown away (a step only fails
+  definition, steps still to be written (TBD), and a step whose value is
+  thrown away (a step only fails
   through a block, so `(- 10 10)` or `(= a b)` on its own checks
   nothing).
 
@@ -187,7 +188,23 @@ class Analyzer:
             self.found = []
             self.analyze_variation(variation)
             per_variation[variation] = self.found
-        return merge(per_variation, variations)
+        return merge(per_variation, variations) + self.placeholders()
+
+    def placeholders(self):
+        """One warning for the steps of the script still to be written"""
+        count = 0
+        stack = [part.form for part in self.parts[self.script] if not part.prose]
+        while stack:
+            form = stack.pop()
+            if isinstance(form, list):
+                if head(form) == "TBD":
+                    count += 1
+                stack.extend(form)
+        if not count:
+            return []
+        steps = "step is" if count == 1 else "steps are"
+        return [Diagnostic(WARNING, f"{count} {steps} still to be written (TBD): a run "
+                           "can't pass until they are", path=self.script)]
 
     def analyze_variation(self, variation):
         closure = self.closure

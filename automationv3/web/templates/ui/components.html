@@ -462,6 +462,7 @@
   "pending": ("pending", "Queued"), "claimed": ("claimed", "Claimed"), "running": ("running", "Running"),
   "not run": ("not-run", "Not run"), "unknown": ("not-run", "Unknown"),
   "true": ("true", "True"), "false": ("false", "False"),
+  "incomplete": ("incomplete", "Incomplete"), "tbd": ("tbd", "To do"),
   "green": ("pass", "Green"), "partial": ("partial", "Partial"), "red": ("fail", "Red"),
   "available": ("available", "Available"), "busy": ("running", "Busy"), "missing": ("fail", "Missing"),
 } %}
@@ -477,6 +478,8 @@
   {%- elif kind == "running" %}<circle cx="8" cy="8" r="6"/><path d="M8 2 A6 6 0 0 1 8 14 Z" fill="currentColor"/>
   {%- elif kind == "partial" %}<circle cx="8" cy="8" r="6"/><path d="M2 8 A6 6 0 0 0 14 8 Z" fill="currentColor"/>
   {%- elif kind == "not-run" %}<circle cx="8" cy="8" r="6" stroke-dasharray="1 2.6"/>
+  {%- elif kind == "incomplete" %}<circle cx="8" cy="8" r="6" stroke-dasharray="3 2"/><path d="M8 2 A6 6 0 0 1 14 8 L8 8 Z" fill="currentColor" stroke="none"/>
+  {%- elif kind == "tbd" %}<circle cx="8" cy="8" r="6" stroke-dasharray="3 2"/><path d="M5.5 8 L10.5 8"/>
   {%- elif kind == "true" %}<circle cx="8" cy="8" r="6"/><path d="M5.3 8.2 L7.2 10 L10.7 6.2"/>
   {%- elif kind == "false" %}<circle cx="8" cy="8" r="6"/><path d="M5.5 8 L10.5 8"/>
   {%- else %}<circle cx="8" cy="8" r="6"/>{% endif -%}

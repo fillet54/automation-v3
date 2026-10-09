@@ -21,6 +21,10 @@ Blocks limited to other variations (`:variations:`, see document.py)
 are skipped without being reported: their steps don't run and their
 definitions aren't loaded.
 
+Steps not written yet, (TBD "..."), are reported as such and the run
+goes on; a run that reached any can't pass: if nothing else stopped it,
+its outcome is "incomplete".
+
 The first failing step stops the script and later statements are not
 reported. The outcome is "fail" if an assertion came out false, and
 "error" if something raised: a block, or the script's own code (an
@@ -122,8 +126,8 @@ def execute_script(text, observer, script=None, env=None, mode="normal",
     """Run the statements of `text` in order, as `variation` (a name) if
     given.
 
-    Returns "pass", "fail", "error", "blocked", or (in probe mode)
-    "released".
+    Returns "pass", "fail", "error", "blocked", "incomplete" (it passed
+    as far as it is written), or (in probe mode) "released".
     """
     env = env if env is not None else new_env()
     with context.running(env):
@@ -136,6 +140,7 @@ def _execute(text, observer, script, env, mode, variation):
     preloaded = set(document.definitions_section(parts))
 
     outcome = "pass"
+    placeholders = 0
     for index, part in enumerate(parts):
         form = part.form
         if not part.applies(variation):
@@ -150,6 +155,7 @@ def _execute(text, observer, script, env, mode, variation):
                 break
         elif is_step(form):
             result = _run_step(form, env, observer, index)
+            placeholders += getattr(result, "placeholders", 0)
             if not result:
                 if head(form) == PRECONDITION:
                     outcome = "released" if mode == "probe" else "blocked"
@@ -157,6 +163,8 @@ def _execute(text, observer, script, env, mode, variation):
                     outcome = "error" if result.error else "fail"
                 break
 
+    if outcome == "pass" and placeholders:
+        outcome = "incomplete"
     observer.on_procedure_end(outcome=outcome)
     return outcome
 
@@ -197,6 +205,9 @@ def _run_step(form, env, observer, index):
     run = run_precondition if precondition else run_statement
     with running_statement(runtime):
         result = run(form, env, runtime)
+    result.placeholders = runtime.placeholders
+    if runtime.placeholders:
+        details["placeholders"] = runtime.placeholders
     observer.on_step_end(passed=bool(result), error=result.error,
                          stdout=result.stdout, stderr=result.stderr,
                          duration=elapsed(started), **failure_details(result),

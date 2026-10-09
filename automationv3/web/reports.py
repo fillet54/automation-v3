@@ -149,9 +149,10 @@ def failure_of(files, ended):
 
 
 def step_state(ended):
-    """pass, fail (an assertion came out false) or error (something raised)"""
+    """pass, fail (an assertion came out false), error (something raised)
+    or tbd (it passed, but reached steps not written yet)"""
     if ended["passed"]:
-        return "pass"
+        return "tbd" if ended.get("placeholders") else "pass"
     return "error" if ended.get("error") else "fail"
 
 
@@ -162,6 +163,8 @@ def call_state(call):
         return "running"
     if call.get("suppressed") or call.get("checked"):  # checked: older runs
         return "true" if call["passed"] else "false"
+    if call.get("block_kind") == "placeholder":
+        return "tbd"
     return step_state(call)
 
 

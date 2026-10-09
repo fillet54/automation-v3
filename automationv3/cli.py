@@ -208,8 +208,9 @@ class ConsoleObserver:
         print(f"\n{script}{' (' + where + ')' if where else ''}, {mode} mode")
 
     def on_step_end(self, form=None, passed=True, stdout="", stderr="",
-                    precondition=False, error=False, **kw):
-        mark = "ok  " if passed else ("ERR " if error else "FAIL")
+                    precondition=False, error=False, placeholders=0, **kw):
+        mark = ("TODO" if placeholders else "ok  ") if passed else \
+            ("ERR " if error else "FAIL")
         label = "precondition " if precondition else ""
         print(f"  {mark} {label}step {kw.get('index')}"
               f"{': ' + stdout if stdout else ''}")

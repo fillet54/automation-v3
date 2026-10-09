@@ -33,7 +33,8 @@ from .context import calling, evaluate
 ACTION = "action"
 ASSERTION = "assertion"
 VALUE = "value"
-KINDS = (ACTION, ASSERTION, VALUE)
+PLACEHOLDER = "placeholder"  # a step not written yet: see plugins/core/tbd.py
+KINDS = (ACTION, ASSERTION, VALUE, PLACEHOLDER)
 
 
 @dataclass

@@ -18,7 +18,7 @@ from itertools import groupby
 from ..framework.language import head
 
 # A titled block's state is its most telling step's: earlier wins
-STATE_ORDER = ["error", "fail", "running", "pending", "not run", "pass"]
+STATE_ORDER = ["error", "fail", "running", "pending", "not run", "tbd", "pass"]
 
 
 def group(items, variation=None):
@@ -77,6 +77,7 @@ def group_blocks(items):
             entries.append(("titled", {"title": key[1], "state": block_state(run),
                                        "duration": block_duration(run),
                                        "diagnostics": any(i.get("diagnostics") for i in run),
+                                       "todo": any(i.get("directive") == "TBD" for i in run),
                                        "entries": group_definitions(run)}))
     return entries
 
