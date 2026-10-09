@@ -1,53 +1,29 @@
-==================
-Watchdog Servicing
-==================
-Checks the VM services the hardware watchdog while healthy, and stops
-servicing it (so the watchdog resets the processor) when a task stops
-running or minor frames keep overrunning.
+====================
+Minor Frame Overruns
+====================
+Checks no minor frame overruns in normal running, then forces one and
+checks it is counted and reported.
 
 Requirements
 ------------
-1. :req:`VM-EXE-003`
+1. :req:`VM-EXE-002`
 
 .. rvt::
 
-   (variations "fault"
-     ["healthy"         [:none]
-      "task-stalled"    [:stall-telemetry-task]
-      "repeated-overrun" [:overrun-every-frame]])
-
-   (Precondition "Platform in STANDBY"
-     (platform-in-mode? :standby)
-     :heal "Command the platform to STANDBY"
-     (command-mode :standby))
+   (Precondition "Platform in NOMINAL"
+     (platform-in-mode? :nominal)
+     :heal "Command the platform to NOMINAL"
+     (command-mode :nominal))
 
 Steps
 -----
 
-.. rvt:: Watch the watchdog line
+.. rvt:: No overruns
 
-   (TBD "Connect the logic analyser to the watchdog service line")
-   (TBD "Verify the service interval is under watchdog-service-ms (500 ms) for 60 s")
+   (TBD "Record 600 major frames and verify the overrun count did not change")
 
-.. rvt:: Inject the fault
+.. rvt:: Force an overrun
 
-   (TBD "Inject the variation's fault with the fault injection telecommand")
-
-.. rvt-variant::
-   :variations: healthy
-
-   With no fault, servicing continues.
-
-   .. rvt:: Still serviced
-
-      (TBD "Verify the service interval stays under 500 ms for a further 60 s")
-
-.. rvt-variant::
-   :variations: task-stalled, repeated-overrun
-
-   With a fault, servicing stops and the watchdog resets the processor.
-
-   .. rvt:: Watchdog reset
-
-      (TBD "Verify servicing stops within two periods of the stalled task, or within 10 overrun minor frames")
-      (TBD "Verify the processor resets and the reset cause reads watchdog after boot")
+   (TBD "Enable the test task that busy-waits 150 ms in one minor frame, once")
+   (TBD "Verify the overrun count increments by exactly 1")
+   (TBD "Verify an overrun event packet is generated")

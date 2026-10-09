@@ -1,51 +1,39 @@
 ========================
-Charging and Power Lines
+Load Shedding Thresholds
 ========================
-Checks the battery charge current limit and end of charge, power line
-switching times, and the overcurrent trip.
+Discharges the battery past each state of charge threshold, one after
+the other, and checks the loads shed at each.
 
 Requirements
 ------------
-1. :req:`VM-EPS-004`
-2. :req:`VM-EPS-005`
-3. :req:`VM-EPS-006`
+1. :req:`VM-EPS-002`
 
 .. rvt::
 
-   (def battery-ah 40.0)
-
-   (Precondition "Platform in STANDBY"
-     (platform-in-mode? :standby)
-     :heal "Command the platform to STANDBY"
-     (command-mode :standby))
+   (Precondition "Platform in NOMINAL"
+     (platform-in-mode? :nominal)
+     :heal "Command the platform to NOMINAL"
+     (command-mode :nominal))
 
 Steps
 -----
 
-.. rvt:: Charging
+.. rvt:: Each threshold
+   :table:
 
-   (Verify (SendTC :line-on :line :star-tracker) = :executed)
-   (.set_battery vm 50.0)
-   (.set_sun vm true)
-   (RunFor 36000)
-   (Verify (Telemetry :max-charge-current) <= (/ battery-ah 5))
-   (Verify (Telemetry :soc) = 95.0)
-   (Verify (Telemetry :charge-current) = 0.0)
+   ("soc-percent shed"
+     ["above-all" [65.0 :none]
+      "below-60"  [59.0 :payload]
+      "below-50"  [49.0 :non-essential-heaters]
+      "at-40"     [40.0 :non-essential-heaters]
+      "below-40"  [39.0 :all-but-essential]])
 
-.. rvt:: Switching
-
-   (Verify (SendTC :line-off :line :star-tracker) = :executed)
-   (Verify (line-on? :star-tracker) = false)
-   (Verify (.get (Telemetry :line :star-tracker) :switch_ms) <= 100)
-   (Verify (SendTC :line-on :line :star-tracker) = :executed)
-   (Verify (line-on? :star-tracker))
-
-.. rvt:: Overcurrent trip
-
-   (.overload vm :star-tracker 1.2 5)
-   (Verify (line-on? :star-tracker))
-   (.overload vm :star-tracker 1.2 15)
-   (Verify (line-on? :star-tracker) = false)
-   (Verify (.get (Telemetry :line :star-tracker) :tripped))
-   (RunFor 60)
-   (Verify (line-on? :star-tracker) = false)
+   (Verify (loads-shed soc-percent) = shed)
+   (.set_sun vm false)
+   (SendTC :restore-loads)
+   (.set_battery vm 70.0)
+   (.discharge_to vm soc-percent 2.0)
+   (RunFor (+ 5 (* 30 (- 70.0 soc-percent))))
+   (Verify (Telemetry :soc) = soc-percent)
+   (Verify (Telemetry :shed) = shed)
+   (Verify (line-on? :bus-computer))

@@ -10,11 +10,18 @@ telemetry link through the ``SendTC`` and ``Telemetry`` blocks, and the
 test bench around it (battery and solar array simulators, fault
 injection, power supply) through the handle's methods.
 
+Each script tests one requirement (a few requirements have more than one
+script). Cases that can run one after the other on the platform as it is
+are rows of a table block; a case that needs its own run, such as one
+that starts from separation or a different software load, is a
+variation.
+
 The mode management, power and telecommand tests (``MOD``, ``EPS``,
-``TC``) are written in full. The others are still flows: most of their
-steps are ``(TBD "...")`` placeholders, to be written once the
-simulation covers their subsystem. Every test's first step checks its
-table of cases against the requirement, as written below.
+``TC``, and ``MEM/tc_mem_006``) are written in full. The others are still
+flows: most of their steps are ``(TBD "...")`` placeholders, to be
+written once the simulation covers their subsystem. Where a test has a
+table of cases, its first step checks the table against the requirement,
+as written below.
 
 .. rvt::
 
@@ -53,6 +60,9 @@ Each test's table of cases is checked against these before anything runs
 on the bench.
 
 .. rvt::
+
+   (defn known-mode? [mode]
+     (> (.count [:launch :safe :standby :nominal :maneuver] mode) 0))
 
    (defn boot-image [primary-ok quick-resets]
      (if (and primary-ok (< quick-resets quick-resets-for-backup)) :primary :backup))

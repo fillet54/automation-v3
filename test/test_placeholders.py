@@ -61,10 +61,8 @@ if __name__ == "__main__":
 
 
 class TestVehicleManagerExamples(unittest.TestCase):
-    """The VM sample scripts against the simulated Vehicle Manager: the
-    MOD, EPS and TC ones pass, the others (still TBD flows) are incomplete"""
-
-    WRITTEN = ("MOD", "EPS", "TC")
+    """The VM sample scripts against the simulated Vehicle Manager: those
+    written in full pass, the others (with TBD steps) are incomplete"""
 
     def test_every_variation(self):
         import shutil
@@ -80,7 +78,7 @@ class TestVehicleManagerExamples(unittest.TestCase):
 
         root = Path(__file__).resolve().parent / "data" / "rvts"
         scripts = sorted(str(p.relative_to(root)) for p in (root / "VM").rglob("tc_*.rst"))
-        self.assertEqual(len(scripts), 24)
+        self.assertEqual(len(scripts), 66)
         workdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, workdir)
         env, uut = Sim(workdir=workdir), VehicleManager()
@@ -89,7 +87,7 @@ class TestVehicleManagerExamples(unittest.TestCase):
         for script in scripts:
             closure = resolve(root, script)
             self.assertEqual(closure.errors, [], script)
-            expected = "pass" if script.split("/")[1] in self.WRITTEN else "incomplete"
+            expected = "incomplete" if "(TBD" in (root / script).read_text() else "pass"
             for variation in [v.name for v in closure.variations] or [None]:
                 with self.subTest(script=script, variation=variation):
                     uut.start(version, env)
@@ -114,7 +112,7 @@ class TestVehicleManagerExamples(unittest.TestCase):
         from .test_compose import Recorder
 
         root = Path(__file__).resolve().parent / "data" / "rvts"
-        closure = resolve(root, "VM/EPS/tc_eps_001.rst")
+        closure = resolve(root, "VM/EPS/tc_eps_003.rst")
         workdir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, workdir)
         env, uut = Sim(workdir=workdir), VehicleManager()
@@ -122,7 +120,7 @@ class TestVehicleManagerExamples(unittest.TestCase):
         uut.install(old, env)
         uut.start(old, env)
         outcome = execute_closure(closure.files, closure.load_order, Recorder(),
-                                  closure.imports, "below-60",
+                                  closure.imports, None,
                                   bindings={"vm": uut.handle(old, env)})
         self.assertEqual(outcome, "fail")
 

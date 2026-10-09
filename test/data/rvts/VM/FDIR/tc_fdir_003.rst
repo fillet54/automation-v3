@@ -1,37 +1,30 @@
-==================
-SAFE Mode Triggers
-==================
-Holds each SAFE mode trigger just below and just past its persistence
-time, and checks SAFE mode is requested only past it.
+================================
+Enabling Monitors and Recoveries
+================================
+Disables a monitor, then only its recovery, and checks each takes
+effect.
 
 Requirements
 ------------
-1. :req:`VM-FDIR-005`
+1. :req:`VM-FDIR-003`
 
 .. rvt::
 
-   (variations "trigger held-s requests-safe"
-     ["attitude-59s"      [:attitude-error-11deg 59 false]
-      "attitude-61s"      [:attitude-error-11deg 61 true]
-      "battery-9s"        [:soc-39-percent 9 false]
-      "battery-11s"       [:soc-39-percent 11 true]
-      "uplink-71h"        [:no-uplink 255600 false]
-      "uplink-73h"        [:no-uplink 262800 true]
-      "recovery-stuck"    [:uncleared-fault 301 true]])
-
-   (Precondition "Platform in NOMINAL"
-     (platform-in-mode? :nominal)
-     :heal "Command the platform to NOMINAL"
-     (command-mode :nominal))
+   (Precondition "Platform in STANDBY"
+     (platform-in-mode? :standby)
+     :heal "Command the platform to STANDBY"
+     (command-mode :standby))
 
 Steps
 -----
 
-.. rvt:: Hold the trigger
+.. rvt:: Each setting
+   :table:
 
-   (TBD "Apply the variation's trigger on the bench for held-s seconds, then remove it")
+   ("monitor recovery violation action"
+     ["both enabled"      [true true true true]
+      "monitor disabled"  [false true false false]
+      "recovery disabled" [true false true false]])
 
-.. rvt:: SAFE or not
-
-   (TBD "If requests-safe, verify the mode becomes SAFE within 1 s of the persistence time")
-   (TBD "If not, verify the mode stays NOMINAL")
+   (TBD "Set the battery temperature monitor and its recovery as the row says")
+   (TBD "Drive +31 degC for 10 s; verify the violation and the action happen as the row says")

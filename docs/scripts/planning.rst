@@ -67,13 +67,13 @@ Examples
 --------
 
 The ``VM`` folder of the sample set holds tests written this way, for the
-Vehicle Manager of a satellite platform: 24 scripts across ten subsystems
+Vehicle Manager of a satellite platform: 66 scripts across ten subsystems
 (executive, telecommand, telemetry, modes, FDIR, attitude control, power,
 thermal, time and storage), testing the 64 requirements of
 ``test/data/requirements/vehicle_manager.rst``. The mode, power and
 telecommand tests have since been written in full, against a simulated
 Vehicle Manager; the others are still flows and come out incomplete. Compare
-the two kinds side by side: the flow below, and ``VM/EPS/tc_eps_001.rst``
+the two kinds side by side: the flow below, and ``VM/EPS/tc_eps_002.rst``
 written out.
 
 .. literalinclude:: ../../test/data/rvts/VM/FDIR/tc_fdir_003.rst

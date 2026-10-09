@@ -1,35 +1,24 @@
-====================
-Redundancy Switching
-====================
-Fails each redundant unit and checks the VM switches to its redundant
-partner.
+================
+Recovery Actions
+================
+Declares a limit violation and checks its recovery action runs within
+1 s.
 
 Requirements
 ------------
-1. :req:`VM-FDIR-004`
+1. :req:`VM-FDIR-002`
 
 .. rvt::
 
-   (variations "unit failure"
-     ["transponder"     [:transponder-a "no receiver lock for 24 h"]
-      "star-tracker"    [:star-tracker-a "no valid attitude for 30 s"]
-      "reaction-wheel"  [:wheel-3 "speed error above limit for 10 s"]
-      "charge-regulator" [:bcr-a "output current zero in sunlight for 60 s"]])
-
-   (Precondition "Platform in NOMINAL"
-     (platform-in-mode? :nominal)
-     :heal "Command the platform to NOMINAL"
-     (command-mode :nominal))
+   (Precondition "Platform in STANDBY"
+     (platform-in-mode? :standby)
+     :heal "Command the platform to STANDBY"
+     (command-mode :standby))
 
 Steps
 -----
 
-.. rvt:: Fail the unit
+.. rvt:: Recover
 
-   (TBD "Inject the variation's failure on its unit with the bench fault injector")
-
-.. rvt:: Switch-over
-
-   (TBD "Verify the VM powers off the failed unit and powers on its redundant partner")
-   (TBD "Verify the function is restored: link locked, attitude valid, three-wheel control, or charging")
-   (TBD "Verify a recovery event names the failed unit")
+   (TBD "Drive the battery temperature to +31 degC for 3 s")
+   (TBD "Verify the battery heater is off within 1 s of the violation")

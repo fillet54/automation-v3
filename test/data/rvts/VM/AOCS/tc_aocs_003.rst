@@ -1,29 +1,19 @@
-==================
-Momentum Unloading
-==================
-Builds up reaction wheel momentum and checks the magnetorquers unload it
-once any wheel passes 80% of its capacity.
+=============================
+Rate Damping After Separation
+=============================
+Replays separation with the platform tumbling and checks rate damping,
+then Sun acquisition once the rates are low for 60 s.
 
 Requirements
 ------------
-1. :req:`VM-AOCS-006`
-
-.. rvt::
-
-   (Precondition "Platform in NOMINAL"
-     (platform-in-mode? :nominal)
-     :heal "Command the platform to NOMINAL"
-     (command-mode :nominal))
+1. :req:`VM-AOCS-003`
 
 Steps
 -----
 
-.. rvt:: Build up momentum
+.. rvt:: Tumbling
 
-   (TBD "Apply a constant simulated disturbance torque about the pitch axis")
-   (TBD "Verify the magnetorquers stay off while every wheel is below wheel-unload-fraction (80%)")
-
-.. rvt:: Unload
-
-   (TBD "Verify unloading starts within one control cycle of the pitch wheel passing 80%")
-   (TBD "Verify the wheel momentum falls back below 80% and the attitude error stays under 1 deg")
+   (.separate vm)
+   (TBD "Start the dynamics simulator tumbling at 3 deg/s per axis")
+   (TBD "Verify the VM commands rate damping")
+   (TBD "Verify Sun acquisition is commanded only after all body rates stay below body-rate-limit-dps (0.5 deg/s) for 60 s")

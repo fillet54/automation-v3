@@ -1,13 +1,12 @@
-========================
-Time-Tagged Telecommands
-========================
-Fills the time-tagged queue, checks each command executes within 1 s of
-its time tag, and that a stale time tag is rejected.
+======================
+Telecommand Validation
+======================
+Sends a valid NO-OP and one with each kind of defect, with command
+authentication enabled, and checks only the valid one executes.
 
 Requirements
 ------------
-1. :req:`VM-TC-005`
-2. :req:`VM-TC-006`
+1. :req:`VM-TC-002`
 
 .. rvt::
 
@@ -19,24 +18,21 @@ Requirements
 Steps
 -----
 
-.. rvt:: Fill the queue
+.. rvt:: Enable authentication
 
-   (Verify (SendTC :tt-clear) = :executed)
-   (Verify (SendTC :tt-resume) = :executed)
-   (Verify (Telemetry :tt-queue-count) = 0)
-   (Verify (.upload_noops vm time-tag-capacity 60 1) = time-tag-capacity)
-   (Verify (Telemetry :tt-queue-count) = time-tag-capacity)
-   (Verify (SendTC :noop :at (+ (now) 2000)) = :rejected-queue-full)
+   (Verify (SendTC :auth-enable :key 42) = :executed)
 
-.. rvt:: Execution times
+.. rvt:: Each defect
+   :table:
 
-   (def count-before (Telemetry :noop-count))
-   (RunFor (+ 60 time-tag-capacity 5))
-   (Verify (Telemetry :tt-queue-count) = 0)
-   (Verify (Telemetry :noop-count) = (+ count-before time-tag-capacity))
-   (Verify (.max_tt_lateness vm) <= 1)
+   ("defect expected-result"
+     ["valid"             [:none :executed]
+      "bad CRC"           [:crc :rejected-crc]
+      "short packet"      [:length :rejected-length]
+      "argument too high" [:argument :rejected-range]
+      "unauthenticated"   [:authentication :rejected-authentication]])
 
-.. rvt:: A stale time tag
-
-   (Verify (SendTC :noop :at (- (now) (+ stale-time-tag-s 1))) = :rejected-stale)
-   (Verify (SendTC :noop :at (- (now) 9)) = :executed)
+   (let [before (Telemetry :noop-count)]
+     (Verify (SendTC :noop :defect defect) = expected-result)
+     (Verify (Telemetry :noop-count)
+             = (if (= expected-result :executed) (+ before 1) before)))

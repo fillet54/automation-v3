@@ -42,6 +42,11 @@ The title
    the script under each one. Put them anywhere in the prose; a numbered
    "Requirements" section is the convention.
 
+   Aim for one requirement per script, so a failure points at one
+   requirement and a requirement's status reads straight off its scripts. A
+   requirement can have several scripts (say, one for the cases that need
+   their own run); when splitting isn't practical, list them all.
+
 ``.. rvt::``
    A block of script code. Each top-level form in it is one statement:
    a step, a definition, or a directive. Blocks run in document order, so a

@@ -94,8 +94,10 @@ class Variation:
     forms: list  # one unevaluated value form per symbol
 
 
-def parse_variations(path, form, errors):
-    """The Variations declared by a (variations SYMBOLS [NAME VALUES ...]) form"""
+def parse_variations(path, form, errors, commas=False):
+    """The Variations declared by a (variations SYMBOLS [NAME VALUES ...]) form.
+    Variation names can't hold commas (they are listed with commas when
+    picked); with `commas`, as for table rows, they can."""
     if len(form) != 3:
         errors.append(f"{path}: variations takes symbol names and a vector of rows")
         return []
@@ -118,7 +120,7 @@ def parse_variations(path, form, errors):
         if not is_text(name):
             errors.append(f"{path}: variation name {edn.writes(name)} "
                           "must be a string")
-        elif "," in name:
+        elif "," in name and not commas:
             errors.append(f"{path}: variation name {name} may not contain a comma")
         elif any(v.name == name for v in variations):
             errors.append(f"{path}: variation {name} is declared twice")
@@ -143,7 +145,8 @@ def parse_table(path, form, errors):
                       '("symbol ..." ["row" [value ...] ...])')
         return []
     found = []
-    rows = parse_variations(path, [edn.Symbol("table"), form[0], form[1]], found)
+    rows = parse_variations(path, [edn.Symbol("table"), form[0], form[1]], found,
+                            commas=True)
     errors.extend(message.replace("variations", "table rows")
                   .replace("variation", "row") for message in found)
     return rows
