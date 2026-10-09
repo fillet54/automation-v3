@@ -67,6 +67,7 @@ def heading(title, underline):
 def block_rst(block):
     cls = type(block)
     lines = [f".. _block-{block.name()}:", "", *heading(block.name(), "~")]
+    lines += [f"*{block.kind.capitalize()}*", ""]
     lines += [".. code-block:: clojure", "   :class: block-usage", "",
               *indent(block.usage()), ""]
     doc = block.doc()

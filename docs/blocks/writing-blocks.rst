@@ -3,8 +3,8 @@ Writing a BuildingBlock
 
 .. rst-class:: lead
 
-   A BuildingBlock is a step scripts call by name. It checks its arguments,
-   runs, and returns a result that says whether it passed.
+   A BuildingBlock is a step scripts call by name: an action, an assertion or
+   a value. It checks its arguments, runs, and returns what it did or found.
 
 The smallest block
 ------------------
@@ -25,7 +25,6 @@ The smallest block
 
        def execute(self, seconds):
            time.sleep(seconds)
-           return BlockResult(True)
 
 Scripts call it as ``(Wait 5)``. The class name is the name scripts use;
 override ``name()`` to choose another (``TableDriven`` is called as
@@ -37,10 +36,24 @@ writers; see :ref:`documenting-blocks`.
 The parts of a block
 --------------------
 
+``kind``
+   ``ACTION`` (the default), ``ASSERTION`` or ``VALUE``, from
+   :mod:`automationv3.framework.block`. It decides what a call gives the code
+   around it and how the call reads in a report:
+
+   - an action does something; a call gives back what ``execute`` returned;
+   - an assertion checks something; a call gives back ``true`` or ``false``,
+     and a false one fails the step;
+   - a value reads something; a call gives back the value, and the report
+     shows it quietly, with what it returned.
+
+   Only blocks fail steps: script code around them never does by its value.
+
 ``check_syntax(*args)``
    Returns true if the block accepts these arguments, as written. Several
    blocks may share a name; the first whose ``check_syntax`` accepts the call
-   handles it. A call no block accepts fails with "No BuildingBlock matches".
+   handles it. A call no block accepts is an error, reported before the
+   script runs with the block's usage.
 
 ``execute(*args)``
    Runs the block with its arguments **evaluated**, like a function call:
@@ -48,20 +61,27 @@ The parts of a block
    running script, so definitions, variation symbols and UUT handles all
    work.
 
-``execute_forms(*forms)``
-   Implement this instead of ``execute`` when the forms themselves carry
-   meaning, for example an operator, or bare symbols used as names. It gets
-   the arguments exactly as written. ``Verify`` does this, because its
-   operator is syntax:
+``quoted``
+   Parameters of ``execute`` that get their argument **as written** instead,
+   for arguments that are syntax. ``Verify`` quotes its operator and gets the
+   two sides evaluated:
 
    .. code-block:: python
 
-      def execute_forms(self, *forms):
-          actual, op, expected = forms
-          actual_value = context.evaluate(actual)
-          expected_value = context.evaluate(expected)
-          passed = OPERATORS[str(op)](actual_value, expected_value)
-          return BlockResult(passed, stdout=f"{show(actual_value)} {op} {show(expected_value)}")
+      class Verify(BuildingBlock):
+          kind = ASSERTION
+          quoted = {"op"}
+
+          def execute(self, actual, op=None, expected=None):
+              passed = OPERATORS[str(op)](actual, expected)
+              return BlockResult(passed, stdout=f"{show(actual)} {op} {show(expected)}")
+
+``execute_forms(*forms)``
+   Implement this instead of ``execute`` when every form carries meaning as
+   written, for example bare symbols used as names (``Table-Driven``'s
+   column headers). It gets the arguments exactly as written and **never
+   evaluates them**; a block that needs some arguments evaluated quotes the
+   others instead. The static check doesn't look inside its arguments.
 
 ``as_html(*forms)`` / ``as_rst(*forms)``
    How a step using the block reads in a rendered script. See
@@ -128,11 +148,15 @@ Return a :class:`~automationv3.framework.block.BlockResult`:
 
 .. code-block:: python
 
-   BlockResult(passed, stdout="", stderr="")
+   BlockResult(passed, stdout="", stderr="", value=None)
 
 ``passed``
-   Whether the block passed. A falsy result fails the step (or, inside a
-   ``defblock``, is reported as a failed nested call).
+   Whether the block passed. A falsy result fails the step, wherever the
+   block was called (unless the call is inside ``try-ok?`` or ``try``).
+
+``value``
+   What the call gives the code around it. Set for you from a plain return,
+   and always ``passed`` for an assertion.
 
 ``stdout``
    What the run page shows under the step: say what was checked or done,
@@ -143,9 +167,14 @@ Return a :class:`~automationv3.framework.block.BlockResult`:
 ``stderr``
    Error detail.
 
-Returning a plain value works too: truthy passes, falsy fails. An exception
-raised from ``execute`` fails the step with its traceback in ``stderr``, so
-there is no need to catch errors only to report them.
+Returning a plain value works too. For an assertion, a truthy value passes and
+a falsy one fails; for an action or a value block, a plain value passes and
+is what the call gives back (``None`` for an action that has nothing to say).
+
+An exception raised from ``execute`` makes the step an **error** rather than a
+failure, with its traceback shown on request, so there is no need to catch
+errors only to report them. Return ``BlockResult(False, ...)`` for the case
+where the system under test misbehaved, and let a broken bench raise.
 
 ``BlockResult`` is a dataclass; subclass it if a block wants to carry more
 detail.
@@ -160,10 +189,9 @@ bindings:
    The value bound to a name: a UUT handle, a variation symbol, a
    definition.
 
-``context.evaluate(form)``
-   Evaluates a form in the running script, including inside maps and
-   vectors. Use it from ``execute_forms`` to evaluate the arguments that are
-   values.
+``context.written_args()``
+   The arguments of the running call, as written, e.g. to describe them in
+   ``stdout``. ``Verify`` shows ``(< 2 limit) is true`` this way.
 
 ``StartDemo`` uses both: its configuration arrives evaluated, and it finds the
 UUT through its handle.

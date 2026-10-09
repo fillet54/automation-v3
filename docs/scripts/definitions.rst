@@ -3,11 +3,10 @@ Definitions and shared code
 
 .. rst-class:: lead
 
-   Name values, functions and composite blocks once, and share them through
-   the folder tree.
+   Name values and functions once, and share them through the folder tree.
 
-The three definitions
----------------------
+The two definitions
+-------------------
 
 ``(def name value)``
    Names a value.
@@ -17,27 +16,29 @@ The three definitions
       (def max-pressure 100)
 
 ``(defn name [params] body...)``
-   Names a function. Called as a step, it passes if it returns something
-   truthy.
+   Names a function. Called as a step, it passes unless a block it calls
+   fails; to check what it returns, assert it: ``(Verify (demo-in-mode?
+   :normal))``.
 
    .. code-block:: clojure
 
       (defn demo-in-mode? [m]
         (and (.running demo) (= (.mode demo) m)))
 
-``(defblock name [params] body...)``
-   Names a composite block. Called as a step, it reports as one step with the
-   blocks it calls nested beneath it, and passes on what it returns. See
-   :doc:`composing`.
+   A function that calls blocks can group them in the report with ``step``:
 
    .. code-block:: clojure
 
-      (defblock brakes-hold [pressure]
-        (StartDemo {:mode :normal
-                    :readings {:brake-pressure pressure}})
-        (Verify (reading :brake-pressure) <= max-pressure))
+      (defn brakes-hold [pressure]
+        (step "Brakes hold the pressure"
+          (StartDemo {:mode :normal
+                      :readings {:brake-pressure pressure}})
+          (Verify (reading :brake-pressure) <= max-pressure)))
 
-Definitions are never reported as steps.
+Definitions are never reported as steps, and only appear at the top level of
+a ``core.rst`` or a script, never inside another form (a ``defn``, a
+``let``...). That is what lets every name a script uses be checked before it
+runs; see :ref:`checked-before-running`.
 
 A script's definitions section
 ------------------------------
@@ -68,15 +69,15 @@ from the root down to its own:
 .. code-block:: text
 
    core.rst              (environments :sim) (uut :demo) (def max-pressure 100)
-   BRA/core.rst          (def max-pressure 80) (defblock brakes-hold ...)
+   BRA/core.rst          (def max-pressure 80) (defn brakes-hold ...)
    BRA/tc_bra_00001.rst  sees max-pressure = 80
 
 Inner definitions shadow outer ones, so ``BRA/`` tightens the limit for every
 brake script. A ``core.rst`` is a document too: explain what each definition
 is for, and the workspace renders it like any other page.
 
-A ``core.rst`` may only contain documentation, ``def``, ``defn``,
-``defblock``, ``uut`` and ``environments``.
+A ``core.rst`` may only contain documentation, ``def``, ``defn``, ``uut``
+and ``environments``.
 
 Imports
 -------
@@ -97,8 +98,24 @@ Scripts and definitions together
 
 The ``core.rst`` chain, imports and the script's definitions section load
 before any step runs. A definition placed later in a script, between steps,
-takes effect where it is, like a step: steps above it can't use it, and if it
-fails to evaluate the script fails there.
+takes effect where it is, like a step: steps above it can't use it (the static
+check says so), and if it fails to evaluate the script ends in error there.
+
+.. _checked-before-running:
+
+Checked before running
+----------------------
+
+Because definitions only live at the top level, the names a script can use
+are known without running it: builtins, the ``core.rst`` definitions, the
+script's own definitions in order, UUT handles and variation symbols (bound
+after the definitions section loads), and the parameters and ``let`` names
+in scope. A name that is none of these is an error before the script can be
+queued, shown by the statement it is in, with a suggestion when one is
+close. A ``core.rst`` function's names are checked when a script can call
+it, since a ``core.rst`` may serve scripts that bind more than this one
+(``in-variation-mode?`` uses ``mode``, which only scripts with variations
+bind).
 
 A script's own definition of a name shadows any block of the same name, so a
 script can stand in for a block while it is being developed.

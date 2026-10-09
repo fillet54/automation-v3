@@ -131,14 +131,23 @@ Steps
 Any `.rst` with an `rvt` block is a script (plain documents like a
 README are only documentation). Each
 folder (including the root) may hold a `core.rst` of shared definitions
-(`def`, `defn`, `defblock`). A script loads the `core.rst` of every folder from the
+(`def`, `defn`), only ever at the top level. A script loads the `core.rst` of every folder from the
 root down to its own, then those of folders it imports with
 `(import FOLDER)`. Inner definitions shadow outer ones; imports only add
-definitions and never override a name the script's own chain defines. A step whose head is
-a `defn` is called with evaluated arguments and passes if it returns
-something truthy; every other step runs through its BuildingBlock, whose
-`execute` also gets evaluated arguments (a block that wants the forms as
-written implements `execute_forms` instead).
+definitions and never override a name the script's own chain defines.
+
+BuildingBlocks are actions (do something), assertions (check something) or
+values (read something), and only blocks fail steps: a step passes unless a
+block it called failed, or something raised (an error). Its value is shown,
+never judged, so checks are written as assertions:
+`(Verify (brake-pressure-ok? 40))`. A block's `execute` gets its arguments
+evaluated, except parameters it lists in `quoted` (Verify's operator); a
+block that wants every form as written implements `execute_forms` instead.
+
+Every name and call is checked before a script can be queued: unknown names,
+names used before they are defined, arity, block syntax, definitions inside
+other forms. Failures and findings are shown at the code that caused them,
+with the offending form marked.
 
 Scripts reference requirements with ``:req:`ID` `` in their documentation.
 A script may declare variations, each binding the same symbols to
@@ -184,16 +193,17 @@ collapsed:
    (def stop-pressure 70)
 ```
 
-Blocks compose in scripts. Called at the top level or in a plain `defn`, a
-block acts as its own step: it is reported, and a failure stops the script.
-A `defblock` (in a `core.rst`) reports as one step with its calls nested
-beneath it, and passes on what it returns. `(passes? (Block ...))` checks a
-block without failing, and `(quietly ...)` leaves calls out of the output:
+Blocks compose in scripts. Wherever a block is called (top level, a `defn`,
+a `let`), it is reported, and a failure stops the script.
+`(step "title" ...)` groups calls under one entry, `(try-ok? (Block ...))`
+and `(try form default)` suppress failures explicitly, and `(quietly ...)`
+leaves calls out of the output:
 
 ```clojure
-(defblock brakes-hold [pressure]
-  (StartDemo {:mode :normal :readings {:brake-pressure pressure}})
-  (Verify (reading :brake-pressure) <= max-pressure))
+(defn brakes-hold [pressure]
+  (step "Brakes hold the pressure"
+    (StartDemo {:mode :normal :readings {:brake-pressure pressure}})
+    (Verify (reading :brake-pressure) <= max-pressure)))
 ```
 
 Steps render through their BuildingBlock: a block can override `as_html`

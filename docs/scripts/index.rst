@@ -26,7 +26,8 @@ In this section
    What makes a step, how it passes or fails, and the forms you can write.
 
 :doc:`definitions`
-   ``def``, ``defn`` and ``defblock``; the ``core.rst`` chain and imports.
+   ``def`` and ``defn``; the ``core.rst`` chain and imports; checks before
+   running.
 
 :doc:`variations`
    Running one script several ways, and blocks and prose that only apply to
@@ -36,7 +37,7 @@ In this section
    Stating the state a script needs, and how to heal into it.
 
 :doc:`composing`
-   Blocks inside definitions: nesting, ``passes?`` and ``quietly``.
+   Blocks inside definitions: ``step``, ``try-ok?``, ``try`` and ``quietly``.
 
 :doc:`documenting`
    Making the rendered script read well: titles, variants and prose.

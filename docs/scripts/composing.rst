@@ -4,14 +4,15 @@ Composing blocks
 .. rst-class:: lead
 
    Blocks can be called anywhere in a step: at the top level, inside a
-   ``defn``, a ``let`` or an ``if``. Where the call happens decides how it is
-   reported and whether a failure stops the step.
+   ``defn``, a ``let`` or an ``if``. Wherever the call is, it reports and fails
+   the same way. Three forms change that, and they say so where they are used.
 
-At the top level, or in a plain ``defn``
-----------------------------------------
+Wherever it is called
+---------------------
 
-A block call acts as its own step: it is reported with its own result, and a
-failure stops the statement (and so the script) right there.
+A block call is reported with its own result, and a failure stops the
+statement (and so the script) right there. A ``defn`` is transparent: the
+blocks it calls report as calls of the step that called it.
 
 .. code-block:: clojure
 
@@ -23,36 +24,64 @@ failure stops the statement (and so the script) right there.
 
 If ``StartDemo`` fails, ``Verify`` never runs.
 
-Inside a ``defblock``
----------------------
+``(step "title" body...)``
+--------------------------
 
-A ``defblock`` reports as **one** step with its block calls nested beneath it.
-Nested failures don't stop it: the ``defblock`` runs to the end and passes on
-the truthiness of what it returns (or the block result it returns).
+Groups the block calls of its body under one entry in the report, with the
+title, nested beneath it. A failure inside still stops it, and the step
+around it. It gives the body's value.
 
 .. code-block:: clojure
 
-   (defblock brakes-hold [pressure]
-     (StartDemo {:mode :normal
-                 :readings {:brake-pressure pressure}})
-     (Verify (reading :brake-pressure) <= max-pressure))
+   (defn brakes-hold [pressure]
+     (step "Brakes hold the pressure"
+       (StartDemo {:mode :normal
+                   :readings {:brake-pressure pressure}})
+       (Verify (reading :brake-pressure) <= max-pressure)))
 
-Here the last ``Verify`` decides the result. Use ``defblock`` for a
-procedure that should read as one step in a report.
+Use it for a procedure that should read as one step in a report.
 
-``(passes? expr)``
+``(try-ok? form)``
 ------------------
 
-Evaluates ``expr`` without letting block failures stop the step, and returns
-``true`` or ``false``. Use it to branch on whether something works:
+Runs the form and gives ``true`` if no block call in it failed, ``false`` if
+one did, without stopping the step. Use it to branch on whether something
+works:
 
 .. code-block:: clojure
 
-   (if (passes? (Verify (reading :brake-pressure) <= 50))
+   (if (try-ok? (Verify (reading :brake-pressure) <= 50))
      (set-reading :brake-pressure 70)
      (clear-faults))
 
-The checked call is still reported, marked as checked.
+The calls inside are still reported, marked as suppressed (shown as true or
+false rather than passed or failed).
+
+``(try form default)``
+----------------------
+
+Like ``try-ok?``, but gives the form's value, or ``default`` (evaluated) if a
+block call in it failed:
+
+.. code-block:: clojure
+
+   (def version (try (InstalledVersion :demo) "unknown"))
+
+``try-ok?`` and ``try`` only catch block failures. A mistake in the script's
+own code, such as an unknown name, still stops the step.
+
+Only the last check counts
+--------------------------
+
+To run several checks and let only the last decide, suppress the earlier ones
+explicitly:
+
+.. code-block:: clojure
+
+   (step "Settles within limits"
+     (try-ok? (Verify (reading :brake-pressure) <= 60))   ; may overshoot
+     (Wait 2)
+     (Verify (reading :brake-pressure) <= 60))
 
 ``(quietly forms...)``
 ----------------------
@@ -75,15 +104,15 @@ Summary
    * - Called in
      - Reported
      - A failure
-   * - top level, ``defn``
-     - as its own step
+   * - top level, ``defn``, ``let``, ``if``...
+     - as a call of the step
      - stops the step
-   * - ``defblock``
-     - nested under the defblock
-     - doesn't stop it
-   * - ``passes?``
-     - marked as checked
-     - returns ``false``
+   * - ``step``
+     - nested under its title
+     - stops it, and the step
+   * - ``try-ok?``, ``try``
+     - marked as suppressed
+     - gives ``false``, or the default
    * - ``quietly``
      - not shown
      - behaves as where it is called

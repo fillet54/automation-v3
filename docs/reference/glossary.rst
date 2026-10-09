@@ -16,8 +16,14 @@ Glossary
    core.rst
       A folder's shared definitions and declarations, loaded by every script below it.
 
-   defblock
-      A composite block defined in script code; reports as one step with nested calls.
+   action
+      A block that does something to the system. Fails if it can't.
+
+   assertion
+      A block that checks something. Fails when the check comes out false.
+
+   value block
+      A block that reads something and gives it back. Reported quietly, with its value.
 
    drift
       An environment whose fingerprint no longer matches a run being rerun.

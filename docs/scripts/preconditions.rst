@@ -20,7 +20,9 @@ The parts, in order:
 
 1. **The description**: what must hold, in words. This is what the script
    page shows.
-2. **The check**: a step form that passes if the state holds.
+2. **The check**: a step form whose value is truthy if the state holds.
+   Unlike a step, a check is judged by its value: it holds if nothing in it
+   failed and its value is truthy.
 3. ``:heal``, optionally followed by **a description of the heal**.
 4. **The heal**: a step form that establishes the state.
 

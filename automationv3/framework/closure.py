@@ -7,8 +7,8 @@ core.rst of every folder it imports with `(import folder)`, then the
 script itself. That is also the load order. Nothing is executed to
 resolve it.
 
-Definitions (`def`, `defn`, `defblock`) live in core.rst files and may
-also appear in a script, typically in its definitions section, an rvt
+Definitions (`def`, `defn`) live at the top level of core.rst files and
+may also appear in a script, typically in its definitions section, an rvt
 block marked `:definitions:` that comes before any step.
 
 A deeper core.rst in the chain overrides a shallower one, but an import
@@ -125,7 +125,7 @@ def lint(path, forms):
             if isinstance(form, list) and name not in DEFINITIONS | DECLARATIONS:
                 errors.append(
                     f"{path}: core.rst may only contain documentation, def, defn, "
-                    f"defblock, uut and environments, not {edn.writes(form)}"
+                    f"uut and environments, not {edn.writes(form)}"
                 )
     return errors
 

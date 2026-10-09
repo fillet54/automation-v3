@@ -37,11 +37,9 @@ Forms
    * - Form
      - Kind
    * - ``(def name value)``
-     - definition
+     - definition, top level only
    * - ``(defn name [params] body...)``
-     - definition
-   * - ``(defblock name [params] body...)``
-     - definition
+     - definition, top level only
    * - ``(uut :name)``
      - declaration
    * - ``(environments :name ...)``
@@ -72,14 +70,19 @@ Special forms
      - local bindings
    * - ``(fn name? [params] body...)``
      - a function; ``(fn ([a] ...) ([a b] ...))`` for several arities
-   * - ``(quote form)``
-     - the form unevaluated
+   * - ``(quote form)``, ``'form``
+     - the form unevaluated; vectors, maps and sets otherwise evaluate their
+       items
    * - ``(.method obj args...)``
      - call a method on a Python object
    * - ``(.-attr obj)``
      - read an attribute
-   * - ``(passes? expr)``
-     - true or false, never stopping the step
+   * - ``(step "title" body...)``
+     - group the body's block calls under one reported entry
+   * - ``(try-ok? form)``
+     - true if no block call in it failed, else false; never stops the step
+   * - ``(try form default)``
+     - the form's value, or the default if a block call in it failed
    * - ``(quietly forms...)``
      - run forms with their block calls left out of the output
 
