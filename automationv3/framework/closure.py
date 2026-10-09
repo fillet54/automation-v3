@@ -22,7 +22,9 @@ rvt-variant directive; see document.py) must name variations the script
 declares, may not hold directives, and may only appear in scripts.
 
 The forms a script is made of (definitions, declarations, variations,
-preconditions) are described in language.py.
+preconditions) are described in language.py. Once the closure reads
+cleanly, analysis.py checks every name and call in it statically; its
+errors stop the script from queuing, its warnings are only shown.
 """
 
 import hashlib
@@ -87,6 +89,8 @@ class Closure:
     environments: list = field(default_factory=list)
     variations: list = field(default_factory=list)
     errors: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)
+    diagnostics: list = field(default_factory=list)  # analysis.Diagnostic
 
     @property
     def hash(self):
@@ -246,4 +250,16 @@ def resolve(root, script, text=None):
     errors.extend(lint_preconditions(script, script_forms))
     errors.extend(lint_definitions(script, script_parts))
     errors.extend(lint_variation_scopes(script, script_parts, closure.variations))
+    if not errors:
+        check(closure)
     return closure
+
+
+def check(closure):
+    """Run the static analysis: its errors join the closure's errors, its
+    warnings its warnings"""
+    from .analysis import ERROR, analyze
+    closure.diagnostics = analyze(closure)
+    for diagnostic in closure.diagnostics:
+        target = closure.errors if diagnostic.severity == ERROR else closure.warnings
+        target.append(str(diagnostic))

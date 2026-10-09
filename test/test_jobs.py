@@ -333,7 +333,8 @@ class TestPreconditions(unittest.TestCase):
                 "late.rst": '(Wait 1) (Precondition "on" (on?))',
                 "bad.rst": '(Precondition (on?)) (Precondition "x" (on?) :cure (x)) '
                            '(Precondition "y" (on?) :heal :named (x))',
-                "ok.rst": '(import FUE) (Precondition "on" (on?) :heal (x)) '
+                "ok.rst": '(import FUE) (defn on? [] true) (defn x [] nil) '
+                          '(Precondition "on" (on?) :heal (x)) '
                           '(Precondition "on" (on?) :heal "Fix it" (x)) (Wait 1)',
                 "FUE/core.rst": "",
             })
