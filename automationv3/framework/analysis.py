@@ -125,7 +125,7 @@ class Names:
 
 
 class Analyzer:
-    def __init__(self, closure):
+    def __init__(self, closure, parsed=None):
         self.closure = closure
         self.script = closure.script
         self.diagnostics = []
@@ -133,8 +133,10 @@ class Analyzer:
         self.blocks = {b.name(): b for b in reversed(all_blocks())}
         self.block_names = block_names()
         self.special = {name for name in lisp.special_forms if isinstance(name, str)}
-        self.parts = {}
+        self.parts = dict(parsed or {})
         for path in closure.load_order:
+            if path in self.parts:
+                continue
             try:
                 self.parts[path] = document.parse(closure.files[path], path=path)
             except Exception:
@@ -294,7 +296,11 @@ class Analyzer:
             if len(form) != 3:
                 self.error("def takes a name and a value: (def name value)", form)
                 return
+            # core.rst files and the definitions section load before
+            # anything runs: no block can be called yet
+            self.loading = core or definition.in_section
             self.expression(form[2], names, frozenset(), eager=True, core=core)
+            self.loading = False
         else:
             self.fn_body(form, names, frozenset(), defn=True, core=core)
         self.current_core = None
@@ -472,6 +478,12 @@ class Analyzer:
     def block_call(self, form, names, locals_, eager, core):
         name = str(form[0])
         self.note_reference(name, core)
+        if eager and getattr(self, "loading", False):
+            self.error(f"{name} can't be called here: core.rst files and the "
+                       "definitions section load before any block can run. Define "
+                       "the value after the definitions section, or as a function",
+                       form)
+            return
         block = None
         for candidate in all_blocks():
             if candidate.name() == name and candidate.check_syntax(*form[1:]):
@@ -577,6 +589,7 @@ def merge(per_variation, variations):
     return found
 
 
-def analyze(closure):
-    """The Diagnostics of a resolved closure (see the module docs)"""
-    return Analyzer(closure).run()
+def analyze(closure, parsed=None):
+    """The Diagnostics of a resolved closure (see the module docs).
+    `parsed` maps paths to their document parts, if already parsed."""
+    return Analyzer(closure, parsed).run()

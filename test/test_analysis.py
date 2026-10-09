@@ -92,6 +92,12 @@ class TestShapes(unittest.TestCase):
         (error,) = check(rvt("(if true (defn g [] 1))"))[0]
         self.assertIn("defn is only allowed at the top level", error)
 
+    def test_no_block_calls_while_definitions_load(self):
+        script = doc(rvt("(def v (Wait 1))", "definitions"), rvt("(Wait 1)"))
+        (error,) = check(script)[0]
+        self.assertIn("Wait can't be called here", error)
+        self.assertEqual(check(rvt("(def v (Wait 1)) (defn f [] (Wait 1))"))[0], [])
+
     def test_arity(self):
         (error,) = check(rvt("(check 1 2)"))[0]
         self.assertIn("check takes 1 argument, not 2 (defined in core.rst:5)", error)

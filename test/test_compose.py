@@ -222,6 +222,9 @@ class TestDefinitions(unittest.TestCase):
     def test_scripts_may_define_too(self):
         self.assertEqual(run("(defn ok [] (Verify 1 = 1)) (ok)", core="")[0], "pass")
 
+    def test_a_later_definition_may_take_a_value_from_a_block(self):
+        self.assertEqual(run("(def v (Reading 4)) (Verify v = 8)")[0], "pass")
+
     def test_definitions_shadow_blocks(self):
         outcome, rec = run("(Wait 1)", core="(defn Wait [n] (Verify false))")
         self.assertEqual(outcome, "fail")

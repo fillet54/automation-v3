@@ -173,7 +173,8 @@ def _define(form, env, observer, index):
     """Evaluate a definition where it is in the script; only a failure is
     reported (as a step). Returns whether it succeeded."""
     try:
-        lisp.eval(form, env)
+        with running_statement(Runtime(observer, index)):
+            lisp.eval(form, env)  # a value may come from a block call
         return True
     except Exception as e:
         details = dict(index=index, definition=True)

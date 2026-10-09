@@ -227,8 +227,9 @@ def resolve(root, script, text=None):
     closure.files[script] = text
 
     core_forms = {}
+    parsed = {script: script_parts}
     for path in core_paths:
-        parts = read_parts(path, closure.files[path], errors)
+        parts = parsed[path] = read_parts(path, closure.files[path], errors)
         core_forms[path] = [part.form for part in parts if not part.prose]
         errors.extend(lint(path, core_forms[path]))
         errors.extend(lint_variation_scopes(path, parts, []))
@@ -251,15 +252,16 @@ def resolve(root, script, text=None):
     errors.extend(lint_definitions(script, script_parts))
     errors.extend(lint_variation_scopes(script, script_parts, closure.variations))
     if not errors:
-        check(closure)
+        check(closure, parsed)
     return closure
 
 
-def check(closure):
-    """Run the static analysis: its errors join the closure's errors, its
-    warnings its warnings"""
+def check(closure, parsed=None):
+    """Run the static analysis (over the documents' parts, if already
+    `parsed`): its errors join the closure's errors, its warnings its
+    warnings"""
     from .analysis import ERROR, analyze
-    closure.diagnostics = analyze(closure)
+    closure.diagnostics = analyze(closure, parsed)
     for diagnostic in closure.diagnostics:
         target = closure.errors if diagnostic.severity == ERROR else closure.warnings
         target.append(str(diagnostic))
