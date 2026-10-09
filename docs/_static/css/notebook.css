@@ -356,6 +356,7 @@ html.writer-html5 .rst-content dl.py dl.py > dt, .rst-content dl.py dl.py > dt {
 .ui-status-word--passed { --ui-tone: var(--ui-success); }
 .ui-status-word--failed, .ui-status-word--error { --ui-tone: var(--ui-danger); }
 .ui-status-word--partial, .ui-status-word--blocked { --ui-tone: var(--ui-warning); }
+.ui-status-word--to-do, .ui-status-word--incomplete { --ui-tone: var(--ui-info); }
 .ui-status-word--running, .ui-status-word--queued { --ui-tone: var(--ui-info); }
 
 /* the version flyout, if hosted on Read the Docs */

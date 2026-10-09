@@ -19,7 +19,7 @@ from sphinx.util.docutils import SphinxDirective
 from sphinx.util.nodes import nested_parse_with_titles
 
 STATUSES = {"passed", "failed", "error", "partial", "blocked", "running", "queued",
-            "skipped", "not identical"}
+            "skipped", "not identical", "to do", "incomplete"}
 
 PLUGINS = "automationv3.plugins"
 

@@ -29,6 +29,7 @@ from pathlib import Path
 from .framework.requirement import Requirement
 from .services.database import connect, init_db
 from .services.requirements import models as requirements
+from .services.requirements import rst_source
 
 SOURCE = Path(__file__).resolve().parent.parent
 SAMPLES = SOURCE / "test" / "data"
@@ -98,20 +99,43 @@ def make_workspace(path):
 
 def parse_requirement(line):
     """A Requirement from a line of text ending in its id, e.g.
-    "The brakes shall ... [VMCBRA00001]." """
+    "The brakes shall ... [VMCBRA00001]." or "... [AP-1.3]". The
+    subsystem is the letters after VMC (BRA), or before the first dash
+    (AP)."""
     line = line.strip()
     start = line.rfind("[")
     id = line[start + 1:line.rfind("]")].strip()
-    subsystem = id.split("VMC")[1].split("0")[0].strip()
+    if id.startswith("VMC"):
+        subsystem = id.split("VMC")[1].split("0")[0].strip()
+    else:
+        subsystem = id.split("-")[0].strip()
     return Requirement(id=id, text=line[:start].strip(), subsystem=subsystem)
 
 
-def load_requirements(db_path, source=None):
-    source = source or SAMPLES / "sample_requirements.txt"
-    lines = [line for line in source.read_text().splitlines() if line.strip()]
+def read_requirements(path):
+    """The Requirements in a file: an rst requirements document (see
+    services/requirements/rst_source.py), or text with one requirement
+    per line, its id at the end in brackets"""
+    path = Path(path)
+    if path.suffix == ".rst":
+        return rst_source.parse(path.read_text())
+    lines = [line for line in path.read_text().splitlines() if line.strip()]
+    return [parse_requirement(line) for line in lines]
+
+
+def sample_requirement_files():
+    """The sample requirements: the line-per-requirement file, then every
+    rst document in test/data/requirements"""
+    return [SAMPLES / "sample_requirements.txt",
+            *sorted((SAMPLES / "requirements").glob("*.rst"))]
+
+
+def load_requirements(db_path, sources=None):
+    found = [r for path in (sources or sample_requirement_files())
+             for r in read_requirements(path)]
     with closing(connect(db_path)) as conn:
         init_db(conn)
-        requirements.insert(conn, [parse_requirement(line) for line in lines])
+        requirements.insert(conn, found)
 
 
 def write_worker_config(path):

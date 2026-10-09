@@ -42,6 +42,10 @@ In this section
 :doc:`documenting`
    Making the rendered script read well: titles, variants and prose.
 
+:doc:`planning`
+   Writing a test's flow first with ``(TBD "...")`` steps, for review, and
+   filling it in later.
+
 :doc:`blocks`
    Every BuildingBlock you can call, with its usage and documentation.
 

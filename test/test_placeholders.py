@@ -17,7 +17,7 @@ class TestRunning(unittest.TestCase):
         steps = rec.of("step_end")
         self.assertEqual([s["passed"] for s in steps], [True, True, True])
         self.assertEqual([s.get("placeholders", 0) for s in steps], [0, 1, 0])
-        self.assertEqual(steps[1]["stdout"], "to be written")
+        self.assertEqual(steps[1]["stdout"], "")  # the page says "to do" already
 
     def test_without_placeholders_it_passes(self):
         self.assertEqual(run("(Wait 1)")[0], "pass")
@@ -54,6 +54,34 @@ class TestReading(unittest.TestCase):
     def test_needs_a_description(self):
         (error,) = check(rvt("(TBD)"))[0]
         self.assertIn('(TBD "what the step will do")', error)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestVehicleManagerExamples(unittest.TestCase):
+    """The VM sample scripts: clean, and incomplete when run"""
+
+    def test_every_variation_runs_to_incomplete(self):
+        from pathlib import Path
+
+        from automationv3.framework.closure import resolve
+        from automationv3.framework.executor import execute_closure
+
+        from .test_compose import Recorder
+
+        root = Path(__file__).resolve().parent / "data" / "rvts"
+        scripts = sorted(str(p.relative_to(root)) for p in (root / "VM").rglob("tc_*.rst"))
+        self.assertEqual(len(scripts), 24)
+        for script in scripts:
+            closure = resolve(root, script)
+            self.assertEqual(closure.errors, [], script)
+            for variation in [v.name for v in closure.variations] or [None]:
+                with self.subTest(script=script, variation=variation):
+                    outcome = execute_closure(closure.files, closure.load_order,
+                                              Recorder(), closure.imports, variation)
+                    self.assertEqual(outcome, "incomplete")
 
 
 if __name__ == "__main__":

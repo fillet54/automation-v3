@@ -104,6 +104,11 @@ class TestShapes(unittest.TestCase):
         (error,) = check(rvt("(two)"))[0]
         self.assertIn("two takes 1 or 2 arguments, not 0", error)
 
+    def test_builtin_arity(self):
+        (error,) = check(rvt("(Verify (not 1 2))"))[0]
+        self.assertIn("not can't take 2 arguments", error)
+        self.assertEqual(check(rvt("(Verify (= (- 3) (- 1 2 2)))"))[0], [])
+
     def test_block_syntax(self):
         (error,) = check(rvt("(Verify 1 ~ 2)"))[0]
         self.assertIn("no form of Verify matches this call: see its usage, "

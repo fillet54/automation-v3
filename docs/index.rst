@@ -53,6 +53,7 @@ Where to start
    scripts/preconditions
    scripts/composing
    scripts/documenting
+   scripts/planning
    scripts/blocks
 
 .. toctree::
@@ -81,5 +82,6 @@ Where to start
 
    reference/language
    reference/cli
+   reference/requirements
    reference/api
    reference/glossary

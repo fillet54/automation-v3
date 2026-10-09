@@ -16,7 +16,7 @@ class TestFileNode(unittest.TestCase):
         self.assertIn(self.root_path / 'FUE', self.root.children())
 
     def test_relative_path(self):
-        child = sorted(self.root.children())[0]
+        child = FileNode(self.root_path / 'BRA', self.root)
         self.assertEqual(child.relative_path, Path('BRA'))
 
     def test_is_root(self):

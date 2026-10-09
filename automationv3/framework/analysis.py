@@ -33,6 +33,7 @@ scripts that bind more (e.g. variation symbols) than this one.
 """
 
 import difflib
+import inspect
 from dataclasses import dataclass, field
 
 from . import document, edn, lisp
@@ -481,6 +482,8 @@ class Analyzer:
             return
 
         self.symbol(first, names, locals_, eager, core, parent=form, index=0)
+        if definition is None and name in self.builtins:
+            self.builtin_arity(name, form)
         if definition is not None and definition.arities is not None and \
                 definition.arities and len(rest) not in definition.arities:
             counts = " or ".join(str(n) for n in sorted(definition.arities))
@@ -491,6 +494,18 @@ class Analyzer:
             self.error(f"{name} takes {counts} argument{plural}, not {len(rest)} "
                        f"(defined in {where})", form)
         each(rest)
+
+    def builtin_arity(self, name, form):
+        """A builtin called with a number of arguments it can't take"""
+        try:
+            signature = inspect.signature(lisp.global_env[edn.Symbol(name)])
+        except (TypeError, ValueError):
+            return  # not inspectable: some C builtins
+        try:
+            signature.bind(*[None] * (len(form) - 1))
+        except TypeError as e:
+            self.error(f"{name} can't take {len(form) - 1} argument"
+                       f"{'' if len(form) == 2 else 's'} ({e})", form)
 
     def block_call(self, form, names, locals_, eager, core):
         name = str(form[0])

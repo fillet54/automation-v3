@@ -73,14 +73,50 @@ def dissoc(m, *keys):
     return m
 
 
+def _product(*xs):
+    result = 1
+    for x in xs:
+        result *= x
+    return result
+
+
+def _minus(x, *rest):
+    """(- x) negates; (- x y z) subtracts y and z from x"""
+    if not rest:
+        return -x
+    for y in rest:
+        x = x - y
+    return x
+
+
+def _divide(x, *rest):
+    """(/ x) is 1/x; (/ x y z) divides x by y, then z"""
+    if not rest:
+        return 1 / x
+    for y in rest:
+        x = x / y
+    return x
+
+
+def _add(*xs):
+    """(+ a b ...) adds numbers, or joins strings or lists"""
+    if not xs:
+        return 0
+    total = xs[0]
+    for x in xs[1:]:
+        total = total + x
+    return total
+
+
 def standard_env():
     env = Env()
     env.update({k: v for k, v in vars(math).items() if not k.startswith("__")})
     env.update({
-        "+": op.add,
-        "-": op.sub,
-        "*": op.mul,
-        "/": op.truediv,
+        # Like Clojure's, these take any number of arguments
+        "+": _add,
+        "-": _minus,
+        "*": _product,
+        "/": _divide,
         ">": op.gt,
         "<": op.lt,
         ">=": op.ge,

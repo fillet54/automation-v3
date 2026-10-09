@@ -698,3 +698,8 @@ body.ui {
 .ui-tbd { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border: 1px dashed color-mix(in srgb, var(--ui-info) 55%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-paper)); }
 .ui-tbd__label { flex: none; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-info); }
 .ui-tbd__text { color: var(--ui-ink); }
+
+/* A requirement written with lists or several paragraphs */
+.ui-requirement--blocks > p { margin: 0 0 4px; }
+.ui-requirement--blocks > ul, .ui-requirement--blocks > ol { margin: 2px 0 4px; padding-left: 20px; }
+.ui-requirement--blocks li > p { margin: 0; }

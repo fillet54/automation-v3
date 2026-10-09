@@ -29,7 +29,7 @@ class TBD(BuildingBlock):
         return len(args) == 1 and is_text(args[0])
 
     def execute_forms(self, description):
-        return BlockResult(True, stdout="to be written", value=True)
+        return BlockResult(True, value=True)
 
     def as_html(self, description):
         return (

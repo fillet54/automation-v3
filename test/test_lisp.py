@@ -46,6 +46,11 @@ class TestLisp(unittest.TestCase):
         self.assertEqual(run("#{(+ 1 1)}"), {2})
         self.assertIsInstance(run("[1]"), edn.Vector)
 
+    def test_arithmetic_takes_any_number_of_arguments(self):
+        self.assertEqual(run("(list (+) (+ 1 2 3) (- 5) (- 10 1 2) (* 2 3 4) (/ 8 2 2))"),
+                         [0, 6, -5, 7, 24, 2.0])
+        self.assertEqual(run('(+ "a" "b")'), "ab")
+
     def test_quote_keeps_data_as_written(self):
         self.assertEqual(run("'[(+ 1 2)]"), [["+", 1, 2]])
 

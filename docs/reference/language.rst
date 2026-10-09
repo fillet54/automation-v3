@@ -83,6 +83,9 @@ Special forms
      - true if no block call in it failed, else false; never stops the step
    * - ``(try form default)``
      - the form's value, or the default if a block call in it failed
+   * - ``(TBD "text")``
+     - a step not written yet; true where a value is expected; a run that
+       reaches one is incomplete
    * - ``(quietly forms...)``
      - run forms with their block calls left out of the output
 

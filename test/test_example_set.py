@@ -136,7 +136,17 @@ class TestExampleSet(unittest.TestCase):
         init_db(conn)
         links.refresh(conn, "w", RVTS)
         linked = links.scripts_by_requirement(conn, "w")
-        self.assertEqual(sorted(linked), REQUIREMENTS)
+        self.assertEqual(sorted(r for r in linked if r.startswith("VMC")), REQUIREMENTS)
+
+    def test_every_vehicle_manager_requirement_is_tested(self):
+        from automationv3.services.requirements import links, rst_source
+        conn = connect(":memory:")
+        init_db(conn)
+        links.refresh(conn, "w", RVTS)
+        linked = {r for r in links.scripts_by_requirement(conn, "w")
+                  if r.startswith("VM-")}
+        document = RVTS.parent / "requirements" / "vehicle_manager.rst"
+        self.assertEqual(linked, {r.id for r in rst_source.parse(document.read_text())})
 
 
 if __name__ == "__main__":
