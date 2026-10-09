@@ -96,7 +96,7 @@ class Closure:
 
 def read_parts(path, text, errors):
     try:
-        return document.parse(text)
+        return document.parse(text, path=path)
     except Exception as e:
         errors.append(f"{path}: could not be read ({e})")
         return []

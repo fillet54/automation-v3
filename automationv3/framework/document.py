@@ -90,6 +90,7 @@ class Part:
     options: dict = field(default_factory=dict)
     line: int = 0  # where the chunk or block starts, 1-based
     title: str = None  # the block's title, if it has one
+    span: object = None  # where the form is in the file (an edn.Span)
 
     @property
     def variations(self):
@@ -146,6 +147,7 @@ class RvtDirective(Directive):
         block["title"] = " ".join(self.arguments[0].split()) if self.arguments else None
         block["options"] = {k: "" if v is None else v for k, v in self.options.items()}
         block["content"] = "\n".join(self.content)
+        block["offset"] = self.content_offset  # lines before the content
         return [block]
 
 
@@ -195,6 +197,30 @@ def parse_rvt(source):
     return block["options"], block["content"], block["title"]
 
 
+def content_position(source, content, offset):
+    """For a directive's `content` (as docutils gives it: dedented) that
+    starts `offset` lines into its `source`: functions mapping a 0-based
+    content line to its 0-based line in `source`, and to how far its
+    columns moved when the content was dedented"""
+    source_lines = source.splitlines()
+    content_lines = content.splitlines()
+
+    def indent(line):
+        return len(line) - len(line.lstrip())
+
+    def col_shift(i):
+        if i < len(content_lines) and offset + i < len(source_lines):
+            original, dedented = source_lines[offset + i], content_lines[i]
+            if dedented.strip():
+                return indent(original) - indent(dedented)
+        return shifts[0] if shifts else 0
+
+    shifts = [indent(source_lines[offset + i]) - indent(line)
+              for i, line in enumerate(content_lines)
+              if line.strip() and offset + i < len(source_lines)]
+    return (lambda i: offset + i), col_shift
+
+
 def limit(options, variations):
     """`options` limited to `variations`, or to the ones it names already,
     which must be among them"""
@@ -216,28 +242,43 @@ class _Collect:
             self.messages.append(" ".join(text.split()))
 
 
-def parse(text, first_line=1):
+def parse(text, first_line=1, path=None, first_col=0):
     """The document's parts. Raises RvtError for a malformed rvt or
-    rvt-variant directive and edn errors for unreadable forms."""
+    rvt-variant directive and edn errors for unreadable forms.
+
+    Every form's spans (see edn.Span) are moved to where it is in the
+    file: 1-based lines, 0-based columns, with `path` as their source.
+    `first_line` and `first_col` say where `text` itself starts in the
+    file (for the content of an rvt-variant)."""
     parts = []
     for kind, source, line in split(text):
         line += first_line - 1
         if kind == "prose":
             parts.append(Part(source.strip("\n"), line=line))
         elif kind == "rvt":
-            options, content, title = parse_rvt(source)
-            for form in edn.read_all(content):
-                parts.append(Part(form, options, line, title))
+            block = parse_directive(source, rvt_block, "rvt")
+            options, content, title = block["options"], block["content"], block["title"]
+            line_in, col_shift = content_position(source, content, block["offset"])
+            for form, span in edn.read_all_with_spans(content):
+                edn.move_spans(form, lambda i: line + line_in(i),
+                               lambda i: first_col + col_shift(i), path)
+                part = Part(form, options, line, title)
+                if span is not None:
+                    part.span = span.moved(lambda i: line + line_in(i),
+                                           lambda i: first_col + col_shift(i), path)
+                parts.append(part)
         else:
             variant = parse_directive(source, rvt_variant, "rvt-variant")
-            for part in parse(variant["content"], line + variant["offset"]):
+            _, col_shift = content_position(source, variant["content"], variant["offset"])
+            for part in parse(variant["content"], line + variant["offset"], path,
+                              first_col + col_shift(0)):
                 part.options = limit(part.options, variant["variations"])
                 parts.append(part)
     return parts
 
 
-def forms(text):
-    return [part.form for part in parse(text)]
+def forms(text, path=None):
+    return [part.form for part in parse(text, path=path)]
 
 
 def has_rvt(text):

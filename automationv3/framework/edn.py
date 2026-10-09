@@ -6,11 +6,19 @@ Keyword; strings and characters become str, numbers int or float, and
 true, false and nil become True, False and None. `writes` turns values
 back into edn text, laying out large collections over several lines.
 
+Every form read records where it came from: symbols, keywords and
+collections carry a `span` (see Span), and a list, vector or map also
+keeps `spans` for its items, so that the position of a number or a
+string (which can't carry attributes) can still be found through its
+parent. `span_of` and `item_span` look them up.
+
 Tagged elements (#inst ...), metadata and discards (#_) are not
 supported. See https://github.com/edn-format/edn.
 """
 
+import bisect
 import re
+from typing import NamedTuple
 
 
 class ParseError(ValueError):
@@ -20,6 +28,71 @@ class ParseError(ValueError):
         super().__init__(f"{message} (line: {line}, col: {col})")
         self.line = line
         self.col = col
+
+
+# Where forms come from
+
+
+class Span(NamedTuple):
+    """Where a form was written: from (line, col) up to (end_line,
+    end_col), exclusive. As read, lines and columns are 0-based within the
+    text read; `document.parse` moves them to 1-based lines (0-based
+    columns) of the file named by `source`."""
+
+    line: int
+    col: int
+    end_line: int
+    end_col: int
+    source: str = None
+
+    def moved(self, line_of, col_shift, source=None):
+        """The span with each line mapped by `line_of` and each column
+        shifted by `col_shift(line)` (both given the line as read)"""
+        return Span(line_of(self.line), self.col + col_shift(self.line),
+                    line_of(self.end_line), self.end_col + col_shift(self.end_line),
+                    source if source is not None else self.source)
+
+    def as_dict(self):
+        return self._asdict()
+
+
+def span_of(form):
+    """Where `form` was written, or None (e.g. for a number, or a form
+    built by code rather than read)"""
+    return getattr(form, "span", None)
+
+
+def item_span(parent, index):
+    """Where the item at `index` of a list or vector was written, or None.
+    For a map, `index` is the key: its (key span, value span)."""
+    spans = getattr(parent, "spans", None)
+    if spans is None:
+        return None
+    try:
+        return spans[index]
+    except (IndexError, KeyError, TypeError):
+        return None
+
+
+def move_spans(form, line_of, col_shift, source=None):
+    """Move the spans of `form` and every form inside it (see Span.moved)"""
+    def move(span):
+        return span.moved(line_of, col_shift, source) if span is not None else None
+
+    if (span := span_of(form)) is not None:
+        form.span = move(span)
+    spans = getattr(form, "spans", None)
+    if isinstance(spans, list):
+        form.spans = [move(sp) for sp in spans]
+    elif isinstance(spans, dict):
+        form.spans = {k: (move(a), move(b)) for k, (a, b) in spans.items()}
+    if isinstance(form, dict):
+        for k, v in form.items():
+            move_spans(k, line_of, col_shift, source)
+            move_spans(v, line_of, col_shift, source)
+    elif isinstance(form, (list, set)):
+        for item in form:
+            move_spans(item, line_of, col_shift, source)
 
 
 # Values
@@ -119,6 +192,15 @@ class _Reader:
     def __init__(self, text):
         self.text = text
         self.pos = 0
+        self.line_starts = [0] + [m.end() for m in re.finditer("\n", text)]
+
+    def where(self, pos):
+        """(line, col) of offset `pos`, both 0-based"""
+        line = bisect.bisect_right(self.line_starts, pos) - 1
+        return line, pos - self.line_starts[line]
+
+    def span(self, start, end):
+        return Span(*self.where(start), *self.where(end))
 
     def peek(self):
         return self.text[self.pos] if self.pos < len(self.text) else None
@@ -145,7 +227,7 @@ class _Reader:
 def read(text):
     """The first form in `text`"""
     reader = _Reader(text)
-    form = _read_form(reader)
+    form, _ = _read_spanned(reader)
     if form is _EOF:
         raise reader.error("No form to read")
     return form
@@ -153,15 +235,35 @@ def read(text):
 
 def read_all(text):
     """Every form in `text`, in order"""
+    return [form for form, _ in read_all_with_spans(text)]
+
+
+def read_all_with_spans(text):
+    """Every form in `text`, in order, each with its Span (a number or a
+    string can't carry its own)"""
     reader = _Reader(text)
-    forms = []
-    while (form := _read_form(reader)) is not _EOF:
-        forms.append(form)
-    return forms
+    found = []
+    while True:
+        form, span = _read_spanned(reader)
+        if form is _EOF:
+            return found
+        found.append((form, span))
+
+
+def _read_spanned(reader, closer=None):
+    """(form, its Span) like _read_form; the span is None at _EOF/_CLOSED"""
+    form = _read_form(reader, closer)
+    if form is _EOF or form is _CLOSED:
+        return form, None
+    span = reader.span(reader.form_start, reader.pos)
+    if isinstance(form, (Symbol, list, dict, set)):
+        form.span = span
+    return form, span
 
 
 def _read_form(reader, closer=None):
-    """The next form, _CLOSED at `closer`, or _EOF at the end of the text"""
+    """The next form, _CLOSED at `closer`, or _EOF at the end of the text.
+    Sets `reader.form_start` to where the form starts."""
     while True:
         ch = reader.next()
         if ch is None:
@@ -176,48 +278,72 @@ def _read_form(reader, closer=None):
             return _CLOSED
         if ch in CLOSERS:
             raise reader.error(f"Unexpected '{ch}'")
-        if ch.isdigit() or (ch in "+-" and (reader.peek() or "").isdigit()):
-            return _read_number(reader, ch)
-        if ch in _MACROS:
-            return _MACROS[ch](reader)
-        return _read_symbol(reader, ch)
+        start = reader.pos - 1
+        form = _read_one(reader, ch)
+        reader.form_start = start
+        return form
+
+
+def _read_one(reader, ch):
+    """The form starting with `ch`, just read"""
+    if ch.isdigit() or (ch in "+-" and (reader.peek() or "").isdigit()):
+        return _read_number(reader, ch)
+    if ch in _MACROS:
+        return _MACROS[ch](reader)
+    return _read_symbol(reader, ch)
 
 
 def _read_collection(reader, closer):
-    forms = []
-    while (form := _read_form(reader, closer)) is not _CLOSED:
+    """(forms, their spans) up to `closer`"""
+    forms, spans = [], []
+    while True:
+        form, span = _read_spanned(reader, closer)
+        if form is _CLOSED:
+            return forms, spans
         if form is _EOF:
             raise reader.error(f"Missing closing '{closer}'")
         forms.append(form)
-    return forms
+        spans.append(span)
+
+
+def _with_spans(collection, spans):
+    collection.spans = spans
+    return collection
 
 
 def _read_list(reader):
-    return List(_read_collection(reader, ")"))
+    forms, spans = _read_collection(reader, ")")
+    return _with_spans(List(forms), spans)
 
 
 def _read_vector(reader):
-    return Vector(_read_collection(reader, "]"))
+    forms, spans = _read_collection(reader, "]")
+    return _with_spans(Vector(forms), spans)
 
 
 def _read_map(reader):
-    forms = _read_collection(reader, "}")
+    forms, spans = _read_collection(reader, "}")
     if len(forms) % 2:
         raise reader.error("Map must have value for every key")
-    return Map(zip(forms[::2], forms[1::2]))
+    m = Map(zip(forms[::2], forms[1::2]))
+    m.spans = {k: (ks, vs) for k, ks, vs in zip(forms[::2], spans[::2], spans[1::2])}
+    return m
 
 
 def _read_dispatch(reader):
     if reader.next() == "{":
-        return Set(_read_collection(reader, "}"))
+        return Set(_read_collection(reader, "}")[0])
     raise reader.error("Only #{...} sets are supported after #")
 
 
 def _read_quote(reader):
-    form = _read_form(reader)
+    start = reader.pos - 1
+    form, span = _read_spanned(reader)
     if form is _EOF:
         raise reader.error("Nothing to quote")
-    return List([Symbol("quote"), form])
+    quote = Symbol("quote")
+    quote.span = reader.span(start, start + 1)
+    return _with_spans(List([quote, form]), [quote.span, span])
 
 
 def _read_string(reader):
