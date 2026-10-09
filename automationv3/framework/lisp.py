@@ -1,8 +1,10 @@
 """A small Lisp over edn forms, for the code in scripts
 
 `eval(form, env)` evaluates a form read by edn: keywords and literals
-evaluate to themselves, symbols are looked up in `env`, and a list is a
-special form or a call. Special forms (if, do, def, let, quote, fn,
+evaluate to themselves, symbols are looked up in `env`, vectors, maps
+and sets evaluate to new ones holding their items evaluated (write
+`(quote [...])` for data as written), and a list is a special form or a
+call. Special forms (if, do, def, let, quote, fn,
 defn, and (.method obj args) calls on Python objects) get their
 arguments unevaluated; other modules add their own with
 `@special_form`. Everything else is a call: the head and arguments are
@@ -14,7 +16,7 @@ import math
 import operator as op
 from itertools import count, cycle, islice
 
-from .edn import Keyword, List, Symbol, Vector
+from .edn import Keyword, List, Map, Set, Symbol, Vector
 
 
 class Env(dict):
@@ -225,6 +227,12 @@ def eval(x, env=global_env):
         return x
     if isinstance(x, Symbol):
         return env[x]
+    if isinstance(x, Vector):
+        return Vector(eval(item, env) for item in x)
+    if isinstance(x, dict):
+        return Map({eval(k, env): eval(v, env) for k, v in x.items()})
+    if isinstance(x, (set, frozenset)):
+        return Set(eval(item, env) for item in x)
     if not isinstance(x, List) or not x:
         return x
     if special := get_special_form(x[0]):

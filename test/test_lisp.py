@@ -40,10 +40,14 @@ class TestLisp(unittest.TestCase):
         with self.assertRaises(ValueError):
             run("(fn x y)")
 
-    def test_vectors_are_not_evaluated(self):
-        # Block arguments are evaluated by context.evaluate, which does
-        # look inside vectors and maps; plain Lisp leaves them as written
-        self.assertEqual(run("[(+ 1 2)]"), [["+", 1, 2]])
+    def test_vectors_maps_and_sets_evaluate_their_items(self):
+        self.assertEqual(run("[(+ 1 2) :k]"), [3, edn.Keyword("k")])
+        self.assertEqual(run("(def x 2) {:a x}"), {edn.Keyword("a"): 2})
+        self.assertEqual(run("#{(+ 1 1)}"), {2})
+        self.assertIsInstance(run("[1]"), edn.Vector)
+
+    def test_quote_keeps_data_as_written(self):
+        self.assertEqual(run("'[(+ 1 2)]"), [["+", 1, 2]])
 
     def test_quote(self):
         self.assertEqual(run("'(a b)"), ["a", "b"])

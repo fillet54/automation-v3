@@ -27,6 +27,15 @@ class RecordForms(BuildingBlock):
         return BlockResult(True)
 
 
+class RecordQuoted(BuildingBlock):
+    """Gets `name` as written and the rest evaluated"""
+
+    quoted = {"name"}
+
+    def execute(self, value, name, *rest):
+        seen["RecordQuoted"] = (value, name, rest)
+
+
 class Recorder:
     def __init__(self):
         self.ends = []
@@ -68,9 +77,16 @@ class TestBlockArguments(unittest.TestCase):
         self.assertEqual(edn.writes(call).strip(), "(+ 1 2)")
         self.assertEqual(names, [edn.Symbol("a"), edn.Symbol("b")])
 
-    def test_unknown_symbol_fails_the_step(self):
+    def test_quoted_parameters_get_their_argument_as_written(self):
+        outcome, _ = run("(RecordQuoted limit limit (+ limit 1))")
+        self.assertEqual(outcome, "pass")  # an action returning nil passes
+        value, name, rest = seen["RecordQuoted"]
+        self.assertEqual((value, rest), (80, (81,)))
+        self.assertEqual((name, type(name)), (edn.Symbol("limit"), edn.Symbol))
+
+    def test_unknown_symbol_is_an_error(self):
         outcome, ends = run("(Record nope)")
-        self.assertEqual(outcome, "fail")
+        self.assertEqual(outcome, "error")
         self.assertIn("nope not found", ends[0]["stderr"])
 
 
@@ -99,6 +115,16 @@ class Shaped(BuildingBlock):
 
 
 class TestBlockDocumentation(unittest.TestCase):
+    def test_plain_returns_by_kind(self):
+        class Check(BuildingBlock):
+            kind = "assertion"
+        class Act(BuildingBlock):
+            pass
+        self.assertEqual((Check().result(0).passed, Check().result(0).value), (False, False))
+        self.assertEqual((Act().result(0).passed, Act().result(0).value), (True, 0))
+        failed = Check().result(BlockResult(False, stdout="no"))
+        self.assertEqual((failed.passed, failed.value, failed.stdout), (False, False, "no"))
+
     def test_usage_defaults_to_the_parameters_of_execute(self):
         self.assertEqual(Documented().usage(),
                          "(Documented first optional-arg? rest...)")

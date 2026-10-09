@@ -5,9 +5,9 @@ Applies 95 against the brake limit of 80.
 
 .. warning::
 
-   Fails on purpose: 95 is over the brake limit, so the brakes-hold
-   defblock fails and VMCBRA00007 rolls up Red. Use it to see a failing
-   step and the nested calls that explain it.
+   Fails on purpose: 95 is over the brake limit, so the Verify in
+   brakes-hold fails and VMCBRA00007 rolls up Red. Use it to see a
+   failing step and the nested calls that explain it.
 
 Requirements
 ------------

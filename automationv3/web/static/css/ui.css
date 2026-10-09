@@ -636,6 +636,9 @@ body.ui {
 .ui-call { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
 .ui-call__form { font-family: var(--ui-font-mono); color: var(--ui-ink); overflow-wrap: anywhere; }
 .ui-call__out { color: var(--ui-muted); font-family: var(--ui-font-mono); }
+.ui-call__title { font-weight: 600; color: var(--ui-ink); }
+.ui-call--value { opacity: .7; }
+.ui-call--value .ui-outcome { visibility: hidden; }
 .ui-call .ui-pre { flex-basis: 100%; }
 .ui-calls details > summary { cursor: pointer; color: var(--ui-muted); font-size: 12px; }
 

@@ -9,12 +9,13 @@ Brakes use a tighter pressure limit than the default.
    (defn brake-pressure-ok? [pressure]
      (within-limit? pressure))
 
-A defblock reports as one step, with the blocks it calls nested beneath
-it; it passes on what it returns (here, the last Verify).
+A step form reports its block calls nested beneath one titled entry.
+Any call in it that fails stops it, and the script, right there.
 
 .. rvt::
 
-   (defblock brakes-hold [pressure]
-     (StartDemo {:mode :normal
-                 :readings {:brake-pressure pressure}})
-     (Verify (reading :brake-pressure) <= max-pressure))
+   (defn brakes-hold [pressure]
+     (step "Brakes hold the pressure"
+       (StartDemo {:mode :normal
+                   :readings {:brake-pressure pressure}})
+       (Verify (reading :brake-pressure) <= max-pressure)))

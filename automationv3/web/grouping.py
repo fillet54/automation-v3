@@ -18,7 +18,7 @@ from itertools import groupby
 from ..framework.language import head
 
 # A titled block's state is its most telling step's: earlier wins
-STATE_ORDER = ["fail", "running", "pending", "not run", "pass"]
+STATE_ORDER = ["error", "fail", "running", "pending", "not run", "pass"]
 
 
 def group(items, variation=None):

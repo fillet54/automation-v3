@@ -7,25 +7,28 @@ environments, variations) are skipped; every other form is a step. Statement ind
 match `statements.get_statements`, so a report can line results up with
 the rendered script.
 
-Definitions (def, defn, defblock) are not steps. A script's definitions
+Definitions (def, defn) are not steps. A script's definitions
 section is loaded before anything runs, along with its core.rst files;
 a definition elsewhere runs where it is, without being reported unless
 it fails.
 
 A step is run by `steps.run_statement`: a block written as the statement
 is the step; anything else (a defn call, an if, ...) is evaluated as
-Lisp, with the blocks it calls reported as calls of that step. See
-steps.py for how composed blocks report and fail.
+Lisp, with the blocks it calls reported as calls of that step. Only
+block calls fail a step; see steps.py for how they report and fail.
 
 Blocks limited to other variations (`:variations:`, see document.py)
 are skipped without being reported: their steps don't run and their
 definitions aren't loaded.
 
-The first failing step stops the script: the outcome is "fail" and
-later statements are not reported.
+The first failing step stops the script and later statements are not
+reported. The outcome is "fail" if an assertion came out false, and
+"error" if something raised: a block, or the script's own code (an
+unknown name, a definition that couldn't be evaluated).
 
 Preconditions run like steps: the check, then (if it failed and there
-is one) the heal and the check again. Each of these is reported as a
+is one) the heal and the check again. A check holds only if nothing in
+it failed and its value is truthy. Each of these is reported as a
 phase of the precondition's step (phase_start / phase_end, with the
 block calls it makes tagged with its phase), so pages can show a
 precondition like a titled block. A precondition that still fails
@@ -57,13 +60,17 @@ def new_env():
 
 def run_phase(action, form, env, runtime):
     """Run one phase (a check or the heal) of a precondition, reported as
-    such. Returns a BlockResult."""
+    such. Returns a BlockResult. A check passes only if its value is
+    truthy too."""
     runtime.phase = (runtime.phase or 0) + 1
     details = dict(index=runtime.index, phase=runtime.phase, action=action)
     runtime.observer.on_phase_start(form=edn.writes(form), **details)
     started = time.monotonic()
     result = run_statement(form, env, runtime)
-    runtime.observer.on_phase_end(passed=bool(result), stdout=result.stdout,
+    if action == "check" and result and not result.value:
+        result.passed = False
+    runtime.observer.on_phase_end(passed=bool(result), error=result.error,
+                                  stdout=result.stdout,
                                   stderr=result.stderr, duration=elapsed(started),
                                   **details)
     return result
@@ -79,7 +86,7 @@ def run_precondition(form, env, runtime):
     if result or heal is None:
         return result
     healed = run_phase("heal", heal, env, runtime)
-    if healed.stderr:  # the heal itself raised or had no block
+    if not healed:  # the heal itself failed
         return BlockResult(False, stdout=result.stdout, stderr=healed.stderr)
     result = run_phase("check", check, env, runtime)
     return BlockResult(bool(result), stdout=f"healed; {result.stdout}".strip("; "),
@@ -87,7 +94,7 @@ def run_precondition(form, env, runtime):
 
 
 def load_definitions(env, text, keep=frozenset()):
-    """Evaluate the definitions (def, defn, defblock) of a core.rst into `env`.
+    """Evaluate the definitions (def, defn) of a core.rst into `env`.
 
     Names in `keep` are already defined and are not overridden.
     """
@@ -109,7 +116,8 @@ def execute_script(text, observer, script=None, env=None, mode="normal",
     """Run the statements of `text` in order, as `variation` (a name) if
     given.
 
-    Returns "pass", "fail", "blocked", or (in probe mode) "released".
+    Returns "pass", "fail", "error", "blocked", or (in probe mode)
+    "released".
     """
     env = env if env is not None else new_env()
     with context.running(env):
@@ -132,14 +140,15 @@ def _execute(text, observer, script, env, mode, variation):
             if index in preloaded and dict.__contains__(env, form[1]):
                 continue  # loaded with the closure
             if not _define(form, env, observer, index):
-                outcome = "fail"
+                outcome = "error"
                 break
         elif is_step(form):
-            if not _run_step(form, env, observer, index):
-                if head(form) != PRECONDITION:
-                    outcome = "fail"
-                else:
+            result = _run_step(form, env, observer, index)
+            if not result:
+                if head(form) == PRECONDITION:
                     outcome = "released" if mode == "probe" else "blocked"
+                else:
+                    outcome = "error" if result.error else "fail"
                 break
 
     observer.on_procedure_end(outcome=outcome)
@@ -155,8 +164,8 @@ def _define(form, env, observer, index):
     except Exception:
         details = dict(index=index, definition=True)
         observer.on_step_start(form=edn.writes(form), **details)
-        observer.on_step_end(passed=False, stdout="", stderr=traceback.format_exc(),
-                             duration=0, **details)
+        observer.on_step_end(passed=False, error=True, stdout="",
+                             stderr=traceback.format_exc(), duration=0, **details)
         return False
 
 
@@ -170,8 +179,9 @@ def _run_step(form, env, observer, index):
     run = run_precondition if precondition else run_statement
     with running_statement(runtime):
         result = run(form, env, runtime)
-    observer.on_step_end(passed=bool(result), stdout=result.stdout,
-                         stderr=result.stderr, duration=elapsed(started), **details)
+    observer.on_step_end(passed=bool(result), error=result.error,
+                         stdout=result.stdout, stderr=result.stderr,
+                         duration=elapsed(started), **details)
     return result
 
 

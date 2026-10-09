@@ -1,8 +1,9 @@
 """What a running step can reach
 
 While a script runs, BuildingBlocks can look up the run's bindings (e.g.
-a UUT handle by name, a variation symbol, a core.rst definition). Block
-arguments are evaluated with `evaluate` before reaching `execute`.
+a UUT handle by name, a variation symbol, a core.rst definition), and
+see the arguments of the call they are running as written
+(`written_args`), e.g. to describe them in their output.
 """
 
 import contextvars
@@ -36,14 +37,23 @@ def lookup(name):
 
 
 def evaluate(form, env=None):
-    """Evaluate a block argument, including inside maps and vectors.
+    """Evaluate a form as Lisp in `env` (by default the running script's)"""
+    return lisp.eval(form, env if env is not None else current_env())
 
-    Keywords and literals stay as they are; symbols and lists are
-    evaluated as Lisp in `env` (by default the running script's).
-    """
-    env = env if env is not None else current_env()
-    if isinstance(form, dict):
-        return edn.Map({evaluate(k, env): evaluate(v, env) for k, v in form.items()})
-    if isinstance(form, edn.Vector):
-        return edn.Vector(evaluate(item, env) for item in form)
-    return lisp.eval(form, env)
+
+_args = contextvars.ContextVar("args", default=())
+
+
+@contextmanager
+def calling(args):
+    """Make `args` (forms as written) the running call's for the duration"""
+    token = _args.set(tuple(args))
+    try:
+        yield
+    finally:
+        _args.reset(token)
+
+
+def written_args():
+    """The arguments of the block call running, as written"""
+    return _args.get()

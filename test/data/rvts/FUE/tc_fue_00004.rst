@@ -23,5 +23,5 @@ Steps
 
 .. rvt::
 
-   (fuel-level-ok? 40)
-   (brake-pressure-ok? 90)
+   (Verify (fuel-level-ok? 40))
+   (Verify (brake-pressure-ok? 90))

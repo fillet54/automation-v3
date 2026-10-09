@@ -3,8 +3,9 @@
 A script's rvt blocks hold edn forms (see document.py). Most are steps,
 run in order. The others:
 
-- Definitions, `def`, `defn` and `defblock`, name values, functions and
-  blocks. They live in core.rst files and in scripts.
+- Definitions, `def` and `defn`, name values and functions. They live
+  at the top level of core.rst files and scripts, never inside another
+  form, so every name a script uses is known before it runs.
 - Declarations, `(uut :name)` and `(environments :name ...)`, say what
   a script tests and where it can run.
 - `(import folder)` loads the definitions of another folder's core.rst.
@@ -24,7 +25,9 @@ run in order. The others:
         :heal "Start the demo in normal mode" (start-demo :normal))
 
   Preconditions come before the first regular step. The check and the
-  heal are step forms; the heal may be described by a string.
+  heal are step forms; the heal may be described by a string. Unlike a
+  step, the check is judged by its value: it holds if nothing in it
+  failed and it comes to a truthy value.
 
 Directives (import, variations and the declarations) configure a script
 rather than run as steps.
@@ -34,7 +37,7 @@ from dataclasses import dataclass
 
 from . import edn
 
-DEFINITIONS = {"def", "defn", "defblock"}
+DEFINITIONS = {"def", "defn"}
 DECLARATIONS = {"uut", "environments"}
 DIRECTIVES = {"import", "variations"} | DECLARATIONS
 PRECONDITION = "Precondition"

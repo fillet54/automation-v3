@@ -22,7 +22,7 @@ Steps
 .. rvt::
 
    (quietly (Wait 1))
-   (if (passes? (Verify (.version demo) = "1.1.0"))
+   (if (try-ok? (Verify (.version demo) = "1.1.0"))
      (Wait 2)
      (Wait 1))
-   (brake-pressure-ok? 40)
+   (Verify (brake-pressure-ok? 40))

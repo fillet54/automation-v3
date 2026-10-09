@@ -25,4 +25,4 @@ Steps
 
    (set-reading :fuel-type fuel-type)
    (set-reading :fuel-level litres)
-   (fuel-level-ok? (reading :fuel-level))
+   (Verify (fuel-level-ok? (reading :fuel-level)))

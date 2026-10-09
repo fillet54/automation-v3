@@ -208,27 +208,31 @@ class ConsoleObserver:
         print(f"\n{script}{' (' + where + ')' if where else ''}, {mode} mode")
 
     def on_step_end(self, form=None, passed=True, stdout="", stderr="",
-                    precondition=False, **kw):
-        mark = "ok  " if passed else "FAIL"
+                    precondition=False, error=False, **kw):
+        mark = "ok  " if passed else ("ERR " if error else "FAIL")
         label = "precondition " if precondition else ""
         print(f"  {mark} {label}step {kw.get('index')}"
               f"{': ' + stdout if stdout else ''}")
         if stderr:
             print("       " + stderr.strip().replace("\n", "\n       "))
 
-    def on_call_start(self, form=None, depth=0, quiet=False, **kw):
-        self.form = form
+    def on_call_start(self, form=None, call=None, **kw):
+        self.forms = getattr(self, "forms", {})
+        self.forms[call] = form
 
     def on_call_end(self, passed=True, stdout="", depth=0, quiet=False,
-                    checked=False, **kw):
+                    suppressed=False, error=False, title=None, value=None, call=None,
+                    **kw):
         if quiet:
             return
-        if checked:
+        if suppressed:
             mark = "yes " if passed else "no  "
         else:
-            mark = "ok  " if passed else "FAIL"
+            mark = "ok  " if passed else ("ERR " if error else "FAIL")
         indent = "      " + "  " * depth
-        print(f"{indent}{mark} {self.form}{': ' + stdout if stdout else ''}")
+        label = title or self.forms.get(call)
+        shown = stdout or (f"-> {value}" if value is not None else "")
+        print(f"{indent}{mark} {label}{': ' + shown if shown else ''}")
 
     def on_procedure_end(self, outcome=None, **kw):
         print(f"  -> {outcome}")

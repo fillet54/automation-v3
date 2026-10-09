@@ -66,9 +66,9 @@ class TestRunning(unittest.TestCase):
         self.assertEqual([s["stdout"] for s in recorder.steps()],
                          ["70 = 70", "140 = 140"])
 
-    def test_a_failing_definition_fails_the_script(self):
+    def test_a_failing_definition_ends_the_script_in_error(self):
         outcome, recorder = run(rvt("(def broken (missing-fn 1)) (Wait 1)"))
-        self.assertEqual(outcome, "fail")
+        self.assertEqual(outcome, "error")
         (step,) = recorder.steps()
         self.assertTrue(step["definition"])
         self.assertIn("missing-fn not found", step["stderr"])

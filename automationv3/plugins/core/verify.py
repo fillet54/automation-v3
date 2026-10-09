@@ -1,7 +1,7 @@
 import operator
 
 from automationv3.framework import context, edn, html
-from automationv3.framework.block import BlockResult, BuildingBlock
+from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
 
 OPERATORS = {
     "=": operator.eq,
@@ -22,6 +22,7 @@ def show(value):
 class Verify(BuildingBlock):
     """Check a value against an expected one, or that a value is truthy.
 
+    An assertion: it fails the step when the check comes out false.
     Both sides are evaluated in the running script, so they can use
     definitions, variation symbols and UUT handles. ``op`` is one of
     ``= == != not= < <= > >=``, written as is. The step prints what it
@@ -36,25 +37,20 @@ class Verify(BuildingBlock):
     def usage(self):
         return "(Verify actual op expected)\n(Verify value)"
 
+    kind = ASSERTION
+    quoted = {"op"}  # the operator is syntax: taken as written
+
     def check_syntax(self, *forms):
         if len(forms) == 1:
             return True
         return len(forms) == 3 and str(forms[1]) in OPERATORS
 
-    # The operator is syntax, so the block takes its forms as written
-    def execute_forms(self, *forms):
-        if len(forms) == 1:
-            value = context.evaluate(forms[0])
-            return BlockResult(bool(value), stdout=f"{show(forms[0])} is {show(value)}")
-
-        actual, op, expected = forms
-        actual_value = context.evaluate(actual)
-        expected_value = context.evaluate(expected)
-        passed = OPERATORS[str(op)](actual_value, expected_value)
-        return BlockResult(
-            bool(passed),
-            stdout=f"{show(actual_value)} {op} {show(expected_value)}",
-        )
+    def execute(self, actual, op=None, expected=None):
+        if op is None:
+            (written,) = context.written_args()
+            return BlockResult(bool(actual), stdout=f"{show(written)} is {show(actual)}")
+        passed = OPERATORS[str(op)](actual, expected)
+        return BlockResult(bool(passed), stdout=f"{show(actual)} {op} {show(expected)}")
 
     def as_html(self, *forms):
         return (

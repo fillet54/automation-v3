@@ -43,7 +43,7 @@ Steps
 .. rvt:: Apply the variation's pressure and check it is safe
 
    (set-reading :brake-pressure pressure)
-   (brake-pressure-ok? (reading :brake-pressure))
+   (Verify (brake-pressure-ok? (reading :brake-pressure)))
 
 .. rvt-variant::
    :variations: emergency

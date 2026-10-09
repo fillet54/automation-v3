@@ -21,6 +21,6 @@ Steps
 
    (def leak :fuel-leak)
    (raise-fault leak)
-   (fault-active? leak)
+   (Verify (fault-active? leak))
    (clear-faults)
-   (no-faults?)
+   (Verify (no-faults?))

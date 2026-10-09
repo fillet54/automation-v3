@@ -20,4 +20,4 @@ Steps
 .. rvt::
 
    (set-reading :fuel-level 40)
-   (fuel-level-ok? (reading :fuel-level))
+   (Verify (fuel-level-ok? (reading :fuel-level)))

@@ -35,6 +35,12 @@ PASSING = doc('''
 
 FAILING = doc("Docs", rvt('''
     (Wait 1)
+    (Verify 1 = 2)
+    (Wait 2)
+    '''))
+
+ERRORING = doc("Docs", rvt('''
+    (Wait 1)
     (Missing X)
     (Wait 2)
     '''))
@@ -216,16 +222,26 @@ class TestExecutor(unittest.TestCase):
         recorder = Recorder()
         self.assertEqual(execute_script(FAILING, recorder), "fail")
         ends = [kw for kind, kw in recorder.events if kind == "step_end"]
-        self.assertEqual([e["passed"] for e in ends], [True, False])
-        self.assertIn("No BuildingBlock or definition matches (Missing X)", ends[1]["stderr"])
+        self.assertEqual([(e["passed"], e["error"]) for e in ends],
+                         [(True, False), (False, False)])
+        self.assertEqual(ends[1]["stdout"], "1 = 2")
         self.assertEqual([e["index"] for e in ends], [1, 2])
         self.assertEqual(recorder.events[-1], ("procedure_end", {"outcome": "fail"}))
+
+    def test_a_step_that_raises_ends_the_script_in_error(self):
+        recorder = Recorder()
+        self.assertEqual(execute_script(ERRORING, recorder), "error")
+        ends = [kw for kind, kw in recorder.events if kind == "step_end"]
+        self.assertEqual([(e["passed"], e["error"]) for e in ends],
+                         [(True, False), (False, True)])
+        self.assertIn("No BuildingBlock or definition matches (Missing X)", ends[1]["stderr"])
 
     def test_defn_steps_use_innermost_definitions(self):
         files = {
             "core.rst": ROOT_CORE,
             "BRA/core.rst": rvt("(def limit 20)"),
-            "BRA/tc.rst": rvt("(uut :demo) (under-limit? 15) (Wait 1) (under-limit? 25)"),
+            "BRA/tc.rst": rvt("(uut :demo) (Verify (under-limit? 15)) (Wait 1) "
+                              "(Verify (under-limit? 25))"),
         }
         recorder = Recorder()
         outcome = execute_closure(files, ["core.rst", "BRA/core.rst", "BRA/tc.rst"],
@@ -235,7 +251,7 @@ class TestExecutor(unittest.TestCase):
         # The directive is skipped; 15 < 20 passes, 25 fails
         self.assertEqual([(e["index"], e["passed"]) for e in ends],
                          [(1, True), (2, True), (3, False)])
-        self.assertEqual(ends[0]["stdout"], "returned true")
+        self.assertEqual(ends[0]["stdout"], "(under-limit? 15) is true")
 
     def test_definitions_do_not_leak_between_runs(self):
         execute_closure({"core.rst": rvt("(def leaked 1)"), "a.rst": ""},
@@ -500,10 +516,10 @@ class TestWorkerAgainstServer(unittest.TestCase):
         gitdir = self.gitdir = self.tmp / "repo"
         write_tree(gitdir / "rvts", {
             "core.rst": ROOT_CORE,
-            "BRA/tc.rst": doc("Pressure :req:`R2`", rvt("(under-limit? 5) (Wait 1)")),
+            "BRA/tc.rst": doc("Pressure :req:`R2`", rvt("(Verify (under-limit? 5)) (Wait 1)")),
             "BRA/modes.rst": doc("Modes :req:`R1` :req:`R2`", rvt(
                 '(variations "mode level" ["low" [:low 1] "high" [:high 50]]) '
-                "(under-limit? level)")),
+                "(Verify (under-limit? level))")),
             "BRA/scoped.rst": doc(
                 rvt('(variations "level" ["low" [1] "high" [50]])'),
                 rvt("(Verify level > 0)", title="Level is positive"),
@@ -518,7 +534,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "plain/pass.rst": PASSING,
             "plain/lint.rst": "(Wait 1) (Precondition \"late\" (Wait 2))",
             "LIB/core.rst": "(def limit 99)",
-            "BRA/imports.rst": "(import LIB) (under-limit? 50)",
+            "BRA/imports.rst": "(import LIB) (Verify (under-limit? 50))",
         })
         gitutil.create_repo(gitdir)
         self.branch = next(iter(find_worktrees(gitdir)))
@@ -560,7 +576,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         page = self.http.get(f"/reports/{ids['report_id']}/runs/{ids['run_id']}")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"No BuildingBlock or definition matches (Missing X)", page.data)
+        self.assertIn(b"1 = 2", page.data)
         self.assertIn(b"ui-step--pass", page.data)
         self.assertIn(b"ui-step--fail", page.data)
         self.assertIn(b"ui-step--not-run", page.data)

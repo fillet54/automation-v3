@@ -72,7 +72,7 @@ def statement_rows(run, finished):
             row["step"] = index in ended
         if row["step"]:
             if index in ended:
-                row["state"] = "pass" if ended[index]["passed"] else "fail"
+                row["state"] = step_state(ended[index])
                 row["result"] = ended[index]
             elif index in started:
                 row["state"] = "running"
@@ -131,23 +131,30 @@ def phase_state(phase):
         return "running"
     if phase["action"] == "check":
         return "true" if phase["passed"] else "false"
-    return "pass" if phase["passed"] else "fail"
+    return step_state(phase)
+
+
+def step_state(ended):
+    """pass, fail (an assertion came out false) or error (something raised)"""
+    if ended["passed"]:
+        return "pass"
+    return "error" if ended.get("error") else "fail"
 
 
 def call_state(call):
+    """A suppressed call (inside try-ok? or try) is true or false; any
+    other passes, fails or errs"""
     if "passed" not in call:
         return "running"
-    if call.get("checked"):
+    if call.get("suppressed") or call.get("checked"):  # checked: older runs
         return "true" if call["passed"] else "false"
-    return "pass" if call["passed"] else "fail"
+    return step_state(call)
 
 
 def call_trees(events):
     """statement index -> its block calls as a tree, quiet calls left out.
 
-    Each call has its `children` (calls nested in a defblock call) and a
-    `nested` flag for calls the statement's own defblock nested.
-    """
+    Each call has its `children` (calls made inside a step form)."""
     calls = {}
     for event in events:
         if event["kind"] not in ("call_start", "call_end") or event.get("quiet"):

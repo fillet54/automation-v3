@@ -19,7 +19,7 @@ class Statement:
 
     `in_definitions` is set for the forms of the script's definitions
     section (rvt blocks marked :definitions:), and `definition` for every
-    def, defn or defblock; pages show these collapsed. `variations` is
+    def or defn; pages show these collapsed. `variations` is
     the names its block is limited to, else None (every variation);
     `block` is where its rvt block starts (None for prose) and `title`
     that block's title, if it has one. A Precondition's `precondition`

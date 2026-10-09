@@ -454,7 +454,7 @@
 {#- ============================================================== automation: outcomes #}
 
 {#- state -> (glyph, word). Run outcomes (pass | fail | error | blocked | released), job states (pending |
-    claimed | running), step states (not run), block checks inside passes? (true | false), requirement rollups
+    claimed | running), step states (not run), suppressed block calls inside try-ok? / try (true | false), requirement rollups
     (green | partial | red) and worker states (available | busy | missing). #}
 {% set OUTCOMES = {
   "pass": ("pass", "Passed"), "fail": ("fail", "Failed"), "error": ("error", "Error"),

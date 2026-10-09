@@ -29,5 +29,5 @@ Steps
 
 .. rvt::
 
-   (demo-in-mode? :emergency)
-   (brake-pressure-ok? (reading :brake-pressure))
+   (Verify (demo-in-mode? :emergency))
+   (Verify (brake-pressure-ok? (reading :brake-pressure)))
