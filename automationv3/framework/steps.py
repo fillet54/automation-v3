@@ -61,6 +61,7 @@ class RemovedForm(Exception):
 class Frame:
     quiet: bool = False
     suppressed: bool = False  # inside try-ok? / try
+    silent: bool = False  # run, but not reported at all (e.g. Wait's polls)
     parent: int = None  # the enclosing step form's call
     depth: int = 0
 
@@ -76,6 +77,18 @@ class Runtime:
         self.frames = [Frame()]
         self.phase = None  # the precondition phase running, numbered from 1
         self.placeholders = 0  # TBD steps reached
+        self.touched = set()  # (path, uut, operation) of connectors
+
+    def touch(self, connector, operation):
+        """Report a connector touched (once per path and operation)"""
+        key = (connector.path, connector.uut, operation)
+        if key in self.touched:
+            return
+        self.touched.add(key)
+        details = {"row": self.row} if self.row is not None else {}
+        notify(self.observer, "connector", index=self.index, path=connector.path,
+               name=connector.label, uut=connector.uut, operation=operation,
+               **details)
 
     @property
     def frame(self):
@@ -95,6 +108,13 @@ class Runtime:
         or error raised inside a step form is reported against it and
         raised on."""
         frame = self.frame
+        if frame.silent:
+            result = run(None)
+            if not result:
+                failed = StepFailed(form, result)
+                failed.lisp_trace = list(lisp.trace(getattr(result, "exception", None)))
+                raise failed
+            return result
         self.calls += 1
         call = self.calls
         if kind == PLACEHOLDER:
@@ -135,6 +155,13 @@ class Runtime:
         self.observer.on_call_end(
             passed=bool(result), error=result.error, stdout=result.stdout,
             stderr=result.stderr, duration=elapsed(started), **extra, **details)
+
+
+def notify(observer, event, **details):
+    """Tell an observer about an event, if it listens for it"""
+    handler = getattr(observer, "on_" + event, None)
+    if handler is not None:
+        handler(**details)
 
 
 def error_line(e):

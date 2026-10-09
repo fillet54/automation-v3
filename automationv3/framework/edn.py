@@ -3,7 +3,9 @@
 `read` and `read_all` turn edn text into Python values: lists become
 List, vectors Vector, maps Map, sets Set, symbols Symbol and keywords
 Keyword; strings and characters become str, numbers int or float, and
-true, false and nil become True, False and None. `writes` turns values
+true, false and nil become True, False and None. Time literals (5s,
+500ms, 2min, 1h, or with the units spelled out: 5seconds) become a
+Duration: a float of seconds that writes back as written. `writes` turns values
 back into edn text, laying out large collections over several lines.
 
 Every form read records where it came from: symbols, keywords and
@@ -161,6 +163,31 @@ class Set(set):
     pass
 
 
+class Duration(float):
+    """A time literal, e.g. 5s, 500ms or 2min: a number of seconds that
+    remembers how it was written, and writes back the same way"""
+
+    def __new__(cls, seconds, written=None):
+        value = super().__new__(cls, seconds)
+        value.written = written or f"{float(seconds):g}s"
+        return value
+
+    def __repr__(self):
+        return self.written
+
+    def __reduce__(self):
+        return (Duration, (float(self), self.written))
+
+
+# Seconds in one of each unit a time literal can be written in
+TIME_UNITS = {
+    **dict.fromkeys(["ms", "msec", "millis", "millisecond", "milliseconds"], 0.001),
+    **dict.fromkeys(["s", "sec", "secs", "second", "seconds"], 1.0),
+    **dict.fromkeys(["min", "mins", "minute", "minutes"], 60.0),
+    **dict.fromkeys(["h", "hr", "hrs", "hour", "hours"], 3600.0),
+}
+
+
 # Reading
 
 WHITESPACE = " \t\r\n,"
@@ -180,6 +207,7 @@ INT = re.compile(
 FLOAT = re.compile(r"([-+]?[0-9]+(\.[0-9]*)?([eE][-+]?[0-9]+)?)M?")
 RATIO = re.compile(r"([-+]?[0-9]+)/([0-9]+)")
 BAD_OCTAL = re.compile(r"[-+]?0[0-9]+N?")  # e.g. 08: not octal, not decimal
+TIME = re.compile(r"([-+]?[0-9]+(?:\.[0-9]+)?)([a-z]+)")  # e.g. 5s, 1.5min
 
 # What reading a form can give instead of a form
 _EOF = object()
@@ -430,6 +458,8 @@ def _split_symbol(reader, token):
 
 def _read_number(reader, ch):
     token = reader.token(ch)
+    if (m := TIME.fullmatch(token)) and m.group(2) in TIME_UNITS:
+        return Duration(float(m.group(1)) * TIME_UNITS[m.group(2)], token)
     if BAD_OCTAL.fullmatch(token) and not INT.fullmatch(token):
         raise reader.error(f"Invalid octal number '{token}'")
     if m := INT.fullmatch(token):
@@ -544,6 +574,8 @@ def _write_atom(value):
         return "nil"
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, Duration):
+        return value.written
     if isinstance(value, Symbol):
         return str(value)
     if isinstance(value, str):

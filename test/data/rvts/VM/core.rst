@@ -5,10 +5,11 @@ platform's bus computer. The requirements are the ``VM-*`` set in
 ``test/data/requirements/vehicle_manager.rst``.
 
 They run against the simulated Vehicle Manager (the ``vm`` UUT of the
-``vm`` plugin), reached through the ``vm`` handle: its telecommand and
-telemetry link through the ``SendTC`` and ``Telemetry`` blocks, and the
-test bench around it (battery and solar array simulators, fault
-injection, power supply) through the handle's methods.
+``vm`` plugin), reached through the ``vm`` handle: its telecommands
+through the ``SendTC`` block, its telemetry points and the test bench's
+inputs (solar array, battery, attitude error) as connectors, declared
+below, and the rest of the bench (discharging the battery, overloads,
+resets) through the handle's methods.
 
 Each script tests one requirement (a few requirements have more than one
 script). Cases that can run one after the other on the platform as it is
@@ -26,6 +27,29 @@ as written below.
 .. rvt::
 
    (uut :vm)
+
+Connectors
+----------
+The platform's points, by subsystem. ``eps.soc`` is the battery's state
+of charge as the VM reports it; ``lines.payload.on`` whether the payload
+line is on. The two transponders are a group, checked together. The
+simulation's frames are a second long, so Wait polls once a frame.
+
+.. rvt::
+
+   (def obc (connector "vm.obc"))
+   (def modes (connector "vm.mode"))
+   (def eps (connector "vm.eps"))
+   (def lines eps.line)
+   (def tc (connector "vm.tc"))
+   (def fdir (connector "vm.fdir"))
+   (def bench (connector "vm.bench"))
+
+   (def xpdr-a lines.transponder-a)
+   (def xpdr-b lines.transponder-b)
+   (def transponders (group xpdr-a xpdr-b))
+
+   (def wait-every 1s)
 
 Numbers from the requirements
 -----------------------------
@@ -104,17 +128,14 @@ Shared steps of every test.
 .. rvt::
 
    (defn platform-in-mode? [mode]
-     (= (Telemetry :mode) mode))
+     (= (Read modes.current) mode))
 
    (defn command-mode [mode]
      (BringToMode mode)
-     (Verify (Telemetry :mode) = mode))
+     (Verify modes.current = mode))
 
    (defn power-cycle-bus-computer []
      (.reset vm :power-on))
 
-   (defn line-on? [line]
-     (.get (Telemetry :line line) :on))
-
    (defn now []
-     (Telemetry :time))
+     (Read obc.time))

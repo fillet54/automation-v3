@@ -21,14 +21,18 @@ Steps
 .. rvt:: Each line
    :table:
 
-   ("line"
-     ["star tracker"          [:star-tracker]
-      "transponder B"         [:transponder-b]
-      "payload"               [:payload]
-      "non-essential heaters" [:heater-non-essential]])
+   ("line relay"
+     ["star tracker"          [:star-tracker lines.star-tracker]
+      "transponder B"         [:transponder-b xpdr-b]
+      "payload"               [:payload lines.payload]
+      "non-essential heaters" [:heater-non-essential lines.heater-non-essential]])
 
    (Verify (SendTC :line-off :line line) = :executed)
-   (Verify (line-on? line) = false)
-   (Verify (.get (Telemetry :line line) :switch_ms) <= 100)
+   (Verify relay.on = false)
+   (Verify relay.switch-ms <= 100)
    (Verify (SendTC :line-on :line line) = :executed)
-   (Verify (line-on? line))
+   (Verify relay.on)
+
+.. rvt:: Both transponders back on
+
+   (Verify transponders.on)

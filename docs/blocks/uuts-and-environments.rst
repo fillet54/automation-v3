@@ -123,6 +123,32 @@ Guidelines for handles:
   (``reading``, ``set-reading``) to give scripts a readable vocabulary, and
   put anything substantial into blocks.
 
+Serving connectors
+------------------
+
+A handle that serves connectors (see :doc:`../scripts/connectors`) has these
+methods, which the Read, SetValue, SetFixedValue, ClearFixedValue, Verify and
+Wait blocks call with the connector's full path:
+
+``read_connector(path)``
+   The value at the path. Raise if there is no such connector.
+
+``set_connector(path, value)``
+   Write it once.
+
+``fix_connector(path, value)`` and ``clear_connector(path)``
+   Hold it at a value, and release it. The framework releases whatever a
+   script leaves fixed when the script ends.
+
+``connector_clock()`` and ``connector_sleep(seconds)``, optional
+   The UUT's own time, for one whose time isn't the wall clock's, such as a
+   simulation that only moves when run forward. Wait uses them to measure
+   ``:within`` and to pause between checks.
+
+The simulated Vehicle Manager (``automationv3/plugins/vm/sim.py``) is a worked
+example: its telemetry points read-only, the bench's inputs writable, fixed
+values applied again every simulated frame.
+
 The lifecycle of a job
 ----------------------
 

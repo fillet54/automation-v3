@@ -86,7 +86,8 @@ class TestTopLevelAndDefn(unittest.TestCase):
         self.assertEqual([(c["call"], c["depth"], c["passed"]) for c in calls],
                          [(1, 0, True), (2, 0, True)])
         self.assertEqual(calls[0]["stdout"], "70 <= 80")
-        self.assertEqual([c["block_kind"] for c in calls], [ASSERTION, ACTION])
+        # Wait is an assertion too: a check, or (with a time) a pause
+        self.assertEqual([c["block_kind"] for c in calls], [ASSERTION, ASSERTION])
 
     def test_failure_in_a_defn_stops_the_script(self):
         outcome, rec = run("(check-pressure 90) (Wait 99)")
@@ -135,7 +136,7 @@ class TestCallValues(unittest.TestCase):
         self.assertEqual(outcome, "pass")
 
     def test_an_action_gives_what_it_returned(self):
-        outcome, _ = run("(Verify (nil? (Wait 1)))")
+        outcome, _ = run("(Verify (nil? (SetupSimulation :speed 1)))")
         self.assertEqual(outcome, "pass")
 
 

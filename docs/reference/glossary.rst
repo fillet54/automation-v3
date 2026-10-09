@@ -10,6 +10,14 @@ Glossary
    closure
       A script plus every ``core.rst`` and import it loaded. Stored with each run.
 
+   connector
+      A point of a UUT scripts read, wait on and drive, named by its path.
+      See :doc:`../scripts/connectors`.
+
+   connector group
+      Connectors tested together, such as redundant units: Verify and Wait
+      check every member. See :doc:`../scripts/connectors`.
+
    combination
       One (script, environment, variation) a report expects a run of.
 
@@ -24,6 +32,10 @@ Glossary
 
    value block
       A block that reads something and gives it back. Reported quietly, with its value.
+
+   cleanup
+      What a block registers to run when the script ends, however it ends,
+      such as SetFixedValue releasing its value.
 
    drift
       An environment whose fingerprint no longer matches a run being rerun.

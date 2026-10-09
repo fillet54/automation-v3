@@ -20,7 +20,7 @@ Steps
 
 .. rvt:: Start from a known state
 
-   (.set_sun vm false)
+   (SetValue bench.sun false)
    (Verify (SendTC :restore-loads) = :executed)
    (Verify (SendTC :line-on :line :payload) = :executed)
 
@@ -32,6 +32,6 @@ Steps
       "mid"   [70.0]
       "low"   [45.0]])
 
-   (.set_battery vm soc-percent)
+   (SetValue bench.battery.soc soc-percent)
    (RunFor 1)
-   (Verify (Telemetry :soc) = soc-percent)
+   (Verify eps.soc = soc-percent)

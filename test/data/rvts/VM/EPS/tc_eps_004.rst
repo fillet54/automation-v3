@@ -22,12 +22,13 @@ Steps
 
 .. rvt:: Charge
 
-   (.set_battery vm 50.0)
-   (.set_sun vm true)
-   (RunFor 36000)
+   (SetValue bench.battery.soc 50.0)
+   (SetValue bench.sun true)
+   (Wait eps.soc = 95.0 :within 10h :every 1min)
+   (RunFor 60)
 
 .. rvt:: Limits
 
-   (Verify (Telemetry :max-charge-current) <= (/ battery-ah 5))
-   (Verify (Telemetry :soc) = 95.0)
-   (Verify (Telemetry :charge-current) = 0.0)
+   (Verify eps.max-charge-current <= (/ battery-ah 5))
+   (Verify eps.soc = 95.0)
+   (Verify eps.charge-current = 0.0)

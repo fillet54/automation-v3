@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 import automationv3.plugins
 
-from . import edn
+from . import connectors, edn  # noqa: F401  connectors adds its builtins
 from .context import calling, evaluate
 
 
@@ -149,6 +149,12 @@ class BuildingBlock:
     # Defined by blocks that take their arguments unevaluated:
     #     def execute_forms(self, *forms): ...
     execute_forms = None
+
+    # Defined by such blocks when they evaluate some of their forms
+    # themselves (e.g. Wait, again and again), so static analysis checks
+    # those forms like any other code:
+    #     def evaluated_forms(self, *forms): -> [form, ...]
+    evaluated_forms = None
 
     def as_rst(self, *args):
         """How a step using this block reads in a rendered script.

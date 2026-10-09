@@ -25,12 +25,12 @@ Steps
 .. rvt:: Shorter than 10 ms
 
    (.overload vm :star-tracker 1.2 5)
-   (Verify (line-on? :star-tracker))
+   (Verify lines.star-tracker.on)
 
 .. rvt:: Longer than 10 ms
 
    (.overload vm :star-tracker 1.2 15)
-   (Verify (line-on? :star-tracker) = false)
-   (Verify (.get (Telemetry :line :star-tracker) :tripped))
+   (Verify lines.star-tracker.on = false)
+   (Verify lines.star-tracker.tripped)
    (RunFor 60)
-   (Verify (line-on? :star-tracker) = false)
+   (Verify lines.star-tracker.on = false)

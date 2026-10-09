@@ -212,8 +212,8 @@ class ConsoleObserver:
         mark = ("TODO" if placeholders else "ok  ") if passed else \
             ("ERR " if error else "FAIL")
         label = "precondition " if precondition else ""
-        print(f"  {mark} {label}step {kw.get('index')}"
-              f"{': ' + stdout if stdout else ''}")
+        shown = stdout.replace("\n", "\n         ") if stdout else ""
+        print(f"  {mark} {label}step {kw.get('index')}{': ' + shown if shown else ''}")
         if stderr:
             print("       " + stderr.strip().replace("\n", "\n       "))
 
@@ -233,7 +233,12 @@ class ConsoleObserver:
         indent = "      " + "  " * depth
         label = title or self.forms.get(call)
         shown = stdout or (f"-> {value}" if value is not None else "")
+        shown = shown.replace("\n", "\n" + indent + "     ")
         print(f"{indent}{mark} {label}{': ' + shown if shown else ''}")
+
+    def on_cleanup(self, description=None, passed=True, message="", **kw):
+        mark = "ok  " if passed else "ERR "
+        print(f"  {mark} cleanup: {description}{': ' + message if message else ''}")
 
     def on_row_start(self, row=None, values=None, **kw):
         shown = ", ".join(f"{k}={v}" for k, v in (values or {}).items())

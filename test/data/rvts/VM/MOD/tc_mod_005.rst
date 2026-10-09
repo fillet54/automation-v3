@@ -22,15 +22,14 @@ Steps
 
    (Verify (SendTC :tt-resume) = :executed)
    (Verify (SendTC :noop :at (+ (now) 600)) = :queued)
-   (.inject vm :attitude-error 15.0)
-   (RunFor 61)
-   (Verify (Telemetry :mode) = :safe)
-   (.inject vm :attitude-error 0.0)
+   (SetFixedValue bench.attitude-error 15.0)
+   (Wait modes.current = :safe :within 2min)
+   (ClearFixedValue bench.attitude-error)
 
 .. rvt:: Within 5 s of entering SAFE
 
    (Verify (.safe_entry_delay vm) <= safe-mode-actions-s)
-   (Verify (line-on? :payload) = false)
-   (Verify (Telemetry :attitude-mode) = :sun-pointing)
-   (Verify (line-on? :heater-non-essential) = false)
-   (Verify (Telemetry :tt-suspended))
+   (Verify lines.payload.on = false)
+   (Verify modes.attitude = :sun-pointing)
+   (Verify lines.heater-non-essential.on = false)
+   (Verify tc.tt-suspended)

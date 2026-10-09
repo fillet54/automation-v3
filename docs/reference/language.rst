@@ -114,6 +114,24 @@ Predicates
 Strings and output
    ``str``, ``print``.
 
+Connectors
+   ``connector``, ``group``, ``same?``, ``connector?``. See
+   :doc:`../scripts/connectors`.
+
+Literals
+--------
+
+Besides edn's, time literals: a number with a unit, ``500ms``, ``5s``,
+``2min``, ``1h`` (or ``msec``, ``seconds``, ``minutes``, ``hours`` and their
+like). Each is a number of seconds that is shown as written.
+
+Dotted names
+------------
+
+A name like ``cpu1.app.mode`` that nothing defines as a whole is a path below
+the connector its first part (``cpu1``) is bound to. See
+:doc:`../scripts/connectors`.
+
 Bound names
 -----------
 
@@ -121,3 +139,6 @@ While a script runs, these are bound in addition to definitions:
 
 - each variation symbol, to the running variation's value;
 - each UUT's name (e.g. ``demo``), to its handle, if it offers one.
+
+``wait-timeout`` and ``wait-every``, if a script or its ``core.rst`` defines
+them, are Wait's defaults.

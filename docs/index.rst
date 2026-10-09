@@ -51,6 +51,7 @@ Where to start
    scripts/definitions
    scripts/variations
    scripts/preconditions
+   scripts/connectors
    scripts/composing
    scripts/documenting
    scripts/planning

@@ -101,3 +101,60 @@ def requirement_rollup(report, rows):
             "cells": cells,
         })
     return rollup
+
+
+# Connectors: which a run touched, and across a report, which each
+# requirement's scripts touched
+
+OPERATIONS = ("read", "set", "fix", "clear")
+
+
+def touched(events):
+    """The connectors a run's events say it touched, by path: [{"path",
+    "name", "uut", "operations", "steps"}], sorted by path. `name` is the
+    first name the script reached it by."""
+    found = {}
+    for event in events:
+        if event.get("kind") != "connector":
+            continue
+        entry = found.setdefault((event.get("uut"), event["path"]), {
+            "path": event["path"], "name": event.get("name") or event["path"],
+            "uut": event.get("uut"), "operations": set(), "steps": set(),
+        })
+        entry["operations"].add(event["operation"])
+        if event.get("index") is not None:
+            entry["steps"].add(event["index"])
+    return [
+        {**entry,
+         "operations": [op for op in OPERATIONS if op in entry["operations"]],
+         "steps": sorted(entry["steps"])}
+        for _, entry in sorted(found.items(), key=lambda item: item[0][1])
+    ]
+
+
+def connector_rollup(report, rows, events_of):
+    """Every connector the latest runs of a report touched: [{"path",
+    "operations", "scripts", "requirements"}], sorted by path.
+    `events_of(run)` gives a run's events."""
+    requirements_of = {}
+    for requirement, scripts in report.get("requirements", {}).items():
+        for script in scripts:
+            requirements_of.setdefault(script, set()).add(requirement)
+    found = {}
+    for row in rows:
+        if not row.get("latest"):
+            continue
+        for entry in touched(events_of(row["latest"])):
+            rolled = found.setdefault(entry["path"], {
+                "path": entry["path"], "operations": set(), "scripts": set(),
+                "requirements": set()})
+            rolled["operations"].update(entry["operations"])
+            rolled["scripts"].add(row["script"])
+            rolled["requirements"].update(requirements_of.get(row["script"], ()))
+    return [
+        {"path": path,
+         "operations": [op for op in OPERATIONS if op in r["operations"]],
+         "scripts": sorted(r["scripts"]),
+         "requirements": sorted(r["requirements"])}
+        for path, r in sorted(found.items())
+    ]

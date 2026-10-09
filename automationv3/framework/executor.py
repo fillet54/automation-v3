@@ -26,6 +26,12 @@ with the row's symbols bound, each row reported between row_start and
 row_end, and its steps' events tagged with the row. A failing row stops
 only itself: the other rows run, and the block fails at the end.
 
+Blocks can register cleanups (context.add_cleanup), e.g. SetFixedValue
+releasing the value it holds. They run once the script ends, however it
+ends, last registered first, each reported as a cleanup event; one that
+fails makes the outcome "error" (unless the run was already blocked,
+released or in error).
+
 Steps not written yet, (TBD "..."), are reported as such and the run
 goes on; a run that reached any can't pass: if nothing else stopped it,
 its outcome is "incomplete".
@@ -61,7 +67,9 @@ from .language import (
     parse_table,
     parse_variations,
 )
-from .steps import Runtime, elapsed, error_line, run_statement, running_statement
+from .steps import (
+    Runtime, elapsed, error_line, notify, run_statement, running_statement,
+)
 
 
 def new_env():
@@ -136,12 +144,47 @@ def execute_script(text, observer, script=None, env=None, mode="normal",
     as far as it is written), or (in probe mode) "released".
     """
     env = env if env is not None else new_env()
-    with context.running(env):
-        return _execute(text, observer, script, env, mode, variation)
+    with context.running(env), context.cleanups() as registered:
+        return _execute(text, observer, script, env, mode, variation, registered)
 
 
-def _execute(text, observer, script, env, mode, variation):
+def run_cleanups(registered, observer):
+    """Run the cleanups blocks registered (e.g. SetFixedValue's), last
+    first, each reported as a cleanup event. Returns whether all ran."""
+    ok = True
+    for key, (description, fn) in reversed(list(registered.items())):
+        started = time.monotonic()
+        try:
+            with running_statement(Runtime(observer, None)):
+                fn()
+            details = dict(passed=True, message="")
+        except Exception as e:
+            ok = False
+            details = dict(passed=False, message=error_line(e),
+                           stderr=traceback.format_exc())
+        registered.pop(key, None)
+        notify(observer, "cleanup", description=description,
+               duration=elapsed(started), **details)
+    return ok
+
+
+def _execute(text, observer, script, env, mode, variation, registered):
     parts = document.parse(text, path=script)
+    try:
+        outcome, placeholders = _run_parts(parts, observer, script, env, mode,
+                                           variation)
+    except BaseException:
+        run_cleanups(registered, observer)
+        raise
+    if not run_cleanups(registered, observer) and outcome in ("pass", "fail"):
+        outcome = "error"
+    if outcome == "pass" and placeholders:
+        outcome = "incomplete"
+    observer.on_procedure_end(outcome=outcome)
+    return outcome
+
+
+def _run_parts(parts, observer, script, env, mode, variation):
     observer.on_procedure_begin(script=script, statements=len(parts), mode=mode)
     preloaded = set(document.definitions_section(parts))
 
@@ -177,11 +220,7 @@ def _execute(text, observer, script, env, mode, variation):
                 else:
                     outcome = "error" if result.error else "fail"
                 break
-
-    if outcome == "pass" and placeholders:
-        outcome = "incomplete"
-    observer.on_procedure_end(outcome=outcome)
-    return outcome
+    return outcome, placeholders
 
 
 def failure_details(result):

@@ -11,6 +11,13 @@ Its state lives in the environment's work directory, so every run (and
 every worker process) on that environment sees the same platform. Time
 is simulated: nothing happens until a test runs time forward.
 
+Scripts reach it through connectors too (see CONNECTORS below): its
+telemetry points, read-only, and the bench's inputs (solar array,
+battery, attitude error, line relays), which can be set, or fixed
+until cleared. A fixed value is applied again every frame, so the
+platform can't change it. Simulated time is the connectors' clock, so
+Wait runs the platform forward while it polls.
+
 Version 3.1.0 has a known defect: it restores loads shed for a low
 state of charge by itself once the battery recovers past 65%, which
 VM-EPS-003 forbids. 3.2.0 fixes it.
@@ -113,6 +120,8 @@ def fresh_state(installed=None):
         "attitude_error": 0.0,
         "attitude_error_since": None,
         "soc_low_since": None,
+        "fixed": {},  # connector path -> value held
+        "subsecond": 0.0,  # simulated time short of the next frame
     }
 
 
@@ -288,6 +297,7 @@ class Platform:
         """One major frame (1 s)"""
         s = self.s
         s["time"] += 1.0
+        self.apply_fixed()
         if s["tc_task"] and not s["queue_suspended"]:
             while s["queue"] and s["queue"][0]["tag"] <= s["time"]:
                 entry = s["queue"].pop(0)
@@ -295,7 +305,13 @@ class Platform:
                 del s["tt_lateness"][:-2000]
                 self.report(entry["code"], self.execute(entry["code"], entry["args"]))
         self.power()
+        self.apply_fixed()
         self.fdir()
+
+    def apply_fixed(self):
+        """Hold every fixed connector at its value"""
+        for path, value in self.s.get("fixed", {}).items():
+            resolve(path).write(self, value)
 
     def power(self):
         s = self.s
@@ -425,6 +441,52 @@ class VehicleManagerHandle:
         s = self._read()
         return 0.0 if s["safe_entered"] is not None else None
 
+    # Connectors
+
+    def read_connector(self, path):
+        return resolve(path).read(self._read())
+
+    def set_connector(self, path, value):
+        point = resolve(path)
+        value = name(value) if isinstance(value, edn.Keyword) else value
+
+        def write(platform):
+            try:
+                point.write(platform, value)
+            except PermissionError:
+                raise PermissionError(f"{path} is read-only") from None
+        self._run(write)
+
+    def fix_connector(self, path, value):
+        self.set_connector(path, value)
+        value = name(value) if isinstance(value, edn.Keyword) else value
+
+        def fix(platform):
+            platform.s.setdefault("fixed", {})[str(path)] = value
+        self._run(fix)
+
+    def clear_connector(self, path):
+        resolve(path)
+
+        def clear(platform):
+            platform.s.setdefault("fixed", {}).pop(str(path), None)
+        self._run(clear)
+
+    def connector_clock(self):
+        s = self._read()
+        return s["time"] + s.get("subsecond", 0.0)
+
+    def connector_sleep(self, seconds):
+        """Run simulated time forward, a frame at a time"""
+        def run(platform):
+            s = platform.s
+            total = s.get("subsecond", 0.0) + float(seconds)
+            frames = int(total + 1e-9)
+            s["subsecond"] = max(0.0, total - frames)
+            for _ in range(frames):
+                platform.tick()
+        self._run(run)
+
     # The bench
 
     def upload_noops(self, count, start_in, spacing):
@@ -542,6 +604,78 @@ class VehicleManagerHandle:
                     raise RuntimeError(f"{s['mode']} to {step} was {result}")
             return [keyword(step) for step in path]
         return self._run(bring)
+
+
+# Connectors
+
+
+class Point:
+    """One connector of the platform: how to read it, and (for the
+    bench's inputs) how to write it"""
+
+    def __init__(self, read, write=None):
+        self.read, self.write_fn = read, write
+
+    def write(self, platform, value):
+        if self.write_fn is None:
+            raise PermissionError("read-only")
+        self.write_fn(platform, value)
+
+
+def _set(key, convert=lambda v: v):
+    def write(platform, value):
+        platform.s[key] = convert(value)
+    return write
+
+
+def _set_soc(platform, value):
+    platform.s["soc"] = float(value)
+    platform.s["discharge"] = None
+
+
+def _line(line, field):
+    def read(s):
+        value = s["lines"][line][field]
+        return value
+
+    def write(platform, value):
+        platform.s["lines"][line][field] = bool(value)
+
+    return Point(read, write if field == "on" else None)
+
+
+CONNECTORS = {
+    "vm.obc.time": Point(lambda s: s["time"]),
+    "vm.obc.reset-cause": Point(lambda s: keyword(s["reset_cause"])),
+    "vm.mode.current": Point(lambda s: keyword(s["mode"])),
+    "vm.mode.attitude": Point(lambda s: keyword(ATTITUDE_MODE[s["mode"]])),
+    "vm.eps.soc": Point(lambda s: round(s["soc"], 3)),
+    "vm.eps.charge-current": Point(lambda s: s["charge_current"]),
+    "vm.eps.max-charge-current": Point(lambda s: s["max_charge_current"]),
+    "vm.eps.shed": Point(lambda s: keyword(s["shed"])),
+    "vm.tc.noop-count": Point(lambda s: s["noop_count"]),
+    "vm.tc.tt-queue-count": Point(lambda s: len(s["queue"])),
+    "vm.tc.tt-suspended": Point(lambda s: s["queue_suspended"]),
+    "vm.fdir.safe-discrete": Point(lambda s: s["safe_discrete"]),
+    "vm.fdir.last-event": Point(
+        lambda s: keyword(s["events"][-1]["kind"]) if s["events"] else None),
+    # The bench's inputs
+    "vm.bench.sun": Point(lambda s: s["sun"], _set("sun", bool)),
+    "vm.bench.battery.soc": Point(lambda s: round(s["soc"], 3), _set_soc),
+    "vm.bench.attitude-error": Point(lambda s: s["attitude_error"],
+                                     _set("attitude_error", float)),
+}
+for _line_name in LINES:
+    for _field, _key in (("on", "on"), ("tripped", "tripped"), ("switch-ms", "switch_ms")):
+        CONNECTORS[f"vm.eps.line.{_line_name}.{_field}"] = _line(_line_name, _key)
+
+
+def resolve(path):
+    """The Point at a connector path"""
+    point = CONNECTORS.get(str(path))
+    if point is None:
+        raise KeyError(f"the vm has no connector {path}")
+    return point
 
 
 def shortest_path(start, target):

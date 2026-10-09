@@ -47,11 +47,12 @@ Every block is one of three kinds:
 
 Actions
    do something to the system: ``(StartDemo {:mode :normal})``,
-   ``(Wait 2)``. An action fails if it can't do it.
+   ``(SetValue bench.sun false)``. An action fails if it can't do it.
 
 Assertions
-   check something: ``(Verify (reading :brake-pressure) <= max-pressure)``.
-   An assertion fails when its check comes out false.
+   check something: ``(Verify (reading :brake-pressure) <= max-pressure)``,
+   ``(Wait nav.mode = :run :within 5s)``. An assertion fails when its check
+   comes out false.
 
 Values
    read something and give it back, to use in other forms. A value block

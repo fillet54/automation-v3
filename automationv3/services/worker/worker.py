@@ -81,6 +81,12 @@ class ReportObserver:
     def on_call_end(self, **kw):
         self.send("call_end", **kw)
 
+    def on_connector(self, **kw):
+        self.send("connector", **kw)
+
+    def on_cleanup(self, **kw):
+        self.send("cleanup", **kw)
+
     def on_procedure_end(self, **kw):
         self.send("procedure_end", **kw)
 

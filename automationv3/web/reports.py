@@ -338,6 +338,8 @@ def report(report_id):
 
     rows = rollup.combinations(report, runs, lambda run: run["status"])
     requirements = rollup.requirement_rollup(report, rows)
+    connectors = rollup.connector_rollup(
+        report, rows, lambda run: store.read_events(root(), report_id, run["id"]))
     texts = {
         r.id: r.text
         for r in (requirement_models.find_by_id(get_db(), req["id"])
@@ -357,6 +359,7 @@ def report(report_id):
         report=report,
         rows=rows,
         requirements=requirements,
+        connectors=connectors,
         texts=texts,
         skipped=skipped,
         in_progress=in_progress,
@@ -375,8 +378,11 @@ def run(report_id, run_id):
     if request.headers.get("HX-Request"):
         template = "reports/partials/run_body.html"
     files = store.list_files(root(), report_id, run_id)
+    events = store.read_events(root(), report_id, run_id)
+    cleanups = [e for e in events if e["kind"] == "cleanup"]
     return render_template(template, run=run, status=status, finished=finished,
-                           rows=rows, errors=errors, files=files)
+                           rows=rows, errors=errors, files=files,
+                           connectors=rollup.touched(events), cleanups=cleanups)
 
 
 @reports.route("/<report_id>/runs/<run_id>/files/<name>", methods=["GET"])

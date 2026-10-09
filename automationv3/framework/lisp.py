@@ -207,10 +207,16 @@ def do_form(x, env):
     return _do(x[1:], env)
 
 
+def named(value, name):
+    """A value that takes the name it is bound to (e.g. a connector)"""
+    rename = getattr(value, "__named__", None)
+    return rename(str(name)) if rename is not None else value
+
+
 @special_form("def")
 def def_form(x, env):
     _, name, value = x
-    env[name] = eval(value, env)
+    env[name] = named(eval(value, env), name)
 
 
 @special_form("let")
@@ -289,6 +295,33 @@ def _note(e, x, call):
         frames.append(span)
 
 
+def dotted(name):
+    """(head, rest) of a dotted name like cpu1.app.mode, or None"""
+    name = str(name)
+    head, dot, rest = name.partition(".")
+    if not dot or not head or not rest or name.endswith(".") or ".." in name:
+        return None
+    return head, rest
+
+
+def lookup(symbol, env):
+    """The value of a symbol. A dotted name not bound as a whole, like
+    cpu1.app.mode, is a path below the value of its head (a connector):
+    see connectors.py."""
+    try:
+        return env[symbol]
+    except UnboundName:
+        parts = dotted(symbol)
+        if parts is None:
+            raise
+    head, rest = parts
+    value = env[Symbol(head)]
+    child = getattr(value, "__child__", None)
+    if child is None:
+        raise TypeError(f"{symbol}: {head} isn't a connector, so it has no .{rest}")
+    return child(rest)
+
+
 def eval(x, env=global_env):
     """Evaluate the form `x` in `env`.
 
@@ -298,7 +331,7 @@ def eval(x, env=global_env):
         return x
     if isinstance(x, Symbol):
         try:
-            return env[x]
+            return lookup(x, env)
         except UnboundName as e:
             _note(e, x, call=False)
             raise

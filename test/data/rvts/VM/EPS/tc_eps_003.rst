@@ -25,26 +25,24 @@ Steps
 
 .. rvt:: Start from a known state
 
-   (.set_sun vm false)
+   (SetValue bench.sun false)
    (Verify (SendTC :restore-loads) = :executed)
    (Verify (SendTC :line-on :line :payload) = :executed)
 
 .. rvt:: Shed
 
-   (.set_battery vm 62.0)
+   (SetValue bench.battery.soc 62.0)
    (.discharge_to vm 49.0 2.0)
-   (RunFor 400)
-   (Verify (Telemetry :shed) = :non-essential-heaters)
+   (Wait eps.shed = :non-essential-heaters :within 10min)
 
 .. rvt:: Recharge
 
-   (.set_sun vm true)
-   (RunFor 8000)
-   (Verify (Telemetry :soc) >= 80.0)
-   (Verify (Telemetry :shed) = :non-essential-heaters)
+   (SetValue bench.sun true)
+   (Wait eps.soc >= 80.0 :within 3h :every 1min)
+   (Verify eps.shed = :non-essential-heaters)
 
 .. rvt:: Restore by command
 
    (Verify (SendTC :restore-loads) = :executed)
-   (Verify (Telemetry :shed) = :none)
-   (Verify (line-on? :payload))
+   (Verify eps.shed = :none)
+   (Verify lines.payload.on)

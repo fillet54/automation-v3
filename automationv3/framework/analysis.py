@@ -390,6 +390,16 @@ class Analyzer:
 
     def symbol(self, symbol, names, locals_, eager, core, parent=None, index=None):
         name = str(symbol)
+        parts = lisp.dotted(name)
+        if parts is not None and name not in locals_ and \
+                name not in (names.available if eager else names.final):
+            # cpu1.app.mode: a path below cpu1, which has to be bound
+            span = edn.span_of(symbol)
+            symbol = edn.Symbol(parts[0])
+            if span is not None:
+                symbol.span = span._replace(end_line=span.line,
+                                            end_col=span.col + len(parts[0]))
+            name = parts[0]
         if name in locals_:
             return
         self.note_reference(name, core)
@@ -551,6 +561,11 @@ class Analyzer:
             usage = " or ".join(self.blocks[name].usage().splitlines())
             self.error(f"no form of {name} matches this call: see its usage, {usage}",
                        form)
+            return
+        evaluated = block.evaluated_forms
+        if evaluated is not None:  # the block says which forms it evaluates
+            for arg in evaluated(*form[1:]):
+                self.expression(arg, names, locals_, eager, core=core)
             return
         if block.execute_forms is not None:
             return  # the block takes its arguments as written

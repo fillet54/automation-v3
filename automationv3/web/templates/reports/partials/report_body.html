@@ -55,6 +55,21 @@
   {% endcall %}
   {% endif %}
 
+  {% if connectors %}
+  {% call ui.section("Connectors", subtitle="Every connector the latest runs touched, with the scripts and requirements that touched it") %}
+  {% call ui.table(["Connector", "Operations", "Requirements", "Scripts"]) %}
+    {% for c in connectors %}
+    <tr style="vertical-align: top;">
+      <td>{{ ui.ident(c.path) }}</td>
+      <td>{% for op in c.operations %}{{ ui.badge(op, "warning" if op == "fix" else "neutral", outline=op == "read") }} {% endfor %}</td>
+      <td>{% for r in c.requirements %}{{ ui.ident(r) }} {% else %}<span class="ui-muted">—</span>{% endfor %}</td>
+      <td><ul class="ui-plain-list">{% for s in c.scripts %}<li class="ui-mono">{{ s }}</li>{% endfor %}</ul></td>
+    </tr>
+    {% endfor %}
+  {% endcall %}
+  {% endcall %}
+  {% endif %}
+
   {% if rows %}
   {% call ui.section("Runs", subtitle="The latest run of each combination; earlier runs are reruns") %}
   {% call ui.table(["Script", "Environment", "Variation", "Latest", "Earlier"]) %}
