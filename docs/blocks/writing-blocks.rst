@@ -20,8 +20,8 @@ The smallest block
            (Wait 5)
        """
 
-       def check_syntax(self, *args):
-           return len(args) == 1
+       def check_syntax(self, *values):
+           return len(values) == 1 and isinstance(values[0], (int, float))
 
        def execute(self, seconds):
            time.sleep(seconds)
@@ -49,11 +49,36 @@ The parts of a block
 
    Only blocks fail steps: script code around them never does by its value.
 
-``check_syntax(*args)``
-   Returns true if the block accepts these arguments, as written. Several
-   blocks may share a name; the first whose ``check_syntax`` accepts the call
-   handles it. A call no block accepts is an error, reported before the
-   script runs with the block's usage.
+``check_syntax(*values)``
+   Returns true if the block accepts a call with these arguments,
+   **evaluated**. Several blocks may share a name, each taking values of its
+   own: the arguments are evaluated once, each block of the name is asked in
+   turn, and the first that accepts the call runs it, with those values. A
+   call no block accepts is an error, which says what types it was given and
+   shows the block's usage.
+
+   Since it needs the values, it runs when the call does. Before the script
+   runs, the static check can only see that some block of the name takes
+   that many arguments (from ``execute``'s parameters).
+
+``check_syntax_forms(*forms)``
+   The same, but on the arguments **as written**, for blocks that take them
+   as written (``execute_forms``, or ``quoted`` parameters): those are asked
+   this instead, and never have their arguments evaluated to be matched.
+   Because it needs no values, it is checked before the script runs.
+
+``require_unique``
+   Set it to have every block of the name asked, and more than one accepting
+   a call be an error (naming the blocks), rather than the first winning. For
+   blocks plugins implement for their own types (see
+   :ref:`implementing-value-blocks`), so two plugins can't both claim a
+   value.
+
+``abstract``
+   Set on a class (it isn't inherited) that only documents a name, its usage
+   and docstring, for plugins to implement by subclassing. It is never asked
+   to accept a call; a call of a name only an abstract block has is an error,
+   "no plugin implements it".
 
 ``execute(*args)``
    Runs the block with its arguments **evaluated**, like a function call:
@@ -81,7 +106,10 @@ The parts of a block
    written, for example bare symbols used as names (``Table-Driven``'s
    column headers). It gets the arguments exactly as written and **never
    evaluates them**; a block that needs some arguments evaluated quotes the
-   others instead. The static check doesn't look inside its arguments.
+   others instead, or evaluates them itself with ``context.evaluate`` (as
+   Wait does, again on every check). The static check doesn't look inside its
+   arguments, unless the block lists the forms it evaluates with
+   ``evaluated_forms(*forms)``.
 
 ``as_html(*forms)`` / ``as_rst(*forms)``
    How a step using the block reads in a rendered script. See
@@ -205,8 +233,8 @@ UUT through its handle.
                        :readings {:brake-pressure 70}})
        """
 
-       def check_syntax(self, *args):
-           return len(args) == 1 and isinstance(args[0], dict) and MODE in args[0]
+       def check_syntax(self, *values):
+           return len(values) == 1 and isinstance(values[0], dict) and MODE in values[0]
 
        def execute(self, config):
            demo = context.lookup("demo")
@@ -216,6 +244,67 @@ UUT through its handle.
                demo.set(name, value)
            return BlockResult(True, stdout=f"started in {edn.writes(config[MODE])} "
                                            f"with {len(readings)} reading(s)")
+
+.. _implementing-value-blocks:
+
+Implementing Read and the value blocks
+--------------------------------------
+
+``Read``, ``SetValue``, ``SetFixedValue`` and ``ClearFixedValue`` are abstract
+(``automationv3.plugins.core.value_blocks``): the framework documents them,
+and Verify and Wait use them, but only a plugin knows how to reach a value.
+A plugin gives its values a kind of ref of its own, a subclass of
+``framework.refs.Ref``, and implements each block for it: set ``ref_type``
+and implement one method.
+
+.. code-block:: python
+
+   from automationv3.framework import lisp
+   from automationv3.framework.refs import Ref
+   from automationv3.plugins.core import value_blocks
+
+
+   class Connector(Ref):
+       """A connector of my system, by path"""
+
+
+   lisp.global_env["connector"] = Connector        # (connector "sys.cpu1")
+
+
+   class Read(value_blocks.Read):
+       ref_type = Connector
+
+       def read(self, ref):
+           return my_system().read(ref.path)
+
+
+   class SetValue(value_blocks.SetValue):
+       ref_type = Connector
+
+       def write(self, ref, value):
+           my_system().write(ref.path, value)
+
+
+   class SetFixedValue(value_blocks.SetFixedValue):
+       ref_type = Connector
+
+       def fix(self, ref, value):
+           my_system().hold(ref.path, value)
+
+
+   class ClearFixedValue(value_blocks.ClearFixedValue):
+       ref_type = Connector
+
+       def release(self, ref):
+           my_system().release(ref.path)
+
+Each accepts only its ``ref_type`` (or a group of only those), and each
+requires a unique match, so plugins with kinds of refs of their own load side
+by side. The base classes do the rest: a group's members one by one, the
+record of what a run touched, and releasing whatever a script leaves fixed
+when it ends. Verify, Wait and ``same?`` read refs through whichever Read
+accepts them, so a plugin never overrides those. The Vehicle Manager sample
+(``automationv3/plugins/vm/blocks.py``) is a worked example.
 
 edn values in Python
 --------------------
@@ -249,6 +338,7 @@ to show values in ``stdout``.
 Testing a block
 ---------------
 
-Blocks are plain classes: test ``check_syntax`` and ``execute`` directly, and
+Blocks are plain classes: test ``check_syntax`` (with values) and ``execute``
+directly, and
 run a small script through the executor for the integration (see the tests in
 ``test/`` for examples using ``test/rvt.py``).

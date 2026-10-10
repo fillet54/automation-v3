@@ -37,7 +37,7 @@ import inspect
 from dataclasses import dataclass, field
 
 from . import document, edn, lisp
-from .block import all_blocks, block_names
+from .block import all_blocks, block_names, candidates, documented
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_text, name_of,
     parse_precondition, parse_table,
@@ -132,7 +132,7 @@ class Analyzer:
         self.script = closure.script
         self.diagnostics = []
         self.builtins = {str(k) for k in lisp.global_env}
-        self.blocks = {b.name(): b for b in reversed(all_blocks())}
+        self.blocks = {name: documented(name) for name in block_names()}
         self.block_names = block_names()
         self.special = {name for name in lisp.special_forms if isinstance(name, str)}
         self.parts = dict(parsed or {})
@@ -552,25 +552,42 @@ class Analyzer:
                        "the value after the definitions section, or as a function",
                        form)
             return
-        block = None
-        for candidate in all_blocks():
-            if candidate.name() == name and candidate.check_syntax(*form[1:]):
-                block = candidate
-                break
-        if block is None:
-            usage = " or ".join(self.blocks[name].usage().splitlines())
+        forms = form[1:]
+        found = candidates(name)
+        usage = " or ".join(self.blocks[name].usage().splitlines())
+        if not found:
+            self.error(f"no plugin implements {name}: see its usage, {usage}", form)
+            return
+        by_forms = [b for b in found if b.takes_forms() and b.accepts_forms(*forms)]
+        by_values = [b for b in found if not b.takes_forms()
+                     and b.accepts_count(len(forms))]
+        if not by_forms and not by_values:
             self.error(f"no form of {name} matches this call: see its usage, {usage}",
                        form)
             return
+        if len(by_forms) > 1 and any(b.require_unique for b in found):
+            self.error(f"{name} is accepted by {len(by_forms)} blocks: only one may "
+                       f"accept a call of {name}", form)
+            return
+        if by_values:
+            # Which block runs depends on the values: check the arguments
+            # as code
+            for i, arg in enumerate(forms, start=1):
+                if isinstance(arg, edn.Symbol) and not isinstance(arg, edn.Keyword):
+                    self.symbol(arg, names, locals_, eager, core, parent=form, index=i)
+                else:
+                    self.expression(arg, names, locals_, eager, core=core)
+            return
+        block = by_forms[0]
         evaluated = block.evaluated_forms
         if evaluated is not None:  # the block says which forms it evaluates
-            for arg in evaluated(*form[1:]):
+            for arg in evaluated(*forms):
                 self.expression(arg, names, locals_, eager, core=core)
             return
         if block.execute_forms is not None:
             return  # the block takes its arguments as written
-        argument_names = block.argument_names(len(form) - 1)
-        for i, (arg, param) in enumerate(zip(form[1:], argument_names), start=1):
+        argument_names = block.argument_names(len(forms))
+        for i, (arg, param) in enumerate(zip(forms, argument_names), start=1):
             if param in block.quoted:
                 continue
             if isinstance(arg, edn.Symbol) and not isinstance(arg, edn.Keyword):

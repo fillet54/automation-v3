@@ -208,7 +208,7 @@ def do_form(x, env):
 
 
 def named(value, name):
-    """A value that takes the name it is bound to (e.g. a connector)"""
+    """A value that takes the name it is bound to (e.g. a ref)"""
     rename = getattr(value, "__named__", None)
     return rename(str(name)) if rename is not None else value
 
@@ -306,8 +306,8 @@ def dotted(name):
 
 def lookup(symbol, env):
     """The value of a symbol. A dotted name not bound as a whole, like
-    cpu1.app.mode, is a path below the value of its head (a connector):
-    see connectors.py."""
+    cpu1.app.mode, is a path below the value of its head (a ref): see
+    refs.py."""
     try:
         return env[symbol]
     except UnboundName:
@@ -318,7 +318,7 @@ def lookup(symbol, env):
     value = env[Symbol(head)]
     child = getattr(value, "__child__", None)
     if child is None:
-        raise TypeError(f"{symbol}: {head} isn't a connector, so it has no .{rest}")
+        raise TypeError(f"{symbol}: {head} isn't a ref, so it has no .{rest}")
     return child(rest)
 
 

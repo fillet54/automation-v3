@@ -114,9 +114,9 @@ Predicates
 Strings and output
    ``str``, ``print``.
 
-Connectors
-   ``connector``, ``group``, ``same?``, ``connector?``. See
-   :doc:`../scripts/connectors`.
+Refs
+   ``group``, ``same?``, ``ref?``; plugins add their own, such as the
+   Vehicle Manager's ``connector``. See :doc:`../scripts/refs`.
 
 Literals
 --------
@@ -129,8 +129,7 @@ Dotted names
 ------------
 
 A name like ``cpu1.app.mode`` that nothing defines as a whole is a path below
-the connector its first part (``cpu1``) is bound to. See
-:doc:`../scripts/connectors`.
+the ref its first part (``cpu1``) is bound to. See :doc:`../scripts/refs`.
 
 Bound names
 -----------

@@ -1,10 +1,10 @@
 """Tests. Scripts run here don't really wait: (Wait 2s) and Wait's
 polling move a virtual clock instead of sleeping."""
 
-from automationv3.framework import connectors
+from automationv3.framework import clock
 
 
-class VirtualClock:
+class VirtualClock(clock.Clock):
     def __init__(self):
         self.time = 0.0
 
@@ -15,4 +15,4 @@ class VirtualClock:
         self.time += seconds
 
 
-connectors.wall_clock = VirtualClock()
+clock.default_clock = VirtualClock()

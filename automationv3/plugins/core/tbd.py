@@ -25,7 +25,7 @@ class TBD(BuildingBlock):
     def usage(self):
         return '(TBD "what the step will do")'
 
-    def check_syntax(self, *args):
+    def check_syntax_forms(self, *args):
         return len(args) == 1 and is_text(args[0])
 
     def execute_forms(self, description):

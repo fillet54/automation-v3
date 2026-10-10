@@ -1,20 +1,20 @@
-"""Verify: check a value, a comparison, or connectors (see wait.py for
+"""Verify: check a value, a comparison, or refs (see wait.py for
 waiting on one)
 
 A check is written ``actual op expected`` or ``value``. Either side may
-be a connector, read for the check, or a group, checked member by
-member: every member for Verify (VerifyAll), at least one for
-VerifyAny. A group against a single value or connector compares each
-member with it; a group against a group pairs members by position, and
+be a ref, read for the check (by the Read that accepts it), or a group,
+checked member by member: every member for Verify (VerifyAll), at
+least one for VerifyAny. A group against a single value or ref
+compares each member with it; a group against a group pairs members by position, and
 both need as many.
 """
 
 import operator
 from dataclasses import dataclass, field
 
-from automationv3.framework import connectors, context, edn, html
+from automationv3.framework import context, edn, html, refs
 from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
-from automationv3.framework.connectors import is_connector, members
+from automationv3.framework.refs import is_ref, members
 
 OPERATORS = {
     "=": operator.eq,
@@ -68,10 +68,10 @@ def parse(forms, options=(), comparisons=True):
 
 
 def _side(value):
-    """[(label or None, value)] for one side of a check: a connector's
+    """[(label or None, value)] for one side of a check: a ref's
     members, read, or a plain value"""
-    if is_connector(value):
-        return [(c.label, connectors.read(c)) for _, c in members(value)]
+    if is_ref(value):
+        return [(c.label, refs.read(c)) for _, c in members(value)]
     return [(None, value)]
 
 
@@ -83,15 +83,15 @@ def compare(actual, op=None, expected=None, mode="all", written=None):
     """Whether a check holds, and what it compared, one line per pair.
     `mode` is "all" or "any" (of a group's members), or "same" (they all
     read the same)."""
-    if op is not None and is_connector(actual) and is_connector(expected):
+    if op is not None and is_ref(actual) and is_ref(expected):
         sizes = len(members(actual)), len(members(expected))
         if min(sizes) > 1 and sizes[0] != sizes[1]:
             raise ValueError(f"can't pair a group of {sizes[0]} with a group of "
                              f"{sizes[1]}: groups compared need as many members")
     left = _side(actual)
     if mode == "same":
-        if not is_connector(actual):
-            raise TypeError(f"{show(written or actual)} isn't a connector group")
+        if not is_ref(actual):
+            raise TypeError(f"{show(written or actual)} isn't a group of refs")
         values = [value for _, value in left]
         passed = all(v == values[0] for v in values[1:])
         return passed, "\n".join(_shown(label, value) for label, value in left)
@@ -133,13 +133,13 @@ class Verify(BuildingBlock):
 
     An assertion: it fails the step when the check comes out false.
     Both sides are evaluated in the running script, so they can use
-    definitions, variation symbols, UUT handles and connectors. ``op``
+    definitions, variation symbols, UUT handles and refs. ``op``
     is one of ``= == != not= < <= > >=``, written as is. The step
     prints what it compared, with the values, e.g. ``60 <= 80``.
 
-    A connector on either side is read. A group is checked member by
-    member, and every member has to pass (Verify is VerifyAll); see
-    VerifyAny. To check a group's members agree with each other, use
+    A ref on either side is read, by whichever Read accepts it. A
+    group is checked member by member, and every member has to pass
+    (Verify is VerifyAll); see VerifyAny. To check a group's members agree with each other, use
     ``same?``.
 
     Examples::
@@ -159,7 +159,7 @@ class Verify(BuildingBlock):
     def usage(self):
         return f"({self.name()} actual op expected)\n({self.name()} value)"
 
-    def check_syntax(self, *forms):
+    def check_syntax_forms(self, *forms):
         return parse(forms, self.options) is not None
 
     def evaluated_forms(self, *forms):
@@ -188,7 +188,7 @@ class VerifyAll(Verify):
 
 
 class VerifyAny(Verify):
-    """Check a group (or a single connector, or a value) like Verify, but
+    """Check a group (or a single ref, or a value) like Verify, but
     pass if any one member passes.
 
     Example::

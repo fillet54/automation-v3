@@ -55,6 +55,7 @@ isn't ready for it. In any other mode the outcome is "blocked".
 import time
 import traceback
 
+from . import clock as clocks
 from . import context, document, edn, lisp
 from .block import BlockResult
 from .language import (
@@ -353,12 +354,13 @@ def find_variation(text, name):
 
 
 def execute_closure(files, load_order, observer, imports=(), variation=None,
-                    bindings=None, mode="normal"):
+                    bindings=None, mode="normal", clock=None):
     """Load the core.rst files in order, then run the script (last).
 
     With `variation` (a name), that variation's symbols are bound before
     the script runs. `bindings` (name -> value) are bound too, e.g. the
-    handles scripts use to reach their UUTs.
+    handles scripts use to reach their UUTs. `clock` is the run's clock
+    (see clock.py), by default the wall clock.
     """
     env = build_env(files, load_order, imports, variation)
     env.update({edn.Symbol(name): value for name, value in (bindings or {}).items()})
@@ -366,5 +368,6 @@ def execute_closure(files, load_order, observer, imports=(), variation=None,
     if variation is not None:
         values = variation_values(env, find_variation(files[script], variation))
         env.update({edn.Symbol(symbol): value for symbol, value in values.items()})
-    return execute_script(files[script], observer, script=script, env=env, mode=mode,
-                          variation=variation)
+    with clocks.keeping(clock):
+        return execute_script(files[script], observer, script=script, env=env,
+                              mode=mode, variation=variation)

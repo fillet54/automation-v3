@@ -103,23 +103,23 @@ def requirement_rollup(report, rows):
     return rollup
 
 
-# Connectors: which a run touched, and across a report, which each
+# Refs: which values a run touched, and across a report, which each
 # requirement's scripts touched
 
 OPERATIONS = ("read", "set", "fix", "clear")
 
 
 def touched(events):
-    """The connectors a run's events say it touched, by path: [{"path",
-    "name", "uut", "operations", "steps"}], sorted by path. `name` is the
-    first name the script reached it by."""
+    """The refs a run's events say it touched, by path: [{"path", "name",
+    "type", "operations", "steps"}], sorted by path. `name` is the first
+    name the script reached it by; `type` the kind of ref."""
     found = {}
     for event in events:
-        if event.get("kind") != "connector":
+        if event.get("kind") != "ref":
             continue
-        entry = found.setdefault((event.get("uut"), event["path"]), {
+        entry = found.setdefault((event.get("type"), event["path"]), {
             "path": event["path"], "name": event.get("name") or event["path"],
-            "uut": event.get("uut"), "operations": set(), "steps": set(),
+            "type": event.get("type"), "operations": set(), "steps": set(),
         })
         entry["operations"].add(event["operation"])
         if event.get("index") is not None:
@@ -132,8 +132,8 @@ def touched(events):
     ]
 
 
-def connector_rollup(report, rows, events_of):
-    """Every connector the latest runs of a report touched: [{"path",
+def ref_rollup(report, rows, events_of):
+    """Every ref the latest runs of a report touched: [{"path", "type",
     "operations", "scripts", "requirements"}], sorted by path.
     `events_of(run)` gives a run's events."""
     requirements_of = {}
@@ -145,16 +145,16 @@ def connector_rollup(report, rows, events_of):
         if not row.get("latest"):
             continue
         for entry in touched(events_of(row["latest"])):
-            rolled = found.setdefault(entry["path"], {
-                "path": entry["path"], "operations": set(), "scripts": set(),
-                "requirements": set()})
+            rolled = found.setdefault((entry["type"], entry["path"]), {
+                "path": entry["path"], "type": entry["type"], "operations": set(),
+                "scripts": set(), "requirements": set()})
             rolled["operations"].update(entry["operations"])
             rolled["scripts"].add(row["script"])
             rolled["requirements"].update(requirements_of.get(row["script"], ()))
     return [
-        {"path": path,
+        {"path": r["path"], "type": r["type"],
          "operations": [op for op in OPERATIONS if op in r["operations"]],
          "scripts": sorted(r["scripts"]),
          "requirements": sorted(r["requirements"])}
-        for path, r in sorted(found.items())
+        for _, r in sorted(found.items(), key=lambda item: item[0][1])
     ]

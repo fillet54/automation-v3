@@ -81,8 +81,8 @@ class ReportObserver:
     def on_call_end(self, **kw):
         self.send("call_end", **kw)
 
-    def on_connector(self, **kw):
-        self.send("connector", **kw)
+    def on_ref(self, **kw):
+        self.send("ref", **kw)
 
     def on_cleanup(self, **kw):
         self.send("cleanup", **kw)
@@ -188,14 +188,16 @@ class Worker:
                     name: {**wanted, "action": "kept"}
                     for name, wanted in job["uut_versions"].items()
                 }
+            bound = handles(host, job)
             outcome = execute_closure(
                 job["closure"],
                 job["load_order"],
                 observer,
                 job.get("imports", ()),
                 job.get("variation"),
-                bindings=handles(host, job),
+                bindings=bound,
                 mode=mode,
+                clock=env.clock(bound) if env is not None else None,
             )
         except Exception:
             observer.on_error(traceback=traceback.format_exc())

@@ -26,6 +26,11 @@ class Sim(Environment):
             "python": platform.python_version(),
         }
 
+    def clock(self, handles):
+        """The simulated Vehicle Manager's time, when it is under test"""
+        vm = handles.get("vm")
+        return vm.clock() if vm is not None else None
+
 
 class Bench(Sim):
     """A stand-in for a hardware bench; behaves like the simulator"""

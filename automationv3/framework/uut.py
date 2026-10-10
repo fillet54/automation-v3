@@ -32,6 +32,11 @@ class Environment:
         """Facts about this environment that can affect results"""
         return {}
 
+    def clock(self, handles):
+        """The clock runs here keep time by (see framework/clock.py), given
+        the run's UUT handles (name -> handle). None: the wall clock."""
+        return None
+
 
 class UUT:
     """A unit under test that can be installed into an environment"""

@@ -1,10 +1,15 @@
 """Blocks for testing the simulated Vehicle Manager
 
 They reach the platform through the ``vm`` handle bound for each run.
+Its points are Connectors, the VM's kind of ref: this plugin implements
+Read, SetValue, SetFixedValue and ClearFixedValue for them, and Verify
+and Wait read them through its Read.
 """
 
-from automationv3.framework import context, edn, html
+from automationv3.framework import context, edn, html, lisp
 from automationv3.framework.block import ACTION, VALUE, BlockResult, BuildingBlock
+from automationv3.framework.refs import Ref
+from automationv3.plugins.core import value_blocks
 from automationv3.framework.language import is_text
 
 PACKET_OPTIONS = {"defect", "via", "at", "seq"}
@@ -136,3 +141,62 @@ class BringToMode(BuildingBlock):
         path = vm().bring_to(mode)
         steps = " then ".join(show(m) for m in path) or "nothing to do"
         return BlockResult(True, stdout=f"commanded {steps}")
+
+
+# Connectors: the VM's kind of ref, and the blocks that reach them
+
+
+class Connector(Ref):
+    """A point of the Vehicle Manager or its bench, by path
+    (e.g. "vm.eps.soc"). Scripts make one with (connector "path")."""
+
+
+def make_connector(path):
+    """(connector "vm.eps"): a connector of the Vehicle Manager"""
+    return Connector(path)
+
+
+lisp.global_env["connector"] = make_connector
+
+
+def point(call, ref, *args):
+    try:
+        return call(ref.path, *args)
+    except KeyError as e:
+        raise LookupError(f"{ref.label}: {e.args[0]}") from None
+
+
+class Read(value_blocks.Read):
+    """Reads a Vehicle Manager connector"""
+
+    ref_type = Connector
+
+    def read(self, ref):
+        return point(vm().read_point, ref)
+
+
+class SetValue(value_blocks.SetValue):
+    """Writes a Vehicle Manager bench input"""
+
+    ref_type = Connector
+
+    def write(self, ref, value):
+        point(vm().set_point, ref, value)
+
+
+class SetFixedValue(value_blocks.SetFixedValue):
+    """Holds a Vehicle Manager bench input, every frame"""
+
+    ref_type = Connector
+
+    def fix(self, ref, value):
+        point(vm().fix_point, ref, value)
+
+
+class ClearFixedValue(value_blocks.ClearFixedValue):
+    """Releases a Vehicle Manager bench input"""
+
+    ref_type = Connector
+
+    def release(self, ref):
+        point(vm().release_point, ref)

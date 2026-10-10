@@ -338,7 +338,7 @@ def report(report_id):
 
     rows = rollup.combinations(report, runs, lambda run: run["status"])
     requirements = rollup.requirement_rollup(report, rows)
-    connectors = rollup.connector_rollup(
+    touched = rollup.ref_rollup(
         report, rows, lambda run: store.read_events(root(), report_id, run["id"]))
     texts = {
         r.id: r.text
@@ -359,7 +359,7 @@ def report(report_id):
         report=report,
         rows=rows,
         requirements=requirements,
-        connectors=connectors,
+        touched=touched,
         texts=texts,
         skipped=skipped,
         in_progress=in_progress,
@@ -382,7 +382,7 @@ def run(report_id, run_id):
     cleanups = [e for e in events if e["kind"] == "cleanup"]
     return render_template(template, run=run, status=status, finished=finished,
                            rows=rows, errors=errors, files=files,
-                           connectors=rollup.touched(events), cleanups=cleanups)
+                           touched=rollup.touched(events), cleanups=cleanups)
 
 
 @reports.route("/<report_id>/runs/<run_id>/files/<name>", methods=["GET"])

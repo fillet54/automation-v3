@@ -17,6 +17,18 @@ gives the code around it and how it reports:
 
 Only blocks fail steps: an action or a value fails by raising (or by
 returning a failed BlockResult), an assertion by coming out false.
+
+A call is resolved to a block by name and `check_syntax`, which sees
+the call's arguments evaluated, so blocks of one name can each take a
+type of their own (e.g. a plugin's Read takes its own kind of ref). The
+arguments are evaluated once, before the blocks are asked, and the
+block found gets those values. Blocks that take their arguments as
+written (`execute_forms`, or `quoted` parameters) are asked
+`check_syntax_forms` instead. The first block that accepts a call runs
+it; for a block that sets `require_unique`, every block of the name is
+asked, and more than one accepting is an error. An `abstract` block
+only documents a name (its usage and docs) for plugins to implement:
+it is never asked.
 """
 
 import importlib
@@ -26,7 +38,7 @@ from dataclasses import dataclass
 
 import automationv3.plugins
 
-from . import connectors, edn  # noqa: F401  connectors adds its builtins
+from . import edn, refs  # noqa: F401  refs adds its builtins
 from .context import calling, evaluate
 
 
@@ -83,6 +95,11 @@ class BuildingBlock:
 
     kind = ACTION
     quoted = frozenset()  # parameters of `execute` taken as written
+    # True: a call must be accepted by exactly one block of this name
+    require_unique = False
+    # True (set on the class itself, not inherited): this block only
+    # documents a name for plugins to implement, and is never called
+    abstract = False
 
     def name(self):
         """The name scripts call the block by"""
@@ -114,9 +131,37 @@ class BuildingBlock:
         docstring, or "" if it has none of its own"""
         return inspect.cleandoc(type(self).__dict__.get("__doc__") or "")
 
-    def check_syntax(self, *args):
-        """True if the block accepts these arguments"""
+    def check_syntax(self, *values):
+        """True if the block accepts a call with these arguments,
+        evaluated. Only asked of blocks that take their arguments
+        evaluated; see check_syntax_forms."""
         return True
+
+    # Defined by blocks that take their arguments as written (with
+    # `execute_forms` or `quoted` parameters), which are asked this
+    # instead of check_syntax, with the forms as written:
+    #     def check_syntax_forms(self, *forms): -> bool
+    check_syntax_forms = None
+
+    def takes_forms(self):
+        """True if the block is matched (and run) on its forms as written"""
+        return (self.check_syntax_forms is not None or self.execute_forms is not None
+                or bool(self.quoted))
+
+    def accepts_forms(self, *forms):
+        """check_syntax_forms, for a block that takes forms (an older one
+        that only defines check_syntax is asked that, with the forms)"""
+        if self.check_syntax_forms is not None:
+            return self.check_syntax_forms(*forms)
+        return self.check_syntax(*forms)
+
+    def accepts_count(self, count):
+        """True if `execute` can take `count` arguments"""
+        try:
+            inspect.signature(self.execute).bind(*([None] * count))
+            return True
+        except TypeError:
+            return False
 
     def execute(self, *args):
         """Run the block with its arguments evaluated (except `quoted`
@@ -187,11 +232,13 @@ def code_block(source):
 
 
 class BuildingBlockInst:
-    """A block found for a step, with the step's arguments as written"""
+    """A block found for a step, with the step's arguments as written, and
+    their values if they were evaluated to find it"""
 
-    def __init__(self, block, args):
+    def __init__(self, block, args, values=None):
         self.block = block
         self.args = args
+        self.values = values
 
     def evaluated_args(self, env=None):
         """The arguments `execute` gets: evaluated in `env`, except those
@@ -207,6 +254,8 @@ class BuildingBlockInst:
         with calling(self.args):
             if self.block.execute_forms is not None:
                 returned = self.block.execute_forms(*self.args)
+            elif self.values is not None and not self.block.takes_forms():
+                returned = self.block.execute(*self.values)
             else:
                 returned = self.block.execute(*self.evaluated_args(env))
         return self.block.result(returned)
@@ -230,16 +279,89 @@ def all_blocks():
     return found
 
 
+def is_abstract(block):
+    return type(block).__dict__.get("abstract", False)
+
+
 def block_names():
     return {block.name() for block in all_blocks()}
 
 
+def candidates(name):
+    """The blocks a call of `name` may resolve to, in the order asked"""
+    return [b for b in all_blocks() if b.name() == name and not is_abstract(b)]
+
+
+def documented(name):
+    """The block documenting a name: its abstract block if it has one"""
+    found = [b for b in all_blocks() if b.name() == name]
+    return next((b for b in found if is_abstract(b)), found[0] if found else None)
+
+
+class NoBlock(ValueError):
+    """No block accepts a call"""
+
+
+class AmbiguousBlock(ValueError):
+    """More than one block accepts a call of a name that must resolve to one"""
+
+
+def _type_names(values):
+    return ", ".join(type(v).__name__ for v in values) or "no arguments"
+
+
+def _block_id(block):
+    return f"{type(block).__module__.rsplit('.', 1)[-1]}.{type(block).__qualname__}"
+
+
+def resolve(form, env=None):
+    """The block (with its arguments, and their values if it takes them
+    evaluated) that runs a call. Raises NoBlock or AmbiguousBlock."""
+    name, *forms = form
+    found = candidates(name)
+    unique = any(block.require_unique for block in found)
+    values, matches = None, []
+    for block in found:
+        if block.takes_forms():
+            accepted = block.accepts_forms(*forms)
+        else:
+            if values is None:
+                values = [evaluate(f, env) for f in forms]
+            accepted = block.check_syntax(*values)
+        if accepted:
+            matches.append(block)
+            if not unique:
+                break
+    if not matches:
+        doc = documented(name)
+        usage = " or ".join(doc.usage().splitlines()) if doc else name
+        if not found:
+            raise NoBlock(f"no plugin implements {name}: see its usage, {usage}")
+        given = f" given {_type_names(values)}" if values is not None else ""
+        raise NoBlock(f"no form of {name} accepts {edn.writes(edn.List(form))}"
+                      f"{given}: see its usage, {usage}")
+    if len(matches) > 1:
+        raise AmbiguousBlock(
+            f"{name} is accepted by {len(matches)} blocks "
+            f"({', '.join(_block_id(b) for b in matches)}), given "
+            f"{_type_names(values or [])}: only one may accept a call of {name}")
+    block = matches[0]
+    return BuildingBlockInst(block, forms, None if block.takes_forms() else values)
+
+
 def find_block(form):
-    """The block (with its arguments) that handles a step form, or None"""
+    """The block a call is likely to resolve to, judged on its forms alone
+    (no evaluating): for rendering a step. None if no block fits."""
     name, *args = form
-    for block in all_blocks():
-        if block.name() == name and block.check_syntax(*args):
+    for block in candidates(name):
+        if block.takes_forms():
+            if block.accepts_forms(*args):
+                return BuildingBlockInst(block, args)
+        elif block.accepts_count(len(args)):
             return BuildingBlockInst(block, args)
+    doc = documented(name)
+    if doc is not None and doc.accepts_count(len(args)):
+        return BuildingBlockInst(doc, args)
     return None
 
 

@@ -183,13 +183,13 @@
   {% endcall %}
   {% endif %}
 
-  {% if connectors %}
-  {% call ui.section("Connectors", subtitle="Every connector this run touched, and how") %}
-  {% call ui.table(["Connector", "Path", "Operations", {"label": "Steps", "align": "end"}]) %}
-    {% for c in connectors %}
+  {% if touched %}
+  {% call ui.section("Values touched", subtitle="Every ref this run read or wrote, and how") %}
+  {% call ui.table(["Ref", "Path", "Operations", {"label": "Steps", "align": "end"}]) %}
+    {% for c in touched %}
     <tr>
       <td><span class="ui-mono">{{ c.name }}</span></td>
-      <td>{{ ui.ident(c.path) }}{% if c.uut %} <span class="ui-text-caption">on {{ c.uut }}</span>{% endif %}</td>
+      <td>{{ ui.ident(c.path) }}{% if c.type %} <span class="ui-text-caption">{{ c.type }}</span>{% endif %}</td>
       <td>{% for op in c.operations %}{{ ui.badge(op, "warning" if op == "fix" else "neutral", outline=op == "read") }} {% endfor %}</td>
       <td class="ui-end ui-number ui-mono">{{ c.steps | join(", ") }}</td>
     </tr>

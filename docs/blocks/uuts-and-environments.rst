@@ -123,31 +123,27 @@ Guidelines for handles:
   (``reading``, ``set-reading``) to give scripts a readable vocabulary, and
   put anything substantial into blocks.
 
-Serving connectors
-------------------
+Keeping time
+------------
 
-A handle that serves connectors (see :doc:`../scripts/connectors`) has these
-methods, which the Read, SetValue, SetFixedValue, ClearFixedValue, Verify and
-Wait blocks call with the connector's full path:
+A run keeps time by one clock, the one its environment gives:
+``Environment.clock(handles)``, called with the run's UUT handles (name to
+handle) before the script starts. Wait's timeouts, its pauses between checks
+and ``(Wait 2s)`` all go by it. Return ``None`` (the default) for the wall
+clock, on real hardware, or a :class:`~automationv3.framework.clock.Clock`:
 
-``read_connector(path)``
-   The value at the path. Raise if there is no such connector.
+``WallClock()``
+   Real time.
 
-``set_connector(path, value)``
-   Write it once.
+``SimClock(time_ref, step=None)``
+   A simulation's time, read from a ref through the Read that accepts it.
+   Sleeping waits, in real time, for the simulation to get that far; for a
+   simulation that only moves when stepped, pass ``step(seconds)`` to run it
+   forward instead.
 
-``fix_connector(path, value)`` and ``clear_connector(path)``
-   Hold it at a value, and release it. The framework releases whatever a
-   script leaves fixed when the script ends.
-
-``connector_clock()`` and ``connector_sleep(seconds)``, optional
-   The UUT's own time, for one whose time isn't the wall clock's, such as a
-   simulation that only moves when run forward. Wait uses them to measure
-   ``:within`` and to pause between checks.
-
-The simulated Vehicle Manager (``automationv3/plugins/vm/sim.py``) is a worked
-example: its telemetry points read-only, the bench's inputs writable, fixed
-values applied again every simulated frame.
+The sample ``sim`` environment gives the simulated Vehicle Manager's clock
+when ``vm`` is under test: ``SimClock`` on ``vm.obc.sim-time``, stepping the
+platform frame by frame.
 
 The lifecycle of a job
 ----------------------

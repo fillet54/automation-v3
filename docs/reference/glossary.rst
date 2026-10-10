@@ -10,13 +10,18 @@ Glossary
    closure
       A script plus every ``core.rst`` and import it loaded. Stored with each run.
 
-   connector
-      A point of a UUT scripts read, wait on and drive, named by its path.
-      See :doc:`../scripts/connectors`.
+   ref
+      A reference to a value scripts read, wait on and drive, by its path.
+      Plugins define their own kinds, and the blocks that reach them. See
+      :doc:`../scripts/refs`.
 
-   connector group
-      Connectors tested together, such as redundant units: Verify and Wait
-      check every member. See :doc:`../scripts/connectors`.
+   group
+      Refs tested together, such as redundant units: Verify and Wait check
+      every member. See :doc:`../scripts/refs`.
+
+   clock
+      What a run keeps time by: the wall clock, or a simulation's, as its
+      environment says.
 
    combination
       One (script, environment, variation) a report expects a run of.

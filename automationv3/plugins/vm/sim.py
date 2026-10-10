@@ -11,12 +11,14 @@ Its state lives in the environment's work directory, so every run (and
 every worker process) on that environment sees the same platform. Time
 is simulated: nothing happens until a test runs time forward.
 
-Scripts reach it through connectors too (see CONNECTORS below): its
-telemetry points, read-only, and the bench's inputs (solar array,
-battery, attitude error, line relays), which can be set, or fixed
-until cleared. A fixed value is applied again every frame, so the
-platform can't change it. Simulated time is the connectors' clock, so
-Wait runs the platform forward while it polls.
+Scripts reach it through connectors too (see CONNECTORS below, and the
+Connector refs and blocks in blocks.py): its telemetry points,
+read-only, and the bench's inputs (solar array, battery, attitude
+error, line relays), which can be set, or fixed until cleared. A fixed
+value is applied again every frame, so the platform can't change it.
+In the sim environment, runs keep time by the platform's
+(``vm.obc.sim-time``), so Wait runs the platform forward while it
+polls.
 
 Version 3.1.0 has a known defect: it restores loads shed for a low
 state of charge by itself once the battery recovers past 65%, which
@@ -441,12 +443,12 @@ class VehicleManagerHandle:
         s = self._read()
         return 0.0 if s["safe_entered"] is not None else None
 
-    # Connectors
+    # Connectors (see blocks.py)
 
-    def read_connector(self, path):
+    def read_point(self, path):
         return resolve(path).read(self._read())
 
-    def set_connector(self, path, value):
+    def set_point(self, path, value):
         point = resolve(path)
         value = name(value) if isinstance(value, edn.Keyword) else value
 
@@ -457,26 +459,31 @@ class VehicleManagerHandle:
                 raise PermissionError(f"{path} is read-only") from None
         self._run(write)
 
-    def fix_connector(self, path, value):
-        self.set_connector(path, value)
+    def fix_point(self, path, value):
+        self.set_point(path, value)
         value = name(value) if isinstance(value, edn.Keyword) else value
 
         def fix(platform):
             platform.s.setdefault("fixed", {})[str(path)] = value
         self._run(fix)
 
-    def clear_connector(self, path):
-        resolve(path)
+    def release_point(self, path):
+        point = resolve(path)
 
         def clear(platform):
             platform.s.setdefault("fixed", {}).pop(str(path), None)
+            if point.released is not None:
+                point.write(platform, point.released)
         self._run(clear)
 
-    def connector_clock(self):
-        s = self._read()
-        return s["time"] + s.get("subsecond", 0.0)
+    def clock(self):
+        """The platform's time, as a run's clock: read from
+        vm.obc.sim-time, and stepped forward to sleep"""
+        from automationv3.framework.clock import SimClock
+        from .blocks import Connector
+        return SimClock(Connector("vm.obc.sim-time"), step=self.advance)
 
-    def connector_sleep(self, seconds):
+    def advance(self, seconds):
         """Run simulated time forward, a frame at a time"""
         def run(platform):
             s = platform.s
@@ -611,10 +618,12 @@ class VehicleManagerHandle:
 
 class Point:
     """One connector of the platform: how to read it, and (for the
-    bench's inputs) how to write it"""
+    bench's inputs) how to write it, and what releasing a fixed value
+    leaves it at (None: as it is, e.g. a battery's charge; a value: that,
+    e.g. no injected fault)"""
 
-    def __init__(self, read, write=None):
-        self.read, self.write_fn = read, write
+    def __init__(self, read, write=None, released=None):
+        self.read, self.write_fn, self.released = read, write, released
 
     def write(self, platform, value):
         if self.write_fn is None:
@@ -626,6 +635,14 @@ def _set(key, convert=lambda v: v):
     def write(platform, value):
         platform.s[key] = convert(value)
     return write
+
+
+def _set_attitude_error(platform, value):
+    """The injected attitude error; back within limits, the FDIR's
+    persistence count starts over"""
+    platform.s["attitude_error"] = float(value)
+    if platform.s["attitude_error"] <= 10:
+        platform.s["attitude_error_since"] = None
 
 
 def _set_soc(platform, value):
@@ -646,6 +663,7 @@ def _line(line, field):
 
 CONNECTORS = {
     "vm.obc.time": Point(lambda s: s["time"]),
+    "vm.obc.sim-time": Point(lambda s: s["time"] + s.get("subsecond", 0.0)),
     "vm.obc.reset-cause": Point(lambda s: keyword(s["reset_cause"])),
     "vm.mode.current": Point(lambda s: keyword(s["mode"])),
     "vm.mode.attitude": Point(lambda s: keyword(ATTITUDE_MODE[s["mode"]])),
@@ -663,7 +681,7 @@ CONNECTORS = {
     "vm.bench.sun": Point(lambda s: s["sun"], _set("sun", bool)),
     "vm.bench.battery.soc": Point(lambda s: round(s["soc"], 3), _set_soc),
     "vm.bench.attitude-error": Point(lambda s: s["attitude_error"],
-                                     _set("attitude_error", float)),
+                                     _set_attitude_error, released=0.0),
 }
 for _line_name in LINES:
     for _field, _key in (("on", "on"), ("tripped", "tripped"), ("switch-ms", "switch_ms")):

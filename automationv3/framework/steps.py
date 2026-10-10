@@ -40,7 +40,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 
 from . import context, edn, lisp
-from .block import ASSERTION, PLACEHOLDER, VALUE, BlockResult, block_names, find_block
+from .block import (
+    ASSERTION, PLACEHOLDER, VALUE, AmbiguousBlock, BlockResult, NoBlock, block_names,
+    resolve,
+)
 
 
 class StepFailed(Exception):
@@ -77,18 +80,17 @@ class Runtime:
         self.frames = [Frame()]
         self.phase = None  # the precondition phase running, numbered from 1
         self.placeholders = 0  # TBD steps reached
-        self.touched = set()  # (path, uut, operation) of connectors
+        self.touched = set()  # (type, path, operation) of refs
 
-    def touch(self, connector, operation):
-        """Report a connector touched (once per path and operation)"""
-        key = (connector.path, connector.uut, operation)
+    def touch(self, ref, operation):
+        """Report a ref touched (once per path and operation)"""
+        key = (type(ref).__name__, ref.path, operation)
         if key in self.touched:
             return
         self.touched.add(key)
         details = {"row": self.row} if self.row is not None else {}
-        notify(self.observer, "connector", index=self.index, path=connector.path,
-               name=connector.label, uut=connector.uut, operation=operation,
-               **details)
+        notify(self.observer, "ref", index=self.index, path=ref.path, name=ref.label,
+               type=type(ref).__name__, operation=operation, **details)
 
     @property
     def frame(self):
@@ -168,7 +170,7 @@ def error_line(e):
     """A one-line description of an exception"""
     if isinstance(e, lisp.UnboundName):
         return f"unknown name {e.name}"
-    if isinstance(e, (RemovedForm, SyntaxError)):
+    if isinstance(e, (RemovedForm, SyntaxError, NoBlock, AmbiguousBlock)):
         return str(e)
     return f"{type(e).__name__}: {e}"
 
@@ -218,20 +220,29 @@ def text(form):
     return edn.writes(form)
 
 
-def run_block(block, env):
-    """Execute a found block, always returning a BlockResult (an error
-    one if it raised).
+def run_call(form, env):
+    """Resolve a block call and run it: (the block found, or None, and
+    its BlockResult, an error one if resolving or running raised).
 
     `env` is the call site's environment (e.g. inside a defn, with its
-    parameters bound); the block's arguments are evaluated in it.
+    parameters bound); the arguments are evaluated in it.
     """
+    block = None
     try:
         with context.running(env):
-            return block.execute(env)
+            block = resolve(form, env)
+            return block, block.execute(env)
     except Exception as e:
         result = BlockResult(False, stderr=traceback.format_exc(), error=True)
         result.exception = e
-        return result
+        return block, result
+
+
+def kind_of(name):
+    """The kind of block a call of `name` is, for reporting it"""
+    from .block import documented
+    doc = documented(name)
+    return doc.kind if doc is not None else None
 
 
 def call_value(block, result):
@@ -254,13 +265,14 @@ def block_special_form(x, env):
     if x[0] in env:  # a script definition shadows the block
         proc = env[x[0]]
         return proc(*[lisp.eval(arg, env) for arg in x[1:]])
-    block = find_block(x)
-    if block is None:
-        raise ValueError(f"No form of {x[0]} matches {text(x)}: "
-                         f"see its usage, {usage_of(x[0])}")
-    result = current_runtime().call(text(x), lambda call: run_block(block, env),
-                                    kind=block.block.kind)
-    return call_value(block, result)
+    found = {}
+
+    def run(call):
+        found["block"], result = run_call(x, env)
+        return result
+
+    result = current_runtime().call(text(x), run, kind=kind_of(x[0]))
+    return call_value(found["block"], result)
 
 
 block_special_form.is_call = True  # traces keep block calls
@@ -387,19 +399,18 @@ def _run_statement(form, env, runtime):
     name = form[0] if form else None
     try:
         if is_block_name(name) and name not in env:
-            block = find_block(form)
-            if block is None:
-                return failure(f"No form of {name} matches {text(form)}: "
-                               f"see its usage, {usage_of(name)}")
-            if block.block.kind == PLACEHOLDER:
+            block, result = run_call(form, env)
+            if block is not None and block.block.kind == PLACEHOLDER:
                 runtime.placeholders += 1
-            result = run_block(block, env)
             if result:
                 result.value = call_value(block, result)
             elif result.error:
                 e = getattr(result, "exception", None)
-                result.message = f"{text(form)} raised {error_line(e)}" if e else \
-                    f"{text(form)} failed"
+                if isinstance(e, (NoBlock, AmbiguousBlock)):
+                    result.message = str(e)
+                else:
+                    result.message = f"{text(form)} raised {error_line(e)}" if e else \
+                        f"{text(form)} failed"
                 result.trace = (lisp.trace(e) if e else []) + [edn.span_of(form)]
             else:
                 detail = f": {result.stdout}" if result.stdout else ""

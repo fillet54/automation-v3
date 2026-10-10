@@ -92,9 +92,10 @@ class TestVehicleManagerExamples(unittest.TestCase):
                 with self.subTest(script=script, variation=variation):
                     uut.start(version, env)
                     recorder = Recorder()
+                    handles = {"vm": uut.handle(version, env)}
                     outcome = execute_closure(
                         closure.files, closure.load_order, recorder, closure.imports,
-                        variation, bindings={"vm": uut.handle(version, env)})
+                        variation, bindings=handles, clock=env.clock(handles))
                     failed = [e.get("message") for e in recorder.of("step_end")
                               if not e["passed"]]
                     self.assertEqual(outcome, expected, failed)
@@ -119,9 +120,10 @@ class TestVehicleManagerExamples(unittest.TestCase):
         old = next(v for v in uut.list_versions() if v.id == "3.1.0")
         uut.install(old, env)
         uut.start(old, env)
+        handles = {"vm": uut.handle(old, env)}
         outcome = execute_closure(closure.files, closure.load_order, Recorder(),
-                                  closure.imports, None,
-                                  bindings={"vm": uut.handle(old, env)})
+                                  closure.imports, None, bindings=handles,
+                                  clock=env.clock(handles))
         self.assertEqual(outcome, "fail")
 
 

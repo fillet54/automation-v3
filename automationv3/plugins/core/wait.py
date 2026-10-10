@@ -1,6 +1,6 @@
 """Wait: until a check holds (see verify.py for checks), or for a time"""
 
-from automationv3.framework import connectors, context, edn, html
+from automationv3.framework import clock, context, edn, html
 from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
 from automationv3.framework.steps import current_runtime
 
@@ -20,8 +20,8 @@ class Wait(BuildingBlock):
     With only a time, it waits that long: ``(Wait 2s)``.
 
     Times are in seconds, or time literals: ``500ms``, ``5s``,
-    ``2min``, ``1h``. A UUT with a clock of its own (a simulation) keeps
-    the time; otherwise it is the wall clock's.
+    ``2min``, ``1h``. The run's clock keeps the time: the wall clock's on
+    hardware, the simulation's in a simulated environment.
 
     Examples::
 
@@ -40,7 +40,7 @@ class Wait(BuildingBlock):
                 f"({self.name()} value :within time? :every time?)\n"
                 f"({self.name()} time)")
 
-    def check_syntax(self, *forms):
+    def check_syntax_forms(self, *forms):
         return parse(forms, self.options) is not None
 
     def evaluated_forms(self, *forms):
@@ -53,7 +53,7 @@ class Wait(BuildingBlock):
         if check.op is None and not options and self.mode == "all":
             value = context.evaluate(check.actual)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
-                connectors.sleep(value)
+                clock.current().sleep(value)
                 return BlockResult(True, stdout=f"waited {show(value)} s"
                                    if not isinstance(value, edn.Duration)
                                    else f"waited {show(value)}")
@@ -99,7 +99,7 @@ class WaitSame(Wait):
     def usage(self):
         return "(WaitSame group :within time? :every time?)"
 
-    def check_syntax(self, *forms):
+    def check_syntax_forms(self, *forms):
         check = parse(forms, self.options, comparisons=False)
         return check is not None
 
@@ -161,17 +161,18 @@ def poll(check, within, every):
     """Run `check` until it passes or `within` seconds pass; its block
     calls run silently, so polling doesn't flood the report"""
     runtime = current_runtime()
-    started = connectors.clock()
+    keeper = clock.current()
+    started = keeper.now()
     while True:
         with runtime.within(silent=True):
             passed, compared = check()
-        waited = connectors.clock() - started
+        waited = keeper.now() - started
         if passed:
             return BlockResult(True, stdout=f"after {waited:g}s: {compared}")
         if waited >= within:
             return BlockResult(False, stdout=f"not within {shown_time(within)}: "
                                              f"{compared}")
-        connectors.sleep(min(every, within - waited) if every > 0 else within - waited)
+        keeper.sleep(min(every, within - waited) if every > 0 else within - waited)
 
 
 class SetupSimulation(BuildingBlock):
@@ -192,7 +193,7 @@ class SetupSimulation(BuildingBlock):
     def usage(self):
         return "(SetupSimulation name value ...)"
 
-    def check_syntax(self, *args):
+    def check_syntax_forms(self, *args):
         return (len(args) % 2) == 0
 
     # Keys and values are names as written, e.g. [xyz]
