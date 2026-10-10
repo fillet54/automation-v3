@@ -44,14 +44,16 @@ def plugin_of(block):
 
 
 def blocks_by_plugin():
-    """plugin package -> its blocks, sorted by name"""
-    from automationv3.framework.block import all_blocks
+    """plugin package -> its blocks, sorted by name. A block implementing
+    an abstract one (e.g. a plugin's Read) is listed under it instead."""
+    from automationv3.framework.block import all_blocks, documented
 
     found = {}
     for block in all_blocks():
         plugin = plugin_of(block)
-        if plugin is not None:
-            found.setdefault(plugin, []).append(block)
+        if plugin is None or documented(block.name()) is not block:
+            continue
+        found.setdefault(plugin, []).append(block)
     return {plugin: sorted(blocks, key=lambda b: b.name())
             for plugin, blocks in sorted(found.items())}
 
@@ -74,7 +76,26 @@ def block_rst(block):
     lines += doc.splitlines() if doc else ["*Not documented yet.*"]
     lines += ["", ".. rst-class:: block-source", "",
               f"``{cls.__module__}.{cls.__qualname__}``", ""]
+    implementations = implementations_of(block)
+    if implementations:
+        lines += ["Implemented for:", ""]
+        for impl in implementations:
+            ref_type = getattr(impl, "ref_type", None)
+            what = f"``{ref_type.__name__}`` refs, by " if ref_type is not None else ""
+            source = f"{type(impl).__module__}.{type(impl).__qualname__}"
+            lines += [f"- {what}``{source}``"]
+        lines += [""]
     return lines
+
+
+def implementations_of(block):
+    """The blocks implementing an abstract block"""
+    from automationv3.framework.block import candidates, is_abstract
+
+    if not is_abstract(block):
+        return []
+    return [impl for impl in candidates(block.name())
+            if plugin_of(impl) is not None]
 
 
 def plugin_rst(plugin, blocks, with_heading):
