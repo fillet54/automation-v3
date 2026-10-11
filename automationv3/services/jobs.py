@@ -142,9 +142,16 @@ def create_report(root, workspace, name="", uut_versions=None):
                                scripts=[], additions=[])
 
 
-def check_runnable(plan):
-    """Raise QueueError if the plan has errors or nothing to run"""
-    if plan.errors or not plan.runs():
+def untested(plan):
+    """The plan's requirements no script references yet"""
+    return [r for r, scripts in plan.requirements.items() if not scripts]
+
+
+def check_runnable(plan, track=False):
+    """Raise QueueError if the plan has errors, or nothing to run. With
+    `track`, a plan with requirements no script references yet may run
+    nothing: it adds them to a report to track until scripts are written."""
+    if plan.errors or not (plan.runs() or (track and untested(plan))):
         errors = list(plan.errors) or ["Nothing to run"]
         errors += [f"{s.script}: {s.skipped}" for s in plan.scripts if s.skipped]
         raise QueueError(errors)
@@ -154,16 +161,24 @@ def add_plan(conn, root, report_id, plan, requirements=None):
     """Queue every run of `plan` in an existing report. `requirements`
     (id -> linked scripts) join the report's tracked requirements.
 
-    Returns the run ids. Raises QueueError if nothing can run.
+    Returns the run ids. Raises QueueError if nothing can run and there
+    are no requirements to track: requirements without tests yet are
+    tracked all the same.
     """
-    check_runnable(plan)
+    check_runnable(plan, track=bool(requirements))
     check_open(root, report_id)
     runs = plan.runs()
     report = store.load_report(root, report_id)
     summary = plan.summary()
+    defaults = {}
+    if runs and not report.get("uut_versions"):
+        # A report started without versions (it only tracked requirements
+        # then) takes its first runs' versions as its own
+        defaults = {"uut_versions": plan.uut_versions}
     store.update_report(
         root,
         report_id,
+        **defaults,
         requirements={**report.get("requirements", {}), **(requirements or {})},
         requirement_texts={**report.get("requirement_texts", {}),
                            **requirement_texts(conn, requirements or {})},
@@ -221,9 +236,9 @@ def queue_plan(conn, root, plan, name=None):
     requirements it covers: the one-step path from a selection.
 
     Returns (report_id, run_ids). Raises QueueError if the plan has
-    errors or nothing to run.
+    errors, or nothing to run and no requirements to track.
     """
-    check_runnable(plan)
+    check_runnable(plan, track=True)
     report_id = create_report(root, plan.workspace, name or default_name(plan),
                               plan.uut_versions)
     return report_id, add_plan(conn, root, report_id, plan, plan.requirements)
@@ -279,6 +294,7 @@ def queue_script(conn, root, workspace_root, script, text=None,
         versions=versions,
         texts={script: text} if text is not None else None,
     )
+    check_runnable(plan)  # a script must run: there's nothing to track
     report_id, run_ids = queue_plan(conn, root, plan)
     return report_id, run_ids[0]
 

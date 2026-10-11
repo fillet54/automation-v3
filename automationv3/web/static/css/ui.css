@@ -556,6 +556,16 @@ body.ui {
 .report-req { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
 .report-req__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .report-req__text { margin: 6px 0 10px; max-width: 90ch; color: var(--ui-muted); font-size: 13px; }
+.report-meter { display: flex; flex-direction: column; gap: 4px; min-width: 140px; font-size: 13px; }
+.report-meter__bar { display: flex; gap: 1px; height: 5px; border-radius: 3px; overflow: hidden; background: var(--ui-soft); }
+.report-meter__bar > span { flex-basis: 0; }
+.report-meter__green { background: var(--ui-success); }
+.report-meter__red { background: var(--ui-danger); }
+.report-meter__partial { background: var(--ui-warning); }
+.report-meter__untested { background: color-mix(in srgb, var(--ui-faint) 45%, var(--ui-soft)); }
+.report-untested { margin: 0; padding: 8px 12px; border: 1px dashed var(--ui-rule); border-radius: var(--ui-radius); color: var(--ui-muted); font-size: 13px; }
+.report-untested-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.report-untested-list li { display: flex; gap: 10px; align-items: baseline; }
 .report-row__title { display: flex; align-items: center; gap: 8px; font-weight: 500; }
 .report-row { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
 .report-row--why > td { border-bottom: 0; }

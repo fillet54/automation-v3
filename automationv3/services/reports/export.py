@@ -313,7 +313,7 @@ def render_rst(m, manifest_hash, exported):
     colors = [r["color"] for r in requirements]
     states = [r["state"] for r in rows]
     summary = [[text(f"Requirements {c}"), text(colors.count(c))]
-               for c in ("green", "red", "partial") if requirements]
+               for c in ("green", "red", "partial", "untested") if requirements]
     summary += [[text(f"Combinations {s}"), text(states.count(s))]
                 for s in dict.fromkeys(["pass", "fail", "error", "incomplete",
                                         *states])]
@@ -321,13 +321,18 @@ def render_rst(m, manifest_hash, exported):
                f"{plural(len(rows), 'combination')} of script, environment and variation. "
                "Each combination is judged on its latest run; a requirement is "
                "green when every combination linked to it passed, red when any "
-               "failed, and partial otherwise.\n")
+               "failed, untested when no script references it yet, and partial "
+               "otherwise.\n")
     out.append(table("Summary", [70, 30], ["Item", "Count"], summary))
 
     out.append(heading("Open issues", "="))
     issues = [r for r in rows if r["state"] != "pass"]
-    if not issues:
+    untested = [r for r in requirements if r["color"] == "untested"]
+    if not issues and not untested:
         out.append("None: the latest run of every combination passed.\n")
+    for requirement in untested:
+        out.append(f"- {literal(requirement['id'])}: "
+                   f"{text('untested: no script references it yet')}")
     for row in issues:
         detail = row["state"]
         if row["failure"]:
@@ -350,7 +355,7 @@ def render_rst(m, manifest_hash, exported):
                            text(r["text"]) or "*text not recorded*",
                            f"**{text(r['color'])}**",
                            "\n".join(f"| {text(combination(c))}: {text(c['state'])}"
-                                     for c in r["cells"])]
+                                     for c in r["cells"]) or "*no tests yet*"]
                           for r in requirements]))
 
     out.append(heading("Results", "="))

@@ -81,6 +81,7 @@ def run_locally(root, scripts, reports_root, host=None, environments=None,
                       versions=versions, variations=variations,
                       filter_source=filter_source)
 
+    jobs.check_runnable(plan)  # running locally: something must run
     conn = connect(":memory:")
     init_db(conn)
     report_id, _ = jobs.queue_plan(conn, reports_root, plan)

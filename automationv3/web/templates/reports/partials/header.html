@@ -38,6 +38,10 @@
       {% if report.workspace %}
       {{ ui.button("Add requirements…", icon="plus", href=url_for('requirements.list', workspace=report.workspace, report=report.id)) }}
       {{ ui.button("Add a test…", icon="plus", href=url_for('workspace.index', id=report.workspace, report=report.id)) }}
+      {% if report.requirements %}
+      {{ ui.button("Update tests…", icon="refresh", href=url_for('jobqueue.new', report=report.id, requirement=report.requirements | list),
+                   attrs={"title": "Check every tracked requirement for scripts, and run what hasn't passed yet"}) }}
+      {% endif %}
       {% endif %}
       <form method="post" action="{{ url_for('reports.export_report', report_id=report.id) }}">
         {{ ui.button("Freeze & export", variant="primary", icon="lock", type="submit", disabled=in_progress, attrs={"onclick": "return confirm('Freeze this report and export its PDF? No more runs can be added until it is reopened.')"}) }}

@@ -39,6 +39,21 @@ The Requirements page and the script view also have an **Add to** / **Queue
 in** report picker. Leaving it blank creates a new report in one step, named
 after what it covers.
 
+Tracking requirements before their tests exist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A report can follow the development of a whole subsystem, or any set of
+requirements, from before any script is written. On the Requirements page,
+pick a subsystem and tick **Select all in** it (or pick requirements one by
+one: those no script references yet can be picked too). If nothing can run
+yet, the dialog offers to **track** them instead: the report lists them as
+*no tests*, which is neither green nor red.
+
+As scripts are written, **Update tests…** on the report checks every tracked
+requirement against the workspace again and runs what it finds, leaving out
+what already passed. A report that started with nothing to run takes the
+UUT versions of its first runs as its own.
+
 The rollup
 ----------
 
@@ -57,6 +72,8 @@ every script linked to it:
      - the latest run of any linked combination failed
    * - partial
      - anything else: not run yet, queued, running, blocked or error
+   * - no tests
+     - no script references it yet
 
 Linked scripts that weren't added, and variations that were left out, count
 as not run, so a requirement is only green when its whole coverage passed.
@@ -91,7 +108,7 @@ A report's pages share a navigation column on the left:
       * - amber
         - partial: incomplete, steps to be written, blocked
       * - hollow
-        - not run yet
+        - not run yet, or no tests yet
       * - pulsing
         - running
 

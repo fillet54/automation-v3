@@ -6,6 +6,10 @@
     {{ ui.select("workspace", workspaces, selected=workspace, id="req-workspace", mono=True,
                  attrs={"hx-get": url_for('requirements.list', subsystem=selected_subsystem), "hx-target": "#requirements",
                         "hx-swap": "innerHTML", "hx-push-url": "true"}) }}</label>
+    <label class="ui-row" style="font-size: 13px;"><input type="checkbox" data-select-all
+           style="width: 16px; height: 16px; accent-color: var(--ui-accent);"
+           onchange="this.closest('form').querySelectorAll('[data-select-requirement]').forEach(function (box) { box.checked = this.checked; }, this)">
+      Select all{% if selected_subsystem %} in <span class="ui-mono">{{ selected_subsystem }}</span>{% endif %}</label>
     <span class="ui-spacer"></span>
     {% if reports %}
     <label class="ui-row" for="req-report"><span class="ui-field__label">Add to</span>
@@ -23,8 +27,8 @@
     <tr style="vertical-align: top;">
       {% if workspace %}
       <td style="width: 1%;"><input type="checkbox" name="requirement" value="{{ requirement.id }}" aria-label="Select {{ requirement.id }}"
-                 style="width: 16px; height: 16px; accent-color: var(--ui-accent);"
-                 {% if not scripts %}disabled title="No scripts reference this requirement"{% endif %}></td>
+                 style="width: 16px; height: 16px; accent-color: var(--ui-accent);" data-select-requirement
+                 {% if not scripts %}title="No scripts reference it yet: a report tracks it until some do"{% endif %}></td>
       {% endif %}
       <td style="white-space: nowrap;">{{ ui.ident(requirement.id) }}</td>
       <td class="ui-requirement">{% if requirement.text %}{{ requirement.__repr_html__() | safe }}{% else %}<span class="ui-muted">Not in the requirements database</span>{% endif %}</td>

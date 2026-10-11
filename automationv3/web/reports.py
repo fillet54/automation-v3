@@ -275,7 +275,8 @@ def call_trees(events):
 @reports.route("/", methods=["GET"])
 def index():
     all_reports = [
-        {**report, "runs": store.list_runs(root(), report["id"])}
+        {**report, "summary": report_view.summary(report,
+                                                  store.list_runs(root(), report["id"]))}
         for report in store.list_reports(root())
     ]
     return render_template("reports/reports.html", reports=all_reports)

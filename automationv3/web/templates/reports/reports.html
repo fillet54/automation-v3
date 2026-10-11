@@ -6,22 +6,33 @@
 {% call ui.page_header("Reports", subtitle="A report tests one build: the requirements and tests added to it, and how they came out.") %}
   {{ ui.button("New report", variant="primary", icon="plus", href=url_for('reports.new')) }}
 {% endcall %}
-{% call ui.table(["Report", "Created", "Workspace", "Covers", {"label": "Runs", "align": "end"}]) %}
+{% call ui.table(["Report", "Created", "Workspace", "Requirements", {"label": "Runs passed", "align": "end"}, {"label": "Failed", "align": "end"}]) %}
   {% for report in reports %}
+  {% set m = report.summary %}
   <tr class="ui-row--link" data-href="{{ url_for('reports.report', report_id=report.id) }}">
-    <td><a href="{{ url_for('reports.report', report_id=report.id) }}">{{ report.name or report.id[:8] }}</a></td>
+    <td>
+      <a href="{{ url_for('reports.report', report_id=report.id) }}">{{ report.name or report.id[:8] }}</a>
+      {% if report.frozen %} {{ ui.badge("Frozen", "info") }}{% endif %}
+      {% if m.in_progress %} <span class="ui-spinner" title="Runs in progress"></span>{% endif %}
+    </td>
     <td>{{ ui.timestamp(report.created) }}</td>
     <td>{% if report.workspace %}{{ ui.ident(report.workspace) }}{% endif %}</td>
     <td>
-      {%- if report.requirements %}{% for r in report.requirements %}{{ ui.ident(r) }} {% endfor %}
-      {%- else %}
-      {%- for s in report.scripts or [] %}{{ ui.ident(s.script if s is mapping else s, plain=True) }}{% if not loop.last %}, {% endif %}{% endfor %}
-      {%- endif %}
+      {% if m.requirements_total %}
+      {% set total = m.requirements_total %}
+      <div class="report-meter" title="{{ m.requirements.green }} green, {{ m.requirements.red }} red, {{ m.requirements.partial }} partial, {{ m.requirements.untested }} without tests">
+        <span class="ui-number">{{ m.requirements.green }} / {{ total }} green</span>
+        <span class="report-meter__bar" aria-hidden="true">
+          {%- for color in ("green", "red", "partial", "untested") if m.requirements[color] %}<span class="report-meter__{{ color }}" style="flex-grow: {{ m.requirements[color] }};"></span>{% endfor -%}
+        </span>
+      </div>
+      {% else %}<span class="ui-muted">—</span>{% endif %}
     </td>
-    <td class="ui-end ui-number">{{ report.runs | length }}</td>
+    <td class="ui-end ui-number">{% if m.combinations %}{{ m.passed }} / {{ m.combinations }}{% else %}<span class="ui-muted">—</span>{% endif %}</td>
+    <td class="ui-end ui-number">{% if m.failed %}<span class="ui-tone-danger" style="color: var(--ui-tone);">{{ m.failed }}</span>{% else %}<span class="ui-muted">—</span>{% endif %}</td>
   </tr>
   {% else %}
-  {{ ui.empty_row("No reports yet. Create one, or queue scripts from the workspace or the requirements page.", 5) }}
+  {{ ui.empty_row("No reports yet. Create one, or queue scripts from the workspace or the requirements page.", 6) }}
   {% endfor %}
 {% endcall %}
 {% endblock %}

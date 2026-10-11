@@ -7,7 +7,8 @@ The Runs page and its navigation share one tree::
     subsystem -> requirement -> script
 
 plus "Other tests" for scripts added without a requirement. Every node
-has a `state` (a dot on the page) and the groups an `issues` count.
+has a `dot` for its state and the groups an `issues` count. A tracked
+requirement no script references yet is "untested": it has no scripts.
 """
 
 import re
@@ -25,7 +26,7 @@ DOTS = {
     "incomplete": "partial", "tbd": "partial", "partial": "partial",
     "blocked": "partial", "released": "partial", "unknown": "partial",
     "running": "running", "claimed": "running",
-    "pending": "none", "not run": "none",
+    "pending": "none", "not run": "none", "untested": "none",
 }
 
 # Worst first: a group takes the worst state of what it holds
@@ -108,6 +109,7 @@ def build(root, report, runs, status, lookup=None):
             "dot": worst(e["dot"] for e in entries),
             "issues": sum(1 for e in entries if e["dot"] != "pass"),
             "green": sum(1 for e in entries if e["color"] == "green"),
+            "untested": sum(1 for e in entries if e["color"] == "untested"),
         })
 
     others = [script_entry(None, script, script_rows, titles)
@@ -125,6 +127,8 @@ def build(root, report, runs, status, lookup=None):
         "groups": groups,
         "other": other,
         "issues": [row for row in rows if row["dot"] != "pass"],
+        "untested": [e for g in groups for e in g["requirements"]
+                     if e["color"] == "untested"],
     }
 
 
@@ -191,3 +195,19 @@ def connectors(touched):
          "fixed": sum(1 for r in refs if "fix" in r["operations"])}
         for name, refs in sorted(groups.items())
     ]
+
+
+def summary(report, runs):
+    """A report's figures for the list of reports: its requirements by
+    color, and its combinations by how their latest run came out"""
+    rows = rollup.combinations(report, runs, lambda run: "pending")
+    colors = [r["color"] for r in rollup.requirement_rollup(report, rows)]
+    states = [row["state"] for row in rows]
+    return {
+        "requirements": {c: colors.count(c) for c in ("green", "red", "partial", "untested")},
+        "requirements_total": len(colors),
+        "passed": states.count("pass"),
+        "failed": sum(1 for s in states if s in ("fail", "error")),
+        "combinations": len(states),
+        "in_progress": any(run.get("outcome") is None for run in runs),
+    }

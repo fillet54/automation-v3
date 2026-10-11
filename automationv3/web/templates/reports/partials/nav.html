@@ -20,6 +20,9 @@
         <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}" data-nav="subsystem" data-subsystem="{{ group.name }}">{{ dot(group.dot) }}<span class="ui-mono">{{ group.name }}</span>{{ count(group.issues) }}</a></summary>
         <ul>
           {% for req in group.requirements %}
+          {% if not req.scripts %}
+          <li data-dot="{{ req.dot }}"><a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#req-{{ req.id }}" data-nav="requirement" data-subsystem="{{ group.name }}" title="No tests yet{{ ': ' ~ req.text if req.text }}">{{ dot(req.dot) }}<span class="ui-mono">{{ req.id }}</span></a></li>
+          {% else %}
           <li data-dot="{{ req.dot }}">
             <details data-key="r:{{ req.id }}"{% if req.dot != "pass" %} open{% endif %}>
               <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#req-{{ req.id }}" data-nav="requirement" data-subsystem="{{ group.name }}" title="{{ req.text }}">{{ dot(req.dot) }}<span class="ui-mono">{{ req.id }}</span>{{ count(req.issues) }}</a></summary>
@@ -30,6 +33,7 @@
               </ul>
             </details>
           </li>
+          {% endif %}
           {% endfor %}
         </ul>
       </details>

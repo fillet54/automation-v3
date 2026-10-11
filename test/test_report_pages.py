@@ -83,6 +83,26 @@ class TestTree(ReportPagesTestCase):
         self.assertEqual(other["dot"], "fail")
         self.assertEqual(view["dot"], "fail")
 
+    def test_a_requirement_without_tests_is_untested(self):
+        report = store.load_report(self.root, self.report_id)
+        store.update_report(self.root, self.report_id,
+                            requirements={**report["requirements"], "BRA-3": []},
+                            requirement_subsystems={"BRA-1": "BRA", "BRA-3": "BRA"})
+        view = self.view()
+        bra = view["groups"][0]
+        (bra3,) = [r for r in bra["requirements"] if r["id"] == "BRA-3"]
+        self.assertEqual((bra3["color"], bra3["dot"], bra3["scripts"]),
+                         ("untested", "none", []))
+        self.assertEqual((bra["untested"], bra["issues"]), (1, 1))
+        self.assertEqual([r["id"] for r in view["untested"]], ["BRA-3"])
+
+        from automationv3.services.reports import export
+        rst = export.render_rst(export.model(self.root, self.report_id), "f" * 64,
+                                "2026-01-01T00:00:00+00:00")
+        self.assertIn(r"untested\: no script references it yet", rst)
+        self.assertIn("*no tests yet*", rst)
+        export.rst_to_latex(rst)
+
     def test_a_failure_says_where_and_why(self):
         view = self.view()
         (row,) = view["other"]["scripts"][0]["rows"]
@@ -157,6 +177,15 @@ class TestPages(ReportPagesTestCase):
         self.assertIn("report-why", page)
         self.assertIn("Subsystems", page)
         self.assertIn("Other tests", page)
+
+    def test_the_list_of_reports_sums_each_one_up(self):
+        page = self.http.get("/reports/").get_data(True)
+        self.assertNotIn("Covers", page)
+        self.assertIn("1 / 2 green", page)  # BRA-1 green, BRA-2 not run
+        self.assertIn("3 / 4", page)  # combinations passed
+        self.assertIn('flex-grow: 1;', page)  # the requirements bar
+        store.set_frozen(self.root, self.report_id, True)
+        self.assertIn("Frozen", self.http.get("/reports/").get_data(True))
 
     def test_rename_in_place_and_not_when_frozen(self):
         response = self.http.post(self.base + "/rename",

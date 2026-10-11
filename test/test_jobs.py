@@ -919,6 +919,91 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(response.status_code, 302, response.get_data(True))
         self.assertTrue(response.headers["Location"].endswith(report_id))
 
+    def track_untested(self):
+        """R9 is in the requirements database, but no script references it"""
+        from automationv3.framework.requirement import Requirement
+        from automationv3.services.requirements import models as requirement_models
+        with connect(self.tmp / "test.db") as conn:
+            requirement_models.insert(conn, [Requirement("R9", "Brakes shall not fade.",
+                                                         "BRK")])
+
+    def test_requirements_without_tests_are_tracked_until_scripts_reference_them(self):
+        self.track_untested()
+        report_id = self.new_report()
+        dialog = self.http.get("/runner/new", query_string={
+            "report": report_id, "requirement": "R9"}).get_data(True)
+        self.assertIn("without tests yet", dialog)
+        self.assertIn("Track 1 requirement in the report", dialog)
+        self.add(report_id, requirement="R9")
+
+        report = store.load_report(self.root, report_id)
+        self.assertEqual(report["requirements"], {"R9": []})
+        self.assertEqual(report["requirement_subsystems"], {"R9": "BRK"})
+        self.assertEqual(store.list_runs(self.root, report_id), [])
+        (r9,) = rollup.requirement_rollup(report, [])
+        self.assertEqual(r9["color"], "untested")
+        overview = self.http.get(f"/reports/{report_id}").get_data(True)
+        self.assertIn("Without tests", overview)
+        self.assertIn("1 without tests", overview)
+        self.assertIn("Update tests", overview)
+        runs = self.http.get(f"/reports/{report_id}/runs").get_data(True)
+        self.assertIn("No script references this requirement yet", runs)
+
+        # A script is written for it: updating the report's tests runs it
+        write_tree(self.gitdir / "rvts", {
+            "BRA/fade.rst": doc("Fade :req:`R9`", rvt("(Verify (under-limit? 5))"))})
+        dialog = self.http.get("/runner/new", query_string={
+            "report": report_id, "requirement": "R9"}).get_data(True)
+        self.assertIn("Add 1 run to the report", dialog)
+        self.add(report_id, requirement="R9")
+        self.assertEqual(self.worker.work_once(), "pass")
+        report = store.load_report(self.root, report_id)
+        self.assertEqual(report["requirements"], {"R9": ["BRA/fade.rst"]})
+        rows = rollup.combinations(report, store.list_runs(self.root, report_id),
+                                   lambda run: "pending")
+        self.assertEqual(rollup.requirement_rollup(report, rows)[0]["color"], "green")
+
+    def test_a_new_report_can_track_requirements_alone(self):
+        self.track_untested()
+        response = self.http.post("/runner/queue", data={
+            "workspace": self.branch, "requirement": "R9"})
+        self.assertEqual(response.status_code, 302, response.get_data(True))
+        report_id = response.headers["Location"].rstrip("/").split("/")[-1]
+        report = store.load_report(self.root, report_id)
+        self.assertEqual((report["requirements"], report["uut_versions"]), ({"R9": []}, {}))
+
+        # Its first runs give it its UUT versions
+        self.add(report_id, requirement="R1", variation=["BRA/modes.rst::low"],
+                 **{"version-demo": "1.0.0"})
+        self.assertEqual(store.load_report(self.root, report_id)["uut_versions"]["demo"]["id"],
+                         "1.0.0")
+        page = self.http.get(f"/reports/{report_id}").get_data(True)
+        self.assertNotIn("also demo", page)
+
+    def test_nothing_to_run_or_track_is_refused(self):
+        response = self.http.post("/runner/queue", data={
+            "workspace": self.branch, "script": "plain/lint.rst"})
+        self.assertIn("Nothing to run", response.get_data(True))
+        self.assertEqual(store.list_reports(self.root), [])
+
+    def test_subsystem_links_keep_the_chosen_report(self):
+        self.track_untested()
+        report_id = self.new_report()
+        page = self.http.get("/requirements/", query_string={
+            "workspace": self.branch, "report": report_id}).get_data(True)
+        self.assertIn(f"/requirements/?subsystem=BRK&amp;workspace={self.branch}"
+                      f"&amp;report={report_id}", page)
+        page = self.http.get("/requirements/").get_data(True)
+        self.assertIn(f"/requirements/?subsystem=BRK&amp;workspace={self.branch}\"", page)
+
+    def test_every_requirement_can_be_picked(self):
+        self.track_untested()
+        page = self.http.get("/requirements/", query_string={
+            "workspace": self.branch, "subsystem": "BRK"}).get_data(True)
+        self.assertIn('value="R9"', page)
+        self.assertNotIn("disabled", page.split('value="R9"')[1].split(">")[0])
+        self.assertIn("Select all", page)
+
     def test_a_report_grows_by_requirements_and_single_tests(self):
         report_id = self.new_report()
         report = store.load_report(self.root, report_id)

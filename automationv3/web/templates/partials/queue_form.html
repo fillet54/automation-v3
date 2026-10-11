@@ -13,8 +13,18 @@
   <div class="ui-facts">
     {% if report %}<span>Adding to {{ ui.ident(report.name or report.id[:8], url_for('reports.report', report_id=report.id), plain=True) }}</span>{% endif %}
     <span>Workspace {{ ui.ident(plan.workspace) }}</span>
-    {% if plan.requirements %}<span>Requirements {% for r in plan.requirements %}{{ ui.ident(r) }} {% endfor %}</span>{% endif %}
+    {% if plan.requirements %}{% set ids = plan.requirements | list %}
+    <span>Requirements {% for r in ids[:8] %}{{ ui.ident(r) }} {% endfor %}{% if ids | length > 8 %}and {{ ids | length - 8 }} more{% endif %}</span>{% endif %}
   </div>
+
+  {% set untested = [] %}
+  {% for r, scripts in plan.requirements.items() if not scripts %}{% set _ = untested.append(r) %}{% endfor %}
+  {% if untested %}
+  {% call ui.alert("info", title=(untested | length) ~ " requirement" ~ ("" if untested | length == 1 else "s") ~ " without tests yet") %}
+    No script references {{ "it" if untested | length == 1 else "them" }} yet. The report tracks {{ "it" if untested | length == 1 else "them" }} as
+    <em>no tests</em>; once scripts are written, <strong>Update tests…</strong> on the report runs them.
+  {% endcall %}
+  {% endif %}
 
   {% if errors %}
   {% call ui.alert("danger", title="Can't queue yet") %}
@@ -53,6 +63,7 @@
     {% endcall %}
   {% endcall %}
 
+  {% if plan.scripts %}
   {% call ui.table(["Script", "Requirements", "Environments", "Variations"]) %}
     {% for s in plan.scripts %}
     <tr style="vertical-align: top;">
@@ -87,11 +98,18 @@
     </tr>
     {% endfor %}
   {% endcall %}
+  {% endif %}
 
   {% call ui.toolbar() %}
     {% set n = runs | length %}
+    {% set k = plan.requirements | length %}
+    {% set tracking = request.values.getlist('requirement') and untested %}
+    {% if n or not tracking %}
     {% set label = ("Add " ~ n ~ " run" ~ ('' if n == 1 else 's') ~ " to the report") if report else ("Queue " ~ n ~ " run" ~ ('' if n == 1 else 's')) %}
-    {{ ui.button(label, variant="primary", icon="play", disabled=not runs,
+    {% else %}
+    {% set label = ("Track " ~ k ~ " requirement" ~ ('' if k == 1 else 's') ~ " in the report") if report else ("Create a report tracking " ~ k ~ " requirement" ~ ('' if k == 1 else 's')) %}
+    {% endif %}
+    {{ ui.button(label, variant="primary", icon="play" if n else "plus", disabled=not (runs or tracking),
                  attrs={"hx-post": url_for('jobqueue.queue'), "hx-include": "#queue-form", "hx-target": "#queue-form", "hx-swap": "outerHTML"}) }}
     {% set skipped = plan.scripts | selectattr('skipped') | list %}
     {% if skipped %}<span class="ui-muted">{{ skipped | length }} script{{ '' if skipped | length == 1 else 's' }} skipped</span>{% endif %}

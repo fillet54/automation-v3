@@ -40,17 +40,22 @@
 {% for group in view.groups %}
 <section class="report-group" data-subsystem="{{ group.name }}"{% if subsystem and subsystem != group.name %} hidden{% endif %}>
   <h2 class="report-group__title"><span class="report-dot report-dot--{{ group.dot }}" aria-hidden="true"></span><span class="ui-mono">{{ group.name }}</span>
-    <span class="ui-text-caption">{{ group.green }} of {{ group.requirements | length }} green</span></h2>
+    <span class="ui-text-caption">{{ group.green }} of {{ group.requirements | length }} green{% if group.untested %}, {{ group.untested }} without tests{% endif %}</span></h2>
   {% for req in group.requirements %}
   <article class="report-req" id="req-{{ req.id }}">
     <header class="report-req__head">
       <span class="report-dot report-dot--{{ req.dot }}" aria-hidden="true"></span>
       {{ ui.ident(req.id) }}
       {{ ui.outcome(req.color) }}
-      <span class="ui-text-caption">{{ req.passed }} of {{ req.total }} passed</span>
+      {% if req.scripts %}<span class="ui-text-caption">{{ req.passed }} of {{ req.total }} passed</span>{% endif %}
     </header>
     {% if req.text %}<p class="report-req__text">{{ req.text }}</p>{% endif %}
+    {% if req.scripts %}
     {{ runs_table(req.scripts) }}
+    {% else %}
+    <p class="report-untested">No script references this requirement yet.
+      {% if report.workspace and not report.frozen %}Once one does, <a href="{{ url_for('jobqueue.new', report=report.id, requirement=req.id) }}">add its tests</a>.{% endif %}</p>
+    {% endif %}
   </article>
   {% endfor %}
 </section>

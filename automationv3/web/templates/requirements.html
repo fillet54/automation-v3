@@ -8,12 +8,45 @@
 
 {% block side %}
 {{ ui.section_label("Subsystems") }}
-<ul class="ui-sidenav">
-  <li><a href="{{ url_for('requirements.list') }}"{% if not selected_subsystem %} aria-current="page"{% endif %}>All requirements</a></li>
+{#- Each link keeps the chosen workspace and report: as rendered, and as chosen since (see the script below) #}
+{% set keep = {"workspace": workspace or None, "report": target or None} %}
+<ul class="ui-sidenav" data-requirements-nav>
+  <li><a href="{{ url_for('requirements.list', **keep) }}"{% if not selected_subsystem %} aria-current="page"{% endif %}>All requirements</a></li>
   {% for subsystem in subsystems | sort %}
-  <li><a href="{{ url_for('requirements.list', subsystem=subsystem) }}"{% if subsystem == selected_subsystem %} aria-current="page"{% endif %}>{{ ui.icon("layers", 14) }}<span class="ui-mono">{{ subsystem }}</span></a></li>
+  <li><a href="{{ url_for('requirements.list', subsystem=subsystem, **keep) }}"{% if subsystem == selected_subsystem %} aria-current="page"{% endif %}>{{ ui.icon("layers", 14) }}<span class="ui-mono">{{ subsystem }}</span></a></li>
   {% endfor %}
 </ul>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // The workspace and report chosen on the page, kept in its address and
+  // in the subsystem links
+  (function () {
+    function chosen(name) {
+      var field = document.querySelector('#requirements [name="' + name + '"]');
+      return field ? field.value : null;
+    }
+    function keep(url) {
+      ["workspace", "report"].forEach(function (name) {
+        var value = chosen(name);
+        if (value === null) return;
+        if (value) url.searchParams.set(name, value);
+        else url.searchParams.delete(name);
+      });
+      return url;
+    }
+    document.addEventListener("click", function (event) {
+      var link = event.target.closest("[data-requirements-nav] a");
+      if (link) link.href = keep(new URL(link.href, window.location.href)).toString();
+    });
+    document.addEventListener("change", function (event) {
+      if (event.target.matches('#requirements [name="report"]')) {
+        history.replaceState(history.state, "", keep(new URL(window.location.href)));
+      }
+    });
+  })();
+</script>
 {% endblock %}
 
 {% block content %}

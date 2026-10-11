@@ -9,6 +9,8 @@ its latest run:
 - green: the latest run of every linked combination passed
 - partial: anything else (not run yet, pending, blocked, error, or
   incomplete: a script with steps still to be written)
+- untested: no script references it yet; a report can track a
+  requirement before its tests are written
 
 Linked scripts that weren't queued, and variations that were left out,
 count as not run.
@@ -86,6 +88,10 @@ def requirement_rollup(report, rows):
         by_script.setdefault(row["script"], []).append(row)
     rollup = []
     for requirement, scripts in sorted(report.get("requirements", {}).items()):
+        if not scripts:
+            rollup.append({"id": requirement, "color": "untested", "passed": 0,
+                           "total": 0, "cells": []})
+            continue
         cells = []
         for script in scripts:
             cells.extend(by_script.get(script) or [{
