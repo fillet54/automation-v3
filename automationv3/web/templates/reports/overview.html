@@ -59,7 +59,7 @@
       <div class="report-issues__head">
         {% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}">{{ row.title }}</a>{% else %}{{ row.title }}{% endif %}
         <span class="ui-text-caption ui-mono">{{ row.script }}</span>{{ variation_label(row.environment, row.variation) }}
-        {{ ui.outcome(row.state) }}
+        {{ ui.outcome(row.state, label=row.label) }}
       </div>
       {% if row.why %}<div class="report-why report-why--{{ row.dot }}">{{ row.why }}</div>{% endif %}
     </div>

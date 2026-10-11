@@ -33,7 +33,12 @@
       </form>
       {% elif finished and not frozen %}
       <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
+        {% if rerun_on %}
+        {{ ui.button("Rerun on " ~ rerun_on, icon="refresh", type="submit", size="sm",
+                     attrs={"title": "Outdated: it ran on another version than the report's. The same script, on the report's versions."}) }}
+        {% else %}
         {{ ui.button("Rerun", icon="refresh", type="submit", size="sm") }}
+        {% endif %}
       </form>
       {% endif %}
     </div>

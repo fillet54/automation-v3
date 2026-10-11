@@ -27,7 +27,11 @@ DOTS = {
     "blocked": "partial", "released": "partial", "unknown": "partial",
     "running": "running", "claimed": "running",
     "pending": "none", "not run": "none", "untested": "none",
+    "outdated": "partial",
 }
+
+WORDS = {"pass": "Passed", "fail": "Failed", "error": "Error", "incomplete": "Incomplete",
+         "blocked": "Blocked"}
 
 # Worst first: a group takes the worst state of what it holds
 WORST = ["fail", "running", "partial", "none", "pass"]
@@ -71,7 +75,8 @@ def build(root, report, runs, status, lookup=None):
         row["dot"] = dot(row["state"])
         row["attempts"] = len(row["earlier"]) + (1 if row["latest"] else 0)
         row["duration"] = export.duration(row["latest"])
-        row["why"] = why(root, row)
+        row["why"] = why(root, row, report)
+        row["label"] = outdated_label(row)
 
     by_script = {}
     for row in rows:
@@ -136,7 +141,8 @@ def script_entry(requirement, script, rows, titles):
     rows = rows or [{
         "script": script, "environment": None, "variation": None, "latest": None,
         "earlier": [], "state": "not run", "dot": "none", "attempts": 0,
-        "duration": None, "why": None, "title": titles.get(script) or script,
+        "duration": None, "why": None, "label": None, "outdated": {},
+        "title": titles.get(script) or script,
     }]
     return {
         "script": script,
@@ -160,9 +166,26 @@ def script_title(root, report_id, row, titles):
     return titles[script] or script.rsplit("/", 1)[-1]
 
 
-def why(root, row):
+def versions_text(versions):
+    return ", ".join(f"{name} {id}" for name, id in sorted(versions.items()))
+
+
+def outdated_label(row):
+    """'Passed on vm 3.1.0' for an outdated combination, else None"""
+    if row["state"] != "outdated":
+        return None
+    word = WORDS.get(row["latest"].get("outcome"), "Ran")
+    return f"{word} on {versions_text(row['outdated'])}"
+
+
+def why(root, row, report=None):
     """A short reason a combination didn't pass, or None"""
     state, run = row["state"], row["latest"]
+    if state == "outdated":
+        current = (report or {}).get("uut_versions") or {}
+        now = {name: current[name]["id"] for name in row["outdated"] if name in current}
+        return (f"{outdated_label(row)}; the report is on {versions_text(now)}. "
+                "Rerun it, or Update tests, to bring it up to date.")
     if state in ("fail", "error") and run:
         found = export.failure(root, run)
         parts = [p for p in (found["step"], found["message"]) if p]
@@ -208,6 +231,7 @@ def summary(report, runs):
         "requirements_total": len(colors),
         "passed": states.count("pass"),
         "failed": sum(1 for s in states if s in ("fail", "error")),
+        "outdated": states.count("outdated"),
         "combinations": len(states),
         "in_progress": any(run.get("outcome") is None for run in runs),
     }

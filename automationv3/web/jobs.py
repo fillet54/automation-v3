@@ -81,13 +81,15 @@ def plan_from(args):
     conn = get_db()
     links.refresh(conn, workspace, root)
 
+    # A report's versions are fixed for its additions (change them on the
+    # report); only a UUT it has no version for yet can be picked
     defaults = (report or {}).get("uut_versions", {})
-    versions = {uut: version["id"] for uut, version in defaults.items()}
-    versions.update({
+    versions = {
         key[len("version-"):]: value
         for key, value in args.items()
         if key.startswith("version-") and value
-    })
+    }
+    versions.update({uut: version["id"] for uut, version in defaults.items()})
     configured = args.get("configured") == "1"
     options = dict(
         scripts=args.getlist("script"),

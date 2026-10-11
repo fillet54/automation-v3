@@ -11,7 +11,7 @@
       <div class="ui-text-caption ui-mono">{{ script.script }}</div>{% endif -%}
     </td>
     <td>{{ variation_label(row.environment, row.variation) }}</td>
-    <td>{% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}" style="text-decoration: none;">{{ ui.outcome(row.state) }}</a>{% else %}{{ ui.outcome(row.state) }}{% endif %}</td>
+    <td>{% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}" style="text-decoration: none;">{{ ui.outcome(row.state, label=row.label) }}</a>{% else %}{{ ui.outcome(row.state, label=row.label) }}{% endif %}</td>
     <td class="ui-end ui-number">{% if row.attempts > 1 %}<span title="{{ row.attempts }} attempts: earlier runs are under History">{{ row.attempts }}</span>{% elif row.attempts %}1{% else %}—{% endif %}</td>
     <td class="ui-end ui-number">{% if row.duration is not none %}{{ row.duration | duration }}{% else %}—{% endif %}</td>
   </tr>

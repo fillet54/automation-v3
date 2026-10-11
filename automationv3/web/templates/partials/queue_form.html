@@ -48,10 +48,18 @@
     {% call ui.fieldset("UUT versions", "Installed on the environment before the run, if it isn't already.") %}
       {% for uut, ids in plan.uut_choices.items() %}
       {% set selected = plan.uut_versions[uut].id if plan.uut_versions[uut] else None %}
-      {% set default = report.uut_versions[uut].id if report and report.uut_versions and report.uut_versions[uut] else None %}
-      {% call ui.field(uut, "version-" ~ uut, hint=("Overrides the report's " ~ default ~ " for this addition") if default and selected != default else None) %}
+      {% set fixed = report and report.uut_versions and report.uut_versions[uut] %}
+      {% if fixed %}
+      <div class="ui-field">
+        <span class="ui-field__label">{{ uut }}</span>
+        <span>{{ ui.ident(selected) }}</span>
+        <div class="ui-field__hint">The report's version. Change it on the report: <a href="{{ url_for('reports.versions', report_id=report.id) }}">Versions…</a></div>
+      </div>
+      {% else %}
+      {% call ui.field(uut, "version-" ~ uut, hint="Becomes the report's version" if report else None) %}
         {{ ui.select("version-" ~ uut, ids | reverse | list, selected=selected, mono=True) }}
       {% endcall %}
+      {% endif %}
       {% endfor %}
     {% endcall %}
     {% endif %}

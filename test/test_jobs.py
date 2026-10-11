@@ -4,6 +4,7 @@ import textwrap
 import unittest
 import uuid
 from datetime import datetime, timedelta
+from dataclasses import asdict
 from pathlib import Path
 
 
@@ -908,10 +909,16 @@ class TestWorkerAgainstServer(unittest.TestCase):
             self.assertEqual(phases, states, script)
 
     def new_report(self, name="Build 7", version="1.0.0"):
+        """A report on demo `version` (as if its first tests had set it), or
+        on no versions yet if `version` is None"""
         response = self.http.post("/reports/new", data={
-            "name": name, "workspace": self.branch, "version-demo": version})
+            "name": name, "workspace": self.branch})
         self.assertEqual(response.status_code, 302, response.get_data(True))
-        return response.headers["Location"].rstrip("/").split("/")[-1]
+        report_id = response.headers["Location"].rstrip("/").split("/")[-1]
+        if version:
+            store.update_report(self.root, report_id, uut_versions={
+                "demo": asdict(Demo().find_version(version))})
+        return report_id
 
     def add(self, report_id, **form):
         response = self.http.post("/runner/queue", data={
@@ -1054,19 +1061,91 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.add(report_id, script="BRA/tc.rst", rerun="BRA/tc.rst")
         self.assertEqual(len(store.list_runs(self.root, report_id)), 2)
 
-    def test_an_addition_can_override_the_reports_uut_version(self):
-        report_id = self.new_report(version="1.0.0")
+    def test_the_first_tests_added_set_the_reports_versions(self):
+        report_id = self.new_report(version=None)
+        self.assertEqual(store.load_report(self.root, report_id)["uut_versions"], {})
+        self.assertNotIn("version-demo", self.http.get("/reports/new").get_data(True))
+        self.add(report_id, script="BRA/tc.rst", **{"version-demo": "1.0.0"})
+        report = store.load_report(self.root, report_id)
+        self.assertEqual(report["uut_versions"]["demo"]["id"], "1.0.0")
+
+        # Later additions run on the report's versions: no picking another
+        dialog = self.http.get("/runner/new", query_string={
+            "report": report_id, "script": "BRA/modes.rst"}).get_data(True)
+        self.assertIn("The report's version", dialog)
+        self.assertNotIn('name="version-demo"', dialog)
+        self.add(report_id, script="BRA/modes.rst", variation=["BRA/modes.rst::low"],
+                 **{"version-demo": "1.1.0"})
+        versions = {r["uut_versions"]["demo"]["id"] for r in store.list_runs(self.root, report_id)}
+        self.assertEqual(versions, {"1.0.0"})
+
+    def test_the_header_shows_only_the_uuts_the_runs_use(self):
+        report_id = self.new_report()
+        store.update_report(self.root, report_id, uut_versions={
+            **store.load_report(self.root, report_id)["uut_versions"],
+            "vm": {"id": "3.2.0", "digest": "x"}})
+        self.add(report_id, script="BRA/tc.rst")
+        page = self.http.get(f"/reports/{report_id}").get_data(True)
+        self.assertIn("demo 1.0.0", page)
+        self.assertNotIn("vm 3.2.0", page)
+
+    def test_changing_versions_outdates_runs_until_they_are_brought_up_to_date(self):
+        report_id = self.new_report()
+        self.add(report_id, script="BRA/tc.rst")
+        self.assertEqual(self.worker.work_once(), "pass")
+        (old,) = store.list_runs(self.root, report_id)
+
+        form = self.http.get(f"/reports/{report_id}/versions",
+                             query_string={"version-demo": "1.1.0"}).get_data(True)
+        self.assertIn("<strong>1</strong> combination will be outdated", form)
+        partial = self.http.get(f"/reports/{report_id}/versions",  # as htmx asks for it
+                                query_string={"version-demo": "1.1.0"},
+                                headers={"HX-Request": "true"})
+        self.assertEqual(partial.status_code, 200)
+        self.assertIn("<strong>1</strong> combination will be outdated", partial.get_data(True))
+        response = self.http.post(f"/reports/{report_id}/versions",
+                                  data={"version-demo": "1.1.0"})
+        self.assertEqual(response.status_code, 302, response.get_data(True))
+        report = store.load_report(self.root, report_id)
+        self.assertEqual(report["uut_versions"]["demo"]["id"], "1.1.0")
+        self.assertEqual(len(store.list_runs(self.root, report_id)), 1)  # nothing queued
+
+        (row,) = rollup.combinations(report, [old], lambda run: "pending")
+        self.assertEqual((row["state"], row["outdated"]), ("outdated", {"demo": "1.0.0"}))
+        page = self.http.get(f"/reports/{report_id}/runs").get_data(True)
+        self.assertIn("Passed on demo 1.0.0", page)
+        self.assertIn("1 outdated", page)
+        self.assertEqual(models.passed_combinations(self.root, report_id), set())
         dialog = self.http.get("/runner/new", query_string={
             "report": report_id, "script": "BRA/tc.rst"}).get_data(True)
-        self.assertRegex(dialog, r'<option value="1.0.0" selected')
+        self.assertIn("Add 1 run to the report", dialog)
 
-        self.add(report_id, script="BRA/tc.rst", **{"version-demo": "1.1.0"})
-        (run,) = store.list_runs(self.root, report_id)
-        self.assertEqual(run["uut_versions"]["demo"]["id"], "1.1.0")
-        page = self.http.get(f"/reports/{report_id}").get_data(True)
-        self.assertIn("also demo 1.1.0 in 1 run", page)
-        history = self.http.get(f"/reports/{report_id}/history").get_data(True)
-        self.assertIn("override", history)
+        # Rerun brings it up to date: the same closure, on the report's versions
+        run_page = self.http.get(f"/reports/{report_id}/runs/{old['id']}").get_data(True)
+        self.assertIn("Rerun on demo 1.1.0", run_page)
+        self.http.post(f"/reports/{report_id}/runs/{old['id']}/rerun")
+        new = store.list_runs(self.root, report_id)[-1]
+        self.assertEqual(new["uut_versions"]["demo"]["id"], "1.1.0")
+        self.assertEqual(new["updated_from"]["demo"]["id"], "1.0.0")
+        self.assertEqual(self.worker.work_once(), "pass")
+        rows = rollup.combinations(store.load_report(self.root, report_id),
+                                   store.list_runs(self.root, report_id), lambda run: "x")
+        self.assertEqual([r["state"] for r in rows], ["pass"])
+
+    def test_versions_stay_while_runs_are_in_progress_or_frozen(self):
+        report_id = self.new_report()
+        self.add(report_id, script="BRA/tc.rst")
+        response = self.http.post(f"/reports/{report_id}/versions",
+                                  data={"version-demo": "1.1.0"})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("in progress", response.get_data(True))
+        self.worker.work_once()
+        store.set_frozen(self.root, report_id, True)
+        response = self.http.post(f"/reports/{report_id}/versions",
+                                  data={"version-demo": "1.1.0"})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(store.load_report(self.root, report_id)["uut_versions"]["demo"]["id"],
+                         "1.0.0")
 
     def test_add_to_report_from_requirements_and_viewer(self):
         report_id = self.new_report()

@@ -2,8 +2,9 @@
 {% set labels = {"overview": "Overview", "runs": "Runs", "values": "Values touched", "history": "History"} %}
 {% set meta = [] %}
 {% if report.workspace %}{% set _ = meta.append("workspace " ~ report.workspace) %}{% endif %}
-{% for uut, version in (report.uut_versions or {}).items() %}{% set _ = meta.append(uut ~ " " ~ version.id) %}{% endfor %}
-{% for uut, counts in mix.items() %}{% for id, n in counts.items() %}{% set _ = meta.append("also " ~ uut ~ " " ~ id ~ " in " ~ n ~ " run" ~ ('' if n == 1 else 's')) %}{% endfor %}{% endfor %}
+{% for uut, id in uuts.items() %}{% set _ = meta.append(uut ~ " " ~ id) %}{% endfor %}
+{% set outdated = rows | selectattr('state', 'equalto', 'outdated') | list | length %}
+{% if outdated %}{% set _ = meta.append(outdated ~ " outdated") %}{% endif %}
 {% if report.filter %}{% set _ = meta.append("filter " ~ report.filter) %}{% endif %}
 {% set title = report.name or ("Report " ~ report.id[:8]) %}
 <header class="ui-page-header">
@@ -25,7 +26,8 @@
         {{ ui.button("Cancel", size="sm", attrs={"data-rename-cancel": ""}) }}
       </form>
       {%- endif %}
-      {%- if meta %}<div class="ui-row ui-page-header__meta">{% for m in meta %}{{ ui.chip(m) }}{% endfor %}</div>{% endif %}
+      {%- if meta %}<div class="ui-row ui-page-header__meta">{% for m in meta %}{{ ui.chip(m) }}{% endfor %}
+        {%- if uuts and not report.frozen %}<a class="report-versions-link" href="{{ url_for('reports.versions', report_id=report.id) }}"{% if in_progress %} aria-disabled="true" title="Change versions once the runs in progress finish"{% endif %}>Versions…</a>{% endif %}</div>{% endif %}
     </div>
     <div class="ui-toolbar ui-page-header__actions">
       {% if in_progress %}<span class="ui-row ui-muted" style="font-size: 12px;"><span class="ui-spinner"></span>Runs in progress</span>{% endif %}
@@ -38,9 +40,10 @@
       {% if report.workspace %}
       {{ ui.button("Add requirements…", icon="plus", href=url_for('requirements.list', workspace=report.workspace, report=report.id)) }}
       {{ ui.button("Add a test…", icon="plus", href=url_for('workspace.index', id=report.workspace, report=report.id)) }}
-      {% if report.requirements %}
-      {{ ui.button("Update tests…", icon="refresh", href=url_for('jobqueue.new', report=report.id, requirement=report.requirements | list),
-                   attrs={"title": "Check every tracked requirement for scripts, and run what hasn't passed yet"}) }}
+      {% set own = view.other.scripts | map(attribute='script') | list if view.other else [] %}
+      {% if report.requirements or own %}
+      {{ ui.button("Update tests…", icon="refresh", href=url_for('jobqueue.new', report=report.id, requirement=report.requirements | list, script=own),
+                   attrs={"title": "Every tracked requirement's scripts and every test added on its own: run what hasn't passed on the report's versions"}) }}
       {% endif %}
       {% endif %}
       <form method="post" action="{{ url_for('reports.export_report', report_id=report.id) }}">

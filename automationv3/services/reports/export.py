@@ -291,8 +291,10 @@ def render_rst(m, manifest_hash, exported):
     out = []
 
     out.append(heading("Identification", "="))
+    used = rollup.used_uuts(m["runs"])
     versions = ", ".join(f"{name} {v['id']} ({v.get('digest', '')[:12]})"
-                         for name, v in (report.get("uut_versions") or {}).items())
+                         for name, v in (report.get("uut_versions") or {}).items()
+                         if name in used)
     envs = "; ".join(f"{env or 'none'}: {', '.join(p) or 'platform not recorded'}"
                      for env, p in m["environments"].items())
     out.append(table("Report", [25, 75], ["Item", "Value"], [
@@ -342,6 +344,9 @@ def render_rst(m, manifest_hash, exported):
                 detail += f": {row['failure']['message']}"
         elif row["state"] == "incomplete":
             detail += ": steps are still to be written (TBD)"
+        elif row["state"] == "outdated":
+            ran = ", ".join(f"{n} {v}" for n, v in sorted(row["outdated"].items()))
+            detail += f": {row['latest'].get('outcome')} on {ran}, not the report's versions"
         out.append(f"- {literal(combination(row))}: {text(detail)}")
     out.append("")
 

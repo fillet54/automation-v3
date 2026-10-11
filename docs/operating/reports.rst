@@ -12,10 +12,10 @@ Creating a report
 **Reports → New report** asks for:
 
 - a **name**, e.g. "Brakes, release 1.1 candidate";
-- the **workspace** its scripts come from;
-- one **version per UUT type**, the default for everything added.
+- the **workspace** its scripts come from.
 
-The report starts empty.
+The report starts empty. Its UUT versions come from the first tests added
+to it (see `UUT versions`_).
 
 Adding to a report
 ------------------
@@ -28,12 +28,32 @@ Adding to a report
    Adds one script, without tracking its requirements.
 
 Each addition queues every combination of the script's environments and
-variations (you can narrow both), using the report's UUT versions unless you
-override them for that addition. If additions use different versions, the
-report shows the mix.
+variations (you can narrow both), on the report's UUT versions.
 
-Combinations that have already passed in the report are left out of an
-addition, unless you tick **Run again what already passed**.
+Combinations that have already passed on the report's versions are left out
+of an addition, unless you tick **Run again what already passed**.
+
+UUT versions
+~~~~~~~~~~~~
+
+A report tests one version of each UUT its scripts use, and those versions
+are the only ones that count:
+
+- The first addition that needs a UUT sets the report's version for it: the
+  queue dialog offers a version (the newest by default) only for a UUT the
+  report has none for yet. Later additions run on the report's versions.
+- **Versions…**, beside the versions in the report's header, changes them.
+  It shows how many combinations the change leaves outdated, and queues
+  nothing. It waits while runs are in progress, and a frozen report keeps
+  its versions.
+- A combination whose latest run used another version is **outdated**:
+  amber, e.g. *Passed on vm 3.1.0*, never green. Its requirement can't be
+  green until it is brought up to date. The header counts them.
+- To bring them up to date, use **Update tests…** (it offers everything that
+  hasn't passed on the report's versions) or a run's **Rerun on vm 3.2.0**,
+  which runs the same script again on the report's versions.
+
+The header lists only the UUTs the report's runs use.
 
 The Requirements page and the script view also have an **Add to** / **Queue
 in** report picker. Leaving it blank creates a new report in one step, named
@@ -50,9 +70,9 @@ yet, the dialog offers to **track** them instead: the report lists them as
 *no tests*, which is neither green nor red.
 
 As scripts are written, **Update tests…** on the report checks every tracked
-requirement against the workspace again and runs what it finds, leaving out
-what already passed. A report that started with nothing to run takes the
-UUT versions of its first runs as its own.
+requirement against the workspace again, with every test added on its own,
+and runs what it finds, leaving out what already passed on the report's
+versions.
 
 The rollup
 ----------
@@ -74,6 +94,9 @@ every script linked to it:
      - anything else: not run yet, queued, running, blocked or error
    * - no tests
      - no script references it yet
+
+A combination whose latest run used other UUT versions than the report's
+counts as outdated, which is never green (see `UUT versions`_).
 
 Linked scripts that weren't added, and variations that were left out, count
 as not run, so a requirement is only green when its whole coverage passed.
@@ -106,7 +129,8 @@ A report's pages share a navigation column on the left:
       * - red
         - failed, or ended in an error
       * - amber
-        - partial: incomplete, steps to be written, blocked
+        - partial: incomplete, steps to be written, blocked, or outdated
+          (ran on another UUT version than the report's)
       * - hollow
         - not run yet, or no tests yet
       * - pulsing

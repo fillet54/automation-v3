@@ -4,7 +4,7 @@
 
 {% block content %}
 {{ ui.page_header("New report", crumbs=[("Reports", url_for('reports.index')), ("New", None)],
-                  subtitle="A report tests one build: add requirements and tests to it as you go, and it rolls them all up.") }}
+                  subtitle="A report tests one build: add requirements and tests to it as you go, and it rolls them all up. The first tests added set its UUT versions.") }}
 
 {% if errors %}
 {% call ui.alert("danger", title="Can't create the report yet") %}
@@ -19,15 +19,6 @@
   {% call ui.field("Workspace", "report-workspace") %}
     {{ ui.select("workspace", workspaces, selected=form.get("workspace"), id="report-workspace", mono=True) }}
   {% endcall %}
-  {% if choices %}
-  {% call ui.fieldset("UUT versions", "The default for every addition; an addition can override them.") %}
-    {% for uut, ids in choices.items() %}
-    {% call ui.field(uut, "version-" ~ uut) %}
-      {{ ui.select("version-" ~ uut, ids, selected=form.get("version-" ~ uut), id="version-" ~ uut, mono=True) }}
-    {% endcall %}
-    {% endfor %}
-  {% endcall %}
-  {% endif %}
   {% call ui.toolbar() %}
     {{ ui.button("Create report", variant="primary", type="submit") }}
     {{ ui.button("Cancel", href=url_for('reports.index')) }}

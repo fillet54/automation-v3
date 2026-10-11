@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% block title %}Versions · {{ report.name or report.id[:8] }}{% endblock %}
+
+{% block content %}
+{{ ui.page_header("UUT versions", crumbs=[("Reports", url_for('reports.index')), (report.name or report.id[:8], url_for('reports.report', report_id=report.id)), ("Versions", None)],
+                  subtitle="The versions the report tests. Changing one queues nothing: runs on another version show as outdated until Update tests… or Rerun brings them up to date.") }}
+{% include "reports/partials/versions_form.html" %}
+{% endblock %}

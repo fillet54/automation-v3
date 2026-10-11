@@ -563,6 +563,8 @@ body.ui {
 .report-meter__red { background: var(--ui-danger); }
 .report-meter__partial { background: var(--ui-warning); }
 .report-meter__untested { background: color-mix(in srgb, var(--ui-faint) 45%, var(--ui-soft)); }
+.report-versions-link { font-size: 12px; }
+.report-versions-link[aria-disabled="true"] { pointer-events: none; color: var(--ui-faint); }
 .report-untested { margin: 0; padding: 8px 12px; border: 1px dashed var(--ui-rule); border-radius: var(--ui-radius); color: var(--ui-muted); font-size: 13px; }
 .report-untested-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .report-untested-list li { display: flex; gap: 10px; align-items: baseline; }

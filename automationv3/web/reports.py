@@ -290,42 +290,74 @@ def uut_choices():
 
 @reports.route("/new", methods=["GET", "POST"])
 def new():
-    """Create an empty report for one build: a name, a workspace and one
-    version per UUT type"""
+    """Create an empty report: a name and a workspace. Its UUT versions
+    come from the first tests added to it."""
     workspaces = sorted(find_worktrees(current_app.config["WORKSPACE_PATH"]))
-    choices = uut_choices()
     errors = []
     if request.method == "POST":
         form = request.form
         name = form.get("name", "").strip()
         workspace = form.get("workspace")
-        versions = {}
-        for uut, cls in uut_types().items():
-            version = cls().find_version(form.get(f"version-{uut}", ""))
-            if version is not None:
-                versions[uut] = asdict(version)
         if not name:
             errors.append("A report needs a name")
         if workspace not in workspaces:
             errors.append("Pick a workspace")
         if not errors:
-            report_id = models.create_report(root(), workspace, name, versions)
+            report_id = models.create_report(root(), workspace, name)
             return redirect(url_for("reports.report", report_id=report_id))
-    return render_template("reports/new.html", workspaces=workspaces, choices=choices,
+    return render_template("reports/new.html", workspaces=workspaces,
                            form=request.form, errors=errors)
 
 
-def version_mix(report, runs):
-    """uut -> {version id: runs} for runs using a version other than the
-    report's"""
-    defaults = {uut: v["id"] for uut, v in (report.get("uut_versions") or {}).items()}
-    mix = {}
-    for run in runs:
-        for uut, version in (run.get("uut_versions") or {}).items():
-            if version["id"] != defaults.get(uut):
-                counts = mix.setdefault(uut, {})
-                counts[version["id"]] = counts.get(version["id"], 0) + 1
-    return mix
+def report_uuts(report, runs):
+    """uut -> the report's version id, for the UUTs its runs use"""
+    current = report.get("uut_versions") or {}
+    return {name: current[name]["id"] for name in rollup.used_uuts(runs) if name in current}
+
+
+@reports.route("/<report_id>/versions", methods=["GET", "POST"])
+def versions(report_id):
+    """Change the report's UUT versions. Nothing is queued: combinations
+    whose latest run used other versions become outdated, until Update
+    tests or Rerun brings them up to date."""
+    report = store.load_report(root(), report_id) or abort(404)
+    runs = store.list_runs(root(), report_id)
+    used = rollup.used_uuts(runs)
+    current = report.get("uut_versions") or {}
+    choices = uut_choices()
+    chosen = {name: request.values.get(f"version-{name}") or current.get(name, {}).get("id")
+              for name in used}
+    chosen = {name: id for name, id in chosen.items() if id}
+    in_progress = any(run.get("outcome") is None for run in runs)
+    errors = []
+    if store.is_frozen(report):
+        errors.append("The report is frozen: reopen it to change its versions")
+    elif in_progress:
+        errors.append("Runs are in progress: change versions once they finish")
+
+    if request.method == "POST" and not errors:
+        updated = dict(current)
+        for name, id in chosen.items():
+            version = uut_types()[name]().find_version(id) if name in uut_types() else None
+            if version is None:
+                errors.append(f"{name} has no version {id}")
+            else:
+                updated[name] = asdict(version)
+        if not errors:
+            store.update_report(root(), report_id, uut_versions=updated)
+            return redirect(url_for("reports.report", report_id=report_id))
+
+    template = "reports/versions.html"
+    if request.headers.get("HX-Request"):
+        template = "reports/partials/versions_form.html"
+    return render_template(
+        template, report=report, used=used, choices=choices, chosen=chosen,
+        current={name: v["id"] for name, v in current.items()},
+        outdated_now=rollup.outdated_by(report, runs, {n: current[n]["id"]
+                                                        for n in used if n in current}),
+        outdated_after=rollup.outdated_by(report, runs, chosen),
+        errors=errors,
+    ), (409 if errors and request.method == "POST" else 200)
 
 
 PAGES = ("overview", "runs", "values", "history")
@@ -365,7 +397,7 @@ def render_page(report_id, page, errors=(), status=200):
         skipped=[s for s in report.get("scripts", [])
                  if isinstance(s, dict) and s["skipped"]],
         in_progress=any(run.get("outcome") is None for run in runs),
-        mix=version_mix(report, runs),
+        uuts=report_uuts(report, runs),
         document=export.document_fields(report),
         missing=export.missing_fields(report),
         bundles=[p.name for p in export.exports(root(), report_id)],
@@ -474,9 +506,13 @@ def run(report_id, run_id):
     files = store.list_files(root(), report_id, run_id)
     events = store.read_events(root(), report_id, run_id)
     cleanups = [e for e in events if e["kind"] == "cleanup"]
-    frozen = store.is_frozen(store.load_report(root(), report_id))
+    report = store.load_report(root(), report_id)
+    frozen = store.is_frozen(report)
+    stale = rollup.stale_versions(report, run) if report else {}
+    current = (report or {}).get("uut_versions") or {}
     return render_template(template, run=run, status=status, finished=finished,
                            rows=rows, errors=errors, files=files, frozen=frozen,
+                           rerun_on=", ".join(f"{n} {current[n]['id']}" for n in sorted(stale)),
                            touched=rollup.touched(events), cleanups=cleanups)
 
 

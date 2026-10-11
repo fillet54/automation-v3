@@ -14,6 +14,10 @@ its latest run:
 
 Linked scripts that weren't queued, and variations that were left out,
 count as not run.
+
+A report's UUT versions are the ones that count: a combination whose
+latest run finished on any other version is "outdated", whatever it
+came out as, and outdated is never green.
 """
 
 
@@ -39,9 +43,24 @@ def history(runs):
     return by_key
 
 
-def state_of(run, status):
+def stale_versions(report, run):
+    """uut -> the version id a finished run used, for each UUT whose
+    version differs from the report's now; {} if it ran on them"""
+    current = report.get("uut_versions") or {}
+    if not run or not run.get("outcome"):
+        return {}
+    return {
+        name: version["id"]
+        for name, version in (run.get("uut_versions") or {}).items()
+        if name in current and current[name]["id"] != version["id"]
+    }
+
+
+def state_of(run, status, report=None):
     if run is None:
         return "not run"
+    if report is not None and stale_versions(report, run):
+        return "outdated"
     return run.get("outcome") or status(run)
 
 
@@ -68,7 +87,8 @@ def combinations(report, runs, status):
             "variation": key[2],
             "latest": latest,
             "earlier": runs_for_key[1:],
-            "state": state_of(latest, status),
+            "state": state_of(latest, status, report),
+            "outdated": stale_versions(report, latest),  # uut -> version it used
         })
     return rows
 
@@ -96,7 +116,7 @@ def requirement_rollup(report, rows):
         for script in scripts:
             cells.extend(by_script.get(script) or [{
                 "script": script, "environment": None, "variation": None,
-                "latest": None, "earlier": [], "state": "not run",
+                "latest": None, "earlier": [], "state": "not run", "outdated": {},
             }])
         states = [cell["state"] for cell in cells]
         rollup.append({
@@ -164,3 +184,18 @@ def ref_rollup(report, rows, events_of):
          "requirements": sorted(r["requirements"])}
         for _, r in sorted(found.items(), key=lambda item: item[0][1])
     ]
+
+
+def used_uuts(runs):
+    """The UUTs a report's runs use, sorted"""
+    return sorted({name for run in runs for name in (run.get("uut_versions") or {})})
+
+
+def outdated_by(report, runs, versions):
+    """How many combinations would be outdated if the report's versions
+    were `versions` (uut -> version id)"""
+    proposed = {**report, "uut_versions": {
+        name: {**(report.get("uut_versions") or {}).get(name, {}), "id": id}
+        for name, id in versions.items()}}
+    return sum(1 for row in combinations(proposed, runs, lambda run: "pending")
+               if row["state"] == "outdated")

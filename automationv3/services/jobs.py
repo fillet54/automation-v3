@@ -169,16 +169,18 @@ def add_plan(conn, root, report_id, plan, requirements=None):
     check_open(root, report_id)
     runs = plan.runs()
     report = store.load_report(root, report_id)
+    # The report's versions are the ones that count: an addition runs on
+    # them, and a UUT the report has no version for yet takes the plan's
+    current = report.get("uut_versions") or {}
+    plan.uut_versions = {name: current.get(name, version)
+                         for name, version in plan.uut_versions.items()}
+    versions = {**current, **{name: version for name, version in plan.uut_versions.items()
+                              if name not in current and runs}}
     summary = plan.summary()
-    defaults = {}
-    if runs and not report.get("uut_versions"):
-        # A report started without versions (it only tracked requirements
-        # then) takes its first runs' versions as its own
-        defaults = {"uut_versions": plan.uut_versions}
     store.update_report(
         root,
         report_id,
-        **defaults,
+        uut_versions=versions,
         requirements={**report.get("requirements", {}), **(requirements or {})},
         requirement_texts={**report.get("requirement_texts", {}),
                            **requirement_texts(conn, requirements or {})},
@@ -263,12 +265,15 @@ def reports_for(root, workspace):
 
 def passed_combinations(root, report_id):
     """(script, environment, variation) whose latest run in the report
-    passed"""
+    passed on the report's current UUT versions (an outdated pass isn't)"""
+    from .reports import rollup
+    report = store.load_report(root, report_id)
     latest = {}
     for run in store.list_runs(root, report_id):  # oldest first
         variation = (run.get("variation") or {}).get("name")
         latest[(run["script"], run.get("environment"), variation)] = run
-    return {key for key, run in latest.items() if run.get("outcome") == "pass"}
+    return {key for key, run in latest.items()
+            if run.get("outcome") == "pass" and not rollup.stale_versions(report, run)}
 
 
 def queue_script(conn, root, workspace_root, script, text=None,
@@ -314,16 +319,26 @@ class Drift(Exception):
 
 def rerun(conn, root, report_id, run_id, force=False):
     """Queue the run again, exactly: the same closure, environment,
-    variation and UUT versions, as a new run in the same report.
+    variation and UUT versions, as a new run in the same report. A run
+    outdated by the report's versions is queued on them instead.
 
     A run that recorded its environment's fingerprint is rerun only on
     a worker whose environment still has it; if no live worker does,
     Drift is raised. `force` queues it anyway, marked non_identical.
     """
+    from .reports import rollup
     run = store.load_run(root, report_id, run_id)
     files = store.read_closure(root, report_id, run_id)
     pin, extra = None, {"rerun_of": run_id}
-    if run.get("fingerprint") is not None:
+    versions = run.get("uut_versions")
+    report = store.load_report(root, report_id)
+    if rollup.stale_versions(report, run):
+        # Outdated: the same closure, on the report's versions now. A new
+        # install, so no fingerprint to match.
+        current = report["uut_versions"]
+        versions = {name: current.get(name, version) for name, version in versions.items()}
+        extra["updated_from"] = run.get("uut_versions")
+    elif run.get("fingerprint") is not None:
         live = live_fingerprints(conn, run.get("environment"))
         if run["fingerprint_hash"] in {fingerprint_hash(fp) for fp in live.values()}:
             pin = run["fingerprint_hash"]
@@ -336,7 +351,7 @@ def rerun(conn, root, report_id, run_id, force=False):
             })
     return enqueue(conn, root, report_id, run["script"], files,
                    run.get("load_order", [run["script"]]),
-                   run.get("environment"), run.get("uut_versions"),
+                   run.get("environment"), versions,
                    run.get("imports", []), run.get("variation"),
                    fingerprint_hash=pin, **extra)
 

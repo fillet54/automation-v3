@@ -1,0 +1,35 @@
+{% import "ui/components.html" as ui %}
+{#- The report's UUT versions, for the UUTs its runs use, with how many combinations each choice leaves outdated #}
+<form id="versions-form" method="post" class="ui-form ui-stack" style="max-width: 560px;"
+      hx-get="{{ url_for('reports.versions', report_id=report.id) }}" hx-trigger="change"
+      hx-target="#versions-form" hx-swap="outerHTML">
+  {% if errors %}
+  {% call ui.alert("danger", title="Can't change versions now") %}
+    <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endcall %}
+  {% endif %}
+
+  {% if not used %}
+  {{ ui.empty("No tests have run in this report yet: the first tests added set its versions.") }}
+  {% else %}
+  {% for name in used %}
+  {% call ui.field(name, "version-" ~ name, hint=("Now " ~ current[name]) if current[name] and current[name] != chosen[name] else None) %}
+    {{ ui.select("version-" ~ name, choices.get(name, [chosen[name]]), selected=chosen[name], id="version-" ~ name, mono=True) }}
+  {% endcall %}
+  {% endfor %}
+
+  <p class="ui-text-caption">
+    {% if outdated_after != outdated_now %}
+    With these versions, <strong>{{ outdated_after }}</strong> combination{{ '' if outdated_after == 1 else 's' }} will be outdated (now {{ outdated_now }}).
+    {% else %}
+    {{ outdated_after }} combination{{ '' if outdated_after == 1 else 's' }} outdated.
+    {% endif %}
+    Nothing is queued.
+  </p>
+
+  {% call ui.toolbar() %}
+    {{ ui.button("Save versions", variant="primary", type="submit", disabled=errors | length > 0) }}
+    {{ ui.button("Cancel", href=url_for('reports.report', report_id=report.id)) }}
+  {% endcall %}
+  {% endif %}
+</form>
