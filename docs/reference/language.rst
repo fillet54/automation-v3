@@ -66,6 +66,9 @@ Special forms
      - conditional
    * - ``(do forms...)``
      - evaluate in order, returning the last
+   * - ``(and forms...)``, ``(or forms...)``
+     - evaluate left to right only until the result is decided, returning
+       that value
    * - ``(let [name value ...] body...)``
      - local bindings
    * - ``(fn name? [params] body...)``
@@ -99,12 +102,22 @@ Arithmetic and comparison
    (``sqrt``, ``pi``, ...).
 
 Logic
-   ``and``, ``or`` (both evaluate every argument), ``not``.
+   ``not``. ``and`` and ``or`` are special forms: they short-circuit.
+   ``and`` returns the first falsy value or the last value; with no arguments
+   it returns true. ``or`` returns the first truthy value or the last value;
+   with no arguments it returns nil. Truthiness keeps the existing rules:
+   nil, false, zero and empty collections are falsy.
 
 Sequences
    ``first``, ``rest``, ``cons``, ``append``, ``count``, ``list``, ``map``,
    ``take``, ``cycle``, ``range``, ``partition``, ``apply``, ``nth``,
    ``vector``, ``vec``, ``filter``, ``reduce``.
+
+   ``(range end)``, ``(range start end)`` and ``(range start end step)``
+   return a finite EDN vector of integers, excluding ``end``. The default
+   start is 0 and step is 1; negative steps are allowed, zero is an error.
+   Unlike the earlier unbounded counter, ``(range)`` requires a bound and
+   ``(range 5)`` is ``[0 1 2 3 4]``.
 
 Maps
    ``assoc``, ``dissoc`` (both return copies), ``get``, ``get-in``,

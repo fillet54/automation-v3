@@ -48,7 +48,7 @@ WARNING = "warning"
 
 # Special forms the analyzer knows the shape of. Blocks and (.method obj)
 # calls are special forms too, handled on their own.
-KNOWN_FORMS = {"if", "do", "def", "defn", "let", "quote", "fn", "step", "try-ok?",
+KNOWN_FORMS = {"if", "do", "and", "or", "def", "defn", "let", "quote", "fn", "step", "try-ok?",
                "try", "quietly"}
 REMOVED = {
     "defblock": "defblock was removed: use defn. A failing block stops wherever it "
@@ -477,7 +477,7 @@ class Analyzer:
                            "(if test then else)", form)
             each(rest)
             return
-        if name in ("do", "quietly"):
+        if name in ("do", "quietly", "and", "or"):
             each(rest)
             return
         if name == "let":

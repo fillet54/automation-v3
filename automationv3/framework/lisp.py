@@ -14,7 +14,7 @@ evaluated and the head called with the arguments.
 import copy
 import math
 import operator as op
-from itertools import count, cycle, islice
+from itertools import cycle, islice
 
 from .edn import Keyword, List, Map, Set, Symbol, Vector, span_of
 from .lisp_helpers import functions as collection_functions
@@ -109,6 +109,18 @@ def _add(*xs):
     return total
 
 
+_UNSET = object()
+
+
+def _range(start, stop=_UNSET, step=1):
+    """A finite, end-exclusive integer range, as an EDN vector."""
+    if stop is _UNSET:
+        start, stop = 0, start
+    if any(isinstance(value, bool) for value in (start, stop, step)):
+        raise TypeError("range bounds and step must be integers, not booleans")
+    return Vector(range(start, stop, step))
+
+
 def standard_env():
     env = Env()
     env.update({k: v for k, v in vars(math).items() if not k.startswith("__")})
@@ -124,9 +136,6 @@ def standard_env():
         "<=": op.le,
         "=": op.eq,
         "not=": op.ne,
-        # Not special forms: every argument is evaluated
-        "and": lambda *x: all(x),
-        "or": lambda *x: any(x),
         "abs": abs,
         "append": op.add,
         "apply": lambda proc, args: proc(*args),
@@ -151,7 +160,7 @@ def standard_env():
         "symbol?": lambda x: isinstance(x, Symbol),
         "cycle": cycle,
         "take": lambda n, coll: islice(coll, 0, n),
-        "range": count,
+        "range": _range,
         "str": lambda *x: "".join(str(i) for i in x),
         "partition": partition,
         "assoc": assoc,
@@ -207,6 +216,30 @@ def if_form(x, env):
 @special_form("do")
 def do_form(x, env):
     return _do(x[1:], env)
+
+
+@special_form("and")
+def and_form(x, env):
+    """Evaluate left to right, returning the first falsy value or the last.
+    With no forms return true. Later forms are not evaluated."""
+    value = True
+    for form in x[1:]:
+        value = eval(form, env)
+        if not value:
+            break
+    return value
+
+
+@special_form("or")
+def or_form(x, env):
+    """Evaluate left to right, returning the first truthy value or the last.
+    With no forms return nil. Later forms are not evaluated."""
+    value = None
+    for form in x[1:]:
+        value = eval(form, env)
+        if value:
+            break
+    return value
 
 
 def named(value, name):
