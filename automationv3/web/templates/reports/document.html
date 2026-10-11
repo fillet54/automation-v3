@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% block title %}Document · {{ report.name or report.id[:8] }}{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Document", crumbs=[("Reports", url_for('reports.index')), (report.name or report.id[:8], url_for('reports.report', report_id=report.id)), ("Document", None)],
+                  subtitle="What the exported PDF says about itself: its title page, who signs it, and the documents it refers to.") }}
+
+<form method="post" class="ui-form ui-stack" style="max-width: 640px;">
+  {% call ui.field("Title", "doc-title") %}
+    {{ ui.input("title", fields.title, id="doc-title", required=True) }}
+  {% endcall %}
+  {% call ui.field("Document number", "doc-number") %}
+    {{ ui.input("number", fields.number, id="doc-number", mono=True) }}
+  {% endcall %}
+  {% call ui.field("Revision", "doc-revision") %}
+    {{ ui.input("revision", fields.revision, id="doc-revision", mono=True) }}
+  {% endcall %}
+  {% call ui.field("Author", "doc-author") %}
+    {{ ui.input("author", fields.author, id="doc-author") }}
+  {% endcall %}
+
+  {% call ui.fieldset("Signatures", "The roles come from the document template; leave a name empty to sign by hand.") %}
+    {% for role in roles %}
+    {% call ui.field(role, "sign-" ~ loop.index0) %}
+      {{ ui.input("sign-" ~ loop.index0, fields.signatures.get(role, ""), id="sign-" ~ loop.index0) }}
+    {% endcall %}
+    {% endfor %}
+  {% endcall %}
+
+  {% call ui.fieldset("Documents", "One per line: NUMBER | REVISION | TITLE") %}
+    {% call ui.field("Applicable documents", "doc-applicable") %}
+      {{ ui.textarea("applicable", applicable, id="doc-applicable", rows=4, mono=True, placeholder="VM-SRS-001 | C | Vehicle Manager software requirements") }}
+    {% endcall %}
+    {% call ui.field("Reference documents", "doc-reference") %}
+      {{ ui.textarea("reference", reference, id="doc-reference", rows=4, mono=True) }}
+    {% endcall %}
+  {% endcall %}
+
+  {% call ui.toolbar() %}
+    {{ ui.button("Save", variant="primary", type="submit") }}
+    {{ ui.button("Cancel", href=url_for('reports.report', report_id=report.id)) }}
+  {% endcall %}
+</form>
+{% endblock %}

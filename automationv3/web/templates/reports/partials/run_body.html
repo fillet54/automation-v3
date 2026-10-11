@@ -31,7 +31,7 @@
       <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">
         {{ ui.button("Run again", icon="refresh", type="submit", size="sm") }}
       </form>
-      {% elif finished %}
+      {% elif finished and not frozen %}
       <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
         {{ ui.button("Rerun", icon="refresh", type="submit", size="sm") }}
       </form>

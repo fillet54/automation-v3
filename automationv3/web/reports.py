@@ -18,8 +18,7 @@ from ..framework.language import DIRECTIVES, head
 from ..framework.statements import get_statements
 from ..framework.uut import uut_types
 from ..services import jobs as models
-from ..services.reports import rollup, store
-from ..services.requirements import models as requirement_models
+from ..services.reports import export, rollup, store
 from ..services.workspace import find_worktrees
 from .db import get_db
 from .grouping import STATE_ORDER, group, statement_item
@@ -331,6 +330,10 @@ def version_mix(report, runs):
 def report(report_id):
     if report_id == models.SCRATCH:
         return redirect(url_for("scratch.index"))
+    return render_report(report_id)
+
+
+def render_report(report_id, errors=(), status=200):
     report = store.load_report(root(), report_id) or abort(404)
     runs = store.list_runs(root(), report_id)
     for run in runs:
@@ -340,12 +343,8 @@ def report(report_id):
     requirements = rollup.requirement_rollup(report, rows)
     touched = rollup.ref_rollup(
         report, rows, lambda run: store.read_events(root(), report_id, run["id"]))
-    texts = {
-        r.id: r.text
-        for r in (requirement_models.find_by_id(get_db(), req["id"])
-                  for req in requirements)
-        if r is not None
-    }
+    texts = {**models.requirement_texts(get_db(), [r["id"] for r in requirements]),
+             **(report.get("requirement_texts") or {})}
     skipped = [
         s for s in report.get("scripts", []) if isinstance(s, dict) and s["skipped"]
     ]
@@ -364,7 +363,77 @@ def report(report_id):
         skipped=skipped,
         in_progress=in_progress,
         mix=version_mix(report, runs),
-    )
+        document=export.document_fields(report),
+        missing=export.missing_fields(report),
+        bundles=[p.name for p in export.exports(root(), report_id)],
+        errors=list(errors),
+    ), status
+
+
+def report_template(report):
+    """The document template of the report's workspace, else the built-in
+    one"""
+    try:
+        workspace = find_worktrees(current_app.config["WORKSPACE_PATH"]).get(
+            report.get("workspace"))
+    except Exception:  # not a git repository, or git missing
+        workspace = None
+    return export.find_template(workspace)
+
+
+@reports.route("/<report_id>/document", methods=["GET", "POST"])
+def document(report_id):
+    """Edit the report's document fields: title, number, revision and
+    author, who signs it, and its applicable and reference documents"""
+    report = store.load_report(root(), report_id) or abort(404)
+    if store.is_frozen(report):
+        return redirect(url_for("reports.report", report_id=report_id))
+    fields = export.document_fields(report)
+    roles = export.template_settings(report_template(report))["roles"]
+    roles += [r for r in fields["signatures"] if r not in roles]
+    if request.method == "POST":
+        form = request.form
+        export.set_document(
+            root(), report_id,
+            **{name: form.get(name, "").strip()
+               for name in ("title", "number", "revision", "author")},
+            signatures={role: form.get(f"sign-{n}", "").strip()
+                        for n, role in enumerate(roles) if form.get(f"sign-{n}", "").strip()},
+            documents=[*export.parse_documents(form.get("applicable", ""), "applicable"),
+                       *export.parse_documents(form.get("reference", ""), "reference")],
+        )
+        return redirect(url_for("reports.report", report_id=report_id))
+    return render_template(
+        "reports/document.html", report=report, fields=fields, roles=roles,
+        applicable=export.format_documents(fields["documents"], "applicable"),
+        reference=export.format_documents(fields["documents"], "reference"))
+
+
+@reports.route("/<report_id>/export", methods=["POST"])
+def export_report(report_id):
+    """Freeze the report and write its PDF and bundle"""
+    report = store.load_report(root(), report_id) or abort(404)
+    try:
+        export.export(root(), report_id, template=report_template(report),
+                      requirement_texts=models.requirement_texts(
+                          get_db(), report.get("requirements", {})))
+    except export.ExportError as e:
+        return render_report(report_id, [str(e)], 409)
+    return redirect(url_for("reports.report", report_id=report_id))
+
+
+@reports.route("/<report_id>/reopen", methods=["POST"])
+def reopen(report_id):
+    store.load_report(root(), report_id) or abort(404)
+    export.reopen(root(), report_id)
+    return redirect(url_for("reports.report", report_id=report_id))
+
+
+@reports.route("/<report_id>/exports/<name>", methods=["GET"])
+def bundle(report_id, name):
+    """An exported bundle: report-<id>.zip"""
+    found = [p for p in export.exports(root(), report_id) if p.name == name]
+    return send_file(found[0], as_attachment=True) if found else abort(404)
 
 
 @reports.route("/<report_id>/runs/<run_id>", methods=["GET"])
@@ -380,8 +449,9 @@ def run(report_id, run_id):
     files = store.list_files(root(), report_id, run_id)
     events = store.read_events(root(), report_id, run_id)
     cleanups = [e for e in events if e["kind"] == "cleanup"]
+    frozen = store.is_frozen(store.load_report(root(), report_id))
     return render_template(template, run=run, status=status, finished=finished,
-                           rows=rows, errors=errors, files=files,
+                           rows=rows, errors=errors, files=files, frozen=frozen,
                            touched=rollup.touched(events), cleanups=cleanups)
 
 
@@ -402,4 +472,6 @@ def rerun(report_id, run_id):
         new_id = models.rerun(get_db(), root(), report_id, run_id, force=force)
     except models.Drift as drift:
         return render_template("reports/drift.html", run=run, drift=drift), 409
+    except models.QueueError as e:
+        return render_report(report_id, e.errors, 409)
     return redirect(url_for("reports.run", report_id=report_id, run_id=new_id))

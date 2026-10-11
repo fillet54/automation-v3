@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from ..framework.closure import Closure, resolve
 from ..framework.planning import build_plan
 from .reports import store
+from .requirements import models as requirement_models
 
 ALLOWED_STATUS = ["available", "busy", "missing"]
 
@@ -70,6 +71,7 @@ def enqueue(conn, root, report_id, script, files, load_order,
     `fingerprint_hash` pins the job to workers whose environment has that
     fingerprint; `run_fields` are recorded in run.json as they are.
     """
+    check_open(root, report_id)
     uut_versions = uut_versions or {}
     run_id = store.create_run(root, report_id, script, files)
     store.update_run(
@@ -104,6 +106,20 @@ def enqueue(conn, root, report_id, script, files, load_order,
     return run_id
 
 
+def check_open(root, report_id):
+    """Raise QueueError if the report is frozen: issued, so no more runs
+    go into it until it is reopened"""
+    if store.is_frozen(store.load_report(root, report_id)):
+        raise QueueError(["The report is frozen: reopen it to add runs"])
+
+
+def requirement_texts(conn, ids):
+    """id -> text of the requirements the database knows, to keep in a
+    report so its document quotes what was tested against"""
+    found = (requirement_models.find_by_id(conn, id) for id in ids)
+    return {r.id: r.text for r in found if r is not None}
+
+
 def closure_hash(files, load_order):
     return Closure(load_order[-1], files, load_order).hash
 
@@ -131,6 +147,7 @@ def add_plan(conn, root, report_id, plan, requirements=None):
     Returns the run ids. Raises QueueError if nothing can run.
     """
     check_runnable(plan)
+    check_open(root, report_id)
     runs = plan.runs()
     report = store.load_report(root, report_id)
     summary = plan.summary()
@@ -138,6 +155,8 @@ def add_plan(conn, root, report_id, plan, requirements=None):
         root,
         report_id,
         requirements={**report.get("requirements", {}), **(requirements or {})},
+        requirement_texts={**report.get("requirement_texts", {}),
+                           **requirement_texts(conn, requirements or {})},
         scripts=merge_scripts(report.get("scripts", []), summary["scripts"]),
         additions=[*report.get("additions", []), {
             "added": store.now_iso(),
@@ -207,10 +226,12 @@ def default_name(plan):
 
 
 def reports_for(root, workspace):
-    """Reports of `workspace` a selection can be added to, newest first"""
+    """Reports of `workspace` a selection can be added to (not frozen),
+    newest first"""
     if not root or not workspace:
         return []
-    return [r for r in store.list_reports(root) if r.get("workspace") == workspace]
+    return [r for r in store.list_reports(root)
+            if r.get("workspace") == workspace and not store.is_frozen(r)]
 
 
 def passed_combinations(root, report_id):

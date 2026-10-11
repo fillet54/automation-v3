@@ -12,8 +12,12 @@ each run is a uuidv7 folder inside its report::
             closure/        exact files executed
             events.jsonl    observer events, one per line
             files/          files attached by observers
+        exports/            bundles exported from it (see export.py)
 
 uuidv7 ids sort by creation time, so sorting run ids gives run order.
+
+A report that is "frozen" (exported, see export.py) takes no more runs
+until it is reopened.
 """
 
 import json
@@ -215,3 +219,13 @@ def list_reports(root):
         for p in sorted(root.iterdir(), reverse=True)
         if (p / "report.json").exists()
     ]
+
+
+def is_frozen(report):
+    """True once a report is issued: no more runs go into it until it is
+    reopened"""
+    return bool(report and report.get("frozen"))
+
+
+def set_frozen(root, report_id, frozen):
+    return update_report(root, report_id, frozen=frozen)

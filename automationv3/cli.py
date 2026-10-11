@@ -11,6 +11,12 @@ Usage:
     automation-v3 run SCRIPT... [--root PATH] [--config PATH]
                       [--env NAME]... [--variation NAME]... [--filter EXPR]
                       [--uut NAME=VERSION]... [--reports-path PATH]
+    automation-v3 report edit REPORT [--title TEXT] [--number TEXT]
+                         [--revision TEXT] [--author TEXT]
+                         [--sign ROLE=NAME]... [--applicable DOC]...
+                         [--reference DOC]...
+    automation-v3 report export REPORT [--out DIR] [--template DIR]
+    automation-v3 report reopen REPORT
     automation-v3 (-h | --help)
 
 Commands:
@@ -21,6 +27,13 @@ Commands:
                            with a worker in the same process
     worker                 take jobs from a server and run them
     run                    run scripts on this machine, without a server
+    report edit            set a report's document fields: its title,
+                           number, revision and author, who signs it, and
+                           its applicable and reference documents
+    report export          freeze a report and write its PDF and bundle,
+                           report-<id>.zip
+    report reopen          unfreeze an exported report, so runs can be
+                           added to it again
 
 Options:
     -h --help              show this help message and exit
@@ -46,6 +59,19 @@ Options:
     --filter=EXPR          EDN predicate selecting variations
     --uut=NAME=VERSION     UUT version to use (default: newest)
     --debug                enables autoload [default: false]
+    REPORT                 a report's folder (in the reports path)
+    --title=TEXT           the document's title
+    --number=TEXT          the document's number
+    --revision=TEXT        the document's revision
+    --author=TEXT          the document's author
+    --sign=ROLE=NAME       who signs for a role, e.g. "Approved by=J. Doe"
+    --applicable=DOC       an applicable document, "NUMBER | REVISION | TITLE";
+                           replaces the report's list
+    --reference=DOC        a reference document, "NUMBER | REVISION | TITLE";
+                           replaces the report's list
+    --out=DIR              where to write the bundle (default: the report
+                           folder's exports/)
+    --template=DIR         the document template (default: the built-in one)
 
 """
 from . import __version__
@@ -77,6 +103,8 @@ def main(argv=None):
     args = docopt(__doc__, argv=argv, version=__version__)
     if args["run"]:
         sys.exit(run(args))
+    if args["report"]:
+        sys.exit(report(args))
 
     print(__banner__)
     if args["demo"]:
@@ -300,3 +328,62 @@ def run(args):
               f"{' (' + where + ')' if where else ''}")
     passed = runs and all(r.get("outcome") == "pass" for r in runs)
     return 0 if passed else 1
+
+
+def report(args):
+    """report edit, export and reopen. Returns the exit status."""
+    from .services.reports import export, store
+
+    folder = Path(args["REPORT"]).resolve()
+    root, report_id = folder.parent, folder.name
+    if store.load_report(root, report_id) is None:
+        print(f"{folder} isn't a report folder: it has no report.json")
+        return 2
+    try:
+        if args["edit"]:
+            return edit_report(args, root, report_id)
+        if args["reopen"]:
+            export.reopen(root, report_id)
+            print(f"Report {report_id} reopened")
+            return 0
+        report = store.load_report(root, report_id)
+        missing = export.missing_fields(report)
+        if missing:
+            print(f"Warning: the report has no document {', '.join(missing)}; "
+                  "set them with report edit")
+        path = export.export(root, report_id, out_dir=args["--out"],
+                             template=args["--template"])
+    except export.ExportError as e:
+        print(e)
+        return 1
+    print(f"Report {report_id} frozen\nWrote {path}")
+    return 0
+
+
+def edit_report(args, root, report_id):
+    from .services.reports import export, store
+
+    fields = {name: args[f"--{name}"] for name in ("title", "number", "revision", "author")
+              if args[f"--{name}"] is not None}
+    document = export.document_fields(store.load_report(root, report_id))
+    if args["--sign"]:
+        signatures = dict(document["signatures"])
+        for sign in args["--sign"]:
+            role, _, name = sign.partition("=")
+            signatures[role.strip()] = name.strip()
+        fields["signatures"] = signatures
+    for kind in export.KINDS:
+        if args[f"--{kind}"]:
+            kept = [d for d in document["documents"] if d["kind"] != kind]
+            fields["documents"] = kept + export.parse_documents(
+                "\n".join(args[f"--{kind}"]), kind)
+            document["documents"] = fields["documents"]
+    export.set_document(root, report_id, **fields)
+    document = export.document_fields(store.load_report(root, report_id))
+    print(f"{document['title']}: {document['number'] or 'no number'}, revision "
+          f"{document['revision'] or '-'}, by {document['author'] or '-'}")
+    for role, name in document["signatures"].items():
+        print(f"  {role}: {name}")
+    for d in document["documents"]:
+        print(f"  {d['kind']}: {d['number']} {d['revision']} {d['title']}")
+    return 0

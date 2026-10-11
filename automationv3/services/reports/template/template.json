@@ -1,0 +1,6 @@
+{
+  "company": "Acme Systems",
+  "marking": "ACME SYSTEMS PROPRIETARY",
+  "document_type": "Test Report",
+  "roles": ["Prepared by", "Checked by", "Approved by", "Quality Assurance"]
+}

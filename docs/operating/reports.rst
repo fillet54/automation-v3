@@ -76,3 +76,77 @@ A run page shows the script as it ran, for the variation it ran:
   phase.
 
 Earlier runs of the same combination are kept and listed with the latest.
+
+Issuing a report
+----------------
+
+When a report has to be handed over as a formal document, export it. An
+export **freezes** the report and writes ``report-<id>.zip``:
+
+``report.pdf``
+   The document: a title page, contents, a signature page, the applicable
+   and reference documents, then the report itself (identification, a
+   summary, open issues, every requirement with its text and verdict, and
+   one line per combination). Only failures are spelled out, with the step
+   that failed and why.
+
+``report-<id>/``
+   The report folder as it is kept: ``report.json``, and for each run the
+   files it executed, every event it recorded and the files attached to it.
+
+``template/``
+   The document template the PDF was made with.
+
+``MANIFEST.sha256``
+   A SHA-256 for every file in the two folders above. The PDF prints the
+   manifest's own SHA-256, on its title page and under Identification, so
+   anyone can check the bundle is the one the document describes.
+
+``report.rst`` and ``report.tex``
+   The generated body and the whole document, to rebuild the PDF.
+
+Before exporting, fill in the report's **Document** (on the report page,
+**Edit…**): its title, number, revision and author, who signs for each role
+on the signature page, and its applicable and reference documents, one per
+line as ``NUMBER | REVISION | TITLE``. Requirement texts are copied into the
+report when requirements are added, so the PDF quotes what was tested
+against.
+
+**Freeze & export** needs every run to have finished. A frozen report takes
+no more runs: its add buttons and **Rerun** are gone, and the report can't
+be picked as a target. Its **Download** button gets the bundle. If a problem
+turns up, **Reopen** it, fix what's wrong, and export again; only whether a
+report is frozen is kept, not a history of freezes, so the manifest's SHA-256
+is what tells two exports apart.
+
+The same works without the server, on a report folder:
+
+.. code-block:: console
+
+   $ automation-v3 report edit reports/<id> --title "Brakes qualification" \
+         --number TR-0042 --revision A --author "J. Smith" \
+         --sign "Approved by=J. Doe" --applicable "SRS-1 | C | Requirements"
+   $ automation-v3 report export reports/<id> --out issued/
+   $ automation-v3 report reopen reports/<id>
+
+Making the PDF needs a TeX distribution with ``latexmk`` (e.g. TeX Live).
+
+The document template
+~~~~~~~~~~~~~~~~~~~~~
+
+A workspace keeps its template in a ``report/`` folder beside its ``rvts/``
+folder; without one, a built-in placeholder template (a made-up company) is
+used. Start from the built-in one, in
+``automationv3/services/reports/template/``:
+
+``template.json``
+   The company name, the marking printed in every footer, the document type
+   on the title page, and the signature page's roles.
+
+``document.tex``
+   The LaTeX document, as a Jinja template written with ``((( value )))``
+   and ``((* statement *))`` so it doesn't clash with LaTeX's braces. It
+   lays out the title page, headers and footers, signature page and
+   documents table, and places the report's body.
+
+``logo.pdf``, and any other file ``document.tex`` includes.

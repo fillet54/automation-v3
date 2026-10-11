@@ -13,11 +13,27 @@
   {% if report.filter %}{% set _ = meta.append("filter " ~ report.filter) %}{% endif %}
   {% call ui.page_header(report.name or "Report", crumbs=[("Reports", url_for('reports.index')), (report.name or report.id[:8], None)], meta=meta) %}
     {% if in_progress %}<span class="ui-row ui-muted" style="font-size: 12px;"><span class="ui-spinner"></span>Runs in progress</span>{% endif %}
+    {% if report.frozen %}
+    {{ ui.badge("Frozen", "info", strong=True) }}
+    <form method="post" action="{{ url_for('reports.reopen', report_id=report.id) }}">
+      {{ ui.button("Reopen", icon="refresh", type="submit", attrs={"onclick": "return confirm('Reopen this report? Runs can be added to it again, and its export no longer matches it until it is exported again.')"}) }}
+    </form>
+    {% else %}
     {% if report.workspace %}
     {{ ui.button("Add requirements…", icon="plus", href=url_for('requirements.list', workspace=report.workspace, report=report.id)) }}
     {{ ui.button("Add a test…", icon="plus", href=url_for('workspace.index', id=report.workspace, report=report.id)) }}
     {% endif %}
+    <form method="post" action="{{ url_for('reports.export_report', report_id=report.id) }}">
+      {{ ui.button("Freeze & export", variant="primary", icon="lock", type="submit", disabled=in_progress, attrs={"onclick": "return confirm('Freeze this report and export its PDF? No more runs can be added until it is reopened.')"}) }}
+    </form>
+    {% endif %}
   {% endcall %}
+
+  {% if errors %}
+  {% call ui.alert("danger", title="Can't do that") %}
+    <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endcall %}
+  {% endif %}
 
   {% call ui.stats("Summary") %}
     {% if requirements %}
@@ -31,6 +47,27 @@
     {{ ui.stat("Runs passed", passed ~ " / " ~ rows | length, tone="danger" if failed else ("success" if passed == rows | length else None),
                sub=(failed ~ " failed") if failed else None) }}
     {{ ui.stat("Created", report.created | utc, mono=True, sub=report.id) }}
+  {% endcall %}
+
+  {% call ui.section("Document", subtitle="The PDF a freeze exports, with the report's runs bundled beside it" if not report.frozen else "Frozen: no more runs go into the report until it is reopened") %}
+  {% call ui.table(["Title", "Number", "Revision", "Author", "Signed by", "Documents", ""]) %}
+    <tr style="vertical-align: top;">
+      <td>{{ document.title }}</td>
+      <td class="ui-mono" style="white-space: nowrap;">{{ document.number or "—" }}</td>
+      <td class="ui-mono">{{ document.revision or "—" }}</td>
+      <td>{{ document.author or "—" }}</td>
+      <td>{% for role, name in document.signatures.items() %}<div>{{ name }} <span class="ui-text-caption">{{ role }}</span></div>{% else %}<span class="ui-muted">—</span>{% endfor %}</td>
+      <td>{% set kinds = document.documents | map(attribute='kind') | list %}{{ kinds | select('equalto', 'applicable') | list | length }} applicable, {{ kinds | select('equalto', 'reference') | list | length }} reference</td>
+      <td class="ui-end">
+        {% if report.frozen %}
+        {% for name in bundles %}{{ ui.button("Download", icon="download", size="sm", href=url_for('reports.bundle', report_id=report.id, name=name)) }}{% endfor %}
+        {% else %}
+        {{ ui.button("Edit…", icon="edit", size="sm", href=url_for('reports.document', report_id=report.id)) }}
+        {% endif %}
+      </td>
+    </tr>
+  {% endcall %}
+  {% if missing and not report.frozen %}<p class="ui-text-caption">Not set yet: {{ missing | join(", ") }}.</p>{% endif %}
   {% endcall %}
 
   {% if requirements %}
