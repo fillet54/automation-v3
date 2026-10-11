@@ -251,7 +251,7 @@ Implementing Read and the value blocks
 --------------------------------------
 
 ``Read``, ``SetValue``, ``SetFixedValue`` and ``ClearFixedValue`` are abstract
-(``automationv3.plugins.core.value_blocks``): the framework documents them,
+(``automationv3.framework.value_blocks``): the framework documents them,
 and Verify and Wait use them, but only a plugin knows how to reach a value.
 A plugin gives its values a kind of ref of its own, a subclass of
 ``framework.refs.Ref``, and implements each block for it: set ``ref_type``
@@ -259,16 +259,17 @@ and implement one method.
 
 .. code-block:: python
 
-   from automationv3.framework import lisp
+   from automationv3.framework import value_blocks
    from automationv3.framework.refs import Ref
-   from automationv3.plugins.core import value_blocks
 
 
    class Connector(Ref):
        """A connector of my system, by path"""
 
 
-   lisp.global_env["connector"] = Connector        # (connector "sys.cpu1")
+   # In the plugin package's __init__.py:
+   def register(registry):
+       registry.function("my-system/connector", Connector)
 
 
    class Read(value_blocks.Read):

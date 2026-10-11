@@ -1,9 +1,8 @@
 """BuildingBlocks: the steps scripts are written in
 
 A BuildingBlock subclass is a step scripts can call by its name, e.g.
-(Verify x = 1). Plugins in `automationv3.plugins` define them; every
-plugin module is imported when this module loads, which registers its
-blocks.
+(Verify x = 1). Plugins define them; every plugin loads automatically
+before blocks are discovered or scripts run.
 
 Every block is one of three kinds, which decides what a call of it
 gives the code around it and how it reports:
@@ -31,14 +30,10 @@ only documents a name (its usage and docs) for plugins to implement:
 it is never asked.
 """
 
-import importlib
 import inspect
-import pkgutil
 from dataclasses import dataclass
 
-import automationv3.plugins
-
-from . import edn, refs  # noqa: F401  refs adds its builtins
+from . import edn
 from .context import calling, evaluate
 
 
@@ -99,7 +94,7 @@ class BuildingBlock:
     require_unique = False
     # True (set on the class itself, not inherited): this block only
     # documents a name for plugins to implement, and is never called
-    abstract = False
+    abstract = True
 
     def name(self):
         """The name scripts call the block by"""
@@ -269,6 +264,7 @@ _instances = {}
 
 def all_blocks():
     """An instance of every BuildingBlock subclass loaded so far"""
+    load_plugins()
     found, stack = [], list(BuildingBlock.__subclasses__())
     while stack:
         cls = stack.pop(0)
@@ -367,9 +363,5 @@ def find_block(form):
 
 def load_plugins():
     """Import every plugin module, which registers its blocks"""
-    for module in pkgutil.iter_modules(automationv3.plugins.__path__,
-                                       automationv3.plugins.__name__ + "."):
-        importlib.import_module(module.name)
-
-
-load_plugins()
+    from .plugins import load_plugins as load
+    load()

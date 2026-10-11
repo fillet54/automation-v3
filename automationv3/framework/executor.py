@@ -74,6 +74,8 @@ from .steps import (
 
 
 def new_env():
+    from .plugins import load_plugins
+    load_plugins()
     return lisp.Env(outer=lisp.global_env)
 
 

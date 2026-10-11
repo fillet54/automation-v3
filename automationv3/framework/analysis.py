@@ -128,6 +128,8 @@ class Names:
 
 class Analyzer:
     def __init__(self, closure, parsed=None):
+        from .plugins import load_plugins
+        load_plugins()
         self.closure = closure
         self.script = closure.script
         self.diagnostics = []

@@ -25,7 +25,7 @@ their own names (cpu1, cpu2); reading a group gives a map of member
 name (a keyword, :cpu1) to value.
 
 Reading and writing go through blocks: Read, SetValue, SetFixedValue
-and ClearFixedValue (plugins/core/value_blocks.py) are abstract, and a
+and ClearFixedValue (framework/value_blocks.py) are abstract, and a
 plugin implements each for its kind of ref. Verify and Wait read refs
 through whichever Read accepts them. Every read and write is recorded:
 each statement reports the refs it touched, and how (read, set, fix,
@@ -34,7 +34,7 @@ clear), as `ref` events.
 
 import copy
 
-from . import edn, lisp
+from . import edn
 
 OPERATIONS = ("read", "set", "fix", "clear")
 
@@ -187,10 +187,3 @@ def same(value):
         raise TypeError(f"same? takes a group of refs, not {edn.writes(value)}")
     values = [read(r) for _, r in members(value)]
     return all(v == values[0] for v in values[1:])
-
-
-lisp.global_env.update({
-    "group": make_group,
-    "same?": same,
-    "ref?": is_ref,
-})

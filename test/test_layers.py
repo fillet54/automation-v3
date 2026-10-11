@@ -46,6 +46,14 @@ def imported_modules(path):
 
 
 class TestLayers(unittest.TestCase):
+    def test_framework_blocks_are_abstract(self):
+        from automationv3.framework.block import BuildingBlock, all_blocks, is_abstract
+        self.assertTrue(BuildingBlock.abstract)
+        concrete = [type(b).__name__ for b in all_blocks()
+                    if type(b).__module__.startswith("automationv3.framework.")
+                    and not is_abstract(b)]
+        self.assertEqual(concrete, [])
+
     def test_layers_only_depend_downwards(self):
         violations = []
         for layer, forbidden in FORBIDDEN.items():

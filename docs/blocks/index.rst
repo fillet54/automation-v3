@@ -14,10 +14,11 @@ rendering.
 Plugins
 -------
 
-Blocks, UUTs and environments live in **plugins**: Python modules under the
-``automationv3.plugins`` package. Every module in it is imported when the
-framework loads, and subclassing registers the class; there is no other
-registration step.
+Concrete blocks, UUTs and environments live in **plugins**. The framework
+provides abstract block contracts and the interpreter; core provides the
+generic test blocks and ref helpers. Every plugin loads automatically before
+discovery or execution. Subclassing registers blocks, UUTs and environments;
+Lisp functions use the registration hook below.
 
 .. code-block:: text
 
@@ -31,6 +32,46 @@ registration step.
 
 Add your own as a new package beside them, with an ``__init__.py`` that
 imports its modules.
+
+Installed plugin packages outside this tree can advertise an entry point.
+It names a module with ``register(registry)``, or that function itself:
+
+.. code-block:: toml
+
+   [project.entry-points."automationv3.plugins"]
+   my-system = "my_system_plugin"
+
+All bundled and installed plugins load, with core first. No enable list is
+needed. Import or registration failures stop loading instead of silently
+leaving part of the language unavailable.
+
+Registering Lisp functions
+--------------------------------
+
+A plugin package's ``__init__.py`` can expose a registration hook:
+
+.. code-block:: python
+
+   from .refs import Connector
+
+   def register(registry):
+       registry.function("my-system/connector", Connector)
+
+The function receives evaluated arguments and can return any script value.
+Names such as ``my-system/connector`` avoid collisions. Registration rejects
+duplicate names and conflicts with builtins, special forms or blocks.
+Registered names and inspectable Python signatures are available to static
+analysis. ``registered_functions()`` exposes their plugin and docstrings
+for documentation and tooling.
+
+Scripts can shadow a registered default in their own ``core.rst`` or script
+scope; that does not change another run's defaults. Register constructors,
+calculations and predicates this way. Use blocks for actions and assertions
+that need execution results, output and attachments.
+
+Abstract ``Read``, ``SetValue``, ``SetFixedValue`` and ``ClearFixedValue``
+contracts live in ``automationv3.framework.value_blocks``. Existing imports
+from ``automationv3.plugins.core.value_blocks`` remain compatibility aliases.
 
 Plugins may import from ``automationv3.framework`` only, never from
 ``services`` or ``web``; ``test/test_layers.py`` checks this.

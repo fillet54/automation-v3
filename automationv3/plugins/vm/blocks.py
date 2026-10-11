@@ -6,10 +6,9 @@ Read, SetValue, SetFixedValue and ClearFixedValue for them, and Verify
 and Wait read them through its Read.
 """
 
-from automationv3.framework import context, edn, html, lisp
+from automationv3.framework import context, edn, html, value_blocks
 from automationv3.framework.block import ACTION, VALUE, BlockResult, BuildingBlock
 from automationv3.framework.refs import Ref
-from automationv3.plugins.core import value_blocks
 from automationv3.framework.language import is_text
 
 PACKET_OPTIONS = {"defect", "via", "at", "seq"}
@@ -154,9 +153,6 @@ class Connector(Ref):
 def make_connector(path):
     """(connector "vm.eps"): a connector of the Vehicle Manager"""
     return Connector(path)
-
-
-lisp.global_env["connector"] = make_connector
 
 
 def point(call, ref, *args):

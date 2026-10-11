@@ -327,6 +327,8 @@ def eval(x, env=global_env):
 
     An exception raised inside records the forms it came through (see
     `trace`), so it can be reported where the script wrote them."""
+    from .plugins import load_plugins
+    load_plugins()
     if isinstance(x, Keyword):
         return x
     if isinstance(x, Symbol):

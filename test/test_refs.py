@@ -4,11 +4,12 @@ import unittest
 from pathlib import Path
 
 from automationv3.framework import clock, context, edn, lisp
+from automationv3.framework.plugins import PluginRegistry
 from automationv3.framework.block import BlockResult, BuildingBlock
 from automationv3.framework.closure import resolve
 from automationv3.framework.executor import execute_closure
 from automationv3.framework.refs import Ref
-from automationv3.plugins.core import value_blocks
+from automationv3.framework import value_blocks
 
 from .rvt import rvt
 
@@ -48,7 +49,8 @@ class Wire(Ref):
     """A test ref, into the Bench bound as `bench`"""
 
 
-lisp.global_env["wire"] = Wire
+registry = PluginRegistry("test.refs")
+registry.function("wire", Wire)
 
 
 def bench():
@@ -366,7 +368,8 @@ class Twin(Ref):
     """A kind of ref two blocks claim: an ambiguous call"""
 
 
-lisp.global_env.update({"plug": Plug, "twin": Twin})
+registry.function("plug", Plug)
+registry.function("twin", Twin)
 
 
 class PlugRead(value_blocks.Read):

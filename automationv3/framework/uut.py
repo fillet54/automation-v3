@@ -71,7 +71,8 @@ class UUT:
 
 
 def _registry(base):
-    from . import block  # noqa: F401  importing it loads every plugin
+    from .plugins import load_plugins
+    load_plugins()
 
     found = {}
     stack = list(base.__subclasses__())

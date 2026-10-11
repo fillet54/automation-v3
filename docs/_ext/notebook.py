@@ -38,8 +38,10 @@ def status_role(name, rawtext, text, lineno, inliner, options=None, content=()):
 def plugin_of(block):
     """The plugin package a block is defined in, e.g. automationv3.plugins.core"""
     module = type(block).__module__
+    if module.startswith("automationv3.framework."):
+        return "automationv3.framework"
     if not module.startswith(PLUGINS + "."):
-        return None
+        return module.rsplit(".", 1)[0] if "." in module else module
     return ".".join(module.split(".")[:3])
 
 
@@ -101,7 +103,9 @@ def implementations_of(block):
 def plugin_rst(plugin, blocks, with_heading):
     lines = []
     if with_heading:
-        lines += heading(f"The {plugin.rsplit('.', 1)[-1]} plugin", "-")
+        title = "Framework contracts" if plugin == "automationv3.framework" else \
+            f"The {plugin.rsplit('.', 1)[-1]} plugin"
+        lines += heading(title, "-")
         summary = inspect.getdoc(importlib.import_module(plugin))
         if summary:
             lines += [*summary.splitlines(), ""]

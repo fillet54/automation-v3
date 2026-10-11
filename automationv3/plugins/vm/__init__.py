@@ -13,3 +13,9 @@ from .sim import VehicleManager
 
 __all__ = [BringToMode, ClearFixedValue, Connector, Read, RunFor, SendTC, SetFixedValue,
            SetValue, Telemetry, VehicleManager]
+
+
+def register(registry):
+    from .blocks import make_connector
+    registry.function("connector", make_connector)
+    registry.function("vm/connector", make_connector)

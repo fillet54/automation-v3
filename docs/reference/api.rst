@@ -12,6 +12,15 @@ BuildingBlocks
    :members: BuildingBlock, BlockResult, code_block, raw_html
    :no-undoc-members:
 
+.. automodule:: automationv3.framework.value_blocks
+   :members: Read, SetValue, SetFixedValue, ClearFixedValue
+
+Plugin functions
+----------------
+
+.. automodule:: automationv3.framework.plugins
+   :members: PluginRegistry, LispFunction, registered_functions, load_plugins
+
 The running script
 ------------------
 
