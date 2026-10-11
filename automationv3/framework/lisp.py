@@ -17,6 +17,7 @@ import operator as op
 from itertools import count, cycle, islice
 
 from .edn import Keyword, List, Map, Set, Symbol, Vector, span_of
+from .lisp_helpers import functions as collection_functions
 
 
 class UnboundName(KeyError):
@@ -156,6 +157,7 @@ def standard_env():
         "assoc": assoc,
         "dissoc": dissoc,
     })
+    env.update(collection_functions())
     return env
 
 

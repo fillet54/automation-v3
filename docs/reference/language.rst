@@ -103,10 +103,12 @@ Logic
 
 Sequences
    ``first``, ``rest``, ``cons``, ``append``, ``count``, ``list``, ``map``,
-   ``take``, ``cycle``, ``range``, ``partition``, ``apply``.
+   ``take``, ``cycle``, ``range``, ``partition``, ``apply``, ``nth``,
+   ``vector``, ``vec``, ``filter``, ``reduce``.
 
 Maps
-   ``assoc``, ``dissoc`` (both return copies).
+   ``assoc``, ``dissoc`` (both return copies), ``get``, ``get-in``,
+   ``contains?``, ``keys``, ``vals``.
 
 Predicates
    ``nil?``, ``some?``, ``number?``, ``symbol?``, ``list?``,
@@ -118,6 +120,47 @@ Strings and output
 Refs
    ``group``, ``same?``, ``ref?``; plugins add their own, such as the
    Vehicle Manager's ``connector``. See :doc:`../scripts/refs`.
+
+Collection helpers
+------------------
+
+``(get collection key default?)``
+   Read a map key or a nonnegative sequence index. Missing entries return
+   the default, or ``nil``. Existing ``false`` and ``nil`` values are kept.
+
+``(get-in collection [key ...] default?)``
+   Follow nested map keys and sequence indexes. An empty path returns the
+   original value. A missing part returns the default, or ``nil``.
+
+``(nth collection index default?)``
+   Read a zero-based sequence or iterator index. A missing index raises an
+   error unless a default is supplied. Negative indexes are missing;
+   booleans and noninteger indexes are errors.
+
+``(contains? collection key)``
+   Test map/set membership or whether a sequence index exists. This tests
+   indexes, not sequence values: ``(contains? [10 20] 1)`` is true,
+   ``(contains? [10 20] 20)`` is false.
+
+``(keys map)``, ``(vals map)``
+   Return vectors in the map's insertion order.
+
+``(vector value ...)``, ``(vec collection)``
+   Construct a vector, or copy/materialize an iterable into one. ``vec``
+   on a map gives its keys. It is useful for the iterators returned by
+   ``map`` and ``take``.
+
+``(filter predicate collection)``
+   Return a vector of items for which the predicate is truthy.
+
+``(reduce function collection)``, ``(reduce function initial collection)``
+   Accumulate a result. Without ``initial``, use the first item; on an empty
+   collection call the function with no arguments (``(reduce + [])`` is 0).
+   With ``initial``, an empty collection returns it.
+
+``keys``, ``vals``, ``vec`` and ``filter`` return EDN vectors, not iterators,
+so their results can be counted, reused and shown in reports. ``nil`` is
+treated as an empty collection by those functions and by ``reduce``.
 
 Literals
 --------
