@@ -17,7 +17,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Reset
+.. rvt:: Command a processor reset
 
-   (TBD "Command a processor reset")
-   (TBD "Verify on-board time after boot differs from the GNSS reference by less than 1 ms")
+   (TBD)
+
+.. rvt:: Verify on-board time after boot differs from the GNSS reference by less than 1 ms
+
+   (TBD)

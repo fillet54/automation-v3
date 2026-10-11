@@ -43,7 +43,7 @@ In this section
    Making the rendered script read well: titles, variants and prose.
 
 :doc:`planning`
-   Writing a test's flow first with ``(TBD "...")`` steps, for review, and
+   Writing a test's flow first with ``(TBD)`` steps, for review, and
    filling it in later.
 
 :doc:`blocks`

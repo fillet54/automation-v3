@@ -19,10 +19,13 @@ Requirements
 Steps
 -----
 
-.. rvt:: Healthy
+.. rvt:: Connect the logic analyser to the watchdog service line
 
-   (TBD "Connect the logic analyser to the watchdog service line")
-   (TBD "Verify the service interval stays under watchdog-service-ms (500 ms) for 60 s")
+   (TBD)
+
+.. rvt:: Verify the service interval stays under watchdog-service-ms (500 ms) for 60 s
+
+   (TBD)
 
 .. rvt:: Each fault
    :table:

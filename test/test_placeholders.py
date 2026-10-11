@@ -46,13 +46,20 @@ class TestReading(unittest.TestCase):
         self.assertIn("To be written", statement.html)
         self.assertIn("Engage the &lt;autopilot&gt;", statement.html)
 
+    def test_in_a_block_of_its_own_the_title_says_what(self):
+        (statement,) = get_statements(rvt("(TBD)"))
+        self.assertIn("To be written", statement.html)
+        self.assertNotIn("ui-tbd__text", statement.html)
+        self.assertEqual(run('(TBD)')[0], "incomplete")
+
     def test_the_check_counts_them_as_a_warning(self):
         errors, (warning,) = check(rvt('(TBD "a") (step "b" (TBD "c"))'))
         self.assertEqual(errors, [])
         self.assertIn("2 steps are still to be written (TBD)", warning)
 
-    def test_needs_a_description(self):
-        (error,) = check(rvt("(TBD)"))[0]
+    def test_takes_text_or_nothing(self):
+        self.assertEqual(check(rvt("(TBD)"))[0], [])
+        (error,) = check(rvt("(TBD :later)"))[0]
         self.assertIn('(TBD "what the step will do")', error)
 
 

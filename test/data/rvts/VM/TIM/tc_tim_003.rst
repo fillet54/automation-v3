@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: No fix
+.. rvt:: Remove the GNSS fix for 6 hours
 
-   (TBD "Remove the GNSS fix for 6 hours")
-   (TBD "Verify the time since last synchronisation in telemetry grows from 0 to 6 hours")
+   (TBD)
+
+.. rvt:: Verify the time since last synchronisation in telemetry grows from 0 to 6 hours
+
+   (TBD)

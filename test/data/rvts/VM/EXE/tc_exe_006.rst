@@ -18,9 +18,9 @@ Requirements
 Steps
 -----
 
-.. rvt:: Load the images
+.. rvt:: Load a valid primary and backup image; if primary-ok is false, corrupt one byte of the primary image
 
-   (TBD "Load a valid primary and backup image; if primary-ok is false, corrupt one byte of the primary image")
+   (TBD)
 
 .. rvt:: Each run of resets
    :table:

@@ -21,7 +21,10 @@ Steps
 .. rvt:: Defaults after power-on
 
    (power-cycle-bus-computer)
-   (TBD "Verify each housekeeping packet's rate matches the default telemetry table within 1%")
+
+.. rvt:: Verify each housekeeping packet's rate matches the default telemetry table within 1%
+
+   (TBD)
 
 .. rvt:: Each rate
    :table:

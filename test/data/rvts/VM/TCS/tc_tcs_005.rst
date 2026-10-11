@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: All cold
+.. rvt:: Drive the control sensors of all ten heater circuits below their lower set points
 
-   (TBD "Drive the control sensors of all ten heater circuits below their lower set points")
-   (TBD "Verify no more than heater-limit (6) heaters are on at any time")
+   (TBD)
+
+.. rvt:: Verify no more than heater-limit (6) heaters are on at any time
+
+   (TBD)

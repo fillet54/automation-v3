@@ -23,8 +23,14 @@ Steps
    (Verify (next-sequence-count 0) = 1)
    (Verify (next-sequence-count max-sequence-count) = 0)
 
-.. rvt:: Count and wrap
+.. rvt:: Set the power housekeeping packet to 10 Hz
 
-   (TBD "Set the power housekeeping packet to 10 Hz")
-   (TBD "Record until its count reaches max-sequence-count, verifying no gaps")
-   (TBD "Verify the next packet's count is 0")
+   (TBD)
+
+.. rvt:: Record until its count reaches max-sequence-count, verifying no gaps
+
+   (TBD)
+
+.. rvt:: Verify the next packet's count is 0
+
+   (TBD)

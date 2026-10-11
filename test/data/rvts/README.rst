@@ -15,7 +15,7 @@ their own run (from separation, or a different software load). The MOD,
 EPS and TC tests are written in full and pass; with VM 3.1.0, whose
 known defect restores shed loads by itself, ``VM/EPS/tc_eps_003`` fails.
 The other subsystems' tests are still flows to review: most of their
-steps are ``(TBD "...")`` placeholders, so they come out incomplete.
+steps are ``(TBD)`` placeholders, so they come out incomplete.
 
 ================  =================================  =========================
 Script            Shows                              Expected outcome

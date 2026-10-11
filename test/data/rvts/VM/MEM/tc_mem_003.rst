@@ -18,8 +18,14 @@ Requirements
 Steps
 -----
 
-.. rvt:: Downlink
+.. rvt:: Start an X-band contact and command the housekeeping store downlink
 
-   (TBD "Start an X-band contact and command the housekeeping store downlink")
-   (TBD "Verify packets arrive oldest first at up to 2 Mbit/s")
-   (TBD "Verify the store keeps them until the ground confirmation telecommand, then frees them")
+   (TBD)
+
+.. rvt:: Verify packets arrive oldest first at up to 2 Mbit/s
+
+   (TBD)
+
+.. rvt:: Verify the store keeps them until the ground confirmation telecommand, then frees them
+
+   (TBD)

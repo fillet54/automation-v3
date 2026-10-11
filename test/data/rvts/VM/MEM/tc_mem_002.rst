@@ -21,7 +21,10 @@ Steps
 
    (Verify (housekeeping-hours hk-store-bytes hk-bytes-per-second) >= 72)
 
-.. rvt:: 72 hours
+.. rvt:: Run for 73 hours of simulated time at the default housekeeping rates
 
-   (TBD "Run for 73 hours of simulated time at the default housekeeping rates")
-   (TBD "Verify the housekeeping store has not wrapped before 72 hours")
+   (TBD)
+
+.. rvt:: Verify the housekeeping store has not wrapped before 72 hours
+
+   (TBD)

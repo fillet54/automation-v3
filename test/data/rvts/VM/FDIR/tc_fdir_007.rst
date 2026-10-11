@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Fill and keep
+.. rvt:: Trigger 300 detections with a test monitor
 
-   (TBD "Trigger 300 detections with a test monitor")
-   (TBD "Power cycle, dump the fault log, and verify it holds the last 256 in order")
+   (TBD)
+
+.. rvt:: Power cycle, dump the fault log, and verify it holds the last 256 in order
+
+   (TBD)

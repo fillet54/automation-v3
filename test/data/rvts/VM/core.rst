@@ -19,7 +19,8 @@ variation.
 
 The mode management, power and telecommand tests (``MOD``, ``EPS``,
 ``TC``, and ``MEM/tc_mem_006``) are written in full. The others are still
-flows: most of their steps are ``(TBD "...")`` placeholders, to be
+flows: most of their steps are ``(TBD)`` placeholders, each in a block
+titled with what it will do (``(TBD "...")`` in table blocks), to be
 written once the simulation covers their subsystem. Where a test has a
 table of cases, its first step checks the table against the requirement,
 as written below.

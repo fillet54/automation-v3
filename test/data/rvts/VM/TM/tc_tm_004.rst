@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Contact
+.. rvt:: Start a simulated ground contact on the S-band RF link
 
-   (TBD "Start a simulated ground contact on the S-band RF link")
-   (TBD "Verify the real-time telemetry bit rate is 32 kbit/s and every housekeeping packet arrives")
+   (TBD)
+
+.. rvt:: Verify the real-time telemetry bit rate is 32 kbit/s and every housekeeping packet arrives
+
+   (TBD)

@@ -18,8 +18,14 @@ Requirements
 Steps
 -----
 
-.. rvt:: Four times
+.. rvt:: Trigger the battery temperature violation four times within one hour
 
-   (TBD "Trigger the battery temperature violation four times within one hour")
-   (TBD "Verify the recovery action ran three times and the fourth is held")
-   (TBD "Acknowledge by telecommand and verify the fourth runs")
+   (TBD)
+
+.. rvt:: Verify the recovery action ran three times and the fourth is held
+
+   (TBD)
+
+.. rvt:: Acknowledge by telecommand and verify the fourth runs
+
+   (TBD)

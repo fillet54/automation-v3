@@ -22,8 +22,14 @@ Steps
 
    (Verify (* minor-frame-ms minor-frames-per-major) = 1000)
 
-.. rvt:: Measure the schedule
+.. rvt:: Enable the schedule trace telemetry at 10 Hz
 
-   (TBD "Enable the schedule trace telemetry at 10 Hz")
-   (TBD "Record 600 major frames (10 minutes)")
-   (TBD "Verify every major frame holds 10 minor frames, each starting 100 ms +/- 1 ms after the last")
+   (TBD)
+
+.. rvt:: Record 600 major frames (10 minutes)
+
+   (TBD)
+
+.. rvt:: Verify every major frame holds 10 minor frames, each starting 100 ms +/- 1 ms after the last
+
+   (TBD)

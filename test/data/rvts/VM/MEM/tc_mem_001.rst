@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Separate stores
+.. rvt:: Clear all packet stores, run 10 minutes, and dump the store directory
 
-   (TBD "Clear all packet stores, run 10 minutes, and dump the store directory")
-   (TBD "Verify housekeeping, event and payload packets are each in their own store")
+   (TBD)
+
+.. rvt:: Verify housekeeping, event and payload packets are each in their own store
+
+   (TBD)

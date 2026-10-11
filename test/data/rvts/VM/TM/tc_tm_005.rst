@@ -17,7 +17,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Record
+.. rvt:: Run a 10 minute contact, then 10 minutes without one
 
-   (TBD "Run a 10 minute contact, then 10 minutes without one")
-   (TBD "Dump the housekeeping packet store and verify it holds every packet from both periods")
+   (TBD)
+
+.. rvt:: Dump the housekeeping packet store and verify it holds every packet from both periods
+
+   (TBD)

@@ -45,10 +45,11 @@
 {%- endmacro %}
 
 {#- A titled rvt block collapsed to its title, with its steps' state on a run's page; open if it failed or is
-    running, so a run shows where it stands. #}
+    running, so a run shows where it stands. A block with steps still to be written (TBD) stays collapsed, tagged. #}
 {% macro titled_block(entry, render, only=None) -%}
-<details class="ui-titled"{% if entry.state in ("fail", "error", "running") or entry.diagnostics or entry.todo %} open{% endif %}>
+<details class="ui-titled"{% if entry.state in ("fail", "error", "running") or entry.diagnostics %} open{% endif %}>
   <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-titled__title">{{ entry.title }}</span>{{ only_for(only) }}
+    {%- if entry.todo %}<span class="ui-titled__todo" title="Steps still to be written">TBD</span>{% endif %}
     {%- if entry.state %}<span class="ui-titled__state">
       {%- if entry.duration is not none %}<span class="ui-duration" title="Duration of its steps">{{ entry.duration | duration }}</span>{% endif %}
       {{- ui.outcome(entry.state) }}</span>{% endif %}</summary>

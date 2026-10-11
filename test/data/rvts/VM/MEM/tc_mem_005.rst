@@ -18,9 +18,18 @@ Requirements
 Steps
 -----
 
-.. rvt:: Upload
+.. rvt:: Upload a new image in 512 byte segments, with one segment corrupted
 
-   (TBD "Upload a new image in 512 byte segments, with one segment corrupted")
-   (TBD "Verify the image CRC check fails and the image slot is unchanged")
-   (TBD "Re-upload the corrupted segment and verify the CRC check passes")
-   (TBD "Verify nothing is written to the non-active slot until the write telecommand")
+   (TBD)
+
+.. rvt:: Verify the image CRC check fails and the image slot is unchanged
+
+   (TBD)
+
+.. rvt:: Re-upload the corrupted segment and verify the CRC check passes
+
+   (TBD)
+
+.. rvt:: Verify nothing is written to the non-active slot until the write telecommand
+
+   (TBD)

@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Time stamps
+.. rvt:: Record 60 s of housekeeping with the bench's sampling time record
 
-   (TBD "Record 60 s of housekeeping with the bench's sampling time record")
-   (TBD "Verify each packet's time stamp is within 1 ms of its sampling time")
+   (TBD)
+
+.. rvt:: Verify each packet's time stamp is within 1 ms of its sampling time
+
+   (TBD)

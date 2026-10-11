@@ -18,10 +18,13 @@ Requirements
 Steps
 -----
 
-.. rvt:: Dump and patch data memory
+.. rvt:: Dump 256 bytes of data memory and compare with the bench debugger's read
 
-   (TBD "Dump 256 bytes of data memory and compare with the bench debugger's read")
-   (TBD "Patch 4 bytes of data memory and verify the dump shows the patch")
+   (TBD)
+
+.. rvt:: Patch 4 bytes of data memory and verify the dump shows the patch
+
+   (TBD)
 
 .. rvt:: Code memory patches are hazardous
    :table:

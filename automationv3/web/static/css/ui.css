@@ -596,6 +596,7 @@ body.ui {
 .ui-titled[open] > summary .ui-icon { transform: rotate(90deg); }
 .ui-titled__title { flex: 1 1 auto; font-weight: 500; }
 .ui-titled__state { flex: none; }
+.ui-titled__todo { flex: none; padding: 1px 7px; border: 1px dashed color-mix(in srgb, var(--ui-info) 55%, transparent); border-radius: 3px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--ui-info); background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-paper)); }
 .ui-titled__body { padding: 0 0 8px 22px; }
 
 /* blocks limited to variations: a rule down the side, tagged with the variations */

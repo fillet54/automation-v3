@@ -18,12 +18,18 @@ Requirements
 Steps
 -----
 
-.. rvt:: No overruns
+.. rvt:: Record 600 major frames and verify the overrun count did not change
 
-   (TBD "Record 600 major frames and verify the overrun count did not change")
+   (TBD)
 
-.. rvt:: Force an overrun
+.. rvt:: Enable the test task that busy-waits 150 ms in one minor frame, once
 
-   (TBD "Enable the test task that busy-waits 150 ms in one minor frame, once")
-   (TBD "Verify the overrun count increments by exactly 1")
-   (TBD "Verify an overrun event packet is generated")
+   (TBD)
+
+.. rvt:: Verify the overrun count increments by exactly 1
+
+   (TBD)
+
+.. rvt:: Verify an overrun event packet is generated
+
+   (TBD)

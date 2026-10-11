@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Decode
+.. rvt:: Record 60 s of housekeeping telemetry
 
-   (TBD "Record 60 s of housekeeping telemetry")
-   (TBD "Verify every packet decodes as a CCSDS space packet: version, APID, sequence flags and length")
+   (TBD)
+
+.. rvt:: Verify every packet decodes as a CCSDS space packet: version, APID, sequence flags and length
+
+   (TBD)

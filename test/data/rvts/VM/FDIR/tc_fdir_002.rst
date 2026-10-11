@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Recover
+.. rvt:: Drive the battery temperature to +31 degC for 3 s
 
-   (TBD "Drive the battery temperature to +31 degC for 3 s")
-   (TBD "Verify the battery heater is off within 1 s of the violation")
+   (TBD)
+
+.. rvt:: Verify the battery heater is off within 1 s of the violation
+
+   (TBD)

@@ -18,6 +18,6 @@ Requirements
 Steps
 -----
 
-.. rvt:: Format
+.. rvt:: Set on-board time to a known TAI instant and verify the seconds and subseconds fields
 
-   (TBD "Set on-board time to a known TAI instant and verify the seconds and subseconds fields")
+   (TBD)

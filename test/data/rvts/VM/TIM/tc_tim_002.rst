@@ -18,7 +18,10 @@ Requirements
 Steps
 -----
 
-.. rvt:: Synchronise
+.. rvt:: Give the GNSS simulator a valid fix and its pulse per second
 
-   (TBD "Give the GNSS simulator a valid fix and its pulse per second")
-   (TBD "Verify on-board time is within 10 microseconds of the pulse per second edge")
+   (TBD)
+
+.. rvt:: Verify on-board time is within 10 microseconds of the pulse per second edge
+
+   (TBD)

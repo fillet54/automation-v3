@@ -10,25 +10,32 @@ Planning a test before writing it
 Placeholder steps
 -----------------
 
-``(TBD "what the step will do")`` is a step that isn't written yet. Put them
-in titled ``rvt`` blocks, one block per stage of the test:
+``(TBD)`` is a step that isn't written yet. Give each one an ``rvt`` block
+of its own, titled with what the step will do:
 
 .. code-block:: rst
 
-   .. rvt:: Engage the autopilot
+   .. rvt:: Set the autopilot engage switch to ON
 
-      (TBD "Set the autopilot engage switch to ON")
-      (TBD "Verify the autopilot reports engaged within 1 frame")
+      (TBD)
 
-   .. rvt:: Roll hold is the default lateral mode
+   .. rvt:: Verify the autopilot reports engaged within 1 frame
 
-      (TBD "Verify heading hold is not active")
-      (TBD "Verify the active lateral mode is roll hold")
+      (TBD)
 
-The script page shows each ``TBD`` as a step *to be written*, and opens the
-titled blocks that hold them, so the page reads as the test's procedure:
-reviewers see the stages and what each will do, with the requirements and
-variations around them.
+   .. rvt:: Verify the active lateral mode is roll hold
+
+      (TBD)
+
+The script page shows the titled blocks collapsed, as always, and tags each
+one that holds a ``TBD`` with *TBD*, so the page reads as the test's
+procedure: reviewers see each step and what it will do, which are still to
+be written, and the requirements and variations around them. When a step is written, its block keeps the title.
+
+Where a step can't have a block of its own, give the ``TBD`` the words
+instead: ``(TBD "what the step will do")``. That is the way inside code (an
+``if``, a precondition's check) and among the steps of a
+table block (see :doc:`variations`), which runs its block's steps once per row.
 
 Everything else works as usual around them. A ``TBD`` can sit in a ``defn``
 in a ``core.rst`` (a shared step nobody has written yet), in a precondition's
