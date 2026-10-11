@@ -1,0 +1,48 @@
+{#- A report page's header: its title (renamed in place unless frozen), what it covers, and its actions #}
+{% set labels = {"overview": "Overview", "runs": "Runs", "values": "Values touched", "history": "History"} %}
+{% set meta = [] %}
+{% if report.workspace %}{% set _ = meta.append("workspace " ~ report.workspace) %}{% endif %}
+{% for uut, version in (report.uut_versions or {}).items() %}{% set _ = meta.append(uut ~ " " ~ version.id) %}{% endfor %}
+{% for uut, counts in mix.items() %}{% for id, n in counts.items() %}{% set _ = meta.append("also " ~ uut ~ " " ~ id ~ " in " ~ n ~ " run" ~ ('' if n == 1 else 's')) %}{% endfor %}{% endfor %}
+{% if report.filter %}{% set _ = meta.append("filter " ~ report.filter) %}{% endif %}
+{% set title = report.name or ("Report " ~ report.id[:8]) %}
+<header class="ui-page-header">
+  {{ ui.breadcrumbs([("Reports", url_for('reports.index')), (title, url_for('reports.report', report_id=report.id) if page != "overview" else None)]
+                    + ([(labels[page], None)] if page != "overview" else [])) }}
+  <div class="ui-page-header__row">
+    <div class="report-title">
+      <h1 class="ui-page-header__title report-title__show">
+        <span>{{ title }}</span>
+        {%- if not report.frozen %}
+        <button class="ui-btn ui-btn--icon ui-btn--ghost ui-btn--sm report-title__edit" type="button" aria-label="Rename the report" title="Rename the report" data-rename>{{ ui.icon("edit", 14) }}</button>
+        {%- endif %}
+      </h1>
+      {%- if not report.frozen %}
+      <form class="report-title__form" method="post" action="{{ url_for('reports.rename', report_id=report.id) }}" hidden>
+        <input type="hidden" name="next" value="{{ request.full_path }}">
+        <input class="ui-input report-title__input" name="name" value="{{ report.name or '' }}" aria-label="Report name" title="The report's name, and its exported document's title" required>
+        {{ ui.button("Save", variant="primary", type="submit", size="sm") }}
+        {{ ui.button("Cancel", size="sm", attrs={"data-rename-cancel": ""}) }}
+      </form>
+      {%- endif %}
+      {%- if meta %}<div class="ui-row ui-page-header__meta">{% for m in meta %}{{ ui.chip(m) }}{% endfor %}</div>{% endif %}
+    </div>
+    <div class="ui-toolbar ui-page-header__actions">
+      {% if in_progress %}<span class="ui-row ui-muted" style="font-size: 12px;"><span class="ui-spinner"></span>Runs in progress</span>{% endif %}
+      {% if report.frozen %}
+      {{ ui.badge("Frozen", "info", strong=True) }}
+      <form method="post" action="{{ url_for('reports.reopen', report_id=report.id) }}">
+        {{ ui.button("Reopen", icon="refresh", type="submit", attrs={"onclick": "return confirm('Reopen this report? Runs can be added to it again, and its export no longer matches it until it is exported again.')"}) }}
+      </form>
+      {% else %}
+      {% if report.workspace %}
+      {{ ui.button("Add requirements…", icon="plus", href=url_for('requirements.list', workspace=report.workspace, report=report.id)) }}
+      {{ ui.button("Add a test…", icon="plus", href=url_for('workspace.index', id=report.workspace, report=report.id)) }}
+      {% endif %}
+      <form method="post" action="{{ url_for('reports.export_report', report_id=report.id) }}">
+        {{ ui.button("Freeze & export", variant="primary", icon="lock", type="submit", disabled=in_progress, attrs={"onclick": "return confirm('Freeze this report and export its PDF? No more runs can be added until it is reopened.')"}) }}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</header>

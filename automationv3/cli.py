@@ -60,7 +60,7 @@ Options:
     --uut=NAME=VERSION     UUT version to use (default: newest)
     --debug                enables autoload [default: false]
     REPORT                 a report's folder (in the reports path)
-    --title=TEXT           the document's title
+    --title=TEXT           the report's name, its document's title
     --number=TEXT          the document's number
     --revision=TEXT        the document's revision
     --author=TEXT          the document's author

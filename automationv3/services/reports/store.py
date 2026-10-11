@@ -151,6 +151,12 @@ def read_closure(root, report_id, run_id):
     }
 
 
+def read_closure_file(root, report_id, run_id, relpath):
+    """One file of a run's closure, or None"""
+    path = run_dir(root, report_id, run_id) / "closure" / relpath
+    return path.read_text() if path.is_file() else None
+
+
 def append_events(root, report_id, run_id, events):
     path = run_dir(root, report_id, run_id) / "events.jsonl"
     with path.open("a") as f:

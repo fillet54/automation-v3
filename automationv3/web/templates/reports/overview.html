@@ -1,0 +1,87 @@
+{% extends "reports/page.html" %}
+{% from "reports/macros.html" import variation_label %}
+{% set runs_url = url_for('reports.report_page', report_id=report.id, page='runs') %}
+
+{% block page %}
+{% call ui.stats("Summary") %}
+  {% set requirements = view.requirements %}
+  {% if requirements %}
+  {% set green = requirements | selectattr('color', 'equalto', 'green') | list | length %}
+  {% set red = requirements | selectattr('color', 'equalto', 'red') | list | length %}
+  {{ ui.stat("Requirements green", green ~ " / " ~ requirements | length, tone="success" if green == requirements | length else None,
+             sub=(red ~ " red") if red else None) }}
+  {% endif %}
+  {% set passed = rows | selectattr('state', 'equalto', 'pass') | list | length %}
+  {% set failed = rows | selectattr('state', 'in', ['fail', 'error']) | list | length %}
+  {{ ui.stat("Runs passed", passed ~ " / " ~ rows | length, tone="danger" if failed else ("success" if passed == rows | length else None),
+             sub=(failed ~ " failed") if failed else None) }}
+  {{ ui.stat("Created", report.created | utc, mono=True, sub=report.id) }}
+{% endcall %}
+
+{% if not rows and not report.additions %}
+{{ ui.empty("Nothing added yet. Add requirements to run every test linked to them, or add a single test.") }}
+{% endif %}
+
+{% if view.groups or view.other %}
+{% call ui.section("Subsystems", subtitle="Each subsystem's requirements, judged on the latest run of every linked combination") %}
+{% call ui.table(["Subsystem", "State", {"label": "Green", "align": "end"}, {"label": "Issues", "align": "end"}]) %}
+  {% for group in view.groups %}
+  <tr>
+    <td><a class="ui-mono" href="{{ runs_url }}?subsystem={{ group.name | urlencode }}">{{ group.name }}</a></td>
+    <td>{{ ui.outcome({"pass": "green", "fail": "red", "running": "running", "none": "not run"}.get(group.dot, "partial")) }}</td>
+    <td class="ui-end ui-number">{{ group.green }} / {{ group.requirements | length }}</td>
+    <td class="ui-end ui-number">{{ group.issues or "—" }}</td>
+  </tr>
+  {% endfor %}
+  {% if view.other %}
+  <tr>
+    <td><a href="{{ runs_url }}?subsystem={{ view.other.name | urlencode }}">{{ view.other.name }}</a> <span class="ui-text-caption">not tracked</span></td>
+    <td>{{ ui.outcome({"pass": "pass", "fail": "fail", "running": "running", "none": "not run"}.get(view.other.dot, "partial")) }}</td>
+    <td class="ui-end ui-number">—</td>
+    <td class="ui-end ui-number">{{ view.other.issues or "—" }}</td>
+  </tr>
+  {% endif %}
+{% endcall %}
+{% endcall %}
+{% endif %}
+
+{% if view.issues %}
+{% call ui.section("Open issues", subtitle="Every combination whose latest run didn't pass, and why") %}
+<ul class="report-issues">
+  {% for row in view.issues %}
+  <li>
+    <span class="report-dot report-dot--{{ row.dot }}" aria-hidden="true"></span>
+    <div>
+      <div class="report-issues__head">
+        {% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}">{{ row.title }}</a>{% else %}{{ row.title }}{% endif %}
+        <span class="ui-text-caption ui-mono">{{ row.script }}</span>{{ variation_label(row.environment, row.variation) }}
+        {{ ui.outcome(row.state) }}
+      </div>
+      {% if row.why %}<div class="report-why report-why--{{ row.dot }}">{{ row.why }}</div>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endcall %}
+{% endif %}
+
+{% call ui.section("Document", subtitle="The PDF a freeze exports, with the report's runs bundled beside it" if not report.frozen else "Frozen: no more runs go into the report until it is reopened") %}
+{% call ui.table(["Number", "Revision", "Author", "Signed by", "Documents", ""]) %}
+  <tr style="vertical-align: top;">
+    <td class="ui-mono" style="white-space: nowrap;">{{ document.number or "—" }}</td>
+    <td class="ui-mono">{{ document.revision or "—" }}</td>
+    <td>{{ document.author or "—" }}</td>
+    <td>{% for role, name in document.signatures.items() %}<div>{{ name }} <span class="ui-text-caption">{{ role }}</span></div>{% else %}<span class="ui-muted">—</span>{% endfor %}</td>
+    <td>{% set kinds = document.documents | map(attribute='kind') | list %}{{ kinds | select('equalto', 'applicable') | list | length }} applicable, {{ kinds | select('equalto', 'reference') | list | length }} reference</td>
+    <td class="ui-end">
+      {% if report.frozen %}
+      {% for name in bundles %}{{ ui.button("Download", icon="download", size="sm", href=url_for('reports.bundle', report_id=report.id, name=name)) }}{% endfor %}
+      {% else %}
+      {{ ui.button("Edit…", icon="edit", size="sm", href=url_for('reports.document', report_id=report.id)) }}
+      {% endif %}
+    </td>
+  </tr>
+{% endcall %}
+{% if missing and not report.frozen %}<p class="ui-text-caption">Not set yet: {{ missing | join(", ") }}.</p>{% endif %}
+{% endcall %}
+{% endblock %}

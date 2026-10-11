@@ -948,8 +948,9 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         page = self.http.get(f"/reports/{report_id}").get_data(True)
         self.assertIn("Build 7", page)
-        self.assertIn("Additions", page)
         self.assertIn(f"report={report_id}", page)  # the Add actions
+        history = self.http.get(f"/reports/{report_id}/history").get_data(True)
+        self.assertIn("Additions", history)
 
     def test_adding_leaves_out_what_already_passed(self):
         report_id = self.new_report()
@@ -979,7 +980,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(run["uut_versions"]["demo"]["id"], "1.1.0")
         page = self.http.get(f"/reports/{report_id}").get_data(True)
         self.assertIn("also demo 1.1.0 in 1 run", page)
-        self.assertIn("override", page)
+        history = self.http.get(f"/reports/{report_id}/history").get_data(True)
+        self.assertIn("override", history)
 
     def test_add_to_report_from_requirements_and_viewer(self):
         report_id = self.new_report()

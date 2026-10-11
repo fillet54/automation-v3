@@ -102,13 +102,23 @@ class TestDocument(ReportTestCase):
         self.assertIn("*bold*", export.rst_to_latex(rst)["body"])
 
     def test_document_fields_default_from_the_report(self):
-        fields = export.document_fields(self.report())
-        self.assertTrue(fields["title"])
+        self.assertEqual(export.document_fields(self.report())["title"],
+                         self.report()["name"])
         self.assertEqual(export.missing_fields(self.report()),
-                         ["title", "number", "revision", "author"])
-        export.set_document(self.root, self.report_id, title="T", number="N-1",
-                            revision="A", author="Me")
+                         ["number", "revision", "author"])
+        export.set_document(self.root, self.report_id, number="N-1", revision="A",
+                            author="Me")
         self.assertEqual(export.missing_fields(self.report()), [])
+
+    def test_the_title_is_the_reports_name(self):
+        export.set_document(self.root, self.report_id, title="  Brake   tests ")
+        self.assertEqual(self.report()["name"], "Brake tests")
+        self.assertEqual(export.document_fields(self.report())["title"], "Brake tests")
+        with self.assertRaises(export.ExportError):
+            export.rename(self.root, self.report_id, " ")
+        store.set_frozen(self.root, self.report_id, True)
+        with self.assertRaises(export.ExportError):
+            export.rename(self.root, self.report_id, "Other")
 
     def test_documents_are_lines_of_number_revision_title(self):
         documents = export.parse_documents("SRS-1 | C | Requirements | v2\n\nICD | B", "applicable")
@@ -205,7 +215,7 @@ class TestExportRefusals(ReportTestCase):
             export.set_document(self.root, self.report_id, title="Changed")
         export.reopen(self.root, self.report_id)
         export.set_document(self.root, self.report_id, title="Changed")
-        self.assertEqual(self.report()["document"]["title"], "Changed")
+        self.assertEqual(self.report()["name"], "Changed")
 
 
 class TestFrozenQueue(QueueTestCase):
@@ -253,7 +263,7 @@ class TestCli(ReportTestCase):
                              "--reference", "PLAN-2 | A | Test plan")
         self.assertEqual(code, 0, out)
         document = self.report()["document"]
-        self.assertEqual((document["title"], document["number"]), ("Brakes", "TR-1"))
+        self.assertEqual((self.report()["name"], document["number"]), ("Brakes", "TR-1"))
         self.assertEqual(document["signatures"], {"Approved by": "J. Doe"})
         self.assertEqual([d["kind"] for d in document["documents"]],
                          ["applicable", "reference"])
@@ -272,7 +282,7 @@ class TestCli(ReportTestCase):
         folder = str(self.root / self.report_id)
         code, out = self.cli("export", folder, "--out", str(self.tmp / "out"))
         self.assertEqual(code, 0, out)
-        self.assertIn("Warning: the report has no document title", out)
+        self.assertIn("Warning: the report has no document number", out)
         self.assertTrue((self.tmp / "out" / f"report-{self.report_id}.zip").exists())
         self.assertEqual(self.cli("edit", folder, "--title", "X")[0], 1)
         self.assertEqual(self.cli("reopen", folder)[0], 0)
@@ -304,8 +314,11 @@ class TestWeb(unittest.TestCase):
         page = self.http.get(f"/reports/{self.report_id}/document")
         self.assertIn(b"Quality Assurance", page.data)  # the template's roles
         self.http.post(f"/reports/{self.report_id}/document", data={
-            "title": "Brakes", "number": "TR-1", "revision": "A", "author": "Me",
+            "number": "TR-1", "revision": "A", "author": "Me",
             "sign-2": "J. Doe", "applicable": "SRS-1 | C | Requirements", "reference": ""})
+        response = self.http.post(f"/reports/{self.report_id}/rename", data={
+            "name": "Brakes", "next": f"/reports/{self.report_id}/history"})
+        self.assertEqual(response.headers["Location"], f"/reports/{self.report_id}/history")
         document = store.load_report(self.root, self.report_id)["document"]
         self.assertEqual(document["signatures"], {"Approved by": "J. Doe"})
         self.assertEqual(document["documents"][0]["number"], "SRS-1")

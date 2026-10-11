@@ -1,0 +1,63 @@
+{#- A report's navigation: its pages, and under Runs every subsystem, requirement and script with a dot for how it
+    stands. Branches with issues start open; static/js/report.js remembers what a reader opens and closes, the
+    "Issues only" switch, and filters the Runs page in place. #}
+{% macro dot(tone) -%}<span class="report-dot report-dot--{{ tone }}" aria-hidden="true"></span>{%- endmacro %}
+{% macro count(n) -%}{% if n %}<span class="report-nav__count" title="{{ n }} with issues">{{ n }}</span>{% endif %}{%- endmacro %}
+{% set runs_url = url_for('reports.report_page', report_id=report.id, page='runs') %}
+<nav id="report-nav" class="report-nav" data-report="{{ report.id }}" aria-label="Report">
+  <ul class="report-nav__pages">
+    <li><a href="{{ url_for('reports.report', report_id=report.id) }}"{% if page == "overview" %} aria-current="page"{% endif %}>{{ ui.icon("info", 14) }}Overview</a></li>
+    <li><a href="{{ runs_url }}" data-nav="runs"{% if page == "runs" and not subsystem %} aria-current="page"{% endif %}>{{ dot(view.dot) if rows else ui.icon("list", 14) }}Runs
+      <span class="report-nav__end">{{ count(view.issues | length) }}</span></a></li>
+  </ul>
+
+  {% if view.groups or view.other %}
+  <label class="report-nav__switch"><input type="checkbox" data-issues-only> Issues only</label>
+  <ul class="report-tree">
+    {% for group in view.groups %}
+    <li data-dot="{{ group.dot }}">
+      <details data-key="s:{{ group.name }}"{% if group.dot != "pass" %} open{% endif %}>
+        <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}" data-nav="subsystem" data-subsystem="{{ group.name }}">{{ dot(group.dot) }}<span class="ui-mono">{{ group.name }}</span>{{ count(group.issues) }}</a></summary>
+        <ul>
+          {% for req in group.requirements %}
+          <li data-dot="{{ req.dot }}">
+            <details data-key="r:{{ req.id }}"{% if req.dot != "pass" %} open{% endif %}>
+              <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#req-{{ req.id }}" data-nav="requirement" data-subsystem="{{ group.name }}" title="{{ req.text }}">{{ dot(req.dot) }}<span class="ui-mono">{{ req.id }}</span>{{ count(req.issues) }}</a></summary>
+              <ul>
+                {% for script in req.scripts %}
+                <li data-dot="{{ script.dot }}"><a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#{{ script.anchor }}" data-nav="script" data-subsystem="{{ group.name }}" title="{{ script.script }}">{{ dot(script.dot) }}<span class="report-tree__label">{{ script.title }}</span></a></li>
+                {% endfor %}
+              </ul>
+            </details>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+    </li>
+    {% endfor %}
+    {% if view.other %}
+    <li data-dot="{{ view.other.dot }}">
+      <details data-key="s:{{ view.other.name }}"{% if view.other.dot != "pass" %} open{% endif %}>
+        <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ view.other.name | urlencode }}" data-nav="subsystem" data-subsystem="{{ view.other.name }}" title="Tests added without a requirement">{{ dot(view.other.dot) }}<span>{{ view.other.name }}</span>{{ count(view.other.issues) }}</a></summary>
+        <ul>
+          {% for script in view.other.scripts %}
+          <li data-dot="{{ script.dot }}"><a href="{{ runs_url }}?subsystem={{ view.other.name | urlencode }}#{{ script.anchor }}" data-nav="script" data-subsystem="{{ view.other.name }}" title="{{ script.script }}">{{ dot(script.dot) }}<span class="report-tree__label">{{ script.title }}</span></a></li>
+          {% endfor %}
+        </ul>
+      </details>
+    </li>
+    {% endif %}
+  </ul>
+  {% endif %}
+
+  <ul class="report-nav__pages">
+    <li><a href="{{ url_for('reports.report_page', report_id=report.id, page='values') }}"{% if page == "values" %} aria-current="page"{% endif %}>{{ ui.icon("layers", 14) }}Values touched</a>
+      {% if connectors %}
+      <ul class="report-nav__sub">
+        {% for c in connectors %}<li><a href="#{{ c.anchor }}"><span class="ui-mono">{{ c.name }}</span><span class="report-nav__end">{% if c.fixed %}<span class="report-nav__count" title="{{ c.fixed }} fixed">{{ c.fixed }} fixed</span>{% endif %}</span></a></li>{% endfor %}
+      </ul>
+      {% endif %}
+    </li>
+    <li><a href="{{ url_for('reports.report_page', report_id=report.id, page='history') }}"{% if page == "history" %} aria-current="page"{% endif %}>{{ ui.icon("clock", 14) }}History</a></li>
+  </ul>
+</nav>

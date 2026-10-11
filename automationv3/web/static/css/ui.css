@@ -516,6 +516,81 @@ body.ui {
 .ui .ui-sidenav a:hover { background: var(--ui-soft); }
 .ui .ui-sidenav a[aria-current="page"] { background: color-mix(in srgb, var(--ui-accent) 10%, var(--ui-paper)); color: var(--ui-accent); box-shadow: inset 2px 0 0 var(--ui-accent); font-weight: 500; }
 
+/* a report's pages (templates/reports): its navigation tree with a dot for each entry's state, and its Runs page */
+.report-dot { --tone: var(--ui-faint); flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--tone); }
+.report-dot--pass { --tone: var(--ui-success); }
+.report-dot--fail { --tone: var(--ui-danger); }
+.report-dot--partial { --tone: var(--ui-warning); }
+.report-dot--running { --tone: var(--ui-info); animation: report-pulse 1.4s ease-in-out infinite; }
+.report-dot--none { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ui-faint); }
+@keyframes report-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .report-dot--running { animation: none; } }
+
+.report-nav { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.report-nav ul { margin: 0; padding: 0; list-style: none; }
+.report-nav__pages { display: flex; flex-direction: column; gap: 1px; }
+.ui .report-nav a { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 8px; border-radius: var(--ui-radius); color: var(--ui-ink); text-decoration: none; }
+.ui .report-nav a:hover { background: var(--ui-soft); }
+.ui .report-nav a[aria-current="page"] { background: color-mix(in srgb, var(--ui-accent) 10%, var(--ui-paper)); color: var(--ui-accent); box-shadow: inset 2px 0 0 var(--ui-accent); font-weight: 500; }
+.report-nav .ui-icon { flex: none; color: var(--ui-muted); }
+.report-nav__end { margin-left: auto; display: flex; }
+.report-nav__count { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
+.report-nav__sub { margin-left: 22px !important; }
+.report-nav__switch { display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; color: var(--ui-muted); cursor: pointer; }
+
+.report-tree ul { margin-left: 12px; padding-left: 6px; border-left: 1px solid var(--ui-rule); }
+.report-tree details > summary { list-style: none; display: flex; align-items: center; gap: 2px; cursor: pointer; }
+.report-tree details > summary::-webkit-details-marker { display: none; }
+.report-tree details > summary > a { flex: 1 1 auto; }
+.report-tree__chevron { flex: none; transition: transform 0.15s; }
+.report-tree details[open] > summary .report-tree__chevron { transform: rotate(90deg); }
+.report-tree > li > a, .report-tree ul > li > a { margin-left: 14px; }
+.report-tree__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-nav--issues li[data-dot="pass"] { display: none; }
+
+.report-filter { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: var(--ui-radius); background: var(--ui-soft); font-size: 13px; }
+.report-filter a { margin-left: auto; }
+.report-group { display: flex; flex-direction: column; gap: 18px; }
+.report-group__title { display: flex; align-items: center; gap: 10px; font: 500 18px/1.3 var(--ui-font-body); }
+.report-group__title .report-dot { width: 9px; height: 9px; }
+.report-req { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
+.report-req__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-req__text { margin: 6px 0 10px; max-width: 90ch; color: var(--ui-muted); font-size: 13px; }
+.report-row__title { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.report-row { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
+.report-row--why > td { border-bottom: 0; }
+.report-why-row > td { padding-top: 0; }
+.report-why { font-size: 12px; color: var(--ui-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-why-row .report-why, .report-issues .report-why { --tone: var(--ui-danger); padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--tone) 45%, transparent); }
+.report-why--partial, .report-why--none, .report-why--running { --tone: var(--ui-warning) !important; }
+.report-req .ui-table { table-layout: fixed; }
+.report-req .ui-table th:nth-child(1) { width: 40%; }
+.report-req .ui-table th:nth-child(2) { width: 16%; }
+.report-req .ui-table th:nth-child(3) { width: 18%; }
+.report-req .ui-table th:nth-child(4) { width: 12%; }
+.report-req .ui-table th:nth-child(5) { width: 14%; }
+tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-paper)); }
+.report-req.report-target { outline: 2px solid color-mix(in srgb, var(--ui-accent) 35%, transparent); outline-offset: 6px; border-radius: var(--ui-radius); }
+
+.report-issues { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.report-issues > li { display: flex; align-items: baseline; gap: 10px; }
+.report-issues__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+
+.report-title__show { display: flex; align-items: center; gap: 8px; }
+.report-title__edit { opacity: 0.55; }
+.report-title__show:hover .report-title__edit, .report-title__edit:focus-visible { opacity: 1; }
+.report-title__form { display: flex; align-items: center; gap: 8px; }
+.report-title__form[hidden], .report-title__show[hidden], .report-filter[hidden], .report-group[hidden] { display: none; }
+.report-title__input { min-width: min(48ch, 100%); font: 400 24px/1.2 var(--ui-font-heading); }
+.report-fixed > td:first-child { box-shadow: inset 2px 0 0 var(--ui-warning); }
+.report-refs .ui-table { table-layout: fixed; }
+.report-refs .ui-table td { white-space: normal; overflow-wrap: anywhere; }
+.report-refs .ui-table th:nth-child(1) { width: 34%; }
+.report-refs .ui-table th:nth-child(2) { width: 16%; }
+.report-refs .ui-table th:nth-child(3) { width: 25%; }
+.report-refs .ui-table th:nth-child(4) { width: 25%; }
+.report-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
 /* facts about a script or run: what it loads, where it runs */
 .ui-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--ui-muted); }
 .ui-loads { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; }

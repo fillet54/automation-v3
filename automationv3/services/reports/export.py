@@ -22,10 +22,10 @@ Only failures are spelled out; everything else about a run is in the
 bundle.
 
 Everything comes from the report folder, so a report can be exported
-without a server or database. The document's own fields live in
-report.json under "document"::
+without a server or database. The document's title is the report's
+name; its other fields live in report.json under "document"::
 
-    {"title", "number", "revision", "author",
+    {"number", "revision", "author",
      "signatures": {role: name},
      "documents": [{"kind": "applicable" | "reference",
                     "number", "revision", "title"}]}
@@ -67,10 +67,11 @@ class ExportError(Exception):
 # The report's document fields
 
 def document_fields(report):
-    """The report's document fields, with defaults for any not set"""
+    """The report's document fields, with defaults for any not set. The
+    document's title is the report's name."""
     fields = dict(report.get("document") or {})
     return {
-        "title": fields.get("title") or report.get("name") or f"Report {report['id'][:8]}",
+        "title": report.get("name") or fields.get("title") or f"Report {report['id'][:8]}",
         "number": fields.get("number") or "",
         "revision": fields.get("revision") or "",
         "author": fields.get("author") or "",
@@ -82,19 +83,32 @@ def document_fields(report):
 def missing_fields(report):
     """Names of the document fields a formal document needs and the
     report hasn't set"""
-    fields = report.get("document") or {}
+    fields = {**(report.get("document") or {}), "title": report.get("name")}
     return [name for name in ("title", "number", "revision", "author")
             if not fields.get(name)]
 
 
 def set_document(root, report_id, **fields):
-    """Set some of the report's document fields. A frozen report can't
-    change."""
+    """Set some of the report's document fields; a title renames the
+    report. A frozen report can't change."""
     report = store.load_report(root, report_id)
     if store.is_frozen(report):
         raise ExportError("The report is frozen: reopen it to change it")
+    if "title" in fields:
+        rename(root, report_id, fields.pop("title"))
     document = {**(report.get("document") or {}), **fields}
+    document.pop("title", None)  # older reports kept a title of their own
     return store.update_report(root, report_id, document=document)
+
+
+def rename(root, report_id, name):
+    """Change the report's name, which is its document's title too"""
+    name = " ".join((name or "").split())
+    if not name:
+        raise ExportError("A report needs a name")
+    if store.is_frozen(store.load_report(root, report_id)):
+        raise ExportError("The report is frozen: reopen it to rename it")
+    return store.update_report(root, report_id, name=name)
 
 
 def parse_documents(text, kind):

@@ -4,12 +4,9 @@
 
 {% block content %}
 {{ ui.page_header("Document", crumbs=[("Reports", url_for('reports.index')), (report.name or report.id[:8], url_for('reports.report', report_id=report.id)), ("Document", None)],
-                  subtitle="What the exported PDF says about itself: its title page, who signs it, and the documents it refers to.") }}
+                  subtitle="What the exported PDF says about itself: its title page, who signs it, and the documents it refers to. Its title is the report's name.") }}
 
 <form method="post" class="ui-form ui-stack" style="max-width: 640px;">
-  {% call ui.field("Title", "doc-title") %}
-    {{ ui.input("title", fields.title, id="doc-title", required=True) }}
-  {% endcall %}
   {% call ui.field("Document number", "doc-number") %}
     {{ ui.input("number", fields.number, id="doc-number", mono=True) }}
   {% endcall %}

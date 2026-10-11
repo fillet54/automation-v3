@@ -1,0 +1,38 @@
+{% extends "reports/page.html" %}
+
+{% macro refs_table(refs) -%}
+<div class="report-refs">
+{% call ui.table(["Path", "Operations", "Requirements", "Scripts"], dense=True) %}
+  {% for c in refs %}
+  <tr style="vertical-align: top;"{% if "fix" in c.operations %} class="report-fixed"{% endif %}>
+    <td>{{ ui.ident(c.path) }}{% if c.type %} <span class="ui-text-caption">{{ c.type }}</span>{% endif %}</td>
+    <td><div class="report-chips">{% for op in c.operations %}{{ ui.badge(op, "warning" if op == "fix" else "neutral", outline=op == "read") }}{% endfor %}</div></td>
+    <td><div class="report-chips">{% for r in c.requirements %}{{ ui.ident(r) }}{% else %}<span class="ui-muted">—</span>{% endfor %}</div></td>
+    <td><ul class="ui-plain-list">{% for s in c.scripts %}<li class="ui-mono">{{ s }}</li>{% endfor %}</ul></td>
+  </tr>
+  {% endfor %}
+{% endcall %}
+</div>
+{%- endmacro %}
+
+{% block page %}
+{% if not connectors %}
+{{ ui.empty("The latest runs read or wrote no values through connectors.") }}
+{% else %}
+{% set fixed = [] %}
+{% for c in connectors %}{% for r in c.refs if "fix" in r.operations %}{% set _ = fixed.append(r) %}{% endfor %}{% endfor %}
+{% if fixed %}
+{% call ui.section("Fixed values", subtitle="Values a run held fixed: what it tested was not the unit's own reading") %}
+{{ refs_table(fixed) }}
+{% endcall %}
+{% endif %}
+
+{% for c in connectors %}
+<section id="{{ c.anchor }}" class="report-connector">
+{% call ui.section(c.name, subtitle=(c.refs | length) ~ " value" ~ ("" if c.refs | length == 1 else "s") ~ (", " ~ c.fixed ~ " fixed" if c.fixed else "")) %}
+{{ refs_table(c.refs) }}
+{% endcall %}
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}

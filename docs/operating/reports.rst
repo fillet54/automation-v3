@@ -61,6 +61,61 @@ every script linked to it:
 Linked scripts that weren't added, and variations that were left out, count
 as not run, so a requirement is only green when its whole coverage passed.
 
+Reading a report
+----------------
+
+A report's pages share a navigation column on the left:
+
+**Overview**
+   The summary, each subsystem's state, every open issue (a combination
+   whose latest run didn't pass) with why, and the report's document.
+
+**Runs**
+   Every tracked requirement, grouped by its subsystem: its text and state,
+   and a row per script, environment and variation with the outcome,
+   attempts and duration. A row that didn't pass says why underneath: the
+   step that failed and its message, steps still to be written, or not run.
+
+   In the navigation, Runs opens into a tree of subsystems, their
+   requirements, and the tests run for each, by their titles. Scripts added
+   on their own, without a requirement, are under **Other tests**. Each entry
+   has a dot for how it stands:
+
+   .. list-table::
+      :widths: 20 80
+
+      * - green
+        - passed
+      * - red
+        - failed, or ended in an error
+      * - amber
+        - partial: incomplete, steps to be written, blocked
+      * - hollow
+        - not run yet
+      * - pulsing
+        - running
+
+   A subsystem or requirement also shows how many of its entries have
+   issues. Branches with issues start open; **Issues only** hides the rest.
+   The navigation remembers what you open and close.
+
+   Clicking a subsystem shows only its requirements; a requirement also
+   scrolls to it, and a test to its rows. The address follows, e.g.
+   ``/reports/<id>/runs?subsystem=EPS#req-VM-EPS-002``, so it can be shared,
+   and back and forward work.
+
+**Values touched**
+   The values the latest runs read, set or fixed through connectors, grouped
+   by connector (e.g. ``vm.eps``), with every fixed value listed first.
+
+**History**
+   What was added to the report, every combination's latest and earlier
+   runs, and scripts that couldn't be added.
+
+While runs are in progress, the page and its navigation refresh every few
+seconds. Rename a report with the pencil beside its title; its name is the
+title of its exported document too.
+
 Reading a run
 -------------
 
@@ -105,12 +160,12 @@ export **freezes** the report and writes ``report-<id>.zip``:
 ``report.rst`` and ``report.tex``
    The generated body and the whole document, to rebuild the PDF.
 
-Before exporting, fill in the report's **Document** (on the report page,
-**Edit…**): its title, number, revision and author, who signs for each role
+Before exporting, fill in the report's **Document** (on the Overview,
+**Edit…**): its number, revision and author, who signs for each role
 on the signature page, and its applicable and reference documents, one per
 line as ``NUMBER | REVISION | TITLE``. Requirement texts are copied into the
 report when requirements are added, so the PDF quotes what was tested
-against.
+against. The document's title is the report's name.
 
 **Freeze & export** needs every run to have finished. A frozen report takes
 no more runs: its add buttons and **Rerun** are gone, and the report can't

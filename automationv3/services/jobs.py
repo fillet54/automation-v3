@@ -113,11 +113,21 @@ def check_open(root, report_id):
         raise QueueError(["The report is frozen: reopen it to add runs"])
 
 
+def known_requirements(conn, ids):
+    found = (requirement_models.find_by_id(conn, id) for id in ids)
+    return [r for r in found if r is not None]
+
+
 def requirement_texts(conn, ids):
     """id -> text of the requirements the database knows, to keep in a
     report so its document quotes what was tested against"""
-    found = (requirement_models.find_by_id(conn, id) for id in ids)
-    return {r.id: r.text for r in found if r is not None}
+    return {r.id: r.text for r in known_requirements(conn, ids)}
+
+
+def requirement_subsystems(conn, ids):
+    """id -> subsystem of the requirements the database knows, to keep in
+    a report so its pages can group them"""
+    return {r.id: r.subsystem for r in known_requirements(conn, ids) if r.subsystem}
 
 
 def closure_hash(files, load_order):
@@ -157,6 +167,8 @@ def add_plan(conn, root, report_id, plan, requirements=None):
         requirements={**report.get("requirements", {}), **(requirements or {})},
         requirement_texts={**report.get("requirement_texts", {}),
                            **requirement_texts(conn, requirements or {})},
+        requirement_subsystems={**report.get("requirement_subsystems", {}),
+                                **requirement_subsystems(conn, requirements or {})},
         scripts=merge_scripts(report.get("scripts", []), summary["scripts"]),
         additions=[*report.get("additions", []), {
             "added": store.now_iso(),

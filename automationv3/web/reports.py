@@ -22,6 +22,7 @@ from ..services.reports import export, rollup, store
 from ..services.workspace import find_worktrees
 from .db import get_db
 from .grouping import STATE_ORDER, group, statement_item
+from . import report_view
 
 reports = Blueprint("reports", __name__)
 
@@ -326,48 +327,70 @@ def version_mix(report, runs):
     return mix
 
 
+PAGES = ("overview", "runs", "values", "history")
+
+
 @reports.route("/<report_id>", methods=["GET"])
 def report(report_id):
     if report_id == models.SCRATCH:
         return redirect(url_for("scratch.index"))
-    return render_report(report_id)
+    return render_page(report_id, "overview")
 
 
-def render_report(report_id, errors=(), status=200):
+@reports.route("/<report_id>/<any(runs, values, history):page>", methods=["GET"])
+def report_page(report_id, page):
+    return render_page(report_id, page)
+
+
+def render_page(report_id, page, errors=(), status=200):
+    """One page of a report: its overview, its runs by subsystem and
+    requirement, the values its runs touched, or its history"""
     report = store.load_report(root(), report_id) or abort(404)
     runs = store.list_runs(root(), report_id)
     for run in runs:
         run["status"] = run_status(run)
 
-    rows = rollup.combinations(report, runs, lambda run: run["status"])
-    requirements = rollup.requirement_rollup(report, rows)
-    touched = rollup.ref_rollup(
-        report, rows, lambda run: store.read_events(root(), report_id, run["id"]))
-    texts = {**models.requirement_texts(get_db(), [r["id"] for r in requirements]),
-             **(report.get("requirement_texts") or {})}
-    skipped = [
-        s for s in report.get("scripts", []) if isinstance(s, dict) and s["skipped"]
-    ]
-    in_progress = any(run.get("outcome") is None for run in runs)
+    def lookup(ids):
+        return {r.id: (r.text, r.subsystem)
+                for r in models.known_requirements(get_db(), ids)}
 
-    template = "reports/report.html"
-    if request.headers.get("HX-Request"):
-        template = "reports/partials/report_body.html"
-    return render_template(
-        template,
+    view = report_view.build(root(), report, runs, lambda run: run["status"], lookup)
+    context = dict(
+        page=page,
         report=report,
-        rows=rows,
-        requirements=requirements,
-        touched=touched,
-        texts=texts,
-        skipped=skipped,
-        in_progress=in_progress,
+        view=view,
+        rows=view["rows"],
+        subsystem=request.args.get("subsystem"),
+        skipped=[s for s in report.get("scripts", [])
+                 if isinstance(s, dict) and s["skipped"]],
+        in_progress=any(run.get("outcome") is None for run in runs),
         mix=version_mix(report, runs),
         document=export.document_fields(report),
         missing=export.missing_fields(report),
         bundles=[p.name for p in export.exports(root(), report_id)],
         errors=list(errors),
-    ), status
+        connectors=None,
+    )
+    if page == "values":
+        touched = rollup.ref_rollup(
+            report, view["rows"],
+            lambda run: store.read_events(root(), report_id, run["id"]))
+        context["connectors"] = report_view.connectors(touched)
+    return render_template(f"reports/{page}.html", **context), status
+
+
+@reports.route("/<report_id>/rename", methods=["POST"])
+def rename(report_id):
+    """Rename the report: its name is its document's title too"""
+    store.load_report(root(), report_id) or abort(404)
+    try:
+        export.rename(root(), report_id, request.form.get("name", ""))
+    except export.ExportError as e:
+        return render_page(report_id, "overview", [str(e)], 409)
+    target = request.form.get("next", "")
+    if not target.startswith("/") or target.startswith("//"):  # only back to this site
+        target = url_for("reports.report", report_id=report_id)
+    return redirect(target)
 
 
 def report_template(report):
@@ -383,8 +406,9 @@ def report_template(report):
 
 @reports.route("/<report_id>/document", methods=["GET", "POST"])
 def document(report_id):
-    """Edit the report's document fields: title, number, revision and
-    author, who signs it, and its applicable and reference documents"""
+    """Edit the report's document fields: number, revision and author,
+    who signs it, and its applicable and reference documents (its title
+    is the report's name)"""
     report = store.load_report(root(), report_id) or abort(404)
     if store.is_frozen(report):
         return redirect(url_for("reports.report", report_id=report_id))
@@ -396,7 +420,7 @@ def document(report_id):
         export.set_document(
             root(), report_id,
             **{name: form.get(name, "").strip()
-               for name in ("title", "number", "revision", "author")},
+               for name in ("number", "revision", "author")},
             signatures={role: form.get(f"sign-{n}", "").strip()
                         for n, role in enumerate(roles) if form.get(f"sign-{n}", "").strip()},
             documents=[*export.parse_documents(form.get("applicable", ""), "applicable"),
@@ -418,7 +442,7 @@ def export_report(report_id):
                       requirement_texts=models.requirement_texts(
                           get_db(), report.get("requirements", {})))
     except export.ExportError as e:
-        return render_report(report_id, [str(e)], 409)
+        return render_page(report_id, "overview", [str(e)], 409)
     return redirect(url_for("reports.report", report_id=report_id))
 
 
@@ -473,5 +497,5 @@ def rerun(report_id, run_id):
     except models.Drift as drift:
         return render_template("reports/drift.html", run=run, drift=drift), 409
     except models.QueueError as e:
-        return render_report(report_id, e.errors, 409)
+        return render_page(report_id, "overview", e.errors, 409)
     return redirect(url_for("reports.run", report_id=report_id, run_id=new_id))

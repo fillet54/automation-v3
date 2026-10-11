@@ -1,0 +1,27 @@
+{#- A report page: the report's navigation on the side, its header, and the page in `page`. While runs are in
+    progress the page and the navigation refresh every few seconds (static/js/report.js keeps the filter and
+    what's expanded). #}
+{% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% set browse = True %}
+{% block title %}{{ report.name or ("Report " ~ report.id[:8]) }}{% endblock %}
+
+{% block side %}{% include "reports/partials/nav.html" %}{% endblock %}
+
+{% block content %}
+<div id="report-main" class="ui-stack ui-gap-large" data-page="{{ page }}"
+     {% if in_progress %}hx-get="{{ request.full_path }}" hx-trigger="every 3s" hx-select="#report-main"
+     hx-swap="outerHTML" hx-select-oob="#report-nav"{% endif %}>
+  {% include "reports/partials/header.html" %}
+  {% if errors %}
+  {% call ui.alert("danger", title="Can't do that") %}
+    <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endcall %}
+  {% endif %}
+  {% block page %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/report.js') }}"></script>
+{% endblock %}

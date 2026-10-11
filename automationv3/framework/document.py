@@ -305,3 +305,18 @@ def table_block(parts, index):
 def definitions_section(parts):
     """Indexes of the parts in rvt blocks marked :definitions:"""
     return [i for i, part in enumerate(parts) if "definitions" in part.options]
+
+
+HEADING_LINE = re.compile(r"^([=\-~`#\"^+*:.'_])\1+\s*$")
+
+
+def document_title(text):
+    """The document's first section title (a line underlined, and maybe
+    overlined, with punctuation as long as it), or None"""
+    lines = text.splitlines()
+    for i in range(len(lines) - 1):
+        title, under = lines[i].strip(), lines[i + 1].rstrip()
+        if (title and not HEADING_LINE.match(lines[i]) and HEADING_LINE.match(under)
+                and len(under) >= len(title)):
+            return title
+    return None

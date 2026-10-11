@@ -1,0 +1,49 @@
+{% extends "reports/page.html" %}
+
+{% block page %}
+{% if not rows and not report.additions %}
+{{ ui.empty("Nothing added yet.") }}
+{% endif %}
+
+{% if report.additions %}
+{% call ui.section("Additions", subtitle="What was added to the report, oldest first") %}
+{% call ui.table(["Added", "Requirements", "Tests", "UUT versions", {"label": "Runs", "align": "end"}]) %}
+  {% for a in report.additions %}
+  <tr style="vertical-align: top;">
+    <td>{{ ui.timestamp(a.added) }}</td>
+    <td>{% for r in a.requirements %}{{ ui.ident(r) }} {% else %}<span class="ui-muted">—</span>{% endfor %}</td>
+    <td>{% for s in a.scripts %}{{ ui.ident(s, plain=True) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td class="ui-mono">{% for uut, v in a.uut_versions.items() %}{{ uut }} {{ v.id }}{% if report.uut_versions and report.uut_versions[uut] and report.uut_versions[uut].id != v.id %} {{ ui.badge("override", "warning", outline=True) }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td class="ui-end ui-number">{{ a.runs }}</td>
+  </tr>
+  {% endfor %}
+{% endcall %}
+{% endcall %}
+{% endif %}
+
+{% if rows %}
+{% call ui.section("Every run", subtitle="Each combination's latest run, and the earlier runs it replaced") %}
+{% call ui.table(["Script", "Environment", "Variation", "Latest", "Earlier"]) %}
+  {% for row in rows %}
+  <tr>
+    <td>{% if row.latest %}{{ ui.ident(row.script, url_for('reports.run', report_id=report.id, run_id=row.latest.id), plain=True) }}{% else %}{{ ui.ident(row.script, plain=True) }}{% endif %}</td>
+    <td>{% if row.environment %}{{ ui.ident(row.environment) }}{% endif %}</td>
+    <td>{% if row.variation %}<span class="ui-mono">{{ row.variation }}</span>{% endif %}</td>
+    <td>{% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}" style="text-decoration: none;">{{ ui.outcome(row.state) }}</a>{% else %}{{ ui.outcome(row.state) }}{% endif %}</td>
+    <td>
+      {%- for run in row.earlier %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=run.id) }}">{{ run.status }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    </td>
+  </tr>
+  {% endfor %}
+{% endcall %}
+{% endcall %}
+{% endif %}
+
+{% if skipped %}
+{% call ui.section("Skipped", subtitle="Scripts an addition named but couldn't run") %}
+{% call ui.table(["Script", "Why"]) %}
+  {% for s in skipped %}<tr><td>{{ ui.ident(s.script, plain=True) }}</td><td>{{ s.skipped }}</td></tr>{% endfor %}
+{% endcall %}
+{% endcall %}
+{% endif %}
+{% endblock %}
