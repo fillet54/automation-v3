@@ -72,3 +72,25 @@ class TestLispHelpers(unittest.TestCase):
         for expression in ['(get {})', '(get-in)', '(nth [])', '(reduce +)', '(filter +)']:
             with self.subTest(expression=expression):
                 self.assertTrue(check(rvt('(Verify ' + expression + ')'), core='')[0])
+
+    def test_get_takes_set_members(self):
+        self.assertEqual(run('(vector (get #{1 2} 1) (get #{1 2} 3) (get #{1 2} 3 :missing))'),
+                         [1, None, edn.Keyword("missing")])
+
+    def test_sequence_functions_are_eager_vectors(self):
+        for expression, expected in [('(map (fn [x] (* x 2)) [1 2 3])', [2, 4, 6]),
+                                     ('(map + [1 2 3] [10 20])', [11, 22]),
+                                     ('(take 2 [1 2 3])', [1, 2]),
+                                     ('(take 5 [1 2])', [1, 2]),
+                                     ('(take 3 (cycle [1 2]))', [1, 2, 1]),
+                                     ('(rest [1 2 3])', [2, 3]),
+                                     ('(rest [])', []),
+                                     ('(cons 0 [1 2])', [0, 1, 2]),
+                                     ('(partition 2 [1 2 3 4 5])', [[1, 2], [3, 4]]),
+                                     ('(map (fn [x] x) nil)', [])]:
+            with self.subTest(expression=expression):
+                result = run(expression)
+                self.assertEqual(result, expected)
+                self.assertIsInstance(result, edn.Vector)
+        self.assertEqual(run('(def xs (map (fn [x] x) [1 2])) (vector (count xs) (count xs))'),
+                         [2, 2])

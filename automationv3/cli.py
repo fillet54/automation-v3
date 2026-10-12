@@ -101,6 +101,12 @@ from docopt import docopt
 
 def main(argv=None):
     args = docopt(__doc__, argv=argv, version=__version__)
+    # A broken plugin is reported here, once, rather than by every script
+    from .framework.plugins import PluginLoadError, load_plugins
+    try:
+        load_plugins()
+    except PluginLoadError as e:
+        sys.exit(f"{e}\nFix or uninstall the plugin, then start again.")
     if args["run"]:
         sys.exit(run(args))
     if args["report"]:

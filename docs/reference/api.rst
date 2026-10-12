@@ -19,7 +19,7 @@ Plugin functions
 ----------------
 
 .. automodule:: automationv3.framework.plugins
-   :members: PluginRegistry, LispFunction, registered_functions, load_plugins
+   :members: PluginRegistry, LispFunction, PluginLoadError, registered_functions, load_plugins
 
 The running script
 ------------------

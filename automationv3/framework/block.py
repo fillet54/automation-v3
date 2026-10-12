@@ -94,7 +94,7 @@ class BuildingBlock:
     require_unique = False
     # True (set on the class itself, not inherited): this block only
     # documents a name for plugins to implement, and is never called
-    abstract = True
+    abstract = False
 
     def name(self):
         """The name scripts call the block by"""
@@ -276,7 +276,10 @@ def all_blocks():
 
 
 def is_abstract(block):
-    return type(block).__dict__.get("abstract", False)
+    """Whether a block (or block class) only documents a name: BuildingBlock
+    itself, or a class that sets `abstract` on itself"""
+    cls = block if isinstance(block, type) else type(block)
+    return cls is BuildingBlock or cls.__dict__.get("abstract", False)
 
 
 def block_names():

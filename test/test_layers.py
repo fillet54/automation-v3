@@ -48,7 +48,9 @@ def imported_modules(path):
 class TestLayers(unittest.TestCase):
     def test_framework_blocks_are_abstract(self):
         from automationv3.framework.block import BuildingBlock, all_blocks, is_abstract
-        self.assertTrue(BuildingBlock.abstract)
+        self.assertFalse(BuildingBlock.abstract)
+        self.assertTrue(is_abstract(BuildingBlock))
+        self.assertFalse(is_abstract(type("Plain", (), {})))
         concrete = [type(b).__name__ for b in all_blocks()
                     if type(b).__module__.startswith("automationv3.framework.")
                     and not is_abstract(b)]

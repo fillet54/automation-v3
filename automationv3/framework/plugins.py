@@ -10,6 +10,7 @@ import importlib
 import inspect
 import pkgutil
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib.metadata import entry_points
 
@@ -30,9 +31,19 @@ class LispFunction:
         return inspect.getdoc(self.function) or ""
 
 
+class PluginLoadError(RuntimeError):
+    """A plugin could not be loaded; `plugin` names it (None when loaded
+    plugins conflict with each other)"""
+
+    def __init__(self, plugin, message):
+        super().__init__(message)
+        self.plugin = plugin
+
+
 _functions = {}
 _loaded = False
 _loading = False
+_error = None  # the PluginLoadError of a failed load, raised again when asked
 _lock = threading.RLock()
 
 # Execution forms may register later, when steps.py is imported.
@@ -95,9 +106,17 @@ def load_plugins():
     An installed entry point can name a module with register(registry), or
     the registration function itself. Imports are deferred until discovery
     or execution so abstract contracts can be imported without cycles.
+
+    A plugin that fails stops the load with a PluginLoadError naming it,
+    and no plugin's functions are kept. The failure is remembered: asking
+    again raises the same error rather than loading again, so the program
+    reports it once at startup (see cli.main) and has to be restarted
+    once the plugin is fixed.
     """
-    global _loaded, _loading
+    global _loaded, _loading, _error
     with _lock:
+        if _error is not None:
+            raise _error
         if _loaded or _loading:
             return
         _loading = True
@@ -107,30 +126,43 @@ def load_plugins():
                              automationv3.plugins.__name__ + "."),
                              key=lambda m: (m.name != "automationv3.plugins.core", m.name))
             for module in modules:
-                plugin = importlib.import_module(module.name)
-                register = getattr(plugin, "register", None)
-                if register is not None:
-                    register(PluginRegistry(module.name))
+                with _loading_plugin(module.name):
+                    plugin = importlib.import_module(module.name)
+                    register = getattr(plugin, "register", None)
+                    if register is not None:
+                        register(PluginRegistry(module.name))
             for entry in sorted(entry_points(group="automationv3.plugins"),
                                 key=lambda e: e.name):
-                plugin = entry.load()
-                register = plugin if callable(plugin) else getattr(plugin, "register", None)
-                if register is None:
-                    raise TypeError(f"Plugin {entry.name} needs register(registry)")
-                register(PluginRegistry(entry.name))
+                with _loading_plugin(entry.name):
+                    plugin = entry.load()
+                    register = plugin if callable(plugin) else \
+                        getattr(plugin, "register", None)
+                    if register is None:
+                        raise TypeError("it needs register(registry)")
+                    register(PluginRegistry(entry.name))
             # A plugin loaded later may introduce a block with an earlier
             # function's name. Check the completed set as well.
             from .block import block_names
             conflicts = set(_functions) & block_names()
             if conflicts:
-                raise ValueError("Lisp functions conflict with blocks: "
-                                 + ", ".join(sorted(conflicts)))
+                raise PluginLoadError(None, "Lisp functions conflict with blocks: "
+                                      + ", ".join(sorted(conflicts)))
             _loaded = True
-        except Exception:
+        except PluginLoadError as e:
             _functions.clear()
             _functions.update(before_functions)
             lisp.global_env.clear()
             lisp.global_env.update(before_env)
+            _error = e
             raise
         finally:
             _loading = False
+
+
+@contextmanager
+def _loading_plugin(name):
+    try:
+        yield
+    except Exception as e:
+        raise PluginLoadError(
+            name, f"Plugin {name} failed to load: {type(e).__name__}: {e}") from e

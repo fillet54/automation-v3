@@ -108,12 +108,40 @@ class TestPluginFunctions(unittest.TestCase):
             registry.function("external/temporary", lambda: 1)
             raise RuntimeError("broken plugin")
         entry = SimpleNamespace(name="broken-plugin", load=lambda: register)
-        with patch.object(plugins, "_loaded", False), \
-                patch.object(plugins, "entry_points", return_value=[entry]):
-            with self.assertRaisesRegex(RuntimeError, "broken plugin"):
+        with patch.object(plugins, "_loaded", False), patch.object(plugins, "_error", None), \
+                patch.object(plugins, "entry_points", return_value=[entry]) as discover:
+            with self.assertRaisesRegex(
+                    plugins.PluginLoadError,
+                    "Plugin broken-plugin failed to load: RuntimeError: broken plugin") as raised:
                 plugins.load_plugins()
+            self.assertEqual(raised.exception.plugin, "broken-plugin")
+            self.assertIsInstance(raised.exception.__cause__, RuntimeError)
             self.assertNotIn("external/temporary", lisp.global_env)
             self.assertNotIn("external/temporary", plugins._functions)
+            # Remembered: every later use reports it, without loading again
+            with self.assertRaises(plugins.PluginLoadError) as again:
+                lisp.eval(edn.read("(+ 1 2)"), lisp.Env(outer=lisp.global_env))
+            self.assertIs(again.exception, raised.exception)
+            discover.assert_called_once()
+
+    def test_an_entry_point_without_a_register_hook_names_the_plugin(self):
+        entry = SimpleNamespace(name="hookless", load=lambda: SimpleNamespace())
+        with patch.object(plugins, "_loaded", False), patch.object(plugins, "_error", None), \
+                patch.object(plugins, "entry_points", return_value=[entry]):
+            with self.assertRaisesRegex(plugins.PluginLoadError,
+                                        "Plugin hookless failed to load: .*register"):
+                plugins.load_plugins()
+
+    def test_startup_reports_a_broken_plugin_and_exits(self):
+        from automationv3 import cli
+        error = plugins.PluginLoadError("broken-plugin", "Plugin broken-plugin failed to load: "
+                                                         "RuntimeError: broken plugin")
+        with patch.object(plugins, "_error", error), \
+                patch.object(cli, "start_server") as start, \
+                self.assertRaises(SystemExit) as exit:
+            cli.main(["server"])
+        self.assertIn("Plugin broken-plugin failed to load", str(exit.exception.code))
+        start.assert_not_called()
 
     def test_static_analysis_loads_plugin_defaults_in_a_fresh_process(self):
         with tempfile.TemporaryDirectory() as folder:

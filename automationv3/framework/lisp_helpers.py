@@ -1,9 +1,13 @@
 """Collection functions for the default script Lisp.
 
-Collection-producing helpers return EDN vectors, so they can be counted,
-read repeatedly and written in reports. get/contains? use keys for maps
-and nonnegative indexes for sequences; nth also accepts iterators.
+Collection-producing helpers are eager: they return EDN vectors, so
+results can be counted, read repeatedly and written in reports. The one
+lazy value is cycle's endless iterator, which take bounds. get/contains?
+use keys for maps, members for sets and nonnegative indexes for
+sequences; nth also accepts iterators.
 """
+
+from itertools import islice
 
 from .edn import Symbol, Vector
 
@@ -19,14 +23,17 @@ def _index(value):
 
 
 def get(collection, key, default=None):
-    """A map's key or a sequence's index; default (nil) when missing."""
+    """A map's key, a set's member or a sequence's index; default (nil)
+    when missing."""
     if collection is None:
         return default
     if isinstance(collection, dict):
         return collection.get(key, default)
+    if isinstance(collection, (set, frozenset)):
+        return key if key in collection else default
     if _sequence(collection):
         return collection[key] if _index(key) and key < len(collection) else default
-    raise TypeError("get takes a map, sequence or nil")
+    raise TypeError("get takes a map, set, sequence or nil")
 
 
 def get_in(collection, path, default=None):
@@ -59,7 +66,7 @@ def contains(collection, key):
     """Whether a map/set has a key, or a sequence has an index (not a value)."""
     if collection is None:
         return False
-    if isinstance(collection, (dict, set)):
+    if isinstance(collection, (dict, set, frozenset)):
         return key in collection
     if _sequence(collection):
         return _index(key) and key < len(collection)
@@ -94,6 +101,22 @@ def vec(collection):
     return Vector(() if collection is None else collection)
 
 
+def map_values(function, *collections):
+    """Call function with each item (or the items side by side, for several
+    collections, up to the shortest), as an EDN vector."""
+    return Vector(map(function, *(() if c is None else c for c in collections)))
+
+
+def take(n, collection):
+    """The first n items (all of them, if there are fewer), as an EDN vector."""
+    return Vector(islice(() if collection is None else collection, max(n, 0)))
+
+
+def rest(collection):
+    """Every item after the first, as an EDN vector."""
+    return Vector(islice(() if collection is None else collection, 1, None))
+
+
 def filter_values(predicate, collection):
     """Keep items for which predicate returns a truthy value, as an EDN vector."""
     return Vector(value for value in (() if collection is None else collection)
@@ -124,4 +147,5 @@ def reduce_values(function, initial_or_collection, collection=_MISSING):
 def functions():
     return {"get": get, "get-in": get_in, "nth": nth, "contains?": contains,
             "keys": keys, "vals": vals, "vector": vector, "vec": vec,
+            "map": map_values, "take": take, "rest": rest,
             "filter": filter_values, "reduce": reduce_values}

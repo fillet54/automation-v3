@@ -113,6 +113,11 @@ Sequences
    ``take``, ``cycle``, ``range``, ``partition``, ``apply``, ``nth``,
    ``vector``, ``vec``, ``filter``, ``reduce``.
 
+   These are eager: ``map``, ``filter``, ``take``, ``rest``, ``cons``,
+   ``partition``, ``vec`` and ``range`` return EDN vectors, which can be counted, indexed
+   and read more than once. ``cycle`` alone is endless; bound it with
+   ``take`` before passing it to anything else.
+
    ``(range end)``, ``(range start end)`` and ``(range start end step)``
    return a finite EDN vector of integers, excluding ``end``. The default
    start is 0 and step is 1; negative steps are allowed, zero is an error.
@@ -121,7 +126,8 @@ Sequences
 
 Maps
    ``assoc``, ``dissoc`` (both return copies), ``get``, ``get-in``,
-   ``contains?``, ``keys``, ``vals``.
+   ``contains?``, ``keys``, ``vals``. ``get`` takes a map's key, a set's
+   member or a sequence's index, and gives nil (or a default) when missing.
 
 Predicates
    ``nil?``, ``some?``, ``number?``, ``symbol?``, ``list?``,
