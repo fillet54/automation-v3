@@ -18,18 +18,23 @@ Title the blocks
 ----------------
 
 An ``rvt`` block can take a title. A titled block collapses its forms behind
-the title, so the page reads as a list of named steps:
+the title, so the page reads as a list of named steps. The titles are the
+procedure, so they can come first, with ``(TBD)`` standing in for steps not
+written yet (see :doc:`planning`):
 
 .. code-block:: rst
 
-   .. rvt:: Apply the variation's pressure and check it is safe
+   .. rvt:: Apply the variation's brake pressure
 
-      (set-reading :brake-pressure pressure)
-      (brake-pressure-ok? (reading :brake-pressure))
+      (TBD)
 
-Expanding the title shows the forms. On a run page the title carries the
-block's overall result and duration. Untitled blocks show their steps at the
-top level, as before.
+   .. rvt:: Verify the brake pressure stays within the safe limit
+
+      (TBD)
+
+When a step is written, its block keeps the title. Expanding the title shows
+the forms. On a run page the title carries the block's overall result and
+duration. Untitled blocks show their steps at the top level, as before.
 
 Describe heals
 --------------
