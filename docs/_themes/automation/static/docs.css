@@ -1,0 +1,224 @@
+/* The docs as a page of the web UI.
+ *
+ * The shell (header, side column, crumbs, search box) is the site's own: ui.css, copied from
+ * automationv3/web/static/css by conf.py, so there is one set of tokens and the docs follow the site's look,
+ * light and dark included. This file only sets the documentation's prose: what Sphinx writes into the page,
+ * in the same "research notebook" style (serif headings, thin rules, one accent).
+ */
+
+@import url("basic.css");
+@import url("ui.css");
+
+/* ------------------------------------------------------------------ the side column: search and contents */
+
+.ui-docs__browse { --ui-side: 280px; }
+.ui-docs__search .ui-search { --ui-search-w: 100%; }
+.ui-docs__search .ui-search input::-webkit-search-cancel-button { display: none; }
+
+.ui-docs__toc { display: flex; flex-direction: column; font-size: 13px; }
+.ui-docs__toc ul { margin: 0; padding: 0; list-style: none; }
+.ui-docs__toc p.caption {
+  margin: 18px 0 4px; padding: 0 8px;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted);
+}
+.ui .ui-docs__toc a {
+  display: block; padding: 4px 8px; border-radius: var(--ui-radius);
+  color: var(--ui-ink); text-decoration: none;
+}
+.ui .ui-docs__toc a:hover { background: var(--ui-soft); }
+/* the current page, as the site marks the current item of a side list */
+.ui .ui-docs__toc a.current, .ui .ui-docs__toc a[aria-current="page"] {
+  background: color-mix(in srgb, var(--ui-accent) 10%, var(--ui-paper));
+  color: var(--ui-accent); box-shadow: inset 2px 0 0 var(--ui-accent); font-weight: 500;
+}
+/* the current page's sections, under a rule */
+.ui-docs__toc li > ul { margin: 2px 0 6px 12px; padding-left: 4px; border-left: 1px solid var(--ui-rule); }
+.ui .ui-docs__toc li > ul a { padding: 3px 8px; color: var(--ui-muted); font-size: 12.5px; }
+.ui .ui-docs__toc li > ul a:hover { color: var(--ui-ink); }
+
+/* on a narrow screen the page comes first, then the contents */
+@media (max-width: 900px) {
+  .ui-docs__side { order: 2; padding-top: 24px; border-top: 1px solid var(--ui-rule); }
+}
+
+/* ------------------------------------------------------------------ the page */
+
+.ui-docs__page { --ui-gap: 8px; }
+.ui-doc { max-width: 780px; font-size: 15px; line-height: 1.65; }
+div.body.ui-doc { min-width: 0; max-width: 780px; }
+
+.ui .ui-doc h1, .ui .ui-doc h2, .ui .ui-doc h3, .ui .ui-doc h4, .ui .ui-doc h5, .ui .ui-doc h6 {
+  font-family: var(--ui-font-heading); font-weight: 400; letter-spacing: -0.01em; line-height: 1.25; color: var(--ui-ink);
+}
+.ui .ui-doc h1 { font-size: clamp(28px, 3.2vw, 38px); line-height: 1.15; letter-spacing: -0.6px; margin: 0 0 18px; }
+.ui .ui-doc h2 { font-size: 26px; margin: 40px 0 12px; padding-top: 16px; border-top: 1px solid var(--ui-rule); }
+.ui .ui-doc h3 { font-size: 20px; margin: 28px 0 10px; }
+.ui .ui-doc h4 { font-size: 17px; font-weight: 500; margin: 22px 0 8px; }
+.ui .ui-doc h5, .ui .ui-doc h6 { font: 600 13px var(--ui-font-body); margin: 18px 0 6px; }
+.ui-doc :is(h1, h2, h3, h4, h5, h6, dt) { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
+
+.ui .ui-doc p { margin: 0 0 14px; }
+.ui-doc ul, .ui-doc ol { margin: 0 0 14px; padding-left: 24px; }
+.ui-doc li { margin-bottom: 4px; }
+.ui-doc li > p { margin-bottom: 4px; }
+.ui-doc blockquote { margin: 0 0 14px 24px; }
+.ui-doc img { max-width: 100%; height: auto; }
+
+.ui-doc a.headerlink { visibility: hidden; margin-left: 6px; color: var(--ui-faint); text-decoration: none; font-size: 0.75em; }
+.ui-doc :is(h1, h2, h3, h4, h5, h6, dt):hover > a.headerlink { visibility: visible; }
+.ui .ui-doc a.headerlink:hover { color: var(--ui-accent); }
+.ui .ui-doc a.reference.internal { text-decoration-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+
+::selection { background: color-mix(in srgb, var(--ui-accent) 22%, transparent); }
+
+/* a lead paragraph under a page title */
+.ui .ui-doc p.lead, .ui-doc .lead p { font-size: 17px; color: var(--ui-muted); line-height: 1.55; }
+
+/* the contents of a section, set in the page (.. toctree:: on an index page) */
+.ui-doc .toctree-wrapper p.caption { font: 500 11px var(--ui-font-body); letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); margin: 20px 0 6px; }
+
+/* prev / next */
+.ui-docs__pager { max-width: 780px; display: flex; justify-content: space-between; gap: 16px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--ui-rule); }
+.ui .ui-docs__pager a { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid var(--ui-rule); border-radius: var(--ui-radius); color: var(--ui-ink); text-decoration: none; max-width: 48%; }
+.ui .ui-docs__pager a:hover { background: var(--ui-soft); }
+.ui-docs__pager a > span:last-child { color: var(--ui-accent); font-weight: 500; }
+.ui-docs__next { margin-left: auto; text-align: right; }
+
+/* ------------------------------------------------------------------ code */
+
+.ui-doc code {
+  font-size: 0.86em; color: var(--ui-ink);
+  background: var(--ui-soft); border: 1px solid var(--ui-rule); border-radius: var(--ui-radius); padding: 1px 5px;
+}
+.ui-doc a code, .ui-doc code.xref { color: var(--ui-accent); font-weight: 500; }
+.ui-doc pre code, .ui-doc .highlight code { background: none; border: 0; padding: 0; }
+
+.ui-doc div[class^="highlight"], .ui-doc pre.literal-block {
+  margin: 0 0 18px; background: var(--ui-soft); border: 1px solid var(--ui-rule); border-radius: var(--ui-radius);
+}
+.ui-doc div[class^="highlight"] div[class^="highlight"] { margin: 0; border: 0; }
+.ui-doc pre, .ui-doc .highlight {
+  margin: 0; background: transparent; color: var(--ui-ink);
+  font: 12.5px/1.65 var(--ui-font-mono); overflow-x: auto;
+}
+.ui-doc pre { padding: 10px 12px; }
+.ui-doc .code-block-caption { font: 500 12px var(--ui-font-mono); color: var(--ui-muted); padding: 4px 0; }
+.ui-doc div.literal-block-wrapper { margin: 0 0 18px; }
+
+/* pygments tokens in the UI's tokens (the same mapping as web/static/css/code-highlighting.css) */
+.highlight .c, .highlight .c1, .highlight .cm, .highlight .cs, .highlight .ch, .highlight .cp, .highlight .cpf { color: var(--ui-muted); font-style: italic; }
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr, .highlight .nb, .highlight .bp, .highlight .ow { color: var(--ui-accent); font-weight: 500; }
+.highlight .kc, .highlight .ss { color: var(--ui-series-5); }
+.highlight .nf, .highlight .fm, .highlight .nc, .highlight .nd { color: var(--ui-series-2); font-weight: 500; }
+.highlight .nv, .highlight .n, .highlight .na, .highlight .nn, .highlight .nt { color: var(--ui-ink); }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb, .highlight .sc, .highlight .sd, .highlight .se, .highlight .sh, .highlight .si, .highlight .sx, .highlight .sa, .highlight .dl { color: var(--ui-series-3); }
+.highlight .m, .highlight .mi, .highlight .mf, .highlight .mh, .highlight .mo, .highlight .il { color: var(--ui-series-4); }
+.highlight .o { color: var(--ui-series-6); }
+.highlight .p { color: var(--ui-muted); }
+.highlight .gh, .highlight .gu { color: var(--ui-ink); font-weight: 600; }
+.highlight .gp { color: var(--ui-muted); user-select: none; }
+.highlight .go { color: var(--ui-muted); }
+.highlight .gd { color: var(--ui-danger); }
+.highlight .gi { color: var(--ui-success); }
+.highlight .err { color: var(--ui-danger); border: 0; }
+.highlight .hll { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+.highlight .w { color: inherit; }
+
+/* ------------------------------------------------------------------ admonitions: a ruled margin note, tinted */
+
+.ui-doc div.admonition {
+  --ui-tone: var(--ui-info);
+  margin: 0 0 18px; padding: 12px 16px;
+  background: color-mix(in srgb, var(--ui-tone) 6%, var(--ui-paper));
+  border: 0; border-left: 2px solid var(--ui-tone); border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+}
+.ui-doc div.admonition:is(.tip, .hint, .seealso) { --ui-tone: var(--ui-accent); }
+.ui-doc div.admonition.important { --ui-tone: var(--ui-review); }
+.ui-doc div.admonition:is(.warning, .caution, .attention) { --ui-tone: var(--ui-warning); }
+.ui-doc div.admonition:is(.danger, .error) { --ui-tone: var(--ui-danger); }
+.ui .ui-doc p.admonition-title {
+  margin: 0 0 6px; color: var(--ui-tone);
+  font: 600 11px var(--ui-font-body); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.ui-doc p.admonition-title::after { content: none; }
+.ui-doc div.admonition > :last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ tables: thin rules, no zebra, no boxes */
+
+.ui-doc table.docutils { margin: 0 0 18px; border: 0; border-collapse: collapse; font-size: 14px; }
+.ui-doc table.docutils th {
+  border: 0; border-bottom: 1px solid var(--ui-rule-strong); padding: 8px 12px; text-align: left;
+  font: 600 11px var(--ui-font-body); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ui-muted);
+}
+.ui-doc table.docutils td { border: 0; border-bottom: 1px solid var(--ui-rule); padding: 8px 12px; vertical-align: top; }
+.ui-doc table.docutils td > p:last-child { margin-bottom: 0; }
+.ui-doc table caption { color: var(--ui-muted); font: 500 12px var(--ui-font-body); text-align: left; padding-bottom: 6px; }
+
+/* ------------------------------------------------------------------ definition lists, glossary, fields */
+
+.ui-doc dl { margin: 0 0 14px; }
+.ui-doc dl:not(.py):not(.glossary):not(.field-list) > dt { margin-top: 14px; font-weight: 600; }
+.ui-doc dl:not(.py):not(.glossary):not(.field-list) > dd { margin: 4px 0 12px; padding-left: 16px; border-left: 1px solid var(--ui-rule); }
+.ui-doc dl.glossary dt { margin-top: 14px; font: 500 13px var(--ui-font-mono); }
+.ui-doc dl.glossary dd { margin-left: 16px; }
+.ui-doc dl.field-list > dt { font-weight: 600; }
+.ui-doc dl.field-list > dd > p:last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ API reference (autodoc) */
+
+.ui-doc dl.py { margin-bottom: 20px; }
+.ui-doc dl.py > dt {
+  padding: 6px 10px; background: var(--ui-soft); border-left: 2px solid var(--ui-accent);
+  font: 13px var(--ui-font-mono); color: var(--ui-ink);
+}
+.ui-doc dl.py dl.py > dt { background: transparent; border-left-color: var(--ui-rule-strong); }
+.ui-doc dl.py > dd { margin: 8px 0 0 24px; }
+.ui-doc dt .sig-name, .ui-doc code.descname { color: var(--ui-ink); font-weight: 600; background: none; border: 0; padding: 0; }
+.ui-doc dt .sig-prename, .ui-doc code.descclassname { color: var(--ui-muted); background: none; border: 0; padding: 0; }
+.ui-doc dt .property, .ui-doc .viewcode-link, .ui-doc .viewcode-back { color: var(--ui-muted); }
+.ui-doc dt em.sig-param, .ui-doc dt .sig-paren { font-style: normal; }
+
+/* ------------------------------------------------------------------ search and index pages */
+
+.ui-doc #search-results h2 { font-size: 20px; }
+.ui-doc ul.search { padding: 0; list-style: none; }
+.ui-doc ul.search li { padding: 10px 0; border-bottom: 1px solid var(--ui-rule); background: none; }
+.ui-doc ul.search li p.context { color: var(--ui-muted); font-size: 13px; margin: 4px 0 0; }
+.ui-doc form.search input[type="text"], .ui-doc #searchbox input[type="text"] {
+  min-height: var(--ui-control-h); padding: 0 10px; width: 320px; max-width: 100%;
+  border: 1px solid var(--ui-rule-strong); border-radius: var(--ui-radius); background: var(--ui-paper); color: var(--ui-ink);
+}
+.ui-doc form.search input[type="submit"] {
+  min-height: var(--ui-control-h); padding: 0 14px; border: 1px solid var(--ui-rule-strong); border-radius: var(--ui-radius);
+  background: var(--ui-paper); color: var(--ui-ink); font-weight: 500; cursor: pointer;
+}
+/* the words searched for, marked on the page a result opens */
+.ui span.highlighted { background: color-mix(in srgb, var(--ui-warning) 22%, transparent); color: inherit; border-radius: 2px; }
+.ui-doc #searchbox .highlight-link a { font-size: 13px; }
+.ui-doc table.indextable td { border: 0; }
+.ui-doc table.indextable tr.cap { background: none; }
+.ui-doc table.indextable tr.cap td { font: 500 17px var(--ui-font-heading); border-bottom: 1px solid var(--ui-rule); }
+
+/* ------------------------------------------------------------------ project pieces */
+
+/* status words, as the UI shows them: :status:`passed` etc. */
+.ui-status-word {
+  --ui-tone: var(--ui-muted);
+  display: inline-block; min-width: 6.75em; padding: 1px 7px; border-radius: var(--ui-radius);
+  font: 500 11px/1.45 var(--ui-font-body); color: var(--ui-tone);
+  background: color-mix(in srgb, var(--ui-tone) 10%, var(--ui-paper));
+}
+.ui-status-word--passed { --ui-tone: var(--ui-success); }
+.ui-status-word--failed, .ui-status-word--error { --ui-tone: var(--ui-danger); }
+.ui-status-word--partial, .ui-status-word--blocked { --ui-tone: var(--ui-warning); }
+.ui-status-word--to-do, .ui-status-word--incomplete { --ui-tone: var(--ui-info); }
+.ui-status-word--running, .ui-status-word--queued { --ui-tone: var(--ui-info); }
+
+/* the block reference: each block's usage leads its entry, its source closes it */
+.ui-doc div.block-usage div[class^="highlight"], .ui-doc div.highlight-clojure.block-usage { border-left: 2px solid var(--ui-accent); }
+.ui .ui-doc p.block-source { font-size: 12px; color: var(--ui-muted); }
+.ui-doc p.block-source code { background: none; border: 0; padding: 0; color: var(--ui-muted); }
+
+@media print {
+  .ui-docs__side, .ui-docs__pager, .ui-doc a.headerlink { display: none !important; }
+}

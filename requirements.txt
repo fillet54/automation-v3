@@ -7,5 +7,4 @@ schema
 requests
 
 Sphinx
-sphinx-rtd-theme
 sphinx-tabs

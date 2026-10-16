@@ -153,7 +153,6 @@ def build_docs(out):
     why) if Sphinx isn't installed or the build failed."""
     try:
         import sphinx  # noqa: F401
-        import sphinx_rtd_theme  # noqa: F401
     except ImportError:
         print("   Docs not built: install Sphinx with `pip install -e \".[docs]\"`")
         return None

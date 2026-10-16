@@ -1,4 +1,4 @@
-Automation v3
+Documentation
 =============
 
 .. rst-class:: lead
@@ -7,7 +7,7 @@ Automation v3
    hardware, and report results you can trust to have come from exactly the
    configuration they say they did.
 
-Automation v3 runs verification scripts against units under test (UUTs) in
+automation runs verification scripts against units under test (UUTs) in
 simulators and on benches, and rolls the results up against the requirements
 they verify. A script is a reStructuredText document: the prose explains the
 test, the ``rvt`` blocks hold the steps, and the web app renders it as a page a

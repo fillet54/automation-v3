@@ -1,7 +1,8 @@
 """Small additions for these docs
 
-- Pages depend on the stylesheet, so editing _static/css/notebook.css
-  rebuilds them (and copies it) rather than being skipped as up to date.
+- Pages depend on the stylesheets (the theme's docs.css and the web UI's
+  ui.css), so editing one rebuilds them (and copies it) rather than being
+  skipped as up to date.
 - :status:`passed` shows a run outcome the way the web UI badges it.
 - ``.. building-blocks::`` documents every BuildingBlock the plugins
   define, from the blocks themselves: each block's `usage()` and its
@@ -23,7 +24,9 @@ STATUSES = {"passed", "failed", "error", "partial", "blocked", "running", "queue
 
 PLUGINS = "automationv3.plugins"
 
-STYLESHEET = Path(__file__).resolve().parent.parent / "_static" / "css" / "notebook.css"
+DOCS = Path(__file__).resolve().parent.parent
+STYLESHEETS = [DOCS / "_themes" / "automation" / "static" / "docs.css",
+               DOCS.parent / "automationv3" / "web" / "static" / "css" / "ui.css"]
 
 
 def status_role(name, rawtext, text, lineno, inliner, options=None, content=()):
@@ -134,12 +137,13 @@ class BuildingBlocks(SphinxDirective):
         return node.children
 
 
-def depend_on_stylesheet(app, docname, source):
-    app.env.note_dependency(str(STYLESHEET))
+def depend_on_stylesheets(app, docname, source):
+    for stylesheet in STYLESHEETS:
+        app.env.note_dependency(str(stylesheet))
 
 
 def setup(app):
-    app.connect("source-read", depend_on_stylesheet)
+    app.connect("source-read", depend_on_stylesheets)
     app.add_role("status", status_role)
     app.add_directive("building-blocks", BuildingBlocks)
     return {"parallel_read_safe": True, "parallel_write_safe": True}

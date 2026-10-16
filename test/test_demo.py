@@ -75,10 +75,10 @@ class TestDocsLink(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
-    def client(self, docs_path):
+    def client(self, docs_path, **config):
         return create_app(DB_PATH=self.made.db_path, WORKSPACE_PATH=self.made.workspace,
                           REPORTS_PATH=self.made.reports, DOCS_PATH=docs_path,
-                          TESTING=True).test_client()
+                          TESTING=True, **config).test_client()
 
     def test_serves_the_docs_with_a_link_in_the_nav(self):
         client = self.client(self.docs)
@@ -86,6 +86,33 @@ class TestDocsLink(unittest.TestCase):
             self.assertIn(b"The docs", response.data)
         page = client.get("/requirements/").get_data(as_text=True)
         self.assertIn('href="/docs/"', page)
+
+    def test_fills_the_pages_shell_with_the_sites(self):
+        (self.docs / "page.html").write_text(
+            "<html lang=\"en\"><head><title>Steps</title><!--ui:head--><link href=\"fonts.css\"><!--/ui:head-->"
+            "</head><!--ui:top--><body><header>plain</header><!--/ui:top-->"
+            "<p>The page</p><!--ui:bottom--><!--/ui:bottom--></body></html>")
+        client = self.client(self.docs, UI_BRAND="bench", UI_THEME="dark", UI_FONTS_CSS="/fonts.css",
+                             UI_MARKING={"text": "CUI", "bg": "#502B85", "fg": "#FFFFFF"})
+        page = client.get("/docs/page.html").get_data(as_text=True)
+        self.assertIn("The page", page)
+        self.assertNotIn("plain", page)
+        self.assertIn("bench", page)
+        self.assertIn('href="/requirements/"', page)
+        self.assertRegex(page, r'href="/docs/"\s+aria-current="page"')
+        self.assertEqual(page.count("ui-marking--"), 2)
+        self.assertIn('<html data-ui-theme="dark"', page)
+        self.assertIn('href="/fonts.css"', page)
+        self.assertIn("<title>Steps · CUI</title>", page)
+
+    def test_serves_other_files_as_they_are(self):
+        (self.docs / "page.txt").write_text("<!--ui:top-->as it is<!--/ui:top-->")
+        with self.client(self.docs).get("/docs/page.txt") as response:
+            self.assertEqual(response.get_data(as_text=True), "<!--ui:top-->as it is<!--/ui:top-->")
+
+    def test_no_page_no_shell(self):
+        self.assertEqual(self.client(self.docs).get("/docs/missing.html").status_code, 404)
+        self.assertEqual(self.client(self.docs).get("/docs/../setup.html").status_code, 404)
 
     def test_no_docs_no_link(self):
         client = self.client(None)

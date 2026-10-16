@@ -1,11 +1,11 @@
 """The server's Flask app"""
 
-from flask import Flask, abort, has_app_context, redirect, send_from_directory, url_for
+from flask import Flask, has_app_context, redirect, url_for
 
 from ..framework import rst
 from ..services.requirements import models as requirements
 from ..services.workspace import find_worktrees
-from . import jobs, reports, requirements as requirement_pages, scratch, ui, workspace
+from . import docs as documentation, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
 from .db import close_db, get_db
 
 
@@ -39,9 +39,7 @@ def create_app(**config):
     @app.route("/docs/", defaults={"filename": "index.html"})
     @app.route("/docs/<path:filename>")
     def docs(filename):
-        """The documentation, if the server was given a build of it"""
-        if not app.config.get("DOCS_PATH"):
-            abort(404)
-        return send_from_directory(app.config["DOCS_PATH"], filename)
+        """The documentation, if the server was given a build of it, in the site's shell"""
+        return documentation.serve(filename)
 
     return app

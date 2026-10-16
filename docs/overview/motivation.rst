@@ -3,7 +3,7 @@ Motivation
 
 .. rst-class:: lead
 
-   Why Automation v3 exists, and the handful of ideas every other part of it
+   Why automation exists, and the handful of ideas every other part of it
    follows from.
 
 Verification of a vehicle controller (or any embedded unit) produces two
@@ -13,7 +13,7 @@ their author can review; results end up in spreadsheets detached from the
 exact software, test code and bench that produced them; and rerunning a test
 "the same way" is a matter of hope.
 
-Automation v3 is built around a few commitments that address those problems
+automation is built around a few commitments that address those problems
 directly.
 
 Scripts are documents

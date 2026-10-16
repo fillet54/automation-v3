@@ -1,0 +1,87 @@
+{#- The docs as a page of the web UI: its header, a side column (search and the contents) and the page.
+
+    The marked regions (<!--ui:...--> to <!--/ui:...-->) are the site's shell. Opened as files they show a plain
+    header; served at /docs the server fills them with the site's own (automationv3/web/docs.py): its brand, nav,
+    markings, fonts and theme, so the docs are a part of the site rather than a site of their own.
+-#}
+{%- extends "basic/layout.html" %}
+
+{%- block css %}
+    <!--ui:head-->
+    {%- if theme_fonts_css %}
+    <link rel="stylesheet" href="{{ theme_fonts_css }}">
+    {%- endif %}
+    <!--/ui:head-->
+    {{- css() }}
+{%- endblock %}
+
+{%- block body_tag %}
+<!--ui:top-->
+<body class="ui ui-docs" style="--ui-marking-h: 0px;">
+  <a class="ui-skip" href="#main">Skip to content</a>
+  <header class="ui-header">
+    <a class="ui-brand" href="{{ pathto(root_doc) }}"><span class="ui-brand__name">{{ theme_brand }}</span></a>
+    <nav class="ui-nav" aria-label="Primary">
+      <a class="ui-nav__link" href="{{ pathto(root_doc) }}" aria-current="page">Docs</a>
+    </nav>
+  </header>
+<!--/ui:top-->
+{%- endblock %}
+
+{%- block relbar1 %}{% endblock %}
+{%- block relbar2 %}{% endblock %}
+
+{%- block content %}
+  {#- a div, not <main>: Sphinx's search reads each page's text from its [role=main], the article #}
+  <div class="ui-main">
+    <div class="ui-browse ui-docs__browse">
+      <aside class="ui-browse__side ui-docs__side" aria-label="Documentation">
+        {%- if pagename != "search" %}
+        <form class="ui-docs__search" role="search" action="{{ pathto('search') }}" method="get">
+          <label class="ui-search">
+            <svg class="ui-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 L14 14"/></svg>
+            <span class="ui-sr-only">Search the docs</span>
+            <input type="search" name="q" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+            <kbd class="ui-kbd">/</kbd>
+          </label>
+        </form>
+        {%- endif %}
+        <nav class="ui-docs__toc" aria-label="Contents">
+          <a class="ui-docs__home"{% if pagename == root_doc %} aria-current="page"{% endif %} href="{{ pathto(root_doc) }}">Start here</a>
+          {{ toctree(collapse=True, maxdepth=theme_globaltoc_maxdepth|toint, titles_only=False, includehidden=True) }}
+        </nav>
+      </aside>
+      <div class="ui-stack ui-docs__page">
+        {%- if pagename != root_doc %}
+        <nav aria-label="Breadcrumb">
+          <ol class="ui-crumbs">
+            <li><a href="{{ pathto(root_doc) }}">Docs</a></li>
+            {%- for parent in parents %}
+            <li><a href="{{ parent.link|e }}">{{ parent.title }}</a></li>
+            {%- endfor %}
+            <li><span aria-current="page">{{ title|striptags|e }}</span></li>
+          </ol>
+        </nav>
+        {%- endif %}
+        <article id="main" class="body ui-doc" role="main">
+          {% block body %}{% endblock %}
+        </article>
+        {%- if prev or next %}
+        <nav class="ui-docs__pager" aria-label="Previous and next pages">
+          {%- if prev %}
+          <a class="ui-docs__prev" href="{{ prev.link|e }}" rel="prev"><span class="ui-section-label">Previous</span><span>{{ prev.title }}</span></a>
+          {%- endif %}
+          {%- if next %}
+          <a class="ui-docs__next" href="{{ next.link|e }}" rel="next"><span class="ui-section-label">Next</span><span>{{ next.title }}</span></a>
+          {%- endif %}
+        </nav>
+        {%- endif %}
+      </div>
+    </div>
+  </div>
+{%- endblock %}
+
+{%- block footer %}
+<!--ui:bottom--><!--/ui:bottom-->
+{%- endblock %}

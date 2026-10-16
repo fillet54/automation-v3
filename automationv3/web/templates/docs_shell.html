@@ -1,0 +1,15 @@
+{#- The site's shell for a page of the built documentation (see docs.py): the regions the docs theme
+    (docs/_themes/automation) marks, as layout.html renders them. `region` is head, top or bottom. -#}
+{% import "ui/components.html" as ui %}
+{%- if region == "head" %}
+  {%- if ui_fonts_css %}
+  <link rel="stylesheet" href="{{ ui_fonts_css }}">
+  {%- endif %}
+{%- elif region == "top" %}
+<body class="ui ui-docs"{% if not ui_marking %} style="--ui-marking-h: 0px;"{% endif %}>
+  <a class="ui-skip" href="#main">Skip to content</a>
+  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "top") }}{% endif %}
+  {{ ui.app_header(ui_nav(), "docs", brand=ui_brand, home=url_for("index")) }}
+{%- elif region == "bottom" %}
+  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "bottom") }}{% endif %}
+{%- endif %}

@@ -27,7 +27,7 @@ setuptools.setup(
         "pygments",
     ],
     extras_require={
-        "docs": ["sphinx", "sphinx-rtd-theme"],
+        "docs": ["sphinx"],
     },
     python_requires='>=3.10',
     include_package_data=True,
