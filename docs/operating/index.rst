@@ -9,13 +9,38 @@ Operating
 The pieces
 ----------
 
-.. code-block:: text
+.. mermaid::
+   :caption: The server keeps the queue and the results; workers next to the hardware pull jobs and send results back
 
-   ┌──────────────── server ────────────────┐          ┌──── worker (lab PC) ────┐
-   │ web app        job queue (sqlite)      │ ◀─pull── │ hosts: sim, bench       │
-   │ workspace ──▶ (git checkout, read-only)│          │ runs jobs, streams      │
-   │ reports/  ──▶ (run folders on disk)    │ ──jobs─▶ │ events and files back   │
-   └────────────────────────────────────────┘          └─────────────────────────┘
+   flowchart TB
+     people([People, in a browser]):::ghost
+     git([The scripts' git repository]):::ghost
+     subgraph server [Server]
+       web[Web app]
+       api[Job API]:::accent
+       queue[("Job queue<br/>sqlite")]
+       workspace[("Workspace<br/>git checkout, read-only")]
+       reports[("reports/<br/>run folders")]
+     end
+     subgraph lab [Lab PC]
+       worker[Worker]:::accent
+       sim[sim environment]
+       bench[bench environment]
+       uut[UUTs]
+     end
+     people --> web
+     git -. checked out as .-> workspace
+     web -- renders and lints --> workspace
+     web -- queues --> queue
+     web -- shows --> reports
+     worker -- "checks in, polls, claims<br/>(connects out)" --> api
+     worker -- "streams events, files<br/>and the outcome" --> api
+     api --> queue
+     api -- writes --> reports
+     worker -- hosts --> sim
+     worker -- hosts --> bench
+     sim -- runs --> uut
+     bench -- runs --> uut
 
 The server
    Serves the web app and the job API. It reads scripts from the workspace,

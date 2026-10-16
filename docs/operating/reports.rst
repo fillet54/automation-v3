@@ -33,6 +33,16 @@ variations (you can narrow both), on the report's UUT versions.
 Combinations that have already passed on the report's versions are left out
 of an addition, unless you tick **Run again what already passed**.
 
+.. mermaid::
+   :caption: What an addition queues
+
+   flowchart TB
+     add["Add requirements…<br/>or Add a test…"] --> scripts["The scripts<br/>(linked to the requirements)"]
+     scripts --> combos["Each script's environments<br/>× variations, as narrowed"]
+     combos --> passed{{"Already passed on<br/>the report's versions?"}}
+     passed -- "yes, unless Run again" --> left[Left out]:::ghost
+     passed -- no --> jobs["Queued, one job each,<br/>on the report's UUT versions"]:::accent
+
 UUT versions
 ~~~~~~~~~~~~
 
@@ -97,6 +107,19 @@ every script linked to it:
 
 A combination whose latest run used other UUT versions than the report's
 counts as outdated, which is never green (see `UUT versions`_).
+
+.. mermaid::
+   :caption: How a tracked requirement is judged
+
+   flowchart TB
+     req([A tracked requirement]) --> linked{{"Does any script<br/>reference it?"}}
+     linked -- no --> none[no tests]:::ghost
+     linked -- yes --> latest["The latest run of every combination<br/>of every linked script"]
+     latest --> failed{{"Any failed, on the<br/>report's versions?"}}
+     failed -- yes --> red[red]:::danger
+     failed -- no --> all{{All passed, on them?}}
+     all -- yes --> green[green]:::success
+     all -- no --> partial["partial: not run, queued, running,<br/>blocked, error, incomplete or outdated"]:::warning
 
 Linked scripts that weren't added, and variations that were left out, count
 as not run, so a requirement is only green when its whole coverage passed.
@@ -207,6 +230,16 @@ on the signature page, and its applicable and reference documents, one per
 line as ``NUMBER | REVISION | TITLE``. Requirement texts are copied into the
 report when requirements are added, so the PDF quotes what was tested
 against. The document's title is the report's name.
+
+.. mermaid::
+   :caption: A report takes runs until it is frozen, and again once reopened
+
+   stateDiagram-v2
+     [*] --> open: New report
+     open --> frozen: Freeze & export, every run finished
+     frozen --> open: Reopen
+     open: Open, takes additions and reruns
+     frozen: Frozen, exported as report-ID.zip
 
 **Freeze & export** needs every run to have finished. A frozen report takes
 no more runs: its add buttons and **Rerun** are gone, and the report can't

@@ -124,6 +124,22 @@ div.body.ui-doc { min-width: 0; max-width: 780px; }
 .highlight .hll { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
 .highlight .w { color: inherit; }
 
+/* ------------------------------------------------------------------ diagrams (.. mermaid::, docs/_ext/diagrams) */
+
+.ui-doc figure.ui-diagram { margin: 8px 0 24px; }
+.ui-diagram__canvas {
+  display: flex; justify-content: center; padding: 20px 16px;
+  border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule);
+  overflow-x: auto;
+}
+.ui-diagram__canvas svg { max-width: 100%; height: auto; }
+/* until it is drawn (or without JavaScript) a diagram shows as its source */
+.ui-doc .ui-diagram__source { width: 100%; margin: 0; padding: 0; color: var(--ui-muted); font-size: 12px; white-space: pre; }
+.ui-diagram__canvas:not(.ui-diagram__canvas--drawn):not(.ui-diagram__canvas--error) { min-height: 120px; }
+.ui-diagram__canvas--error { flex-direction: column; gap: 8px; border-left: 3px solid var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 5%, var(--ui-paper)); }
+.ui .ui-doc .ui-diagram__error { margin: 0; font: 12px var(--ui-font-mono); color: var(--ui-danger); }
+.ui-doc figure.ui-diagram figcaption { margin-top: 8px; font-size: 12px; color: var(--ui-muted); text-align: center; }
+
 /* ------------------------------------------------------------------ admonitions: a ruled margin note, tinted */
 
 .ui-doc div.admonition {

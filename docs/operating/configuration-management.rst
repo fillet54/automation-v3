@@ -32,9 +32,15 @@ Identity
 
 The **identity** of a run is a hash of:
 
-.. code-block:: text
+.. mermaid::
+   :caption: What a run's identity is made of
 
-   identity = H( closure hash, variation values, UUT versions and digests, fingerprint hash )
+   flowchart LR
+     closure["Closure hash<br/>the script, its core.rst chain and imports"] --> identity
+     variation["Variation values"] --> identity
+     uuts["UUT versions and digests"] --> identity
+     fingerprint["Fingerprint hash<br/>environment facts, framework version and commit"] --> identity
+     identity((Identity)):::accent
 
 Two runs with the same identity ran the same test text, the same way, on the
 same software, in an environment that reported the same facts. The run page
@@ -57,6 +63,18 @@ original. From there you can:
 - bring an environment back to the original configuration and rerun; or
 - choose **Rerun anyway**, which queues it unpinned and marks the new run
   :status:`not identical`, linked to the run it reran.
+
+.. mermaid::
+   :caption: A rerun reproduces the original, or says it can't
+
+   flowchart TB
+     rerun([Rerun]) --> match{{"A live worker's environment<br/>has the original fingerprint?"}}
+     match -- yes --> pinned["Queued, pinned to such a worker:<br/>the stored closure, variation and versions"]
+     pinned --> same[The same identity]:::success
+     match -- no --> drifted["Refused: drifted<br/>the page shows which fields differ"]:::warning
+     drifted -- "an environment is brought back" --> match
+     drifted -- Rerun anyway --> unpinned[Queued unpinned]
+     unpinned --> other["not identical,<br/>linked to the run it reran"]:::warning
 
 To test the current text of a script instead, add it to the report again
 rather than rerunning.

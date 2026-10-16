@@ -44,6 +44,18 @@ worker runs the heal and checks again. If the check still fails, the run is
 :status:`blocked`: the environment couldn't be put into the state the script
 needs, which is different from the test failing.
 
+.. mermaid::
+   :caption: Each precondition, in order, before the first step
+
+   flowchart TB
+     check{{Check}} -- holds --> next["The next precondition,<br/>then the steps"]:::success
+     check -- fails --> heal{{A heal?}}
+     heal -- yes --> run[Run the heal]
+     run --> again{{Check again}}
+     again -- holds --> next
+     again -- fails --> stop["blocked<br/>(released, when probing)"]:::warning
+     heal -- no --> stop
+
 Workers schedule **warm-first**:
 
 1. Every pending job the worker can run is **probed** against the

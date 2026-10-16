@@ -105,6 +105,27 @@ errors, shown by the statement they are about, and a script with errors
 can't be queued. Shadowing a block, a builtin or a ``core.rst`` definition,
 and a step whose value is thrown away, are warnings.
 
+A run, start to finish
+----------------------
+
+.. mermaid::
+   :caption: However a run ends, its blocks' cleanups run before its outcome is decided
+
+   flowchart TB
+     load["Load the core.rst chain, imports<br/>and the definitions section"] --> bind["Bind UUT handles<br/>and variation symbols"]
+     bind --> pre{{"Preconditions<br/>hold, or heal?"}}
+     pre -- yes --> step["The next step:<br/>its block calls report as they run"]
+     step -- passed --> more{{Another statement?}}
+     more -- yes --> step
+     step -- "a block failed,<br/>or something raised" --> cleanups
+     more -- no --> cleanups
+     pre -- no --> cleanups
+     cleanups["Cleanups, last registered first<br/>(e.g. fixed values released)"] --> outcome["The outcome: passed, failed, error,<br/>blocked or incomplete"]:::accent
+
+A step not written yet, ``(TBD "...")``, is reported and the run goes on, but
+a run that reached one ends :status:`incomplete` rather than
+:status:`passed`; see :doc:`planning`.
+
 What the run page shows
 -----------------------
 

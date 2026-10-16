@@ -148,21 +148,21 @@ platform frame by frame.
 The lifecycle of a job
 ----------------------
 
-.. code-block:: text
+.. mermaid::
+   :caption: The UUT plugin's methods, as a worker calls them for one job
 
-   probe:  installed_version == job's?  ── no ──▶ released (try another job)
-                │ yes
-                ▼
-           handle() bound ─▶ preconditions check/heal ── fail ──▶ released
-                │ pass
-                ▼
-           steps run
-
-   force:  install(version) if needed ─▶ start(version) ─▶ handle() bound
-                ─▶ preconditions ── fail ──▶ blocked
-                │ pass
-                ▼
-           steps run
+   flowchart TB
+     job([A claimed job]) --> mode{{Mode}}
+     mode -- probe --> same{{"installed_version(env)<br/>is the job's?"}}
+     same -- no --> released[Released: try another job]:::ghost
+     same -- yes --> handle["handle(version, env)<br/>bound to the UUT's name"]
+     mode -- force --> install["install(version, env)<br/>if it isn't installed"]
+     install --> start["start(version, env)"]
+     start --> handle
+     handle --> pre{{"Preconditions<br/>hold, or heal?"}}
+     pre -- yes --> steps[The steps run]:::success
+     pre -- "no, probing" --> released
+     pre -- "no, in force mode" --> blocked[blocked]:::warning
 
 UUTs stay as the last job left them; nothing is torn down between jobs.
 That is what makes warm scheduling possible, and why preconditions should

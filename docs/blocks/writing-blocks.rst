@@ -118,6 +118,22 @@ The parts of a block
 ``usage()``
    How scripts call the block. See :ref:`documenting-blocks`.
 
+How a call runs
+---------------
+
+.. mermaid::
+   :caption: A call of a block that implements execute. One taking its arguments as written is matched by check_syntax_forms instead
+
+   flowchart TB
+     call["A call: (Name args…)"] --> evaluate["Evaluate the arguments<br/>in the running script"]
+     evaluate --> ask["Ask each block of the name:<br/>check_syntax(*values)"]
+     ask -- none accepts --> nomatch["error: the types it was given,<br/>and the block's usage"]:::danger
+     ask -- "the first accepts<br/>(exactly one, with require_unique)" --> execute["execute(*values)"]
+     execute -- raises --> raised[The step errs]:::danger
+     execute -- returns --> result["BlockResult<br/>passed, stdout, stderr, value"]
+     result -- passed --> value["The call gives its value<br/>to the code around it"]:::success
+     result -- not passed --> failed["The step fails<br/>(unless in try-ok? or try)"]:::warning
+
 .. _documenting-blocks:
 
 Documenting a block

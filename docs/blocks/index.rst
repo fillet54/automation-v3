@@ -76,6 +76,22 @@ from ``automationv3.plugins.core.value_blocks`` remain compatibility aliases.
 Plugins may import from ``automationv3.framework`` only, never from
 ``services`` or ``web``; ``test/test_layers.py`` checks this.
 
+.. mermaid::
+   :caption: The packages, each importing only from those below it (test/test_layers.py)
+
+   flowchart TB
+     cli["<b>cli</b><br/>entry points"]
+     web["<b>web</b><br/>Flask pages and the job API"]
+     services["<b>services</b><br/>storage, the queue, workers, reports"]
+     plugins["<b>plugins</b><br/>BuildingBlocks, UUTs, environments"]:::accent
+     framework["<b>framework</b><br/>the language, execution, block and UUT contracts"]
+     cli --> web
+     cli --> services
+     web --> services
+     web --> framework
+     services --> framework
+     plugins --> framework
+
 In this section
 ---------------
 

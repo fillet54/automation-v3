@@ -1,0 +1,6 @@
+Vendored, so diagrams render on a closed network. Update by replacing the files from the npm packages:
+
+  mermaid.min.js            mermaid 12.2.0, dist/mermaid.min.js (MIT, LICENSE-mermaid)
+  elk/                      @mermaid-js/layout-elk 1.0.1, dist/mermaid-layout-elk.esm.min.mjs and
+                            dist/chunks/mermaid-layout-elk.esm.min/*.mjs, no source maps
+                            (MIT, elk/LICENSE-layout-elk; it bundles elkjs, EPL-2.0)

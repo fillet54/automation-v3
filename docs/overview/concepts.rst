@@ -5,19 +5,31 @@ Concepts
 
    The vocabulary used throughout these docs and the web app.
 
-.. code-block:: text
+.. mermaid::
+   :caption: A script, the jobs it is queued as, where they run, and what their results count towards
 
-   requirement ◀── referenced by ── script ── loads ──▶ core.rst chain + imports
-                                     │                   (together: the closure)
-                                     │ declares
-                                     ▼
-                       environments × variations × UUT versions
-                                     │ queued as
-                                     ▼
-                     job ── pulled by ──▶ worker ── hosts ──▶ environment ── runs ──▶ UUT
-                                     │
-                                     ▼
-                         run (in a report) ── rolls up to ──▶ requirement status
+   flowchart TB
+     script[Script]
+     closure["core.rst chain + imports<br/>(the closure)"]
+     combos["environments × variations × UUT versions"]
+     job[Job]
+     worker[Worker]
+     env[Environment]
+     uut[UUT]
+     run[Run]
+     report[Report]
+     req[Requirement]:::accent
+
+     script -- loads --> closure
+     script -- declares --> combos
+     script -. references .-> req
+     combos -- queued as, one each --> job
+     job -- pulled by --> worker
+     worker -- hosts --> env
+     env -- runs --> uut
+     job -- recorded as --> run
+     run -- collected in --> report
+     report -- rolls up to --> req
 
 Scripts and their closure
 -------------------------

@@ -57,8 +57,76 @@ Workers schedule **warm-first**:
    installed if needed and started fresh, then the job's preconditions run.
    A precondition that still fails makes the run :status:`blocked`.
 
+.. mermaid::
+   :caption: Warm-first: run what fits the environment as it is, and only start fresh when nothing does
+
+   flowchart TB
+     idle([Poll for pending jobs]) --> next{{"Another pending job<br/>it can run?"}}
+     next -- yes --> installed{{"Probe it: its UUT versions<br/>already installed?"}}
+     installed -- yes --> holds{{"Its preconditions<br/>hold, or heal?"}}
+     installed -- no --> release[Release it to the queue]
+     holds -- no --> release
+     release --> next
+     holds -- yes --> run[Run its steps]:::success
+     next -- none left --> any{{Any pending job at all?}}
+     any -- no --> idle
+     any -- yes --> force["Force mode, the oldest:<br/>install if needed, start fresh"]:::warning
+     force --> holds2{{"Its preconditions<br/>hold, or heal?"}}
+     holds2 -- yes --> run
+     holds2 -- no --> blocked[blocked]:::warning
+
 UUTs are never torn down between jobs. The run page records the mode a run
 ran in, and for each UUT whether it was installed or kept.
+
+Talking to the server
+---------------------
+
+A worker only ever makes requests to the server, under ``/runner``:
+
+.. mermaid::
+   :caption: One job, from the worker's poll to its outcome in the report
+
+   sequenceDiagram
+     participant W as Worker
+     participant S as Server
+     participant R as reports/
+     W->>S: POST /workers: check in, with environments and fingerprints
+     loop every 2 s while idle
+       W->>S: GET /jobs?worker_url=…
+       S-->>W: pending jobs it can run, oldest first
+     end
+     W->>S: POST /jobs/ID/claim
+     S-->>W: the job, with its closure
+     W->>S: POST /jobs/ID/start
+     alt a probe that doesn't fit
+       W->>S: POST /jobs/ID/release
+       Note over S: pending again, for any worker
+     else it runs
+       loop as the script runs
+         W->>S: POST /jobs/ID/events, /files
+         S->>R: events.jsonl, files/
+       end
+       W->>S: POST /jobs/ID/complete: outcome, installed, fingerprint, mode
+       S->>R: run.json
+       Note over S: the job leaves the queue
+     end
+
+A worker checks in again every minute. One that hasn't for five minutes is
+taken as lost, and the jobs it held end in :status:`error`.
+
+.. mermaid::
+   :caption: A job in the queue. Its outcome is kept in the run's run.json, not in the queue
+
+   stateDiagram-v2
+     [*] --> pending: queued
+     pending --> claimed: claim
+     claimed --> running: start
+     claimed --> pending: release
+     running --> pending: release
+     running --> finished: complete
+     claimed --> finished: worker lost
+     running --> finished: worker lost
+     finished --> [*]
 
 Outcomes
 --------

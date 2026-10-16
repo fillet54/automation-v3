@@ -66,11 +66,18 @@ Every folder, including the workspace root, may hold a ``core.rst`` of shared
 definitions and declarations. A script loads the ``core.rst`` of every folder
 from the root down to its own:
 
-.. code-block:: text
+.. mermaid::
+   :caption: Each script loads the chain from the root to its folder; an import only adds names
 
-   core.rst              (environments :sim) (uut :demo) (def max-pressure 100)
-   BRA/core.rst          (def max-pressure 80) (defn brakes-hold ...)
-   BRA/tc_bra_00001.rst  sees max-pressure = 80
+   flowchart TB
+     root["core.rst<br/>(environments :sim) (uut :demo)<br/>(def max-pressure 100)"]
+     bra["BRA/core.rst<br/>(def max-pressure 80)<br/>(defn brakes-hold …)"]
+     brakes["BRA/tc_bra_00001.rst<br/>max-pressure is 80"]:::accent
+     fuel["FUEL/tc_fuel_00001.rst<br/>(import BRA)<br/>max-pressure is 100, and brakes-hold"]:::accent
+     root -- shadowed by --> bra
+     bra -- loaded by --> brakes
+     root -- loaded by --> fuel
+     bra -. "import: adds brakes-hold,<br/>keeps max-pressure" .-> fuel
 
 Inner definitions shadow outer ones, so ``BRA/`` tightens the limit for every
 brake script. A ``core.rst`` is a document too: explain what each definition

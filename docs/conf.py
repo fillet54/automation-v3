@@ -31,6 +31,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.todo",
     "notebook",
+    "diagrams",
 ]
 
 templates_path = ["_templates"]
