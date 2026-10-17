@@ -7,7 +7,8 @@ checkout and serves it:
       .automation-v3-demo     marks the folder as safe to delete and rebuild
       workspace/master/       a git repository of the sample scripts, with
       workspace/branch1..3/   worktrees for the other workspaces
-      automationv3.db         the sample requirements
+      automationv3.db         the sample requirements, imported from exports/
+      exports/                the sample DOORS history: one export per run
       reports/
       environments/           the sim and bench environments' work directories
       worker.json             the local worker's config, hosting them
@@ -26,13 +27,14 @@ from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
-from .framework.requirement import Requirement
 from .services.database import connect, init_db
+from .services.requirements import export, links, store, suspects
 from .services.requirements import models as requirements
-from .services.requirements import rst_source
+from .services.workspace import find_worktrees
 
 SOURCE = Path(__file__).resolve().parent.parent
 SAMPLES = SOURCE / "test" / "data"
+SAMPLE_EXPORTS = SAMPLES / "doors"
 DOCS_SOURCE = SOURCE / "docs"
 MARKER = ".automation-v3-demo"
 BRANCHES = ("branch1", "branch2", "branch3")
@@ -97,45 +99,90 @@ def make_workspace(path):
     return repo
 
 
-def parse_requirement(line):
-    """A Requirement from a line of text ending in its id, e.g.
-    "The brakes shall ... [VMCBRA00001]." or "... [AP-1.3]". The
-    subsystem is the letters after VMC (BRA), or before the first dash
-    (AP)."""
-    line = line.strip()
-    start = line.rfind("[")
-    id = line[start + 1:line.rfind("]")].strip()
-    if id.startswith("VMC"):
-        subsystem = id.split("VMC")[1].split("0")[0].strip()
+def apply_edit(tree, edit):
+    """Apply one edit of the sample history to `tree` (spec -> path -> text)"""
+    files = tree[edit["spec"]]
+    if "remove" in edit or "move" in edit:
+        id = edit.get("remove") or edit["move"]
+        path = next(p for p, text in files.items() if f".. requirement:: {id}\n" in text)
+        start = files[path].index(f".. requirement:: {id}\n")
+        rest = files[path][start:].split("\n")
+        end = next((n for n, line in enumerate(rest[1:], 1)
+                    if line and not line.startswith(" ")), len(rest))
+        block = "\n".join(rest[:end]).rstrip() + "\n"
+        files[path] = (files[path][:start] + "\n".join(rest[end:])).rstrip() + "\n"
+        if "move" in edit:
+            files[edit["to"]] = files[edit["to"]].rstrip() + "\n\n" + block
+    elif "append" in edit:
+        files[edit["file"]] = files[edit["file"]].rstrip() + "\n\n" + edit["append"]
     else:
-        subsystem = id.split("-")[0].strip()
-    return Requirement(id=id, text=line[:start].strip(), subsystem=subsystem)
+        if files[edit["file"]].count(edit["old"]) != 1:
+            raise DemoError(f"sample history: {edit['spec']}/{edit['file']} doesn't "
+                            f"have {edit['old']!r} exactly once")
+        files[edit["file"]] = files[edit["file"]].replace(edit["old"], edit["new"])
 
 
-def read_requirements(path):
-    """The Requirements in a file: an rst requirements document (see
-    services/requirements/rst_source.py), or text with one requirement
-    per line, its id at the end in brackets"""
-    path = Path(path)
-    if path.suffix == ".rst":
-        return rst_source.parse(path.read_text())
-    lines = [line for line in path.read_text().splitlines() if line.strip()]
-    return [parse_requirement(line) for line in lines]
+def write_sample_exports(out):
+    """Write the sample DOORS history (test/data/doors) as export folders
+    under `out`, one per run, as the exporter would. Returns their paths,
+    oldest first."""
+    history = json.loads((SAMPLE_EXPORTS / "history.json").read_text())
+    tree = {key: {p.relative_to(SAMPLE_EXPORTS / "specs" / key).as_posix(): p.read_text()
+                  for p in sorted((SAMPLE_EXPORTS / "specs" / key).rglob("*.rst"))}
+            for key in history["specs"]}
+    folders = []
+    for run in history["runs"]:
+        for edit in run.get("edits", []):
+            apply_edit(tree, edit)
+        folder = Path(out) / run["name"]
+        entries = []
+        versions = [(key, None) for key in history["specs"]]
+        versions += list(run.get("baselines", {}).items())
+        for key, baseline in versions:
+            root = f"{key}@{baseline}" if baseline else key
+            for name, text in tree[key].items():
+                (folder / root / name).parent.mkdir(parents=True, exist_ok=True)
+                (folder / root / name).write_text(text)
+            entries.append({"key": key, **history["specs"][key], "root": root,
+                            "attributes": history["attributes"],
+                            "doors": {"module": f"/Mission/{key}", "id_source": "Req ID"},
+                            **({"baseline": baseline} if baseline else {})})
+        manifest = {"format": 1, "exporter": {"name": "sample", "version": "1"},
+                    "exported_at": f"{run['name']}T02:00:00Z", "specs": entries,
+                    "baseline_sets": [{"name": name, "specs": pins}
+                                      for name, pins in run.get("sets", {}).items()]}
+        (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        folders.append(folder)
+    return folders
 
 
-def sample_requirement_files():
-    """The sample requirements: the line-per-requirement file, then every
-    rst document in test/data/requirements"""
-    return [SAMPLES / "sample_requirements.txt",
-            *sorted((SAMPLES / "requirements").glob("*.rst"))]
-
-
-def load_requirements(db_path, sources=None):
-    found = [r for path in (sources or sample_requirement_files())
-             for r in read_requirements(path)]
+def load_requirements(db_path, exports, workspace=None):
+    """Import export folders, in order, into the database at `db_path`.
+    With a `workspace` repository, its scripts' links are first seen
+    after the first export, as if the scripts had been written then, so
+    later changes to their requirements make them suspect."""
     with closing(connect(db_path)) as conn:
         init_db(conn)
-        requirements.insert(conn, found)
+        for n, folder in enumerate(exports):
+            store.import_export(conn, export.read(folder))
+            if n == 0 and workspace:
+                for name, root in find_worktrees(workspace).items():
+                    links.refresh(conn, name, root)
+                    context, _ = requirements.workspace_context(conn, root)
+                    suspects.sync_scripts(conn, name, context)
+
+
+RELEASE_BRANCH = "branch1"
+
+
+def pin_release_branch(repo, branch=RELEASE_BRANCH, context="set:Release 1"):
+    """Make `branch` a release branch: its automation.json says it verifies
+    `context`"""
+    root = repo.parent / branch
+    (root / "rvts" / "automation.json").write_text(
+        json.dumps({"requirements": context}, indent=2) + "\n")
+    git("add", "rvts/automation.json", cwd=root)
+    git("commit", "-q", "-m", f"Verify {context}", cwd=root)
 
 
 def write_worker_config(path):
@@ -177,8 +224,10 @@ def setup(path, docs=True, log=print):
                 reports=path / "reports", config=write_worker_config(path))
     demo.reports.mkdir()
     log("   Workspace: the sample scripts, on master and three branches")
-    load_requirements(demo.db_path)
-    log("   Requirements: the sample set, loaded")
+    pin_release_branch(demo.workspace)
+    load_requirements(demo.db_path, write_sample_exports(path / "exports"), demo.workspace)
+    log("   Requirements: the sample DOORS history, imported from exports/; "
+        f"{RELEASE_BRANCH} verifies Release 1")
     if docs:
         log("   Building the documentation...")
         demo.docs = build_docs(path / "docs" / "html")

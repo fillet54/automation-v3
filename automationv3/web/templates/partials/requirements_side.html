@@ -1,0 +1,35 @@
+{#- The requirements pages' side column: the context, the specs in it and its subsystems.
+    Needs context, contexts, specs, subsystems, selected_spec, selected_subsystem, tab (see requirements.nav). -#}
+{% set keep = {"workspace": workspace or None, "report": target or None} if tab == "list" else {} %}
+{% set endpoint = "requirements.changes" if tab == "changes" else "requirements.list" %}
+{% set keep_args = {"context": ctx_param} if tab != "changes" else {"from": before, "to": after} %}
+{% set _ = keep_args.update(keep) %}
+{% if tab != "changes" %}
+<form method="get" action="{{ url_for('requirements.list') }}" class="ui-stack" style="margin-bottom: 16px;">
+  <label for="req-context">{{ ui.section_label("Requirements in") }}</label>
+  {% if workspace %}<input type="hidden" name="workspace" value="{{ workspace }}">{% endif %}
+  {{ ui.select("context", contexts, selected=context, id="req-context", attrs={"onchange": "this.form.submit()"}) }}
+  <noscript>{{ ui.button("Show", type="submit", size="sm") }}</noscript>
+  {% if state.workspace %}
+  <div class="ui-muted" style="font-size: 12px;">{{ ui.ident(state.workspace, plain=True) }} verifies
+    {{ contexts | selectattr(0, "equalto", state.default) | map(attribute=1) | first }}{% if state.param %} ·
+    <a href="{{ url_for(request.endpoint, **dict(request.view_args, workspace=state.workspace)) }}">show it</a>{% endif %}</div>
+  {% if state.problem %}{% call ui.alert("warning") %}{{ state.problem }}{% endcall %}{% endif %}
+  {% endif %}
+</form>
+{% endif %}
+{{ ui.section_label("Specs") }}
+<ul class="ui-sidenav" data-requirements-nav>
+  <li><a href="{{ url_for(endpoint, **keep_args) }}"{% if not selected_spec and not selected_subsystem %} aria-current="page"{% endif %}>All requirements</a></li>
+  {% for s in specs %}
+  <li><a href="{{ url_for(endpoint, spec=s.key, **keep_args) }}" title="{{ s.title }}"{% if s.key == selected_spec %} aria-current="page"{% endif %}>{{ ui.icon("file", 14) }}<span class="ui-mono">{{ s.key }}</span><span class="ui-muted" style="margin-left: auto; font-size: 12px;">{{ s.count }}</span></a></li>
+  {% endfor %}
+</ul>
+{% if subsystems %}
+{{ ui.section_label("Subsystems") }}
+<ul class="ui-sidenav" data-requirements-nav>
+  {% for subsystem in subsystems %}
+  <li><a href="{{ url_for(endpoint, subsystem=subsystem, **keep_args) }}"{% if subsystem == selected_subsystem %} aria-current="page"{% endif %}>{{ ui.icon("layers", 14) }}<span class="ui-mono">{{ subsystem }}</span></a></li>
+  {% endfor %}
+</ul>
+{% endif %}

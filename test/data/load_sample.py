@@ -1,32 +1,28 @@
 """Load Database with Sample Data
 
-This script will load a supplied database with sample
-requirements
+This script imports the sample DOORS history (test/data/doors) into a
+database: it writes each run of the history as an export folder, then
+imports them in order, as `automation-v3 requirements import` would.
 
 Usage:
-    load_sample.py [--dbpath=FILE] [--data=FILE...]
+    load_sample.py [--dbpath=FILE] [--exports=DIR]
     load_sample.py (-h | --help)
 
 Options:
     --dbpath=FILE    sqlite3 database file to load
                      [default: automationv3.db]
-    --data=FILE      a requirements file: an rst requirements
-                     document (.rst, with a requirement directive
-                     per requirement), or text with one requirement
-                     per line and its id at the end in '[]'.
-                     Repeat for several. By default, the sample
-                     requirements: test/data/sample_requirements.txt
-                     and test/data/requirements/*.rst
+    --exports=DIR    where to write the export folders
+                     [default: exports]
 
 """
 from docopt import docopt
 
-from automationv3.demo import load_requirements
+from automationv3.demo import load_requirements, write_sample_exports
 
 
 def load_sample():
     args = docopt(__doc__)
-    load_requirements(args['--dbpath'], args['--data'] or None)
+    load_requirements(args['--dbpath'], write_sample_exports(args['--exports']))
 
 
 if __name__ == '__main__':

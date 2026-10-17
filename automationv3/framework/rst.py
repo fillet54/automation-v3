@@ -20,14 +20,24 @@ from .language import (
 from .requirement import Requirement
 
 # How a :req:`ID` reference finds its requirement. Applications with a
-# requirements store install their own lookup; it may return None.
+# requirements store install their own lookup; it may return None. Its
+# key says what the lookup would answer from (the requirements' context
+# and their latest import, say), so rendering cached under another key
+# isn't reused.
 _requirement_lookup = None
+_requirement_key = None
 
 
-def set_requirement_lookup(lookup):
-    """Use `lookup(id) -> Requirement | None` to resolve :req: references"""
-    global _requirement_lookup
+def set_requirement_lookup(lookup, key=None):
+    """Use `lookup(id) -> Requirement | None` to resolve :req: references,
+    and `key() -> hashable` to tell apart what it would answer from"""
+    global _requirement_lookup, _requirement_key
     _requirement_lookup = lookup
+    _requirement_key = key
+
+
+def requirement_key():
+    return _requirement_key() if _requirement_key else None
 
 
 def find_requirement(id):

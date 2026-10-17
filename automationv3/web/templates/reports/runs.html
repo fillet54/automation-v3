@@ -45,8 +45,9 @@
   <article class="report-req" id="req-{{ req.id }}">
     <header class="report-req__head">
       <span class="report-dot report-dot--{{ req.dot }}" aria-hidden="true"></span>
-      {{ ui.ident(req.id) }}
+      {{ ui.ident(req.id, url_for('requirements.requirement', id=req.id, context=report.requirement_context)) if report.requirement_versions and req.id in report.requirement_versions else ui.ident(req.id) }}
       {{ ui.outcome(req.color) }}
+      {% if req.id in text_changed %}<span title="The requirement's text in {{ report.requirement_context }} has changed since the report took it on">{{ ui.badge("text changed since", tone="warning") }}</span>{% endif %}
       {% if req.scripts %}<span class="ui-text-caption">{{ req.passed }} of {{ req.total }} passed</span>{% endif %}
     </header>
     {% if req.text %}<p class="report-req__text">{{ req.text }}</p>{% endif %}

@@ -7,7 +7,7 @@ other VMC subsystems are left without scripts on purpose.
 
 The VM folder tests the Vehicle Manager, the flight software of a
 satellite platform, against its requirements in
-``test/data/requirements/vehicle_manager.rst`` (written for this project,
+the ``SRS-VM`` spec in ``test/data/doors/specs`` (written for this project,
 in rst), running against a simulated Vehicle Manager (the ``vm`` UUT).
 Each VM script tests one requirement, with cases that can run back to
 back as rows of a table block, and variations only for cases that need

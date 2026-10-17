@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% import "partials/requirement_diff.html" as diff %}
+{% set nav_current = "requirements" %}
+{% set browse = True %}
+{% block title %}Suspects · Requirements{% endblock %}
+
+{% macro review_button(fields) -%}
+<form method="post" action="{{ url_for('requirements.review') }}">
+  {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+  {{ ui.button("Mark reviewed", type="submit", size="sm", icon="check") }}
+</form>
+{%- endmacro %}
+
+{% block side %}
+{% include "partials/requirements_side.html" %}
+{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Suspects", subtitle="Links to requirements whose text changed after the link was last reviewed. Look at what changed, update the script or requirement if it needs it, then mark the link reviewed.") }}
+{% include "partials/requirements_tabs.html" %}
+
+{% call ui.section("Scripts", subtitle=("In " ~ workspace ~ ", against " ~ (contexts | selectattr(0, "equalto", context) | map(attribute=1) | first)) if workspace else "No workspace configured") %}
+{% call ui.table(["Script", "Requirement", "Changed since reviewed", ""]) %}
+  {% for s, d in scripts %}
+  <tr style="vertical-align: top;">
+    <td>{{ ui.ident(s.source, url_for('workspace.index', id=workspace, path=s.source), plain=True) }}</td>
+    <td style="white-space: nowrap;">{{ ui.ident(s.target, url_for('requirements.requirement', id=s.target, context=ctx_param)) }}</td>
+    <td><span class="ui-muted" style="font-size: 12px;">Reviewed {{ ui.timestamp(s.reviewed_at) }}</span>{{ diff.details(d) }}</td>
+    <td>{{ review_button({"workspace": workspace, "script": s.source, "id": s.target, "context": context}) }}</td>
+  </tr>
+  {% else %}{{ ui.empty_row("No suspect scripts.", 4) }}{% endfor %}
+{% endcall %}
+{% endcall %}
+
+{% call ui.section("Traces", subtitle="Requirements whose parent changed in trunk") %}
+{% call ui.table(["Requirement", "Satisfies", "Changed since reviewed", ""]) %}
+  {% for s, d in traces %}
+  <tr style="vertical-align: top;">
+    <td style="white-space: nowrap;">{{ ui.ident(s.source, url_for('requirements.requirement', id=s.source, context="trunk" if context != "trunk" else None)) }}</td>
+    <td style="white-space: nowrap;">{{ ui.ident(s.target, url_for('requirements.requirement', id=s.target, context="trunk" if context != "trunk" else None)) }}</td>
+    <td><span class="ui-muted" style="font-size: 12px;">Reviewed {{ ui.timestamp(s.reviewed_at) }}</span>{{ diff.details(d) }}</td>
+    <td>{{ review_button({"child": s.source, "parent": s.target}) }}</td>
+  </tr>
+  {% else %}{{ ui.empty_row("No suspect traces.", 4) }}{% endfor %}
+{% endcall %}
+{% endcall %}
+{% endblock %}

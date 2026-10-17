@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% import "partials/requirement_diff.html" as diff %}
+{% set nav_current = "requirements" %}
+{% set browse = True %}
+{% block title %}Imports · Requirements{% endblock %}
+
+{% block side %}
+{% include "partials/requirements_side.html" %}
+{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Imports", subtitle="Each import of an export from DOORS, newest first, and the requirements it changed in trunk.") }}
+{% include "partials/requirements_tabs.html" %}
+
+{% for import_id, at, source, changes in log %}
+{% call ui.card() %}
+  {{ ui.card_header("Import #" ~ import_id, subtitle=source, mono=True) }}
+  {% call ui.card_body() %}
+  <div class="ui-stack ui-gap-tight">
+    <div class="ui-muted">{{ ui.timestamp(at) }}{% if import_id > 1 %} · <a href="{{ url_for('requirements.changes', **{'from': 'trunk@' ~ (import_id - 1), 'to': 'trunk@' ~ import_id}) }}">compare with the trunk before</a>{% endif %}</div>
+    {% for spec, id, what in changes %}
+    <div class="ui-row" style="gap: 8px;">{{ ui.ident(id, url_for('requirements.requirement', id=id)) }} <span class="ui-muted ui-mono">{{ spec }}</span> {{ diff.facets(what) }}</div>
+    {% else %}<span class="ui-muted">No requirement changed.</span>{% endfor %}
+  </div>
+  {% endcall %}
+{% endcall %}
+{% else %}
+{{ ui.empty("Nothing imported yet: run automation-v3 requirements import with an export folder.") }}
+{% endfor %}
+{% endblock %}

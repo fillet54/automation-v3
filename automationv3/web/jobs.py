@@ -24,6 +24,7 @@ from ..framework.planning import build_plan
 from ..services import jobs as models
 from ..services.reports import store
 from ..services.requirements import links
+from ..services.requirements import models as requirement_models
 from ..services.workspace import find_worktrees
 from .db import get_db
 
@@ -139,13 +140,15 @@ def queue():
     on their own are not"""
     plan = plan_from(request.form)
     report = target_report(request.form)
+    # A new report verifies the requirements its workspace does
+    context, _ = requirement_models.workspace_context(get_db(), workspace_root(plan.workspace))
     try:
         if report is None:
-            report_id, _ = models.queue_plan(get_db(), reports_root(), plan)
+            report_id, _ = models.queue_plan(get_db(), reports_root(), plan, context=context)
         else:
             report_id = report["id"]
             tracked = plan.requirements if request.form.getlist("requirement") else {}
-            models.add_plan(get_db(), reports_root(), report_id, plan, tracked)
+            models.add_plan(get_db(), reports_root(), report_id, plan, tracked, context)
     except models.QueueError as e:
         return render_dialog(plan, report, e.errors)
     target = url_for("reports.report", report_id=report_id)

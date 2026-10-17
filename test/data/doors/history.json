@@ -1,0 +1,61 @@
+{
+  "about": "The sample DOORS history: each run is one export, made from specs/ with every earlier run's edits applied. demo.write_sample_exports writes them out.",
+  "specs": {
+    "SYS": {"title": "Mission System Specification", "level": "system", "parents": []},
+    "SEG-SPACE": {"title": "Space Segment Specification", "level": "segment", "parents": ["SYS"]},
+    "SEG-AIR": {"title": "Air Segment Specification", "level": "segment", "parents": ["SYS"]},
+    "SRS-VM": {"title": "Vehicle Manager Software Requirements", "level": "software", "parents": ["SEG-SPACE"]},
+    "SRS-VMC": {"title": "Vehicle Management Computer Software Requirements", "level": "software", "parents": ["SEG-AIR"]}
+  },
+  "attributes": {
+    "subsystem": {"type": "string"},
+    "verification": {"type": "enum", "values": ["Test", "Analysis", "Inspection", "Demonstration"]},
+    "last-modified-by": {"type": "string", "hashed": false}
+  },
+  "runs": [
+    {
+      "name": "2026-09-01",
+      "baselines": {"SYS": "1.0", "SEG-SPACE": "1.0", "SEG-AIR": "1.0", "SRS-VM": "1.0", "SRS-VMC": "1.0"},
+      "sets": {"Release 1": {"SYS": "1.0", "SEG-SPACE": "1.0", "SEG-AIR": "1.0", "SRS-VM": "1.0", "SRS-VMC": "1.0"}}
+    },
+    {
+      "name": "2026-09-02",
+      "about": "Nothing changed in DOORS: the import logs nothing"
+    },
+    {
+      "name": "2026-09-15",
+      "edits": [
+        {"spec": "SRS-VM", "file": "electrical.rst",
+         "old": "   - 60%: the payload;", "new": "   - 65%: the payload;"},
+        {"spec": "SRS-VM", "file": "telecommand.rst",
+         "old": ":verification: Test\n   :last-modified-by: doors-import\n\n   The VM shall accept telecommands as CCSDS",
+         "new": ":verification: Inspection\n   :last-modified-by: jdoe\n\n   The VM shall accept telecommands as CCSDS"},
+        {"spec": "SRS-VM", "file": "executive.rst",
+         "old": "   :last-modified-by: doors-import\n\n   The VM shall not use more than 70% of the processor's capacity,\n   averaged over any major frame, in any mode.",
+         "new": "   :last-modified-by: jdoe\n\n   The VM shall *not* use more than 70% of the processor's capacity, averaged over\n   any major frame, in any mode."},
+        {"spec": "SRS-VM", "file": "electrical.rst",
+         "append": ".. requirement:: VM-EPS-007\n   :satisfies: SEG-SPC-007\n   :subsystem: EPS\n   :verification: Test\n   :last-modified-by: jdoe\n\n   The VM shall report the battery state of charge in housekeeping\n   telemetry with a resolution of 0.5%.\n"},
+        {"spec": "SRS-VMC", "remove": "VMCREL00008"}
+      ]
+    },
+    {
+      "name": "2026-10-01",
+      "baselines": {"SRS-VM": "1.1"},
+      "sets": {"Release 1.1": {"SYS": "1.0", "SEG-SPACE": "1.0", "SEG-AIR": "1.0", "SRS-VM": "1.1", "SRS-VMC": "1.0"}}
+    },
+    {
+      "name": "2026-10-15",
+      "edits": [
+        {"spec": "SEG-SPACE", "file": "index.rst",
+         "old": "never falls below 30%.", "new": "never falls below 35%."},
+        {"spec": "SRS-VM", "file": "data.rst",
+         "old": "   :satisfies: SEG-SPC-010\n   :subsystem: MEM\n   :verification: Test\n   :last-modified-by: doors-import\n\n   The VM shall store telemetry in on-board mass memory",
+         "new": "   :satisfies: SEG-SPC-003, SEG-SPC-010\n   :subsystem: MEM\n   :verification: Test\n   :last-modified-by: jdoe\n\n   The VM shall store telemetry in on-board mass memory"},
+        {"spec": "SRS-VM", "move": "VM-TIM-005", "to": "data.rst"},
+        {"spec": "SRS-VMC", "file": "fuel.rst",
+         "old": ":satisfies: SEG-AIR-004\n   :subsystem: FUE\n   :verification: Test\n   :last-modified-by: doors-import\n\n   The software shall provide fuel management optimization",
+         "new": ":satisfies: SEG-AIR-004, SEG-AIR-099\n   :subsystem: FUE\n   :verification: Test\n   :last-modified-by: jdoe\n\n   The software shall provide fuel management optimization"}
+      ]
+    }
+  ]
+}

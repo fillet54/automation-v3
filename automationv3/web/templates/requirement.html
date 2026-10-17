@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+{% import "partials/requirement_diff.html" as diff %}
+{% set nav_current = "requirements" %}
+{% set browse = True %}
+{% block title %}{{ id }} · Requirements{% endblock %}
+
+{% macro review_button(fields) -%}
+<form method="post" action="{{ url_for('requirements.review') }}" style="display: inline;">
+  {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+  {{ ui.button("Mark reviewed", type="submit", size="sm", icon="check") }}
+</form>
+{%- endmacro %}
+
+{% block side %}
+{% include "partials/requirements_side.html" %}
+{% endblock %}
+
+{% block content %}
+{{ ui.page_header(id, mono=True, eyebrow=requirement.spec if requirement else "Requirement",
+                  subtitle=(requirement.section | join(" › ")) if requirement else "Not in " ~ (contexts | selectattr(0, "equalto", context) | map(attribute=1) | first)) }}
+
+{% if requirement %}
+{% call ui.toolbar() %}
+  {{ ui.button("Read it in " ~ requirement.spec, href=url_for('requirements.spec', context=context, key=requirement.spec, req=id), icon="file") }}
+  {{ ui.button("Changes since a baseline", href=url_for('requirements.changes', spec=requirement.spec, to=context), icon="list") }}
+{% endcall %}
+{% call ui.card() %}{% call ui.card_body() %}
+<div class="ui-stack">
+  <div class="ui-requirement-text">{{ requirement.__repr_html__() | safe }}</div>
+  {% set attrs = [] %}
+  {% for name, value in requirement.attributes | dictsort %}{% set _ = attrs.append((name, value | join(", ") if value is sequence and value is not string else value)) %}{% endfor %}
+  {% if attrs %}{{ ui.dl(attrs, cols=True) }}{% endif %}
+</div>
+{% endcall %}{% endcall %}
+
+<div class="ui-grid" style="--ui-cols: 2;">
+  {% call ui.card("Satisfies", subtitle="The requirements above it") %}{% call ui.card_body() %}
+    {% for target, parent, suspect, change in parents %}
+    <div class="ui-stack ui-gap-tight" style="margin-bottom: 12px;">
+      {% if parent %}
+      <div class="ui-row" style="gap: 8px;">{{ ui.ident(target, url_for('requirements.requirement', id=target, context=ctx_param)) }} <span class="ui-muted">{{ parent.spec }}</span>
+        {% if suspect %}{{ ui.badge("changed since reviewed", tone="warning") }}{% endif %}</div>
+      {% if suspect %}{{ diff.details(change) }}{{ review_button({"child": id, "parent": target}) }}
+      {% else %}<div>{{ parent.__repr_html__() | safe }}</div>{% endif %}
+      {% else %}<div>{{ ui.ident(target) }} {{ ui.badge("missing", tone="danger") }}</div>{% endif %}
+    </div>
+    {% else %}{{ ui.empty("Traces to nothing above it.") }}{% endfor %}
+  {% endcall %}{% endcall %}
+  {% call ui.card("Satisfied by", subtitle="The requirements below it") %}{% call ui.card_body() %}
+    {% for child, suspect in children %}
+    <div style="margin-bottom: 6px;">{{ ui.ident(child.id, url_for('requirements.requirement', id=child.id, context=ctx_param)) }} <span class="ui-muted">{{ child.spec }}</span>
+      {% if suspect %}{{ ui.badge("suspect", tone="warning") }}{% endif %}</div>
+    {% else %}{{ ui.empty("Nothing traces up to it.") }}{% endfor %}
+  {% endcall %}{% endcall %}
+</div>
+
+{% call ui.card("Tested by", subtitle="Scripts in " ~ workspace if workspace else "No workspace configured") %}{% call ui.card_body() %}
+  {% for script, suspect, change in scripts %}
+  <div class="ui-stack ui-gap-tight" style="margin-bottom: 10px;">
+    <div class="ui-row" style="gap: 8px;">{{ ui.ident(script, url_for('workspace.index', id=workspace, path=script), plain=True) }}
+      {% if suspect %}{{ ui.badge("text changed since reviewed", tone="warning") }}{% endif %}</div>
+    {% if suspect %}{{ diff.details(change) }}{{ review_button({"workspace": workspace, "script": script, "id": id, "context": context}) }}{% endif %}
+  </div>
+  {% else %}{{ ui.empty("No script references it.") }}{% endfor %}
+{% endcall %}{% endcall %}
+{% endif %}
+
+{% call ui.section("History", subtitle="Every trunk change, newest first, and the baselines it is in") %}
+{% call ui.table(["Import", "Where", "What changed", ""]) %}
+  {% for e, d in events %}
+  <tr style="vertical-align: top;">
+    <td style="white-space: nowrap;"><span class="ui-mono">#{{ e.import_id }}</span><br>{{ ui.timestamp(e.imported_at) }}</td>
+    <td class="ui-mono" style="white-space: nowrap;">{% if e.kind == "baseline" %}<a href="{{ url_for('requirements.requirement', id=id, context=e.label) }}">{{ e.label }}</a>{% else %}{{ e.label }} trunk{% endif %}</td>
+    <td>{% if e.kind == "baseline" %}<span class="ui-muted">In baseline</span>{% else %}{{ diff.facets(e.changes) }}{{ diff.details(d) }}{% endif %}</td>
+    <td>{% if e.kind == "trunk" and "removed" not in e.changes %}<a href="{{ url_for('requirements.requirement', id=id, context='trunk@' ~ e.import_id) }}" class="ui-muted" style="font-size: 12px; white-space: nowrap;">as of #{{ e.import_id }}</a>{% endif %}</td>
+  </tr>
+  {% else %}{{ ui.empty_row("Never imported.", 4) }}{% endfor %}
+{% endcall %}
+{% endcall %}
+{% endblock %}

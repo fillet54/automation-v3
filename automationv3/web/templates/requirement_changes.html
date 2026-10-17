@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+{% import "partials/requirement_diff.html" as diff %}
+{% set nav_current = "requirements" %}
+{% set browse = True %}
+{% block title %}Changes · Requirements{% endblock %}
+
+{% block side %}
+{% include "partials/requirements_side.html" %}
+{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Changes", subtitle="What was added, removed and changed from one point to another: a baseline set, a spec's baseline, trunk, or trunk as of an import.") }}
+{% include "partials/requirements_tabs.html" %}
+
+<form method="get" action="{{ url_for('requirements.changes') }}">
+  {% call ui.toolbar("Compare") %}
+    <label class="ui-row" for="ch-from"><span class="ui-field__label">From</span>
+      {{ ui.select("from", choices, selected=before, id="ch-from") }}</label>
+    <label class="ui-row" for="ch-to"><span class="ui-field__label">To</span>
+      {{ ui.select("to", choices, selected=after, id="ch-to") }}</label>
+    {% if selected_spec %}<input type="hidden" name="spec" value="{{ selected_spec }}">{% endif %}
+    {% if selected_subsystem %}<input type="hidden" name="subsystem" value="{{ selected_subsystem }}">{% endif %}
+    {{ ui.button("Compare", variant="primary", type="submit") }}
+  {% endcall %}
+</form>
+
+{% set counts = {} %}
+{% for c, _ in changes %}{% set k = c.changes[0] if c.changes[0] in ("added", "removed") else "changed" %}{% set _ = counts.update({k: counts.get(k, 0) + 1}) %}{% endfor %}
+{% call ui.stats() %}
+  {{ ui.stat("Added", counts.get("added", 0), tone="success" if counts.get("added") else None) }}
+  {{ ui.stat("Removed", counts.get("removed", 0), tone="danger" if counts.get("removed") else None) }}
+  {{ ui.stat("Changed", counts.get("changed", 0), tone="warning" if counts.get("changed") else None) }}
+{% endcall %}
+
+{% call ui.table(["Requirement", "Spec", "What changed"]) %}
+  {% for c, d in changes %}
+  <tr style="vertical-align: top;">
+    <td style="white-space: nowrap;">{{ ui.ident(c.id, url_for('requirements.requirement', id=c.id, context=after if c.after else before)) }}</td>
+    <td class="ui-mono">{{ c.spec }}</td>
+    <td>{{ diff.facets(c.changes) }}
+      {% if "added" in c.changes %}<div class="ui-diff"><ins>{{ c.after.__repr_html__() | striptags }}</ins></div>
+      {% elif "removed" in c.changes %}<div class="ui-diff"><del>{{ c.before.__repr_html__() | striptags }}</del></div>
+      {% else %}{{ diff.details(d) }}{% endif %}</td>
+  </tr>
+  {% else %}{{ ui.empty_row("No differences.", 3) }}{% endfor %}
+{% endcall %}
+{% endblock %}

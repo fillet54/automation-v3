@@ -1,0 +1,6 @@
+{{ ui.tabs([
+  {"label": "Requirements", "href": url_for("requirements.list", context=ctx_param, workspace=workspace), "active": tab == "list"},
+  {"label": "Changes", "href": url_for("requirements.changes"), "active": tab == "changes"},
+  {"label": "Suspects", "href": url_for("requirements.suspect_links", context=ctx_param, workspace=workspace), "active": tab == "suspects"},
+  {"label": "Imports", "href": url_for("requirements.imports"), "active": tab == "imports"},
+], label="Requirements views") }}

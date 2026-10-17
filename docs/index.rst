@@ -75,6 +75,7 @@ Where to start
    operating/workers
    operating/reports
    operating/configuration-management
+   operating/requirements
    operating/scratch
 
 .. toctree::
@@ -84,5 +85,6 @@ Where to start
    reference/language
    reference/cli
    reference/requirements
+   reference/requirements-export
    reference/api
    reference/glossary

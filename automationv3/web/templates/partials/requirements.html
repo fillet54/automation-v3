@@ -4,7 +4,7 @@
   {% call ui.toolbar() %}
     <label class="ui-row" for="req-workspace"><span class="ui-field__label">Workspace</span>
     {{ ui.select("workspace", workspaces, selected=workspace, id="req-workspace", mono=True,
-                 attrs={"hx-get": url_for('requirements.list', subsystem=selected_subsystem), "hx-target": "#requirements",
+                 attrs={"hx-get": url_for('requirements.list', subsystem=selected_subsystem, spec=selected_spec, context=ctx_param), "hx-target": "#requirements",
                         "hx-swap": "innerHTML", "hx-push-url": "true"}) }}</label>
     <label class="ui-row" style="font-size: 13px;"><input type="checkbox" data-select-all
            style="width: 16px; height: 16px; accent-color: var(--ui-accent);"
@@ -30,11 +30,11 @@
                  style="width: 16px; height: 16px; accent-color: var(--ui-accent);" data-select-requirement
                  {% if not scripts %}title="No scripts reference it yet: a report tracks it until some do"{% endif %}></td>
       {% endif %}
-      <td style="white-space: nowrap;">{{ ui.ident(requirement.id) }}</td>
+      <td style="white-space: nowrap;">{{ ui.ident(requirement.id, url_for('requirements.requirement', id=requirement.id, context=ctx_param)) if requirement.text else ui.ident(requirement.id) }}</td>
       <td class="ui-requirement">{% if requirement.text %}{{ requirement.__repr_html__() | safe }}{% else %}<span class="ui-muted">Not in the requirements database</span>{% endif %}</td>
       <td>
         {% if not workspace %}<span class="ui-muted">—</span>
-        {% elif scripts %}<ul class="ui-plain-list">{% for s in scripts %}<li>{{ ui.ident(s, url_for('workspace.index', id=workspace, path=s), plain=True) }}</li>{% endfor %}</ul>
+        {% elif scripts %}<ul class="ui-plain-list">{% for s in scripts %}<li>{{ ui.ident(s, url_for('workspace.index', id=workspace, path=s), plain=True) }}{% if (s, requirement.id) in suspect %} <a href="{{ url_for('requirements.requirement', id=requirement.id, context=ctx_param) }}" title="The requirement's text changed since this script was reviewed">{{ ui.badge("suspect", tone="warning") }}</a>{% endif %}</li>{% endfor %}</ul>
         {% else %}<span class="ui-muted">No linked scripts</span>{% endif %}
       </td>
     </tr>

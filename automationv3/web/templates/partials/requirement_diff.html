@@ -1,0 +1,30 @@
+{% import "ui/components.html" as ui %}
+{#- What changed in a requirement, from requirements.what_changed: word changes to its text, attribute
+    changes, links added and removed, and a move between sections. -#}
+{% macro facets(changes) -%}
+<span class="ui-row" style="gap: 4px; flex-wrap: wrap;">{% for f in changes %}{{ ui.badge(f | facet, tone=f | facet_tone) }}{% endfor %}</span>
+{%- endmacro %}
+
+{% macro details(d) -%}
+{% if d %}
+<div class="ui-stack ui-gap-tight ui-req-change">
+  {% if d.text %}
+  <p class="ui-diff">{% for op, words in d.text %}{% if op == "added" %}<ins>{{ words }}</ins>{% elif op == "removed" %}<del>{{ words }}</del>{% else %}{{ words }}{% endif %}{% endfor %}</p>
+  {% endif %}
+  {% for name, old, new in d.attributes %}
+  <div class="ui-diff"><span class="ui-field__label ui-mono">{{ name }}</span>
+    {% if old is not none %}<del>{{ old | join(", ") if old is sequence and old is not string else old }}</del>{% endif %}
+    {% if new is not none %}<ins>{{ new | join(", ") if new is sequence and new is not string else new }}</ins>{% endif %}</div>
+  {% endfor %}
+  {% set removed, added = d.satisfies %}
+  {% if removed or added %}
+  <div class="ui-diff"><span class="ui-field__label">satisfies</span>
+    {% for t in removed %}<del class="ui-mono">{{ t }}</del> {% endfor %}{% for t in added %}<ins class="ui-mono">{{ t }}</ins> {% endfor %}</div>
+  {% endif %}
+  {% if d.section %}
+  <div class="ui-diff"><span class="ui-field__label">section</span>
+    <del>{{ d.section[0] | join(" › ") }}</del> <ins>{{ d.section[1] | join(" › ") }}</ins></div>
+  {% endif %}
+</div>
+{% endif %}
+{%- endmacro %}

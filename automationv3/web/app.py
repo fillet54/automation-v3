@@ -1,6 +1,6 @@
 """The server's Flask app"""
 
-from flask import Flask, has_app_context, redirect, url_for
+from flask import Flask, g, has_app_context, redirect, url_for
 
 from ..framework import rst
 from ..services.requirements import models as requirements
@@ -10,10 +10,20 @@ from .db import close_db, get_db
 
 
 def requirement_lookup(id):
-    """Resolve :req: references from the requirements table when serving"""
+    """Resolve :req: references from the requirements database when
+    serving: in the context the page's workspace verifies, else trunk"""
     if not has_app_context():
         return None
-    return requirements.find_by_id(get_db(), id)
+    return requirements.find_by_id(get_db(), id, g.get("requirement_context"))
+
+
+def requirement_key():
+    """What requirement_lookup answers from: the context, and the latest
+    import (which may have changed any requirement's text)"""
+    if not has_app_context():
+        return None
+    latest = get_db().execute("SELECT MAX(id) FROM imports").fetchone()[0]
+    return g.get("requirement_context") or "trunk", latest
 
 
 def create_app(**config):
@@ -29,7 +39,7 @@ def create_app(**config):
     app.register_blueprint(reports.reports, url_prefix="/reports")
     app.register_blueprint(scratch.scratch, url_prefix="/scratch")
     app.teardown_appcontext(close_db)
-    rst.set_requirement_lookup(requirement_lookup)
+    rst.set_requirement_lookup(requirement_lookup, requirement_key)
 
     @app.route("/")
     def index():

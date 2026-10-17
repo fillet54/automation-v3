@@ -403,6 +403,7 @@ def render_page(report_id, page, errors=(), status=200):
         bundles=[p.name for p in export.exports(root(), report_id)],
         errors=list(errors),
         connectors=None,
+        text_changed=text_changed(report),
     )
     if page == "values":
         touched = rollup.ref_rollup(
@@ -410,6 +411,16 @@ def render_page(report_id, page, errors=(), status=200):
             lambda run: store.read_events(root(), report_id, run["id"]))
         context["connectors"] = report_view.connectors(touched)
     return render_template(f"reports/{page}.html", **context), status
+
+
+def text_changed(report):
+    """The tracked requirements whose text in the report's context is no
+    longer the text the report recorded when it took them on"""
+    recorded = report.get("requirement_versions") or {}
+    current = models.requirement_versions(get_db(), recorded,
+                                          report.get("requirement_context"))
+    return {id for id, v in recorded.items()
+            if id in current and current[id]["text_hash"] != v["text_hash"]}
 
 
 @reports.route("/<report_id>/rename", methods=["POST"])

@@ -145,8 +145,9 @@ class TestExampleSet(unittest.TestCase):
         links.refresh(conn, "w", RVTS)
         linked = {r for r in links.scripts_by_requirement(conn, "w")
                   if r.startswith("VM-")}
-        document = RVTS.parent / "requirements" / "vehicle_manager.rst"
-        self.assertEqual(linked, {r.id for r in rst_source.parse(document.read_text())})
+        spec = RVTS.parent / "doors" / "specs" / "SRS-VM"
+        self.assertEqual(linked, {r.id for path in spec.glob("*.rst")
+                                  for r in rst_source.parse(path.read_text())})
 
 
 if __name__ == "__main__":

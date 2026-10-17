@@ -113,21 +113,29 @@ def check_open(root, report_id):
         raise QueueError(["The report is frozen: reopen it to add runs"])
 
 
-def known_requirements(conn, ids):
-    found = (requirement_models.find_by_id(conn, id) for id in ids)
+def known_requirements(conn, ids, context=None):
+    """The requirements of `ids` in `context` (trunk by default)"""
+    found = (requirement_models.find_by_id(conn, id, context) for id in ids)
     return [r for r in found if r is not None]
 
 
-def requirement_texts(conn, ids):
+def requirement_texts(conn, ids, context=None):
     """id -> text of the requirements the database knows, to keep in a
     report so its document quotes what was tested against"""
-    return {r.id: r.text for r in known_requirements(conn, ids)}
+    return {r.id: r.text for r in known_requirements(conn, ids, context)}
 
 
-def requirement_subsystems(conn, ids):
+def requirement_subsystems(conn, ids, context=None):
     """id -> subsystem of the requirements the database knows, to keep in
     a report so its pages can group them"""
-    return {r.id: r.subsystem for r in known_requirements(conn, ids) if r.subsystem}
+    return {r.id: r.subsystem for r in known_requirements(conn, ids, context) if r.subsystem}
+
+
+def requirement_versions(conn, ids, context=None):
+    """id -> {"spec", "version", "text_hash"} of the requirements the
+    database knows: the versions a report or run verifies"""
+    return {r.id: {"spec": r.spec, "version": r.version, "text_hash": r.text_hash}
+            for r in known_requirements(conn, ids, context) if r.version}
 
 
 def closure_hash(files, load_order):
@@ -157,9 +165,14 @@ def check_runnable(plan, track=False):
         raise QueueError(errors)
 
 
-def add_plan(conn, root, report_id, plan, requirements=None):
+def add_plan(conn, root, report_id, plan, requirements=None, context=None):
     """Queue every run of `plan` in an existing report. `requirements`
     (id -> linked scripts) join the report's tracked requirements.
+
+    The report verifies requirements in one context (see
+    services/requirements/models.py): the one it was first given, else
+    `context`, else trunk. It records each tracked requirement's version
+    in it, and each run the text of the requirements its script covers.
 
     Returns the run ids. Raises QueueError if nothing can run and there
     are no requirements to track: requirements without tests yet are
@@ -169,6 +182,7 @@ def add_plan(conn, root, report_id, plan, requirements=None):
     check_open(root, report_id)
     runs = plan.runs()
     report = store.load_report(root, report_id)
+    context = report.get("requirement_context") or context or "trunk"
     # The report's versions are the ones that count: an addition runs on
     # them, and a UUT the report has no version for yet takes the plan's
     current = report.get("uut_versions") or {}
@@ -182,10 +196,13 @@ def add_plan(conn, root, report_id, plan, requirements=None):
         report_id,
         uut_versions=versions,
         requirements={**report.get("requirements", {}), **(requirements or {})},
+        requirement_context=context,
         requirement_texts={**report.get("requirement_texts", {}),
-                           **requirement_texts(conn, requirements or {})},
+                           **requirement_texts(conn, requirements or {}, context)},
         requirement_subsystems={**report.get("requirement_subsystems", {}),
-                                **requirement_subsystems(conn, requirements or {})},
+                                **requirement_subsystems(conn, requirements or {}, context)},
+        requirement_versions={**report.get("requirement_versions", {}),
+                              **requirement_versions(conn, requirements or {}, context)},
         scripts=merge_scripts(report.get("scripts", []), summary["scripts"]),
         additions=[*report.get("additions", []), {
             "added": store.now_iso(),
@@ -215,6 +232,9 @@ def add_plan(conn, root, report_id, plan, requirements=None):
             {name: plan.uut_versions[name] for name in closure.uuts},
             closure.imports,
             variation,
+            requirement_versions={
+                id: v["text_hash"] for id, v in
+                requirement_versions(conn, script_plan.requirements, context).items()},
         ))
     return run_ids
 
@@ -233,7 +253,7 @@ def merge_scripts(entries, added):
     return list(merged.values())
 
 
-def queue_plan(conn, root, plan, name=None):
+def queue_plan(conn, root, plan, name=None, context=None):
     """Queue every run of `plan` under one new report, tracking the
     requirements it covers: the one-step path from a selection.
 
@@ -243,7 +263,7 @@ def queue_plan(conn, root, plan, name=None):
     check_runnable(plan, track=True)
     report_id = create_report(root, plan.workspace, name or default_name(plan),
                               plan.uut_versions)
-    return report_id, add_plan(conn, root, report_id, plan, plan.requirements)
+    return report_id, add_plan(conn, root, report_id, plan, plan.requirements, context)
 
 
 def default_name(plan):
@@ -349,6 +369,12 @@ def rerun(conn, root, report_id, run_id, force=False):
                 url: fingerprint_diff(run["fingerprint"], fingerprint)
                 for url, fingerprint in live.items()
             })
+    if "requirement_versions" in run:
+        # The same script, verifying its requirements as they read now
+        extra["requirement_versions"] = {
+            id: v["text_hash"] for id, v in requirement_versions(
+                conn, run["requirement_versions"],
+                report.get("requirement_context")).items()}
     return enqueue(conn, root, report_id, run["script"], files,
                    run.get("load_order", [run["script"]]),
                    run.get("environment"), versions,

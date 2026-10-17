@@ -1,0 +1,2 @@
+{#- Each page of a spec, as JSON for the server to show in its own layout (see render.py) -#}
+{{ {"title": title | striptags, "body": body, "prev": prev, "next": next} | tojson }}

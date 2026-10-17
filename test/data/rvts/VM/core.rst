@@ -2,7 +2,7 @@ Vehicle Manager test definitions
 ================================
 Tests of the Vehicle Manager (VM), the flight software on the satellite
 platform's bus computer. The requirements are the ``VM-*`` set in
-``test/data/requirements/vehicle_manager.rst``.
+the ``SRS-VM`` spec, ``test/data/doors/specs/SRS-VM``.
 
 They run against the simulated Vehicle Manager (the ``vm`` UUT of the
 ``vm`` plugin), reached through the ``vm`` handle: its telecommands

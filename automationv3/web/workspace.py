@@ -5,7 +5,7 @@ from functools import cached_property
 from pathlib import Path
 import re
 
-from flask import Blueprint, current_app, render_template, request, abort
+from flask import Blueprint, current_app, g, render_template, request, abort
 
 from ..framework import edn
 from ..framework.closure import is_script, resolve
@@ -15,6 +15,7 @@ from ..framework.rst import write_html_parts
 from ..framework.statements import get_statements
 from ..services import jobs
 from ..services.reports import store
+from ..services.requirements import models as requirement_models
 from ..services.workspace import FileNode, find_worktrees, is_binary
 from .db import get_db
 from .grouping import group, statement_item
@@ -55,6 +56,15 @@ class Workspace:
 # Views
 
 bp = Blueprint("workspace", __name__)
+
+
+@bp.before_request
+def requirement_context():
+    """:req: references on a workspace's pages read the requirements in
+    the context the workspace verifies (see app.requirement_lookup)"""
+    root = worktrees().get((request.view_args or {}).get("id"))
+    if root is not None:
+        g.requirement_context, _ = requirement_models.workspace_context(get_db(), root)
 
 
 def worktrees():

@@ -17,6 +17,11 @@ Usage:
                          [--reference DOC]...
     automation-v3 report export REPORT [--out DIR] [--template DIR]
     automation-v3 report reopen REPORT
+    automation-v3 requirements import FOLDER... [--dbpath PATH]
+    automation-v3 requirements log [--limit N] [--dbpath PATH]
+    automation-v3 requirements history ID [--dbpath PATH]
+    automation-v3 requirements diff FROM TO [--spec KEY]
+                         [--subsystem NAME] [--dbpath PATH]
     automation-v3 (-h | --help)
 
 Commands:
@@ -34,6 +39,14 @@ Commands:
                            report-<id>.zip
     report reopen          unfreeze an exported report, so runs can be
                            added to it again
+    requirements import    import DOORS export folders, in order
+    requirements log       the latest imports, and what each changed
+    requirements history   every change to a requirement, and the
+                           baselines it is in
+    requirements diff      the requirements added, removed and changed
+                           from one context to another: trunk, trunk@N
+                           (as of import N), set:NAME (a baseline set)
+                           or SPEC@BASELINE
 
 Options:
     -h --help              show this help message and exit
@@ -72,6 +85,10 @@ Options:
     --out=DIR              where to write the bundle (default: the report
                            folder's exports/)
     --template=DIR         the document template (default: the built-in one)
+    FOLDER                 an export folder, holding manifest.json
+    --limit=N              how many imports to show [default: 10]
+    --spec=KEY             only this spec's requirements
+    --subsystem=NAME       only this subsystem's requirements
 
 """
 from . import __version__
@@ -111,6 +128,8 @@ def main(argv=None):
         sys.exit(run(args))
     if args["report"]:
         sys.exit(report(args))
+    if args["requirements"]:
+        sys.exit(requirements(args))
 
     print(__banner__)
     if args["demo"]:
@@ -363,6 +382,47 @@ def report(args):
         print(e)
         return 1
     print(f"Report {report_id} frozen\nWrote {path}")
+    return 0
+
+
+def requirements(args):
+    """requirements import, log, history and diff. Returns the exit status."""
+    from contextlib import closing
+
+    from .services.database import connect, init_db
+    from .services.requirements import export, models, store
+
+    with closing(connect(args["--dbpath"])) as conn:
+        init_db(conn)
+        try:
+            if args["import"]:
+                for folder in args["FOLDER"]:
+                    import_id, outcomes = store.import_export(conn, export.read(folder))
+                    print(f"Import {import_id}: {folder}")
+                    for label, outcome in outcomes:
+                        print(f"  {label}: {outcome}")
+            elif args["log"]:
+                for import_id, at, source, changes in models.log(conn, int(args["--limit"])):
+                    print(f"Import {import_id}, {at}: {source}")
+                    for spec, id, what in changes:
+                        print(f"  {spec} {id}: {', '.join(what)}")
+            elif args["history"]:
+                events = models.history(conn, args["ID"])
+                if not events:
+                    print(f"No requirement {args['ID']} has been imported")
+                    return 1
+                for e in events:
+                    what = ", ".join(e.changes) if e.kind == "trunk" else "in baseline"
+                    print(f"Import {e.import_id}, {e.imported_at}: {e.label}: {what}")
+            else:
+                changes = models.diff(conn, args["FROM"], args["TO"], spec=args["--spec"],
+                                      subsystem=args["--subsystem"])
+                for c in changes:
+                    print(f"{c.spec} {c.id}: {', '.join(c.changes)}")
+                print(f"{len(changes)} requirements differ")
+        except (export.ExportError, models.ContextError) as e:
+            print(e)
+            return 1
     return 0
 
 

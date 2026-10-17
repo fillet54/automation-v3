@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% set nav_current = "requirements" %}
+{% set browse = True %}
+{% block title %}{{ spec.key }} · {{ page.title | striptags if page else spec.title }}{% endblock %}
+
+{% macro toc_entries(entries) -%}
+<ul class="ui-sidenav spec-toc">
+  {% for e in entries %}
+  <li><a href="{{ spec_link(context, spec.key, doc=e.doc) }}"{% if e.doc == doc %} aria-current="page"{% endif %}>{{ e.title }}</a>
+    {% if e.children %}{{ toc_entries(e.children) }}{% endif %}</li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+
+{% block side %}
+<form method="get" action="{{ url_for('requirements.spec_in') }}" class="ui-stack" style="margin-bottom: 16px;">
+  <input type="hidden" name="key" value="{{ spec.key }}">
+  <label for="spec-context">{{ ui.section_label(spec.key ~ " in") }}</label>
+  {{ ui.select("context", spec_contexts, selected=context, id="spec-context", attrs={"onchange": "this.form.submit()"}) }}
+  <noscript>{{ ui.button("Show", type="submit", size="sm") }}</noscript>
+</form>
+{{ ui.section_label("Contents") }}
+{% if toc %}
+<ul class="ui-sidenav">
+  <li><a href="{{ spec_link(context, spec.key) }}"{% if doc == "index" %} aria-current="page"{% endif %}>{{ toc.title }}</a></li>
+</ul>
+{{ toc_entries(toc.children) }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{{ ui.page_header(spec.title, mono=False, eyebrow=spec.key ~ " · " ~ (contexts | selectattr(0, "equalto", context) | map(attribute=1) | first),
+                  subtitle=spec.level | capitalize ~ " spec" ~ (", tracing up to " ~ spec.parents | join(", ") if spec.parents else "") ~ ". " ~ spec.count ~ " requirements.") }}
+{% if problem %}
+{% call ui.alert("warning", title="This spec can't be shown as a document") %}<pre class="ui-mono" style="white-space: pre-wrap; margin: 0;">{{ problem }}</pre>{% endcall %}
+{% call ui.table(["Requirement", "Text"]) %}
+  {% for r in requirements %}
+  <tr style="vertical-align: top;"><td>{{ ui.ident(r.id, url_for('requirements.requirement', id=r.id, context=ctx_param)) }}</td><td>{{ r.__repr_html__() | safe }}</td></tr>
+  {% endfor %}
+{% endcall %}
+{% else %}
+<article class="ui-prose spec-doc">{{ page.body }}</article>
+<nav class="ui-row spec-pager" aria-label="Pages">
+  {% if page.prev %}<a href="{{ page.prev.link }}">← {{ page.prev.title | striptags }}</a>{% endif %}
+  <span class="ui-spacer"></span>
+  {% if page.next %}<a href="{{ page.next.link }}">{{ page.next.title | striptags }} →</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

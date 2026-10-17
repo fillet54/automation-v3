@@ -9,7 +9,7 @@ code.
 
 import functools
 
-from . import document, edn
+from . import document, edn, rst
 from .language import PRECONDITION, head, is_definition, is_text, parse_precondition
 from .rst import repr_rst, write_html_parts
 
@@ -60,10 +60,17 @@ class Statement:
         return self.rst
 
 
-# Rendering runs docutils over the whole script, so cache by content:
-# pages ask for the same script repeatedly.
-@functools.lru_cache(maxsize=128)
 def get_statements(text):
+    """The script's statements, rendered"""
+    return _statements(text, rst.requirement_key())
+
+
+# Rendering runs docutils over the whole script, so cache by content:
+# pages ask for the same script repeatedly. Its :req: references are
+# rendered with the requirements' text, so the cache is by what that
+# text comes from too.
+@functools.lru_cache(maxsize=128)
+def _statements(text, requirement_key):
     parts = document.parse(text)
     forms = [part.form for part in parts]
     rst = [repr_rst(form) for form in forms]
@@ -95,3 +102,6 @@ def get_statements(text):
             "heal_html": extra[2 * n + 1] if parsed.heal is not None else None,
         }
     return statements
+
+
+get_statements.cache_clear = _statements.cache_clear

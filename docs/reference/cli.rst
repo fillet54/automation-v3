@@ -20,6 +20,11 @@ Command line
        automation-v3 run SCRIPT... [--root PATH] [--config PATH]
                          [--env NAME]... [--variation NAME]... [--filter EXPR]
                          [--uut NAME=VERSION]... [--reports-path PATH]
+       automation-v3 requirements import FOLDER... [--dbpath PATH]
+       automation-v3 requirements log [--limit N] [--dbpath PATH]
+       automation-v3 requirements history ID [--dbpath PATH]
+       automation-v3 requirements diff FROM TO [--spec KEY]
+                            [--subsystem NAME] [--dbpath PATH]
        automation-v3 (-h | --help)
 
    Commands:
@@ -30,6 +35,12 @@ Command line
                               with a worker in the same process
        worker                 take jobs from a server and run them
        run                    run scripts on this machine, without a server
+       requirements import    import DOORS export folders, in order
+       requirements log       the latest imports, and what each changed
+       requirements history   every change to a requirement, and the
+                              baselines it is in
+       requirements diff      the requirements added, removed and changed
+                              from one context to another
 
    Options:
        -h --help              show this help message and exit
@@ -87,3 +98,24 @@ folder under ``--reports-path`` and exits non-zero unless every run passed.
 .. code-block:: bash
 
    automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/worker.json --variation limp-home --uut demo=1.0.0
+
+``requirements``
+----------------
+
+Imports and inspects requirements. ``import`` reads each export ``FOLDER``
+(see :doc:`requirements-export`) and imports them in the order given, saying
+what happened to each spec; an export with a problem is refused whole and
+changes nothing. ``log`` lists the latest imports and the requirements each
+added, removed or changed; ``history`` follows one requirement through every
+import and baseline.
+
+``diff`` compares two contexts: ``trunk``, ``trunk@N`` (trunk as of import
+``N``), ``set:NAME`` (a baseline set) or ``SPEC@BASELINE``. Each line is a
+requirement and what changed: ``added``, ``removed``, or its ``text``,
+``metadata``, ``links`` or ``section``.
+
+.. code-block:: bash
+
+   automation-v3 requirements import exports/2026-10-15
+   automation-v3 requirements diff "set:Release 1" trunk --spec SRS-VM
+   automation-v3 requirements history VM-EPS-002

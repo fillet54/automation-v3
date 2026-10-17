@@ -3,11 +3,110 @@
 -- existing table is also listed in database.ADDED_COLUMNS; any other
 -- change of shape means deleting the database and reloading it.
 
--- Requirements
-CREATE TABLE IF NOT EXISTS requirements(
-    id TEXT PRIMARY KEY,
-    text TEXT,
-    subsystem TEXT
+-- Requirements, imported from DOORS exports (services/requirements).
+-- Content is stored by its sha256, so importing the same content again
+-- adds nothing.
+
+-- Each spec as last imported
+CREATE TABLE IF NOT EXISTS specs(
+    key TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    level TEXT NOT NULL,
+    parents TEXT NOT NULL DEFAULT '[]'
+);
+
+-- The files of specs' source trees
+CREATE TABLE IF NOT EXISTS blobs(
+    hash TEXT PRIMARY KEY,
+    content BLOB NOT NULL
+);
+
+-- A spec's content at one point. tree is JSON: path -> blob hash;
+-- attributes is its attribute schema.
+CREATE TABLE IF NOT EXISTS spec_versions(
+    hash TEXT PRIMARY KEY,
+    spec TEXT NOT NULL,
+    title TEXT NOT NULL,
+    level TEXT NOT NULL,
+    parents TEXT NOT NULL,
+    attributes TEXT NOT NULL,
+    tree TEXT NOT NULL
+);
+
+-- A requirement's content: hash is of all of it; the four facet hashes
+-- (text, metadata, links, section) decide what changed
+CREATE TABLE IF NOT EXISTS requirement_versions(
+    hash TEXT PRIMARY KEY,
+    id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    attributes TEXT NOT NULL,
+    satisfies TEXT NOT NULL,
+    section TEXT NOT NULL,
+    text_hash TEXT NOT NULL,
+    metadata_hash TEXT NOT NULL,
+    links_hash TEXT NOT NULL,
+    section_hash TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS requirement_versions_id ON requirement_versions(id);
+
+-- The requirements in each spec version, in document order
+CREATE TABLE IF NOT EXISTS spec_contents(
+    spec_version TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    requirement_version TEXT NOT NULL,
+    PRIMARY KEY(spec_version, position)
+);
+
+-- Each import of an export folder
+CREATE TABLE IF NOT EXISTS imports(
+    id INTEGER PRIMARY KEY,
+    imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    exported_at TEXT,
+    source TEXT NOT NULL,
+    manifest TEXT NOT NULL
+);
+
+-- Trunk: the version of each spec each import saw, changed or not, and
+-- when it was exported. A spec's trunk is its row with the highest
+-- import_id; trunk only moves forward, so exported_at never decreases.
+CREATE TABLE IF NOT EXISTS trunk_versions(
+    import_id INTEGER NOT NULL,
+    spec TEXT NOT NULL,
+    spec_version TEXT NOT NULL,
+    exported_at TEXT NOT NULL,
+    PRIMARY KEY(import_id, spec)
+);
+
+-- The trunk change log: each requirement an import added, removed or
+-- changed. before/after are requirement_versions hashes (NULL when added
+-- or removed); changes is JSON: ["added"], ["removed"] or the facets.
+CREATE TABLE IF NOT EXISTS requirement_changes(
+    import_id INTEGER NOT NULL,
+    spec TEXT NOT NULL,
+    id TEXT NOT NULL,
+    before TEXT,
+    after TEXT,
+    changes TEXT NOT NULL,
+    PRIMARY KEY(import_id, spec, id)
+);
+CREATE INDEX IF NOT EXISTS requirement_changes_id ON requirement_changes(id);
+
+-- Baselines never change once imported
+CREATE TABLE IF NOT EXISTS baselines(
+    spec TEXT NOT NULL,
+    name TEXT NOT NULL,
+    spec_version TEXT NOT NULL,
+    import_id INTEGER NOT NULL,
+    PRIMARY KEY(spec, name)
+);
+
+-- Baseline sets (releases): the baseline of each spec they pin
+CREATE TABLE IF NOT EXISTS baseline_sets(
+    name TEXT NOT NULL,
+    spec TEXT NOT NULL,
+    baseline TEXT NOT NULL,
+    import_id INTEGER NOT NULL,
+    PRIMARY KEY(name, spec)
 );
 
 -- Job queue workers. uut_types is a JSON list of the UUT plugins the
@@ -63,6 +162,31 @@ CREATE TABLE IF NOT EXISTS requirement_links(
     script TEXT NOT NULL,
     requirement_id TEXT NOT NULL,
     PRIMARY KEY(workspace, script, requirement_id)
+);
+
+-- Suspect links: the text of a requirement each link was last reviewed
+-- against. A link whose requirement's text has changed since is suspect.
+-- how is 'first seen' (recorded when the link was first found) or
+-- 'reviewed' (someone looked).
+CREATE TABLE IF NOT EXISTS script_reviews(
+    workspace TEXT NOT NULL,
+    script TEXT NOT NULL,
+    requirement_id TEXT NOT NULL,
+    text_hash TEXT NOT NULL,
+    reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    how TEXT NOT NULL,
+    PRIMARY KEY(workspace, script, requirement_id)
+);
+
+-- The same for trace links in trunk: a child requirement against the
+-- text of the parent it satisfies
+CREATE TABLE IF NOT EXISTS trace_reviews(
+    child TEXT NOT NULL,
+    parent TEXT NOT NULL,
+    text_hash TEXT NOT NULL,
+    reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    how TEXT NOT NULL,
+    PRIMARY KEY(child, parent)
 );
 
 -- Workspace tree view: which folders are expanded, per workspace

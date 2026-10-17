@@ -7,15 +7,7 @@
 {% block title %}Requirements{% endblock %}
 
 {% block side %}
-{{ ui.section_label("Subsystems") }}
-{#- Each link keeps the chosen workspace and report: as rendered, and as chosen since (see the script below) #}
-{% set keep = {"workspace": workspace or None, "report": target or None} %}
-<ul class="ui-sidenav" data-requirements-nav>
-  <li><a href="{{ url_for('requirements.list', **keep) }}"{% if not selected_subsystem %} aria-current="page"{% endif %}>All requirements</a></li>
-  {% for subsystem in subsystems | sort %}
-  <li><a href="{{ url_for('requirements.list', subsystem=subsystem, **keep) }}"{% if subsystem == selected_subsystem %} aria-current="page"{% endif %}>{{ ui.icon("layers", 14) }}<span class="ui-mono">{{ subsystem }}</span></a></li>
-  {% endfor %}
-</ul>
+{% include "partials/requirements_side.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -50,8 +42,17 @@
 {% endblock %}
 
 {% block content %}
-{{ ui.page_header(selected_subsystem or "Requirements", eyebrow="Subsystem" if selected_subsystem else None, mono=selected_subsystem,
-                  subtitle="Pick requirements to queue every script that tests them.") }}
+{% set spec_title = (specs | selectattr("key", "equalto", selected_spec) | map(attribute="title") | first) if selected_spec else None %}
+{{ ui.page_header(selected_subsystem or selected_spec or "Requirements",
+                  eyebrow="Subsystem" if selected_subsystem else ("Spec" if selected_spec else None),
+                  mono=selected_subsystem or selected_spec,
+                  subtitle=(spec_title ~ ". " if spec_title else "") ~ "Pick requirements to queue every script that tests them.") }}
+{% if selected_spec %}
+{% call ui.toolbar() %}
+  {{ ui.button("Read " ~ selected_spec, href=spec_link(context, selected_spec), icon="file") }}
+{% endcall %}
+{% endif %}
+{% include "partials/requirements_tabs.html" %}
 <div id="requirements">
   {% include "partials/requirements.html" %}
 </div>
