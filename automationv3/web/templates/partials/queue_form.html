@@ -26,6 +26,14 @@
   {% endcall %}
   {% endif %}
 
+  {% if in_work %}
+  {% call ui.alert("info", title="Edits that aren't checked in") %}
+    Reports run what is checked in, so these run as committed, not as they are on disk:
+    <ul class="ui-plain-list">{% for script, files in in_work.items() %}<li>{{ ui.ident(script) }}{% if files != [script] %}: {% for f in files %}{{ ui.ident(f) }} {% endfor %}{% endif %}</li>{% endfor %}</ul>
+    Commit them first, or try them in scratch.
+  {% endcall %}
+  {% endif %}
+
   {% if errors %}
   {% call ui.alert("danger", title="Can't queue yet") %}
     <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>

@@ -5,8 +5,10 @@ use those functions in-process (services.worker.local).
 """
 
 import base64
+import tempfile
 from dataclasses import asdict
 from datetime import datetime
+from pathlib import Path
 
 from flask import (
     Blueprint,
@@ -25,7 +27,7 @@ from ..services import jobs as models
 from ..services.reports import store
 from ..services.requirements import links
 from ..services.requirements import models as requirement_models
-from ..services.workspace import find_worktrees
+from ..services.workspace import checked_in, edited_files, find_worktrees
 from .db import get_db
 
 jobqueue = Blueprint("jobqueue", __name__)
@@ -40,6 +42,39 @@ def workspace_root(name):
     if not name:
         return None
     return find_worktrees(current_app.config["WORKSPACE_PATH"]).get(name)
+
+
+def checked_in_root(name):
+    """The rvts of branch `name` as checked in (its HEAD), which reports
+    run; None for an unknown branch or one with nothing committed. Kept
+    under CHECKED_IN_PATH, else checked-in/ beside the database."""
+    root = workspace_root(name)
+    if root is None:
+        return None
+    config = current_app.config
+    if not config.get("CHECKED_IN_PATH"):
+        db = config.get("DB_PATH")
+        config["CHECKED_IN_PATH"] = (Path(db).resolve().parent / "checked-in"
+                                     if db and db != ":memory:"
+                                     else Path(tempfile.mkdtemp(prefix="checked-in-")))
+    try:
+        return checked_in(root, config["CHECKED_IN_PATH"])
+    except ValueError:
+        return None
+
+
+def in_work(plan):
+    """script -> the files of its closure with edits that aren't checked
+    in, for the plan's scripts that have any: the checked-in version runs"""
+    root = workspace_root(plan.workspace)
+    edited = edited_files(root) if root else set()
+    out = {}
+    for s in plan.scripts:
+        files = [s.script, *(s.closure.load_order[:-1] if s.closure else [])]
+        found = [f for f in files if f in edited]
+        if found:
+            out[s.script] = found
+    return out
 
 
 @jobqueue.route("/", methods=["GET"])
@@ -76,11 +111,15 @@ def plan_from(args):
     leaves out combinations that already passed there."""
     report = target_report(args)
     workspace = report["workspace"] if report else args.get("workspace", "")
-    root = workspace_root(workspace)
-    if root is None:
+    on_disk = workspace_root(workspace)
+    if on_disk is None:
         abort(404)
     conn = get_db()
-    links.refresh(conn, workspace, root)
+    links.refresh(conn, workspace, on_disk)
+    # Reports run what is checked in; scratch runs what's on disk
+    root = checked_in_root(workspace)
+    if root is None:
+        abort(409, f"Nothing is checked in on {workspace} yet")
 
     # A report's versions are fixed for its additions (change them on the
     # report); only a UUT it has no version for yet can be picked
@@ -110,6 +149,9 @@ def plan_from(args):
         live = [e for e in plan.available_environments if e in live_environments()]
         if live and live != plan.environments:
             plan = build_plan(workspace, root, environments=live, **options)
+    for s in plan.scripts:
+        if s.skipped == "script not found" and (on_disk / s.script).is_file():
+            s.skipped = "not checked in yet: commit it, or run it in scratch"
     return plan
 
 
@@ -122,6 +164,7 @@ def render_dialog(plan, report=None, errors=()):
         plan=plan,
         report=report,
         runs=plan.runs(),
+        in_work=in_work(plan),
         live=live_environments(),
         errors=[*errors, *plan.errors],
     )
@@ -168,7 +211,7 @@ def queue_job():
     and uut_versions (uut name -> version id).
     """
     data = request.json or {}
-    root = workspace_root(data.get("workspace"))
+    root = checked_in_root(data.get("workspace"))
     if root is None or not data.get("script"):
         return jsonify({"errors": ["a known workspace and a script are required"]}), 400
     try:

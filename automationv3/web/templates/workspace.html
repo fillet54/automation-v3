@@ -19,7 +19,7 @@
 
 {% block content %}
 {% set path = request.args.get("path") %}
-<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path, variation=request.args.get('variation'), report=request.args.get('report')) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
+<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path, variation=request.args.get('variation'), files=request.args.get('files'), report=request.args.get('report')) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
   {{ ui.page_header(workspace.id, subtitle="Scripts are authored in git; this is a read-only view of the branch's rvts.", eyebrow="Workspace", mono=True) }}
   {% if report %}
   {% call ui.alert("info", title="Adding a test to " ~ (report.name or "a report")) %}Pick a script from the tree, then add it to the report.{% endcall %}

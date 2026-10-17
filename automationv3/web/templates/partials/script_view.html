@@ -6,6 +6,25 @@
   {% for part in path.split('/')[:-1] %}{% set _ = crumbs.append((part, None)) %}{% endfor %}
   {% set _ = crumbs.append((path.split('/')[-1], None)) %}
   <header class="ui-page-header">{{ ui.breadcrumbs(crumbs) }}</header>
+  {% set view_files = files if files != "in work" else None %}
+
+  {#- The script or a file it loads has edits that aren't checked in: show either, or what changed #}
+  {% if in_work %}
+  {% set items = [] %}
+  {% for kind, label in [("in work", "In work"), ("checked in", "Checked in"), ("changes", "Changes")] %}
+    {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=variation.name if variation else None, files=kind if kind != "in work" else None, report=target or None) %}
+    {% set _ = items.append({"label": label, "href": href, "active": files == kind,
+                             "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=variation.name if variation else None, files=kind if kind != "in work" else None, report=target or None),
+                                       "hx-target": "#content", "hx-swap": "outerHTML", "hx-push-url": href}}) %}
+  {% endfor %}
+  <div class="ui-in-work">
+    {{ ui.badge("Edited", tone="warning") }}
+    <span>{% if in_work == [path] %}This script has{% else %}{% for f in in_work %}{{ ui.ident(f) }}{% if not loop.last %}, {% endif %}{% endfor %} {{ "has" if in_work | length == 1 else "have" }}{% endif %}
+      edits that aren't checked in. Scratch runs whichever you pick; reports run what's checked in.</span>
+    <span class="ui-spacer"></span>
+    {{ ui.segmented(items, label="Which files") }}
+  </div>
+  {% endif %}
 
   {% set queueable = closure and not closure.errors %}
   {% if closure and (queueable or closure.variations) %}
@@ -14,9 +33,9 @@
       {%- if closure.variations and closure.variations | length <= 5 %}
       {% set items = [] %}
       {% for name in [None] + variation_names %}
-        {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=name, report=target or None) %}
+        {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=name, files=view_files, report=target or None) %}
         {% set _ = items.append({"label": name or "All", "href": href, "active": (variation.name if variation else None) == name,
-                                 "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=name, report=target or None),
+                                 "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=name, files=view_files, report=target or None),
                                            "hx-target": "#content", "hx-swap": "outerHTML", "hx-push-url": href}}) %}
       {% endfor %}
       {{ ui.segmented(items, label="Variation") }}
@@ -24,10 +43,23 @@
       {% set options = [("", "All variations")] %}
       {% for name in variation_names %}{% set _ = options.append((name, name)) %}{% endfor %}
       {{ ui.select("variation", options, selected=variation.name if variation else "", id="variation-select", mono=True,
-                   attrs={"aria-label": "Variation", "onchange": "window.location.href = '" ~ url_for('workspace.index', id=workspace.id, path=path) ~ "' + (this.value ? '&variation=' + encodeURIComponent(this.value) : '')"}) }}
+                   attrs={"aria-label": "Variation", "onchange": "window.location.href = '" ~ url_for('workspace.index', id=workspace.id, path=path, files=view_files) ~ "' + (this.value ? '&variation=' + encodeURIComponent(this.value) : '')"}) }}
       {%- endif %}
     </div>
     {%- if queueable %}
+    <form method="post" action="{{ url_for('scratch.run') }}" class="ui-toolbar">
+      <input type="hidden" name="workspace" value="{{ workspace.id }}">
+      <input type="hidden" name="script" value="{{ path }}">
+      <input type="hidden" name="files" value="{{ 'checked in' if files == 'checked in' else 'in work' }}">
+      {% if variation %}<input type="hidden" name="variation" value="{{ variation.name }}">{% endif %}
+      {% if closure.environments | length > 1 %}
+      {% set options = [("", "every environment")] %}
+      {% for e in closure.environments %}{% set _ = options.append((e, e ~ ("" if e in live else " (no worker)"))) %}{% endfor %}
+      {{ ui.select("environment", options, selected=(closure.environments | select("in", live) | first) or "", id="scratch-environment", mono=True, attrs={"aria-label": "Environment"}) }}
+      {% endif %}
+      {{ ui.button("Run in scratch", icon="play", type="submit",
+                   attrs={"title": "Run " ~ ("the " ~ variation.name ~ " variation" if variation else "every variation") ~ " with the files " ~ ("as checked in" if files == "checked in" else "as they are on disk") ~ ", outside any report"}) }}
+    </form>
     <form method="get" action="{{ url_for('jobqueue.new') }}" class="ui-toolbar">
       <input type="hidden" name="workspace" value="{{ workspace.id }}">
       <input type="hidden" name="script" value="{{ path }}">
@@ -90,7 +122,16 @@
   </details>
   {% endif %}
 
-  {% if parts is not none %}
+  {% if not_checked_in %}
+  {{ ui.empty("This script isn't checked in yet: there is only the version in work.") }}
+  {% elif changes %}
+  {% for file, lines in changes %}
+  {% call ui.card() %}
+    {{ ui.card_header(file, subtitle="checked in → in work", mono=True) }}
+    <pre class="ui-pre ui-diff-lines">{% for line in lines[2:] %}<span class="{{ 'is-added' if line.startswith('+') else 'is-removed' if line.startswith('-') else 'is-hunk' if line.startswith('@@') else '' }}">{{ line or " " }}</span>{% endfor %}</pre>
+  {% endcall %}
+  {% endfor %}
+  {% elif parts is not none %}
   <article class="ui-doc">
     {#- The variations form is shown in the details above #}
     {% macro render(item) %}

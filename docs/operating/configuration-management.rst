@@ -10,9 +10,11 @@ What a run records
 ------------------
 
 The closure
-   The script and every ``core.rst`` and import it loaded, copied into the
-   run's ``closure/`` folder and hashed. Changing any of those files later
-   doesn't change what the run says it ran.
+   The script and every ``core.rst`` and import it loaded, as checked in on
+   the workspace's branch (edits not yet committed run only in
+   :doc:`scratch`), copied into the run's ``closure/`` folder and hashed.
+   Changing any of those files later doesn't change what the run says it
+   ran.
 
 The variation
    Its name and the values it bound.

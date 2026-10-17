@@ -558,6 +558,13 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
+    def commit(self, files):
+        """Write `files` into the workspace and check them in: reports run
+        only what is checked in"""
+        write_tree(self.gitdir / "rvts", files)
+        gitutil.check_output_no_stderr(["git", "add", "-A"], cwd=self.gitdir)
+        gitutil.check_output_no_stderr(["git", "commit", "-q", "-m", "More scripts"], cwd=self.gitdir)
+
     def queue(self, script, **kw):
         response = self.http.post("/runner/jobs", json={
             "workspace": self.branch, "script": script, **kw})
@@ -613,7 +620,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(run["imports"], ["LIB/core.rst"])
 
     def test_warm_job_runs_before_older_cold_one(self):
-        write_tree(self.gitdir / "rvts", {
+        self.commit({
             "BRA/core.rst": "(defn mode? [m] (= (.mode demo) m))",
             "BRA/cold.rst": '(Precondition "x" (mode? :x)) (Wait 1)',
             "BRA/warm.rst": '(Precondition "normal" (mode? :normal)) (Wait 1)',
@@ -957,7 +964,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertIn("No script references this requirement yet", runs)
 
         # A script is written for it: updating the report's tests runs it
-        write_tree(self.gitdir / "rvts", {
+        self.commit({
             "BRA/fade.rst": doc("Fade :req:`R9`", rvt("(Verify (under-limit? 5))"))})
         dialog = self.http.get("/runner/new", query_string={
             "report": report_id, "requirement": "R9"}).get_data(True)
@@ -1206,6 +1213,61 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.http.post("/scratch/clear", data={"workspace": self.branch})
         (left,) = models.scratch_runs(self.root)
         self.assertEqual((left["script"], left["outcome"]), ("plain/fail.rst", None))
+
+    def edit(self, path, text):
+        """An edit on disk that isn't checked in"""
+        (find_worktrees(self.gitdir)[self.branch] / path).write_text(script(text))
+
+    def view(self, path, **args):
+        return self.http.get(f"/workspace/{self.branch}/view",
+                             query_string={"path": path, **args}).get_data(True)
+
+    def test_the_viewer_shows_in_work_checked_in_or_the_changes(self):
+        self.assertNotIn("Edited", self.view("plain/pass.rst"))
+        self.edit("plain/pass.rst", FAILING)
+        in_work = self.view("plain/pass.rst")
+        self.assertIn("Edited", in_work)
+        self.assertIn("Verify", in_work)
+        checked_in = self.view("plain/pass.rst", files="checked in")
+        self.assertNotIn("Verify", checked_in)
+        changes = self.view("plain/pass.rst", files="changes")
+        self.assertIn('class="is-added">+   (Verify 1 = 2)', changes)
+
+    def test_an_edited_core_marks_the_scripts_that_load_it(self):
+        self.edit("LIB/core.rst", "(def limit 1)")
+        self.assertIn("LIB/core.rst", self.view("BRA/imports.rst"))
+
+    def test_scratch_runs_the_files_picked(self):
+        self.edit("plain/pass.rst", FAILING)
+        self.scratch("plain/pass.rst")
+        self.assertEqual(self.worker.work_once(), "fail")
+        self.scratch("plain/pass.rst", files="checked in")
+        self.assertEqual(self.worker.work_once(), "pass")
+        checked_in, in_work = models.scratch_runs(self.root)
+        self.assertEqual((checked_in["source"], in_work["source"]), ("checked in", "in work"))
+        self.http.post(f"/scratch/runs/{checked_in['id']}/again")
+        self.assertEqual(self.worker.work_once(), "pass")  # still as checked in
+
+    def test_scratch_runs_one_variation(self):
+        self.scratch("BRA/modes.rst", variation="low")
+        (run,) = models.scratch_runs(self.root)
+        self.assertEqual(run["variation"]["name"], "low")
+
+    def test_reports_run_what_is_checked_in(self):
+        self.edit("plain/pass.rst", FAILING)
+        dialog = self.http.get("/runner/new", query_string={
+            "workspace": self.branch, "script": "plain/pass.rst"}).get_data(True)
+        self.assertIn("Edits that aren&#39;t checked in", dialog)
+        ids = self.queue("plain/pass.rst")
+        self.assertEqual(self.worker.work_once(), "pass")
+        files = store.read_closure(self.root, ids["report_id"], ids["run_id"])
+        self.assertNotIn("Verify", files["plain/pass.rst"])
+
+    def test_a_script_not_checked_in_cant_go_in_a_report(self):
+        self.edit("plain/new.rst", PASSING)
+        dialog = self.http.get("/runner/new", query_string={
+            "workspace": self.branch, "script": "plain/new.rst"}).get_data(True)
+        self.assertIn("not checked in yet", dialog)
 
     def test_scratch_reports_what_cant_run(self):
         response = self.http.post("/scratch/run", data={

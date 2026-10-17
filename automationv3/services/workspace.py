@@ -1,7 +1,12 @@
 """Workspaces: the rvts directory of each git worktree, as a file tree"""
 
+import io
+import os
+import shutil
 import subprocess
-from pathlib import Path
+import tarfile
+import tempfile
+from pathlib import Path, PurePosixPath
 
 
 class FileNode:
@@ -82,3 +87,73 @@ def is_binary(path, sample_length=8000):
         return False
     except UnicodeDecodeError:
         return True
+
+
+# Checked in and in work. A workspace's files on disk may have edits that
+# aren't committed: scratch runs use them as they are, reports only what
+# is checked in (the branch's HEAD).
+
+
+def git(root, *args, binary=False):
+    """The output of git, run in `root`"""
+    result = subprocess.run(["git", *args], cwd=root, capture_output=True, check=True)
+    return result.stdout if binary else result.stdout.decode("utf-8")
+
+
+def head_commit(root):
+    """The commit checked out at `root`, or None if there is none yet"""
+    try:
+        return git(root, "rev-parse", "--verify", "-q", "HEAD").strip() or None
+    except subprocess.CalledProcessError:
+        return None
+
+
+def edited_files(root):
+    """Paths (relative to `root`) whose files differ from what is checked
+    in: modified, staged, deleted or new"""
+    if head_commit(root) is None:
+        changed = ""
+    else:
+        changed = git(root, "diff", "--name-only", "--relative", "-z", "HEAD", "--", ".")
+    untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z", "--", ".")
+    return {p for p in (changed + untracked).split("\0") if p}
+
+
+def committed_text(root, path):
+    """The checked-in text of `path` (relative to `root`), or None if it
+    isn't checked in"""
+    try:
+        return git(root, "show", f"HEAD:./{PurePosixPath(path)}")
+    except subprocess.CalledProcessError:
+        return None
+
+
+def checked_in(root, cache):
+    """A folder holding `root` as it is checked in (at HEAD), kept under
+    `cache` by commit so it is written once. Raises ValueError if nothing
+    is checked in yet."""
+    commit = head_commit(root)
+    if commit is None:
+        raise ValueError(f"{root}: nothing is checked in yet")
+    prefix = git(root, "rev-parse", "--show-prefix").strip()
+    out = Path(cache) / f"{commit}-{prefix.strip('/').replace('/', '_') or 'root'}"
+    if out.is_dir():
+        return out
+    Path(cache).mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix="checkout-", dir=cache))
+    try:
+        # Run in `root`, archive holds just its folder, paths relative to it
+        archive = git(root, "archive", "--format=tar", commit, binary=True)
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            if hasattr(tarfile, "data_filter"):  # Python 3.12, and fixes back to 3.8
+                tar.extractall(work, filter="data")
+            else:
+                tar.extractall(work)
+        try:
+            os.replace(work, out)
+        except OSError:
+            if not out.is_dir():  # not another request writing it first
+                raise
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return out

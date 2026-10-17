@@ -1,5 +1,6 @@
 """Workspace pages: the file tree and the read-only script viewer"""
 
+import difflib
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
@@ -16,9 +17,10 @@ from ..framework.statements import get_statements
 from ..services import jobs
 from ..services.reports import store
 from ..services.requirements import models as requirement_models
-from ..services.workspace import FileNode, find_worktrees, is_binary
+from ..services.workspace import FileNode, committed_text, edited_files, find_worktrees, is_binary
 from .db import get_db
 from .grouping import group, statement_item
+from .jobs import checked_in_root, live_environments
 
 
 def expanded_nodes(conn, workspace_id, root):
@@ -188,28 +190,64 @@ def written_values(variation):
     return [edn.writes(form) for form in variation.forms]
 
 
-def render_view(ws, node, errors=None, variation=None):
+VIEWS = (jobs.IN_WORK, jobs.CHECKED_IN, "changes")
+
+
+def changes(ws, files):
+    """[(path, unified diff lines)] from the checked-in text of each of
+    `files` to the text on disk"""
+    out = []
+    for path in files:
+        before = committed_text(ws.root, path) or ""
+        after = (ws.root / path).read_text() if (ws.root / path).is_file() else ""
+        out.append((path, list(difflib.unified_diff(
+            before.splitlines(), after.splitlines(), "checked in", "in work", lineterm="", n=3))))
+    return out
+
+
+def render_view(ws, node, errors=None, variation=None, files=None):
     """The script viewer. `variation` (a name the script declares) narrows
-    the script to what that variation runs; None shows every variation."""
+    the script to what that variation runs; None shows every variation.
+    `files` shows the script in work (on disk, the default), as checked
+    in, or the changes between them, when it or a file it loads has edits
+    that aren't checked in."""
     relpath = str(node.relative_path)
+    files = files if files in VIEWS else jobs.IN_WORK
     closure = None
     if not is_binary(node.path) and is_script(relpath, node.path.read_text()):
         closure = resolve(ws.root, relpath)
+    edited = edited_files(ws.root)
+    in_work = [f for f in dict.fromkeys([relpath, *(closure.load_order if closure else [])])
+               if f in edited]
+    source, path = ws.root, node.path
+    if files == jobs.CHECKED_IN and in_work:
+        source = checked_in_root(ws.id)
+        path = source / relpath if source else None
+        if path is None or not path.is_file():
+            return render_template("partials/script_view.html", workspace=ws, path=relpath,
+                                   files=files, in_work=in_work, not_checked_in=True,
+                                   closure=None, parts=None, text=None, errors=errors or [],
+                                   diagnostics=[], live=[], variation=None)
+        closure = resolve(source, relpath) if closure else None
     names = [v.name for v in closure.variations] if closure else []
     selected = next((v for v in closure.variations if v.name == variation), None) \
         if closure else None
     text = None
     diagnostics = diagnostic_views(closure, relpath) if closure else []
     try:
-        parts = render_file(node.path, selected.name if selected else None, diagnostics)
+        parts = render_file(path, selected.name if selected else None, diagnostics)
     except Exception as e:  # unreadable script: show it raw
         parts, errors = None, (errors or []) + [f"Could not render: {e}"]
-    if parts is None and not is_binary(node.path):
-        text = node.path.read_text()
+    if parts is None and not is_binary(path):
+        text = path.read_text()
     return render_template(
         "partials/script_view.html",
         workspace=ws,
         path=relpath,
+        files=files if in_work else jobs.IN_WORK,
+        in_work=in_work,
+        changes=changes(ws, in_work) if files == "changes" and in_work else None,
+        live=sorted(live_environments()),
         parts=parts,
         text=text,
         closure=closure,
@@ -236,4 +274,5 @@ def view(id):
     node = node_or_404(ws, request.args.get("path", ""))
     if not node.is_file():
         abort(404)
-    return render_view(ws, node, variation=request.args.get("variation"))
+    return render_view(ws, node, variation=request.args.get("variation"),
+                       files=request.args.get("files"))

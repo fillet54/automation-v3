@@ -759,14 +759,19 @@ def complete_job(conn, root, id, worker_url, outcome, installed=None,
 # The scratch space: runs of scripts under development. They live in the
 # reserved `scratch` folder of the reports root, which has no
 # report.json, so they never appear in a report or a rollup. They run
-# the workspace's files as they are on disk, uncommitted changes
-# included, and can be cleared.
+# the workspace's files as they are on disk ("in work"), uncommitted
+# changes included, or as checked in, and can be cleared.
 
 SCRATCH = "scratch"
 
 
-def queue_scratch(conn, root, plan):
-    """Queue every run of `plan` in the scratch space. Returns the run ids."""
+IN_WORK, CHECKED_IN = "in work", "checked in"
+
+
+def queue_scratch(conn, root, plan, files=IN_WORK):
+    """Queue every run of `plan` in the scratch space. `files` says which
+    of the workspace's files the plan was built from: IN_WORK (on disk)
+    or CHECKED_IN. Returns the run ids."""
     check_runnable(plan)
     run_ids = []
     for script_plan, environment, variation in plan.runs():
@@ -777,7 +782,7 @@ def queue_scratch(conn, root, plan):
         run_ids.append(enqueue(
             conn, root, SCRATCH, closure.script, closure.files, closure.load_order,
             environment, {name: plan.uut_versions[name] for name in closure.uuts},
-            closure.imports, variation, workspace=plan.workspace,
+            closure.imports, variation, workspace=plan.workspace, source=files,
         ))
     return run_ids
 
@@ -789,7 +794,8 @@ def scratch_runs(root):
 
 def run_again(conn, root, workspace_root, run_id):
     """Queue a scratch run again with the script as it is now: the same
-    script, environment, variation and UUT versions. Returns the run id."""
+    script, environment, variation and UUT versions, from `workspace_root`
+    (the run's files: in work or checked in). Returns the run id."""
     run = store.load_run(root, SCRATCH, run_id)
     variation = (run.get("variation") or {}).get("name")
     plan = build_plan(
@@ -800,7 +806,7 @@ def run_again(conn, root, workspace_root, run_id):
         versions={uut: v["id"] for uut, v in (run.get("uut_versions") or {}).items()},
         variations={f"{run['script']}::{variation}"} if variation else None,
     )
-    (run_id,) = queue_scratch(conn, root, plan)
+    (run_id,) = queue_scratch(conn, root, plan, run.get("source", IN_WORK))
     return run_id
 
 

@@ -806,6 +806,14 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 .spec-toc .spec-toc { margin-left: 12px; }
 .spec-pager { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--ui-rule); }
 
+/* A script with edits that aren't checked in: which files to show, and the changes */
+.ui-in-work { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--ui-warning) 35%, var(--ui-rule)); border-radius: 6px; background: color-mix(in srgb, var(--ui-warning) 7%, var(--ui-paper)); font-size: 13px; }
+.ui-diff-lines { margin: 0; }
+.ui-diff-lines span { display: block; }
+.ui-diff-lines .is-added { background: color-mix(in srgb, var(--ui-success) 14%, transparent); }
+.ui-diff-lines .is-removed { background: color-mix(in srgb, var(--ui-danger) 12%, transparent); }
+.ui-diff-lines .is-hunk { color: var(--ui-muted); }
+
 /* Changes to a requirement: words, attributes and links added and removed */
 .ui-req-change { margin-top: 6px; }
 .ui-diff { margin: 0; line-height: 1.6; }
