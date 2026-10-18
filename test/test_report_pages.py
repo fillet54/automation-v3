@@ -99,7 +99,7 @@ class TestTree(ReportPagesTestCase):
         from automationv3.services.reports import export
         rst = export.render_rst(export.model(self.root, self.report_id), "f" * 64,
                                 "2026-01-01T00:00:00+00:00")
-        self.assertIn(r"untested\: no script references it yet", rst)
+        self.assertIn("untested, no script references it yet", rst)
         self.assertIn("*no tests yet*", rst)
         export.rst_to_latex(rst)
 

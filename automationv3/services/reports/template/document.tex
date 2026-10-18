@@ -15,6 +15,19 @@
 ((( requirements )))
 \definecolor{acme}{HTML}{1F4E79}
 \definecolor{acmeaccent}{HTML}{E07A1F}
+((# How the body's marked parts look (see body.rst): docutils writes
+    \DUrole{<class>}{...} and \begin{DUclass}{<class>}, which use these
+    when they're defined and leave the text as it is when not. #))
+\definecolor{verdictgood}{HTML}{2E7D32}
+\definecolor{verdictbad}{HTML}{C62828}
+\definecolor{verdictwarn}{HTML}{B26A00}
+\definecolor{verdictnone}{HTML}{6B6B6B}
+((* for name, color in [("pass", "good"), ("green", "good"), ("fail", "bad"), ("red", "bad"),
+                         ("error", "bad"), ("partial", "warn"), ("incomplete", "warn"),
+                         ("outdated", "warn"), ("untested", "none"), ("unfinished", "none")] *))
+\newcommand{\DUrole((( name )))}[1]{\textcolor{verdict((( color )))}{#1}}
+((* endfor *))
+\newenvironment{DUCLASSrequirement}{\itshape}{}
 ((( fallbacks )))
 ((( pdfsetup )))
 \hypersetup{colorlinks=true,linkcolor=acme,urlcolor=acme,

@@ -101,6 +101,25 @@ class TestDocument(ReportTestCase):
         self.assertEqual(export.rst_to_latex(rst)["body"].count(r"\textbf"), 0)
         self.assertIn("*bold*", export.rst_to_latex(rst)["body"])
 
+    def test_text_that_could_open_a_block_stays_a_paragraph(self):
+        for value in ["- x", "1. x", ":x: y", "..", "===", "see::", "tc_bra_ x"]:
+            body = export.rst_to_latex(export.text(value))["body"]
+            self.assertNotIn(r"\begin", body, value)
+        self.assertEqual(export.text("BRA/tc_bra_00004.rst"), "BRA/tc_bra_00004.rst")
+
+    def test_verdicts_carry_a_class_each_output_can_style(self):
+        rst = export.render_rst(export.model(self.root, self.report_id), "f" * 64,
+                                "2026-01-01T00:00:00+00:00")
+        self.assertIn(":fail:`fail`", rst)
+        self.assertIn(r"\DUrole{fail}{fail}", export.rst_to_latex(rst)["body"])
+
+    def test_a_requirement_is_its_own_rst_when_it_stands_alone(self):
+        self.assertIn(".. container:: requirement",
+                      export.requirement("The brakes *shall* hold:\n\n- on ice"))
+        # a section, or a role plain docutils doesn't know, falls back to text
+        for value in ["Title\n=====\n\nText.", "See :ref:`x`."]:
+            self.assertNotIn("container", export.requirement(value), value)
+
     def test_document_fields_default_from_the_report(self):
         self.assertEqual(export.document_fields(self.report())["title"],
                          self.report()["name"])

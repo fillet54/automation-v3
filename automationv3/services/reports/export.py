@@ -32,7 +32,8 @@ name; its other fields live in report.json under "document"::
 
 A template is a folder holding template.json (company, marking,
 document_type and the signature roles), document.tex (a Jinja template,
-see the built-in one) and the files it includes, such as logo.pdf. A
+see the built-in one), optionally body.rst (the body; see rst_template.py)
+and the files they include, such as logo.pdf. A
 workspace keeps its own in a report/ folder beside its rvts/ folder;
 without one, the built-in template is used.
 """
@@ -40,7 +41,6 @@ without one, the built-in template is used.
 import hashlib
 import io
 import json
-import re
 import shutil
 import subprocess
 import tempfile
@@ -49,11 +49,13 @@ from datetime import datetime
 from pathlib import Path
 
 import jinja2
-from docutils.core import publish_parts
+from docutils import nodes
+from docutils.core import publish_doctree, publish_parts
 from docutils.utils import SystemMessage
 
 from ...framework.statements import get_statements
-from . import rollup, store
+from . import rollup, rst_template, store
+from .rst_template import Rst, indent, literal, text  # noqa: F401
 
 BUILTIN_TEMPLATE = Path(__file__).parent / "template"
 EXPORTS = "exports"  # a report folder's exported bundles; never bundled
@@ -229,38 +231,12 @@ def environments(runs):
     return {env: sorted(p) for env, p in sorted(found.items())}
 
 
-# The body, as reStructuredText
+# The body, as reStructuredText, from the template's body.rst
 
-SPECIAL = re.compile(r"([\\`*_|\[\]<>:])")
-
-
-def text(value):
-    """`value` as plain rst text: nothing in it is markup"""
-    value = " ".join(str(value if value is not None else "").split())
-    value = SPECIAL.sub(r"\\\1", value)
-    return "\\" + value if value[:1] in "-+#=.0123456789" and value else value
-
-
-def literal(value):
-    value = " ".join(str(value).split()).replace("``", "` `")
-    return f"``{value}``" if value else ""
-
-
-def table(caption, widths, header, rows):
-    if not rows:
-        return "None.\n"
-    lines = [f".. list-table:: {text(caption)}", "   :header-rows: 1",
-             f"   :widths: {' '.join(str(w) for w in widths)}", ""]
-    for row in [header, *rows]:
-        for n, cell in enumerate(row):
-            first, *more = (cell or "\\-").split("\n")
-            lines.append(f"   {'* -' if n == 0 else '  -'} {first}")
-            lines += [f"       {line}" if line else "" for line in more]
-    return "\n".join(lines) + "\n"
-
-
-def heading(title, char):
-    return f"{title}\n{char * len(title)}\n"
+BODY = "body.rst"
+# A verdict is written with a role of its own name (see body.rst)
+VERDICTS = ("pass", "fail", "error", "incomplete", "outdated", "unfinished",
+            "green", "red", "partial", "untested")
 
 
 def combination(row):
@@ -286,136 +262,92 @@ def stamp(iso):
     return iso.replace("T", " ").replace("+00:00", " UTC") if iso else ""
 
 
-def render_rst(m, manifest_hash, exported):
-    report, rows, requirements = m["report"], m["rows"], m["requirements"]
-    out = []
+def verdict(state):
+    if state in VERDICTS:
+        return Rst(f":{state}:`{state}`")
+    return Rst(f"**{text(state)}**")
 
-    out.append(heading("Identification", "="))
+
+def why(row):
+    """What went wrong with a combination, after its verdict"""
+    failure = row["failure"]
+    if failure:
+        return Rst((f" at {text(failure['step'])}" if failure["step"] else "")
+                   + (f": {text(failure['message'])}" if failure["message"] else ""))
+    if row["state"] == "incomplete":
+        return Rst(": steps are still to be written (TBD)")
+    if row["state"] == "outdated":
+        ran = ", ".join(f"{n} {v}" for n, v in sorted(row["outdated"].items()))
+        return Rst(f": {text(row['latest'].get('outcome'))} on {text(ran)}, "
+                   "not the report's versions")
+    return Rst("")
+
+
+def requirement(value):
+    """A requirement's text: as the rst it is, in a requirement container,
+    when it stands on its own as body text; else as plain text"""
+    if not value:
+        return Rst("*text not recorded*")
+    if not body_only(value):
+        return text(value)
+    return Rst(".. container:: requirement\n\n" + indent(Rst(value.strip()), 3, first=True))
+
+
+def body_only(value):
+    """Whether rst `value` parses cleanly with plain docutils, to nothing
+    but body elements (no sections, which a table cell can't hold)"""
+    problems = io.StringIO()
+    try:
+        tree = publish_doctree(value, settings_overrides={
+            "warning_stream": problems, "report_level": 2, "halt_level": 2,
+            "doctitle_xform": False, "file_insertion_enabled": False,
+            "raw_enabled": False})
+    except SystemMessage:
+        return False
+    return not problems.getvalue() and not any(
+        tree.findall(lambda n: isinstance(n, (nodes.section, nodes.transition,
+                                              nodes.title, nodes.target))))
+
+
+def body_template(template=None):
+    """The body template: the document template's own body.rst, else the
+    built-in one"""
+    folders = [str(template)] if template and Path(template) != BUILTIN_TEMPLATE else []
+    env = rst_template.environment(jinja2.FileSystemLoader([*folders, str(BUILTIN_TEMPLATE)]))
+    env.filters.update(combination=combination, seconds=seconds, plural=plural,
+                       stamp=stamp, verdict=verdict, why=why, requirement=requirement)
+    return env.get_template(BODY)
+
+
+def render_rst(m, manifest_hash, exported, template=None):
+    report, rows = m["report"], m["rows"]
     used = rollup.used_uuts(m["runs"])
-    versions = ", ".join(f"{name} {v['id']} ({v.get('digest', '')[:12]})"
-                         for name, v in (report.get("uut_versions") or {}).items()
-                         if name in used)
-    envs = "; ".join(f"{env or 'none'}: {', '.join(p) or 'platform not recorded'}"
-                     for env, p in m["environments"].items())
-    out.append(table("Report", [25, 75], ["Item", "Value"], [
-        ["Report", literal(report["id"])],
-        ["Name", text(report.get("name", ""))],
-        ["Workspace", text(report.get("workspace", ""))],
-        ["Created", text(stamp(report.get("created")))],
-        ["Runs", text(f"{len(m['runs'])}, from {stamp(m['first_run']) or '-'} "
-                      f"to {stamp(m['last_run']) or '-'}")],
-        ["UUT versions", text(versions)],
-        ["Environments", text(envs)],
-        ["Exported", text(stamp(exported))],
-        ["Bundle", literal(f"report-{report['id']}.zip")],
-        ["Manifest SHA-256", literal(manifest_hash)],
-    ]))
-
-    out.append(heading("Summary", "="))
-    colors = [r["color"] for r in requirements]
+    colors = [r["color"] for r in m["requirements"]]
     states = [r["state"] for r in rows]
-    summary = [[text(f"Requirements {c}"), text(colors.count(c))]
-               for c in ("green", "red", "partial", "untested") if requirements]
-    summary += [[text(f"Combinations {s}"), text(states.count(s))]
-                for s in dict.fromkeys(["pass", "fail", "error", "incomplete",
-                                        *states])]
-    out.append(f"The report covers {plural(len(requirements), 'requirement')} with "
-               f"{plural(len(rows), 'combination')} of script, environment and variation. "
-               "Each combination is judged on its latest run; a requirement is "
-               "green when every combination linked to it passed, red when any "
-               "failed, untested when no script references it yet, and partial "
-               "otherwise.\n")
-    out.append(table("Summary", [70, 30], ["Item", "Count"], summary))
-
-    out.append(heading("Open issues", "="))
-    issues = [r for r in rows if r["state"] != "pass"]
-    untested = [r for r in requirements if r["color"] == "untested"]
-    if not issues and not untested:
-        out.append("None: the latest run of every combination passed.\n")
-    for requirement in untested:
-        out.append(f"- {literal(requirement['id'])}: "
-                   f"{text('untested: no script references it yet')}")
-    for row in issues:
-        detail = row["state"]
-        if row["failure"]:
-            if row["failure"]["step"]:
-                detail += f" at {row['failure']['step']}"
-            if row["failure"]["message"]:
-                detail += f": {row['failure']['message']}"
-        elif row["state"] == "incomplete":
-            detail += ": steps are still to be written (TBD)"
-        elif row["state"] == "outdated":
-            ran = ", ".join(f"{n} {v}" for n, v in sorted(row["outdated"].items()))
-            detail += f": {row['latest'].get('outcome')} on {ran}, not the report's versions"
-        out.append(f"- {literal(combination(row))}: {text(detail)}")
-    out.append("")
-
-    out.append(heading("Requirements", "="))
-    if not requirements:
-        out.append("The report tracks no requirements.\n")
-    else:
-        out.append(table("Requirements", [15, 40, 9, 36],
-                         ["Requirement", "Text", "Verdict", "Covered by"],
-                         [[literal(r["id"]),
-                           text(r["text"]) or "*text not recorded*",
-                           f"**{text(r['color'])}**",
-                           "\n".join(f"| {text(combination(c))}: {text(c['state'])}"
-                                     for c in r["cells"]) or "*no tests yet*"]
-                          for r in requirements]))
-
-    out.append(heading("Results", "="))
-    out.append("The latest run of each combination of script, environment and "
-               "variation; earlier attempts are listed under Reruns. Run ids name "
-               "the run's folder "
-               f"under ``report-{report['id']}/runs/``.\n")
-    out.append(table("Results", [27, 43, 19, 11],
-                     ["Combination", "Run", "Outcome", "Duration"],
-                     [[text(combination(r)),
-                       literal((r["latest"] or {}).get("id", "")),
-                       f"**{text(r['state'])}**"
-                       + (f", {plural(r['attempts'], 'attempt')}" if r["attempts"] > 1
-                          else ""),
-                       text(seconds(r["duration"]))]
-                      for r in rows]))
-    earlier = [r for r in rows if r["earlier"]]
-    if earlier:
-        out.append(heading("Reruns", "-"))
-        out.append("Earlier attempts of each combination, newest first.\n")
-        for row in earlier:
-            out.append(f"- {text(combination(row))}:\n")
-            for run in row["earlier"]:
-                out.append(f"  - {literal(run['id'])}: "
-                           f"{text(run.get('outcome') or 'unfinished')}")
-            out.append("")
-        out.append("")
-
-    failures = [r for r in rows if r["failure"]]
-    if failures:
-        out.append(heading("Failures", "-"))
-        for row in failures:
-            run_id = row["latest"]["id"]
-            out.append(heading(combination(row), "~"))
-            out.append(f"Run {literal(run_id)}, **{text(row['state'])}**"
-                       + (f" at {text(row['failure']['step'])}"
-                          if row["failure"]["step"] else "") + ".\n")
-            if row["failure"]["message"]:
-                out.append("::\n")
-                for line in row["failure"]["message"].splitlines() or [""]:
-                    out.append(f"   {line}")
-                out.append("")
-            out.append("Its events and attached files are in the report folder's "
-                       f"{literal(f'runs/{run_id}/')}.\n")
-
-    out.append(heading("Bundle", "="))
-    out.append(f"This document describes the bundle report-{report['id']}.zip. "
-               f"Its folder report-{report['id']} holds the report: "
-               "``report.json``, and for each run ``run.json``, the exact files it "
-               "executed (``closure/``), every event it recorded "
-               "(``events.jsonl``) and the files attached to it (``files/``). "
-               "``template/`` is the template this document was rendered with. "
-               "``MANIFEST.sha256`` lists a SHA-256 for each of those files; its own "
-               f"SHA-256 is {literal(manifest_hash)}.\n")
-    return "\n".join(out)
+    summary = [(f"Requirements {c}", colors.count(c))
+               for c in ("green", "red", "partial", "untested") if m["requirements"]]
+    summary += [(f"Combinations {s}", states.count(s))
+                for s in dict.fromkeys(["pass", "fail", "error", "incomplete", *states])]
+    return body_template(template).render(
+        report={"name": "", "workspace": "", "created": "", **report},
+        rows=rows,
+        requirements=m["requirements"],
+        runs=m["runs"],
+        first_run=m["first_run"],
+        last_run=m["last_run"],
+        issues=[r for r in rows if r["state"] != "pass"],
+        untested=[r for r in m["requirements"] if r["color"] == "untested"],
+        earlier=[r for r in rows if r["earlier"]],
+        failures=[r for r in rows if r["failure"]],
+        summary=summary,
+        versions=[f"{name} {v['id']} ({v.get('digest', '')[:12]})"
+                  for name, v in (report.get("uut_versions") or {}).items() if name in used],
+        environments=[f"{env or 'none'}: {', '.join(p) or 'platform not recorded'}"
+                      for env, p in m["environments"].items()],
+        exported=exported,
+        manifest_hash=manifest_hash,
+        verdicts=VERDICTS,
+    )
 
 
 def rst_to_latex(rst):
@@ -545,11 +477,13 @@ def bundle(root, report_id, template, out_dir):
         report_name = f"report-{report_id}"
         copy_report(root, report_id, work / report_name)
         shutil.copytree(template, work / "template")
+        if not (work / "template" / BODY).exists():  # it used the built-in body
+            shutil.copy(BUILTIN_TEMPLATE / BODY, work / "template" / BODY)
         manifest_text = manifest(work, [report_name, "template"])
         (work / "MANIFEST.sha256").write_text(manifest_text)
         manifest_hash = hashlib.sha256(manifest_text.encode()).hexdigest()
 
-        rst = render_rst(m, manifest_hash, exported)
+        rst = render_rst(m, manifest_hash, exported, template)
         (work / "report.rst").write_text(rst)
         tex = render_tex(m, template, rst_to_latex(rst), manifest_hash, exported)
         build = work / "build"
