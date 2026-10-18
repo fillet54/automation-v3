@@ -6,7 +6,7 @@ Read, SetValue, SetFixedValue and ClearFixedValue for them, and Verify
 and Wait read them through its Read.
 """
 
-from automationv3.framework import context, edn, html, value_blocks
+from automationv3.framework import context, edn, markup, value_blocks
 from automationv3.framework.block import ACTION, VALUE, BlockResult, BuildingBlock
 from automationv3.framework.refs import Ref
 from automationv3.framework.language import is_text
@@ -66,10 +66,8 @@ class SendTC(BuildingBlock):
         sent = " ".join(show(x) for x in (command, *pairs))
         return BlockResult(True, value=result, stdout=f"{sent} -> {show(result)}")
 
-    def as_html(self, command, *pairs):
-        rest = " ".join(html.text(x) for x in pairs)
-        return (f'<span><strong>Send telecommand</strong> '
-                f'<span class="ui-mono">{html.text(command)} {rest}</span></span>')
+    def as_rst(self, command, *pairs):
+        return markup.line(markup.strong("Send telecommand"), markup.code(command, *pairs))
 
 
 class Telemetry(BuildingBlock):
@@ -117,8 +115,8 @@ class RunFor(BuildingBlock):
         now = vm().run_for(seconds)
         return BlockResult(True, stdout=f"ran {show(seconds)} s; on-board time {now:g} s")
 
-    def as_html(self, seconds):
-        return f"<span><strong>Run for</strong> {html.text(seconds)} s</span>"
+    def as_rst(self, seconds):
+        return markup.line(markup.strong("Run for"), markup.text(seconds) + " s")
 
 
 class BringToMode(BuildingBlock):

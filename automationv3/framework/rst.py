@@ -11,8 +11,8 @@ from docutils import nodes
 from docutils.parsers.rst import roles, Directive, directives
 from docutils.writers.html4css1 import Writer, HTMLTranslator
 
-from . import edn, html
-from .block import code_block, find_block, raw_html
+from . import edn, markup
+from .block import code_block, find_block
 from .language import (
     PRECONDITION, head, is_table_rows, is_text, parse_precondition, parse_table,
     parse_variations,
@@ -122,10 +122,10 @@ def repr_rst(form):
     if not isinstance(form, list) or not form:  # a bare value: shown as code
         return code_block(edn.writes(form))
     name = head(form)
-    if name == "variations" and (table := variations_html(form)):
-        return raw_html(table)
-    if is_table_rows(form) and (table := table_html(form)):
-        return raw_html(table)
+    if name == "variations" and (table := variations_rst(form)):
+        return table
+    if is_table_rows(form) and (table := table_rst(form)):
+        return table
     if name == PRECONDITION and parse_precondition(form):
         return precondition_rst(form)
     if block := find_block(form):
@@ -133,27 +133,27 @@ def repr_rst(form):
     return code_block(edn.writes(form))
 
 
-def variations_html(form):
+def variations_rst(form):
     """A variations form as a table, one row per variation"""
     errors = []
     variations = parse_variations("", form, errors)
     if errors or not variations:
         return None
-    return html.table(
+    return markup.table(
         ["Variation", *variations[0].symbols],
         [[v.name, *v.forms] for v in variations],
         caption="Variations",
     )
 
 
-def table_html(form):
+def table_rst(form):
     """A table block's rows as a table, one row per case"""
     errors = []
     rows = parse_table("", form, errors)
     if errors or not rows:
         return None
-    return html.table(["Case", *rows[0].symbols], [[r.name, *r.forms] for r in rows],
-                      caption="For each row")
+    return markup.table(["Case", *rows[0].symbols], [[r.name, *r.forms] for r in rows],
+                        caption="For each row")
 
 
 def precondition_rst(form):

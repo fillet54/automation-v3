@@ -2,7 +2,7 @@
 
 import json
 
-from automationv3.framework import context, edn, html
+from automationv3.framework import context, edn, markup
 from automationv3.framework.block import BlockResult, BuildingBlock
 from automationv3.framework.steps import attach
 
@@ -42,11 +42,9 @@ class StartDemo(BuildingBlock):
                    f"with {len(readings)} reading(s)",
         )
 
-    def as_html(self, config):
-        return (
-            "<div><strong>Start the demo UUT</strong></div>"
-            + html.mapping(config, caption="Configuration")
-        )
+    def as_rst(self, config):
+        return markup.strong("Start the demo UUT") + "\n\n" + markup.mapping(
+            config, caption="Configuration")
 
 
 class SnapshotDemo(BuildingBlock):
@@ -69,9 +67,9 @@ class SnapshotDemo(BuildingBlock):
         attach(name, json.dumps(demo.uut.state(demo.env), indent=2, sort_keys=True))
         return BlockResult(True, stdout=f"attached {name}")
 
-    def as_html(self, label):
-        name = html.text(label)
-        return f"<span><strong>Snapshot the demo UUT</strong> as {name}.json</span>"
+    def as_rst(self, label):
+        return markup.line(markup.strong("Snapshot the demo UUT"), "as",
+                           markup.code(f"{markup.written(label)}.json"))
 
 
 class SetupSimulation(BuildingBlock):
@@ -144,6 +142,6 @@ class TableDriven(BuildingBlock):
     def execute_forms(self, *args):
         return BlockResult(True)
 
-    def as_html(self, *args):
+    def as_rst(self, *args):
         headers, rows = args
-        return html.table([str(h) for h in headers], rows)
+        return markup.table([str(h) for h in headers], rows)

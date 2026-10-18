@@ -21,66 +21,87 @@ with the same step as ``StartDemo`` renders it: "**Start the demo UUT**"
 followed by a two-column *Configuration* table of mode and readings. Both say
 the same thing; one is much easier to check against a requirement.
 
-``as_html``
------------
+``as_rst``
+----------
 
-Return HTML for the step, given the arguments **as written** (unevaluated):
+Return reStructuredText for the step, given the arguments **as written**
+(unevaluated):
 
 .. code-block:: python
 
-   def as_html(self, *forms):
-       return (
-           "<span><strong>Verify</strong> "
-           f'<span class="ui-mono">{" ".join(html.text(f) for f in forms)}</span>'
-           "</span>"
-       )
+   from automationv3.framework import markup
 
-Return ``None`` to fall back to the default.
+   def as_rst(self, *forms):
+       return markup.line(markup.strong("Verify"), markup.code(*forms))
 
 The arguments are unevaluated because the page renders the script, not a run:
 ``max-pressure`` should read as ``max-pressure``, whatever its value.
 
-``as_rst``
-----------
+A block writes reStructuredText, never HTML, because the same step is shown on
+live pages, in an exported report's site and in its PDF. Each output renders
+the rst its own way. To make part of a step look different, give it a class
+(``markup.container("tbd", ...)``) and style the class.
 
-Return reStructuredText instead, when rst expresses it better. The default
-``as_rst`` uses ``as_html`` if it returns something, otherwise a code block
-of the step. ``automationv3.framework.block`` provides the helpers it uses:
+The default ``as_rst`` shows the step as code (``block.code_block(source)``).
 
-``code_block(source)``
-   rst that shows edn source as code.
+Markup helpers
+--------------
 
-``raw_html(html)``
-   rst that embeds HTML as is.
+:mod:`automationv3.framework.markup` escapes values, so nothing from a script
+turns into markup, and writes the constructs blocks use most:
 
-HTML helpers
-------------
+``markup.text(value)``
+   A value as plain text: strings as they are, everything else as edn.
 
-:mod:`automationv3.framework.html` builds HTML in the web UI's classes, so a
-rendered block matches the rest of the page:
+``markup.code(*values)``
+   Values as inline code, separated by spaces.
 
-``html.text(value)``
-   A value as escaped text; keywords and literals as edn.
+``markup.strong(text)``, ``markup.line(*parts)``
+   Bold text; parts joined into one line (text is escaped, rst kept as is).
 
-``html.mapping(data, caption=None)``
+``markup.mapping(data, caption=None)``
    A two-column table of a map's keys and values; nested maps become nested
    tables.
 
-``html.table(headers, rows, caption=None)``
+``markup.table(headers, rows, caption=None)``
    A table with a header row.
+
+``markup.container(classes, body)``
+   ``body`` in a container with classes, for outputs to style.
 
 .. code-block:: python
 
-   def as_html(self, config):
-       return ("<div><strong>Start the demo UUT</strong></div>"
-               + html.mapping(config, caption="Configuration"))
+   def as_rst(self, config):
+       return (markup.strong("Start the demo UUT") + "\n\n"
+               + markup.mapping(config, caption="Configuration"))
+
+Results
+-------
+
+``as_result_rst(result, *forms)`` writes what came of a step in a run's
+document, after the step itself. Return ``None`` (the default) for the
+standard result: the outcome, duration, message, output, calls and attached
+files. ``result.data`` is whatever the block put in its
+``BlockResult(..., data=...)``, so a block can show a measurement as a table
+or a captured trace as a figure:
+
+.. code-block:: python
+
+   def execute(self, signal):
+       samples = capture(signal)
+       return BlockResult(ok(samples), data={"signal": signal, "max": max(samples)})
+
+   def as_result_rst(self, result, *forms):
+       found = result.data or {}
+       return markup.mapping({"Signal": found.get("signal"), "Max": found.get("max")},
+                             caption="Captured")
 
 Guidelines
 ----------
 
 - Lead with what the step does, in words, in bold: "**Start the demo UUT**".
-- Show identifiers and values in monospace (``ui-mono``).
-- Escape everything that comes from the script (use ``html.text``).
+- Show identifiers and values as code (``markup.code``).
+- Escape everything that comes from the script (use ``markup.text``).
 - Prefer tables for structured arguments; keep a short call on one line.
 - Rendering must not fail: a block that can't render a call should return
-  ``None`` and let it show as code.
+  ``code_block(...)`` of it.

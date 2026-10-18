@@ -32,8 +32,8 @@ The running script
 Rendering helpers
 -----------------
 
-.. automodule:: automationv3.framework.html
-   :members: text, mapping, table
+.. automodule:: automationv3.framework.markup
+   :members: text, code, strong, line, mapping, table, container
 
 UUTs and environments
 ---------------------

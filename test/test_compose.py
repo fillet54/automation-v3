@@ -233,7 +233,8 @@ class TestVerify(unittest.TestCase):
     def test_renders_as_written(self):
         (statement,) = get_statements(rvt("(Verify (reading :x) <= max-pressure)"))
         self.assertIn("<strong>Verify</strong>", statement.html)
-        self.assertIn("(reading :x) &lt;= max-pressure", statement.html)
+        self.assertIn("(reading :x) &lt;= <span class=\"pre\">max-pressure</span>",
+                      statement.html)
 
 
 class TestDefinitions(unittest.TestCase):

@@ -12,7 +12,7 @@ both need as many.
 import operator
 from dataclasses import dataclass, field
 
-from automationv3.framework import context, edn, html, refs
+from automationv3.framework import context, edn, markup, refs
 from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
 from automationv3.framework.refs import is_ref, members
 
@@ -169,12 +169,8 @@ class Verify(BuildingBlock):
         passed, compared = run_check(parse(forms, self.options), self.mode)
         return BlockResult(passed, stdout=compared)
 
-    def as_html(self, *forms):
-        return (
-            f"<span><strong>{self.name()}</strong> "
-            f'<span class="ui-mono">{" ".join(html.text(f) for f in forms)}</span>'
-            "</span>"
-        )
+    def as_rst(self, *forms):
+        return markup.line(markup.strong(self.name()), markup.code(*forms))
 
 
 class VerifyAll(Verify):

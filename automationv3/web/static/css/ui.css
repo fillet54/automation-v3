@@ -626,10 +626,6 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 .ui-doc pre { padding: 10px 12px; background: var(--ui-soft); border: 1px solid var(--ui-rule); border-radius: var(--ui-radius); font-size: 12.5px; line-height: 1.65; overflow-x: auto; }
 .ui-doc pre code, .ui-doc pre .literal { padding: 0; background: none; }
 .ui-doc strong { font-weight: 600; }
-.ui-doc table.docutils, .ui-doc .ui-datatable { border-collapse: collapse; font-size: 13px; }
-.ui-doc table.docutils :is(th, td) { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--ui-rule); text-align: left; vertical-align: top; }
-.ui-doc table.docutils th { font-size: 11px; font-weight: 500; color: var(--ui-muted); }
-.ui-doc table.docutils p { margin: 0; }
 .ui-doc blockquote { margin-left: 0; padding-left: 14px; border-left: 2px solid var(--ui-rule); color: var(--ui-muted); }
 
 /* rst admonitions, drawn as ui.alert */
@@ -644,13 +640,14 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 /* a requirement as scripts see it: "... shall [ID] ..." */
 .ui-requirement strong { font-family: var(--ui-font-mono); font-size: 0.93em; font-weight: 500; color: var(--ui-accent); }
 
-/* tables blocks render (framework/html.py): sized to their content, ruled */
-.ui-datatable { width: auto; border-collapse: collapse; font-size: 13px; }
-.ui-datatable caption { text-align: left; padding-bottom: 4px; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
-.ui-datatable :is(th, td) { padding: 4px 14px 4px 0; border-bottom: 1px solid var(--ui-rule); text-align: left; vertical-align: top; }
-.ui-datatable tr:first-child :is(th, td) { border-top: 1px solid var(--ui-rule); }
-.ui-datatable th { font-size: 12px; font-weight: 500; color: var(--ui-muted); }
-.ui-datatable .ui-datatable { margin: 0; }
+/* tables in rendered rst (blocks write list-tables, see framework/markup.py): sized to their content, ruled */
+table.docutils { width: auto; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+table.docutils caption { text-align: left; padding-bottom: 4px; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+table.docutils :is(th, td) { padding: 4px 14px 4px 0; border: 0; border-bottom: 1px solid var(--ui-rule); text-align: left; vertical-align: top; }
+table.docutils tr:first-child :is(th, td) { border-top: 1px solid var(--ui-rule); }
+table.docutils th { font-size: 12px; font-weight: 500; color: var(--ui-muted); }
+table.docutils p { margin: 0; }
+table.docutils table.docutils { margin: 0; }
 
 /* collapsed definitions: the section, and lone definitions */
 .ui-defs { margin: 10px 0; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
@@ -785,8 +782,9 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 
 /* Steps not written yet: (TBD "...") */
 .ui-step--tbd { --ui-tone: var(--ui-info); }
-.ui-tbd { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border: 1px dashed color-mix(in srgb, var(--ui-info) 55%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-paper)); }
-.ui-tbd__label { flex: none; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-info); }
+.ui-tbd, div.tbd { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border: 1px dashed color-mix(in srgb, var(--ui-info) 55%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-paper)); }
+div.tbd > p { margin: 0; }
+div.tbd strong:first-child, .ui-tbd__label { flex: none; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-info); }
 .ui-tbd__text { color: var(--ui-ink); }
 
 /* A requirement written with lists or several paragraphs */

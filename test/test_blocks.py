@@ -148,3 +148,22 @@ class TestBlockDocumentation(unittest.TestCase):
                 with self.subTest(block=block.name()):
                     self.assertTrue(block.doc())
                     self.assertTrue(block.usage().startswith("(" + block.name()))
+
+
+class TestBlocksWriteRst(unittest.TestCase):
+    def test_no_block_writes_html(self):
+        for block in all_blocks():
+            with self.subTest(block=block.name()):
+                self.assertFalse(hasattr(type(block), "as_html"))
+
+    def test_built_in_steps_read_the_same_in_a_pdf(self):
+        from automationv3.documents import core
+        from automationv3.framework.statements import get_statements
+        script = rvt('(Verify 1 = 1)\n(Wait 2)\n(Wait (= 1 1) :within 5s)\n(TBD "later")\n'
+                     '(StartDemo {:mode :normal :readings {:pressure 60}})\n'
+                     '(SnapshotDemo "x")\n(Table-Driven [a b] [[1 2]])')
+        for statement in get_statements(script):
+            with self.subTest(statement=statement.rst[:40]):
+                latex = core.write(core.parse(statement.rst), "latex")["body"]
+                self.assertNotIn("raw", statement.rst)
+                self.assertTrue(latex.strip())

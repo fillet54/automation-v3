@@ -2,7 +2,7 @@
 
 import unittest
 
-from automationv3.framework import rst
+from automationv3.framework import markup, rst
 from automationv3.framework.block import BlockResult, BuildingBlock, find_block
 from automationv3.framework.requirement import Requirement
 from automationv3.framework.statements import get_statements
@@ -36,9 +36,8 @@ class StartWithConfig(BuildingBlock):
     def execute(self, config):
         return BlockResult(True)
 
-    def as_html(self, config):
-        rows = "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in config.items())
-        return f'<table class="config">\n{rows}\n</table>'
+    def as_rst(self, config):
+        return markup.mapping(config, caption="Config")
 
 
 class TestStatements(unittest.TestCase):
@@ -66,8 +65,8 @@ class TestStatements(unittest.TestCase):
 
     def test_blocks_render_themselves(self):
         (statement,) = get_statements(rvt('(StartWithConfig {:mode :normal :trim 3})'))
-        self.assertIn('<table class="config">', statement.html)
-        self.assertIn("<td>3</td>", statement.html)
+        self.assertIn("<caption>Config</caption>", statement.html)
+        self.assertIn('<td><tt class="docutils literal">3</tt></td>', statement.html)
         self.assertNotIn("code clojure", statement.html)
 
     def test_variations_render_as_a_table(self):
@@ -86,7 +85,7 @@ class TestStatements(unittest.TestCase):
         p = statement.precondition
         self.assertEqual((p["name"], p["heal_name"]), ("Ready", "Start <it>"))
         self.assertIn("ready?", p["check_html"])
-        self.assertIn('<table class="config">', p["heal_html"])  # the heal's block
+        self.assertIn("<caption>Config</caption>", p["heal_html"])  # the heal's block
         self.assertIn("Precondition:</strong> Ready", statement.html)
 
     def test_precondition_without_heal(self):

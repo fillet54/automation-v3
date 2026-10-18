@@ -1,4 +1,4 @@
-from automationv3.framework import html
+from automationv3.framework import markup
 from automationv3.framework.block import PLACEHOLDER, BlockResult, BuildingBlock
 from automationv3.framework.language import is_text
 
@@ -37,8 +37,7 @@ class TBD(BuildingBlock):
     def execute_forms(self, description=None):
         return BlockResult(True, value=True)
 
-    def as_html(self, description=None):
-        text = "" if description is None else (
-            f' <span class="ui-tbd__text">{html.text(description)}</span>')
-        return ('<div class="ui-tbd"><span class="ui-tbd__label">To be written</span>'
-                f'{text}</div>')
+    def as_rst(self, description=None):
+        return markup.container("tbd", markup.line(
+            markup.strong("To be written"),
+            "" if description is None else markup.text(description)))

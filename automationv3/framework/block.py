@@ -78,8 +78,8 @@ class BuildingBlock:
     e.g. Verify's operator. A block that gives meaning to all its forms,
     e.g. treating bare symbols as names, implements `execute_forms`
     instead and gets every argument exactly as written; it never
-    evaluates them itself. `check_syntax`, `as_rst` and `as_html` always
-    see the forms as written; `context.written_args()` gives them to a
+    evaluates them itself. `check_syntax`, `as_rst` and `as_result_rst`
+    always see the forms as written; `context.written_args()` gives them to a
     running `execute` too.
 
     `execute` returns a BlockResult or a plain value: for an assertion,
@@ -200,27 +200,27 @@ class BuildingBlock:
     evaluated_forms = None
 
     def as_rst(self, *args):
-        """How a step using this block reads in a rendered script.
+        """How a step using this block reads in a rendered script, as
+        reStructuredText (framework/markup.py helps write it).
 
         Blocks render themselves so a script reads well, e.g. a
-        configuration as a table instead of a large edn structure.
-        Override this to write reStructuredText, or as_html to write
-        HTML. By default the step is shown as code.
+        configuration as a table instead of a large edn structure. The
+        same rst is shown live, in an exported site and in a PDF. By
+        default the step is shown as code.
         """
-        html = self.as_html(*args)
-        if html is not None:
-            return raw_html(html)
         return code_block(edn.writes(edn.List([edn.Symbol(self.name()), *args])))
 
-    def as_html(self, *args):
-        """HTML for a step using this block, or None to use as_rst"""
+    def as_result_rst(self, result, *args):
+        """How what came of a step using this block reads in a run's
+        document, after the step itself: reStructuredText, or None for
+        the default (the run/step-result.rst snippet).
+
+        `result` is the step's result (see documents/run.py StepResult):
+        its state, duration, output, message, the calls inside it,
+        attached files, and `data`, whatever the block returned in its
+        BlockResult. `args` are the step's forms as written.
+        """
         return None
-
-
-def raw_html(html):
-    """rst that embeds `html` as is"""
-    body = "\n".join("   " + line for line in html.splitlines())
-    return f".. raw:: html\n\n{body}\n\n"
 
 
 def code_block(source):

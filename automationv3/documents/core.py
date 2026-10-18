@@ -185,6 +185,9 @@ SETTINGS = {
 }
 
 
+LATEX_DEFAULTS = {"legacy_column_widths": False, "use_latex_citations": True}
+
+
 def parse(source, settings=None, source_path="<document>"):
     """The doctree of `source`, placeholders left in place"""
     overrides = {**SETTINGS, **(settings or {}), "automation": None}
@@ -208,7 +211,8 @@ def write(document, writer_name="html5", settings=None):
         source=docutils_io.DocTreeInput(document),
         destination_class=docutils_io.StringOutput)
     publisher.set_writer(writer_name)
-    publisher.process_programmatic_settings(None, {**SETTINGS, **(settings or {}),
+    defaults = LATEX_DEFAULTS if writer_name == "latex" else {}
+    publisher.process_programmatic_settings(None, {**SETTINGS, **defaults, **(settings or {}),
                                                    "warning_stream": output}, None)
     publisher.set_destination(None, None)
     publisher.publish()

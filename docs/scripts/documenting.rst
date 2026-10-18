@@ -62,7 +62,7 @@ Let blocks render themselves
 Blocks can render their arguments readably: ``StartDemo`` shows its
 configuration as a table, ``Verify`` as a sentence. Prefer a block with a good
 rendering over a ``defn`` that hides the same logic. If a block shows as raw
-code and could read better, ask its developer to give it an ``as_html``
+code and could read better, ask its developer to give it an ``as_rst``
 (:doc:`../blocks/rendering`).
 
 Keep definitions out of the way

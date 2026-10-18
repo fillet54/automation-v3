@@ -111,9 +111,9 @@ The parts of a block
    arguments, unless the block lists the forms it evaluates with
    ``evaluated_forms(*forms)``.
 
-``as_html(*forms)`` / ``as_rst(*forms)``
-   How a step using the block reads in a rendered script. See
-   :doc:`rendering`.
+``as_rst(*forms)``, ``as_result_rst(result, *forms)``
+   How a step using the block reads in a rendered script, and what came of
+   it in a run. See :doc:`rendering`.
 
 ``usage()``
    How scripts call the block. See :ref:`documenting-blocks`.

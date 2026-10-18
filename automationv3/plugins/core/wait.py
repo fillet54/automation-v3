@@ -1,6 +1,6 @@
 """Wait: until a check holds (see verify.py for checks), or for a time"""
 
-from automationv3.framework import clock, context, edn, html
+from automationv3.framework import clock, context, edn, markup
 from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
 from automationv3.framework.steps import current_runtime
 
@@ -61,8 +61,8 @@ class Wait(BuildingBlock):
         every = options.get("every", default("wait-every", DEFAULT_EVERY))
         return poll(lambda: run_check(check, self.mode), within, every)
 
-    def as_html(self, *forms):
-        return wait_html(self, forms)
+    def as_rst(self, *forms):
+        return wait_rst(self, forms)
 
 
 class WaitAll(Wait):
@@ -115,24 +115,23 @@ class WaitSame(Wait):
         return poll(lambda: run_check(check, self.mode), within, every)
 
 
-def wait_html(block, forms):
+def wait_rst(block, forms):
     """Wait 2 seconds, or Wait until <check> within 5s every 1s"""
-    name = f"<strong>{block.name()}</strong>"
+    name = markup.strong(block.name())
     check = parse(forms, block.options, comparisons=block.mode != "same")
     if check is None:
-        return f"<span>{name} {' '.join(html.text(f) for f in forms)}</span>"
+        return markup.line(name, markup.code(*forms))
     if (not check.options and block.mode == "all" and check.op is None
             and isinstance(check.actual, (int, float))
             and not isinstance(check.actual, bool)):
         unit = "" if isinstance(check.actual, edn.Duration) else " seconds"
-        return f"<span>{name} {html.text(check.actual)}{unit}</span>"
+        return markup.line(name, markup.text(check.actual) + unit)
     written = [check.actual] + ([check.op, check.expected] if check.op is not None else [])
-    until = " ".join(html.text(f) for f in written)
-    text = f'<span>{name} until <span class="ui-mono">{until}</span>'
+    parts = [name, "until", markup.code(*written)]
     for option in ("within", "every"):
         if option in check.options:
-            text += f' {option} <span class="ui-mono">{html.text(check.options[option])}</span>'
-    return text + "</span>"
+            parts += [option, markup.code(check.options[option])]
+    return markup.line(*parts)
 
 
 DEFAULT_TIMEOUT = edn.Duration(10.0, "10s")

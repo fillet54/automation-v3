@@ -3,7 +3,7 @@
 A script's statements are its document's parts: the prose between rvt
 blocks (rst, rendered as written) and each form in its rvt blocks. A
 form renders through its BuildingBlock, so blocks control how they look
-(see BuildingBlock.as_rst / as_html); forms without a block show as
+(see BuildingBlock.as_rst); forms without a block show as
 code.
 """
 
