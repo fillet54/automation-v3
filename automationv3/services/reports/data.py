@@ -39,13 +39,16 @@ class Links:
 
 
 class ReportData:
-    def __init__(self, root, report_id, status=unfinished, links=None):
-        self.root, self.id = root, report_id
+    def __init__(self, root, folder, status=unfinished, links=None):
+        """The report in `root`/`folder`: on the server the folder is its
+        id; in a bundle, report-<id>"""
+        self.root, self.folder = root, folder
         self.status = status
         self.links = links or Links()
-        self.report = store.load_report(root, report_id)
+        self.report = store.load_report(root, folder)
         if self.report is None:
-            raise LookupError(f"No report {report_id} in {root}")
+            raise LookupError(f"No report {folder} in {root}")
+        self.id = self.report.get("id", folder)
 
     # The report
 
@@ -85,26 +88,26 @@ class ReportData:
     @functools.cached_property
     def runs(self):
         """Every run, oldest first"""
-        return store.list_runs(self.root, self.id)
+        return store.list_runs(self.root, self.folder)
 
     def run(self, run_id):
         return next((r for r in self.runs if r["id"] == run_id), None)
 
     def events(self, run):
-        return store.read_events(self.root, self.id, run["id"])
+        return store.read_events(self.root, self.folder, run["id"])
 
     def closure(self, run):
         """relative path -> text of the files the run executed"""
-        return store.read_closure(self.root, self.id, run["id"])
+        return store.read_closure(self.root, self.folder, run["id"])
 
     def script_text(self, run):
-        return store.read_closure_file(self.root, self.id, run["id"], run["script"]) or ""
+        return store.read_closure_file(self.root, self.folder, run["id"], run["script"]) or ""
 
     def files(self, run):
-        return store.list_files(self.root, self.id, run["id"])
+        return store.list_files(self.root, self.folder, run["id"])
 
     def file_path(self, run, name):
-        return store.file_path(self.root, self.id, run["id"], name)
+        return store.file_path(self.root, self.folder, run["id"], name)
 
     def statements(self, run):
         return get_statements(self.script_text(run))

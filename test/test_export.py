@@ -13,7 +13,9 @@ from pathlib import Path
 from automationv3 import cli
 from automationv3.framework.requirement import Requirement
 from automationv3.services import jobs as models
+from automationv3.documents import template
 from automationv3.services.reports import export, store
+from automationv3.services.reports.data import ReportData
 from automationv3.services.requirements import models as requirement_models
 from automationv3.services.worker import Host
 from automationv3.services.worker.local import run_locally
@@ -58,67 +60,107 @@ class ReportTestCase(unittest.TestCase):
         return store.load_report(self.root, self.report_id)
 
 
+def body(root, report_id, text=None, **extra):
+    """The LaTeX body of a report's document (its own report.rst, or `text`)"""
+    context = export.context(root, report_id, **extra)
+    return export.document_latex(context, text or export.source(root, report_id))["body"]
+
+
 class TestDocument(ReportTestCase):
-    def test_the_model_judges_each_combination_on_its_latest_run(self):
-        m = export.model(self.root, self.report_id)
-        states = {(r["script"], r["variation"]): r["state"] for r in m["rows"]}
+    def test_the_data_judges_each_combination_on_its_latest_run(self):
+        data = ReportData(self.root, self.report_id)
+        states = {(r["script"], r["variation"]): r["state"] for r in data.combinations}
         self.assertEqual(states[("BRA/tc_bra_00004.rst", "normal")], "pass")
         self.assertEqual(states[("BRA/tc_bra_00003.rst", None)], "fail")
-        colors = {r["id"]: r["color"] for r in m["requirements"]}
+        colors = {r["id"]: r["color"] for r in data.requirements}
         self.assertEqual(colors, {"REQ-1": "green", "REQ-2": "red"})
 
     def test_a_failure_names_its_step_and_why(self):
-        m = export.model(self.root, self.report_id)
-        (failed,) = [r for r in m["rows"] if r["state"] == "fail"]
+        data = ReportData(self.root, self.report_id)
+        (failed,) = [r for r in data.combinations if r["state"] == "fail"]
         self.assertIn("step", failed["failure"]["step"])
         self.assertTrue(failed["failure"]["message"])
 
-    def test_the_body_has_every_section_and_renders_cleanly(self):
-        rst = export.render_rst(export.model(self.root, self.report_id), "f" * 64,
-                                "2026-01-01T00:00:00+00:00")
+    def test_the_default_document_has_every_section_and_renders_cleanly(self):
+        latex = body(self.root, self.report_id)
         for heading in ("Identification", "Summary", "Open issues", "Requirements",
                         "Results", "Failures", "Bundle"):
-            self.assertIn(f"\n{heading}\n", "\n" + rst)
-        self.assertIn("The brakes shall hold.", rst)
-        self.assertIn("*text not recorded*", rst)  # REQ-2 has no text
-        latex = export.rst_to_latex(rst)["body"]
+            self.assertIn("{" + heading, latex)
         self.assertIn("The brakes shall hold.", latex)
+        self.assertIn(r"\emph{text not recorded}", latex)  # REQ-2 has no text
+
+    def test_the_directives_stay_in_the_source(self):
+        source = export.source(self.root, self.report_id)
+        self.assertIn(".. results::", source)
+        self.assertNotIn("list-table", source)
 
     def test_runs_are_named_by_their_whole_id(self):
-        rst = export.render_rst(export.model(self.root, self.report_id), "f" * 64,
-                                "2026-01-01T00:00:00+00:00")
+        latex = body(self.root, self.report_id)
         for run in store.list_runs(self.root, self.report_id):
-            self.assertIn(f"``{run['id']}``", rst)
+            self.assertIn(run["id"], latex)
 
     def test_an_empty_report_renders(self):
         report_id = models.create_report(self.root, "", "Empty")
-        rst = export.render_rst(export.model(self.root, report_id), "f" * 64,
-                                "2026-01-01T00:00:00+00:00")
-        export.rst_to_latex(rst)
+        self.assertIn("None", body(self.root, report_id))
+
+    def test_prose_and_report_values_mix(self):
+        latex = body(self.root, self.report_id,
+                     "Covers :report:`requirements` requirements, "
+                     ":report:`requirements.green` green, on demo :report:`uut.demo`.\n")
+        self.assertIn("Covers 2 requirements, 1 green, on demo 1.0.0.", latex)
+
+    def test_directive_options_filter(self):
+        latex = body(self.root, self.report_id, ".. results::\n   :state: fail\n")
+        self.assertIn("tc\\_bra\\_00003", latex)
+        self.assertNotIn("tc\\_bra\\_00004", latex)
+
+    def test_a_problem_in_the_source_stops_the_document(self):
+        with self.assertRaisesRegex(export.ExportError, "no-such-directive"):
+            body(self.root, self.report_id, ".. no-such-directive::\n")
+
+    def test_requirements_link_to_the_server_as_tested(self):
+        export.store.update_report(self.root, self.report_id, requirement_snapshots={
+            "REQ-1": {"text": "The brakes shall hold.", "spec": "SRS",
+                      "context": "set:Release 1"}})
+        latex = body(self.root, self.report_id, ".. requirement-results::\n",
+                     links=export.ServerLinks("http://server:8000/"))
+        self.assertIn(r"http://server:8000/requirements/spec/set\%3ARelease\%201/SRS/?req=REQ-1",
+                      latex)
 
     def test_text_is_never_markup(self):
-        rst = export.text("*bold* `x` |sub| 1. not a list")
-        self.assertEqual(export.rst_to_latex(rst)["body"].count(r"\textbf"), 0)
-        self.assertIn("*bold*", export.rst_to_latex(rst)["body"])
+        rst = template.text("*bold* `x` |sub| 1. not a list")
+        latex = body(self.root, self.report_id, rst)
+        self.assertEqual(latex.count(r"\textbf"), 0)
+        self.assertIn("*bold*", latex)
 
     def test_text_that_could_open_a_block_stays_a_paragraph(self):
         for value in ["- x", "1. x", ":x: y", "..", "===", "see::", "tc_bra_ x"]:
-            body = export.rst_to_latex(export.text(value))["body"]
-            self.assertNotIn(r"\begin", body, value)
-        self.assertEqual(export.text("BRA/tc_bra_00004.rst"), "BRA/tc_bra_00004.rst")
+            latex = body(self.root, self.report_id, template.text(value))
+            self.assertNotIn(r"\begin", latex, value)
+        self.assertEqual(template.text("BRA/tc_bra_00004.rst"), "BRA/tc_bra_00004.rst")
 
     def test_verdicts_carry_a_class_each_output_can_style(self):
-        rst = export.render_rst(export.model(self.root, self.report_id), "f" * 64,
-                                "2026-01-01T00:00:00+00:00")
-        self.assertIn(":fail:`fail`", rst)
-        self.assertIn(r"\DUrole{fail}{fail}", export.rst_to_latex(rst)["body"])
+        self.assertIn(r"\DUrole{fail}{fail}", body(self.root, self.report_id))
 
     def test_a_requirement_is_its_own_rst_when_it_stands_alone(self):
         self.assertIn(".. container:: requirement",
-                      export.requirement("The brakes *shall* hold:\n\n- on ice"))
+                      template.requirement("The brakes *shall* hold:\n\n- on ice"))
         # a section, or a role plain docutils doesn't know, falls back to text
         for value in ["Title\n=====\n\nText.", "See :ref:`x`."]:
-            self.assertNotIn("container", export.requirement(value), value)
+            self.assertNotIn("container", template.requirement(value), value)
+
+    def test_a_report_starts_from_its_workspace_template(self):
+        mine = self.tmp / "mine"
+        shutil.copytree(export.BUILTIN_TEMPLATE, mine)
+        (mine / "report.rst").write_text("Ours\n====\n\n.. report-summary::\n")
+        (mine / "snippets" / "report").mkdir(parents=True)
+        (mine / "snippets" / "report" / "summary.rst").write_text(
+            "We ran {{ data.runs | length }} runs.\n")
+        report_id = models.create_report(self.root, "", "Mine", template=mine)
+        self.assertIn("Ours", export.source(self.root, report_id))
+        self.assertIn("We ran 0 runs.", body(self.root, report_id))
+        (mine / "report.rst").write_text("Changed later\n")  # the report kept its copy
+        self.assertIn("Ours", export.source(self.root, report_id))
 
     def test_document_fields_default_from_the_report(self):
         self.assertEqual(export.document_fields(self.report())["title"],
@@ -170,8 +212,9 @@ class TestExport(ReportTestCase):
         self.assertEqual(path, self.tmp / "out" / f"{name}.zip")
         with zipfile.ZipFile(path) as zf:
             names = zf.namelist()
-            for member in ("report.pdf", "report.rst", "report.tex", "MANIFEST.sha256",
-                           f"{name}/report.json", "template/template.json"):
+            for member in ("report.pdf", "report.tex", "MANIFEST.sha256",
+                           f"{name}/report.json", f"{name}/report.rst",
+                           f"{name}/template/template.json"):
                 self.assertIn(f"{name}/{member}", names)
             manifest = zf.read(f"{name}/MANIFEST.sha256")
             for line in manifest.decode().splitlines():

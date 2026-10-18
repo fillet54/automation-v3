@@ -278,23 +278,24 @@ used. Start from the built-in one, in
    lays out the title page, headers and footers, signature page and
    documents table, and places the report's body.
 
-``body.rst`` (optional)
-   The report's body, as a Jinja template that writes reStructuredText:
-   lines starting ``%`` are statements (``% for row in rows``), and every
-   ``{{ value }}`` is plain text, never markup. Without one, the built-in
-   body is used, and copied into the bundle's ``template/`` folder.
+``report.rst``
+   The document a new report starts from: prose, and directives where the
+   report's data goes (see :doc:`../reference/report-documents`).
+
+``snippets/`` (optional)
+   Snippets overriding the built-in ones, to change how a directive writes
+   its part of the document.
 
 ``logo.pdf``, and any other file ``document.tex`` includes.
 
-The body marks the parts a document may want to show its own way with plain
-docutils constructs that carry a class: a verdict is a role of its own name
-(``:pass:`pass```, ``:red:`red```), and a requirement's text is a
+A report copies its workspace's template when it is created (the built-in
+one if the workspace has none), so a report's look never changes under it.
+Its document, ``report.rst``, is the report's own from then on.
+
+Verdicts and requirement texts carry a class, so every output can style
+them: a verdict is ``:verdict:`fail```, and a requirement's text a
 ``.. container:: requirement``. Docutils turns these into
-``\DUrole{pass}{...}`` and ``\begin{DUclass}{requirement}``, which use
-``\DUrolepass`` or the ``DUCLASSrequirement`` environment when
+``\DUrole{fail}{...}`` and ``\begin{DUclass}{requirement}``, which use
+``\DUrolefail`` or the ``DUCLASSrequirement`` environment when
 ``document.tex`` defines them, and leave the text as it is when it doesn't.
 The built-in template colors the verdicts and sets requirements in italics.
-
-A requirement's text goes in as the reStructuredText it is when it stands on
-its own with plain docutils. If it has a section, or a role only Sphinx knows,
-it goes in as plain text.

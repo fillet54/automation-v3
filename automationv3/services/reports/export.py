@@ -4,26 +4,26 @@ Exporting a report freezes it (no more runs go into it until it is
 reopened) and writes report-<id>.zip::
 
     report-<id>/
-      report-<id>/      the report folder, as the store keeps it
-      template/         the document template it was rendered with
-      MANIFEST.sha256   a SHA-256 for every file in the two folders above
-      report.rst        the document's body, generated from the report
+      report-<id>/      the report folder, as the store keeps it, holding
+                        the document's source (report.rst) and its
+                        template (template/)
+      MANIFEST.sha256   a SHA-256 for every file in the report folder
       report.tex        the whole document, for LaTeX
       report.pdf
 
 The PDF prints the manifest's own SHA-256, so the bundle can be checked
 against the document. The manifest leaves out the files generated from
-it (report.rst, report.tex and the PDF).
+it (report.tex and the PDF).
 
 The document is the template's front matter (title page, contents,
-signatures, applicable and reference documents) and then the report:
-its identification, summary, open issues, requirements and results.
-Only failures are spelled out; everything else about a run is in the
-bundle.
+signatures, applicable and reference documents) and then report.rst: its
+prose, and the report directives (see documents/report.py) resolved
+against the report's data. The directives stay in report.rst, and the
+data they read is in the bundle, so the document can be built again from
+the bundle alone.
 
-Everything comes from the report folder, so a report can be exported
-without a server or database. The document's title is the report's
-name; its other fields live in report.json under "document"::
+The document's title is the report's name; its other fields live in
+report.json under "document"::
 
     {"number", "revision", "author",
      "signatures": {role: name},
@@ -32,30 +32,31 @@ name; its other fields live in report.json under "document"::
 
 A template is a folder holding template.json (company, marking,
 document_type and the signature roles), document.tex (a Jinja template,
-see the built-in one), optionally body.rst (the body; see rst_template.py)
-and the files they include, such as logo.pdf. A
+see the built-in one), report.rst (the document a new report starts
+from), optionally snippets/ (overriding the built-in ones, see
+documents/template.py) and the files they include, such as logo.pdf. A
 workspace keeps its own in a report/ folder beside its rvts/ folder;
-without one, the built-in template is used.
+without one, the built-in template is used. A report copies its
+workspace's template when it is created, so its look can't drift.
 """
 
 import hashlib
-import io
 import json
 import shutil
 import subprocess
 import tempfile
 import zipfile
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import quote
 
 import jinja2
 from docutils import nodes
-from docutils.core import publish_doctree, publish_parts
-from docutils.utils import SystemMessage
 
-from . import rollup, rst_template, store
-from .data import KINDS, ReportData, duration  # noqa: F401
-from .rst_template import Rst, indent, literal, text  # noqa: F401
+from ...documents import core
+from ...documents.template import Snippets
+from . import store
+from .data import KINDS, Links, ReportData  # noqa: F401
 
 BUILTIN_TEMPLATE = Path(__file__).parent / "template"
 EXPORTS = "exports"  # a report folder's exported bundles; never bundled
@@ -139,162 +140,104 @@ def template_settings(template):
     return settings
 
 
-# The model: everything the document says, from the report folder
+# A report's own template, and its document's source
 
-def model(root, report_id):
-    try:
-        data = ReportData(root, report_id)
-    except LookupError as e:
-        raise ExportError(str(e)) from e
-    return {
-        "report": data.report,
-        "document": data.document,
-        "rows": data.combinations,
-        "requirements": data.requirements,
-        "runs": data.runs,
-        "first_run": data.first_run,
-        "last_run": data.last_run,
-        "environments": data.environments(),
-    }
+TEMPLATE = "template"   # in a report folder: the template it renders with
+SOURCE = "report.rst"   # in a report folder: its document's source
 
 
-# The body, as reStructuredText, from the template's body.rst
-
-BODY = "body.rst"
-# A verdict is written with a role of its own name (see body.rst)
-VERDICTS = ("pass", "fail", "error", "incomplete", "outdated", "unfinished",
-            "green", "red", "partial", "untested")
-
-
-def combination(row):
-    parts = [row["script"]]
-    if row["environment"]:
-        parts.append(row["environment"])
-    if row["variation"]:
-        parts.append(row["variation"])
-    return " / ".join(parts)
-
-
-def seconds(value):
-    if value is None:
-        return ""
-    return f"{value:.1f} s" if value < 600 else f"{value / 60:.1f} min"
+def install_template(root, report_id, template=None, with_source=True):
+    """Copy `template` (default: the built-in one) into the report, and,
+    with `with_source`, its report.rst as the report's document"""
+    template = Path(template or report_template(root, report_id))
+    folder = store.report_dir(root, report_id)
+    target = folder / TEMPLATE
+    if target.resolve() == template.resolve():
+        return target
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(template, target)
+    if with_source:
+        found = template / SOURCE
+        shutil.copy(found if found.is_file() else BUILTIN_TEMPLATE / SOURCE, folder / SOURCE)
+    return target
 
 
-def plural(n, word):
-    return f"{n} {word}{'' if n == 1 else 's'}"
+def report_template(root, report_id):
+    """The template the report renders with: its own copy, else (reports
+    made before reports kept one) the built-in one"""
+    own = store.report_dir(root, report_id) / TEMPLATE
+    return own if (own / "template.json").is_file() else BUILTIN_TEMPLATE
 
 
-def stamp(iso):
-    return iso.replace("T", " ").replace("+00:00", " UTC") if iso else ""
+def source(root, report_id):
+    """The report's document source"""
+    own = store.report_dir(root, report_id) / SOURCE
+    if own.is_file():
+        return own.read_text()
+    found = report_template(root, report_id) / SOURCE
+    return (found if found.is_file() else BUILTIN_TEMPLATE / SOURCE).read_text()
 
 
-def verdict(state):
-    if state in VERDICTS:
-        return Rst(f":{state}:`{state}`")
-    return Rst(f"**{text(state)}**")
+def set_source(root, report_id, text):
+    """Change the report's document source; a frozen report can't"""
+    if store.is_frozen(store.load_report(root, report_id)):
+        raise ExportError("The report is frozen: reopen it to change its document")
+    (store.report_dir(root, report_id) / SOURCE).write_text(text)
 
 
-def why(row):
-    """What went wrong with a combination, after its verdict"""
-    failure = row["failure"]
-    if failure:
-        return Rst((f" at {text(failure['step'])}" if failure["step"] else "")
-                   + (f": {text(failure['message'])}" if failure["message"] else ""))
-    if row["state"] == "incomplete":
-        return Rst(": steps are still to be written (TBD)")
-    if row["state"] == "outdated":
-        ran = ", ".join(f"{n} {v}" for n, v in sorted(row["outdated"].items()))
-        return Rst(f": {text(row['latest'].get('outcome'))} on {text(ran)}, "
-                   "not the report's versions")
-    return Rst("")
+def context(root, report_id, host=core.EXPORT, links=None, status=None, **extra):
+    """The Context a report's document is resolved with"""
+    data = ReportData(root, report_id, **({"status": status} if status else {}),
+                      links=links)
+    return core.Context(data=data, host=host,
+                        snippets=Snippets([report_template(root, report_id) / "snippets"]),
+                        **extra)
 
 
-def requirement(value):
-    """A requirement's text: as the rst it is, in a requirement container,
-    when it stands on its own as body text; else as plain text"""
-    if not value:
-        return Rst("*text not recorded*")
-    if not body_only(value):
-        return text(value)
-    return Rst(".. container:: requirement\n\n" + indent(Rst(value.strip()), 3, first=True))
+class ServerLinks(Links):
+    """Links from an exported document to the server's pages: absolute,
+    from the server's base URL, so they work wherever the document is
+    read. Requirements open in the context the report tested them in."""
+
+    def __init__(self, base_url):
+        self.base = (base_url or "").rstrip("/")
+
+    def requirement(self, id, snapshot):
+        if not self.base or not snapshot or not snapshot.get("spec"):
+            return None
+        return (f"{self.base}/requirements/spec/{quote(snapshot['context'], safe='@')}/"
+                f"{quote(snapshot['spec'])}/?req={quote(id)}")
 
 
-def body_only(value):
-    """Whether rst `value` parses cleanly with plain docutils, to nothing
-    but body elements (no sections, which a table cell can't hold)"""
-    problems = io.StringIO()
-    try:
-        tree = publish_doctree(value, settings_overrides={
-            "warning_stream": problems, "report_level": 2, "halt_level": 2,
-            "doctitle_xform": False, "file_insertion_enabled": False,
-            "raw_enabled": False})
-    except SystemMessage:
-        return False
-    return not problems.getvalue() and not any(
-        tree.findall(lambda n: isinstance(n, (nodes.section, nodes.transition,
-                                              nodes.title, nodes.target))))
+# The document
+
+LATEX = {
+    "table_style": ["booktabs"],
+    "use_latex_toc": True,
+    "legacy_column_widths": False,
+    "use_latex_citations": True,
+}
 
 
-def body_template(template=None):
-    """The body template: the document template's own body.rst, else the
-    built-in one"""
-    folders = [str(template)] if template and Path(template) != BUILTIN_TEMPLATE else []
-    env = rst_template.environment(jinja2.FileSystemLoader([*folders, str(BUILTIN_TEMPLATE)]))
-    env.filters.update(combination=combination, seconds=seconds, plural=plural,
-                       stamp=stamp, verdict=verdict, why=why, requirement=requirement)
-    return env.get_template(BODY)
+def problems(document):
+    """The parse and resolve problems in a resolved document"""
+    return [m.astext() for m in document.findall(nodes.system_message) if m["level"] >= 2]
 
 
-def render_rst(m, manifest_hash, exported, template=None):
-    report, rows = m["report"], m["rows"]
-    used = rollup.used_uuts(m["runs"])
-    colors = [r["color"] for r in m["requirements"]]
-    states = [r["state"] for r in rows]
-    summary = [(f"Requirements {c}", colors.count(c))
-               for c in ("green", "red", "partial", "untested") if m["requirements"]]
-    summary += [(f"Combinations {s}", states.count(s))
-                for s in dict.fromkeys(["pass", "fail", "error", "incomplete", *states])]
-    return body_template(template).render(
-        report={"name": "", "workspace": "", "created": "", **report},
-        rows=rows,
-        requirements=m["requirements"],
-        runs=m["runs"],
-        first_run=m["first_run"],
-        last_run=m["last_run"],
-        issues=[r for r in rows if r["state"] != "pass"],
-        untested=[r for r in m["requirements"] if r["color"] == "untested"],
-        earlier=[r for r in rows if r["earlier"]],
-        failures=[r for r in rows if r["failure"]],
-        summary=summary,
-        versions=[f"{name} {v['id']} ({v.get('digest', '')[:12]})"
-                  for name, v in (report.get("uut_versions") or {}).items() if name in used],
-        environments=[f"{env or 'none'}: {', '.join(p) or 'platform not recorded'}"
-                      for env, p in m["environments"].items()],
-        exported=exported,
-        manifest_hash=manifest_hash,
-        verdicts=VERDICTS,
-    )
+def render_document(context, text):
+    """The resolved doctree of a report document's source `text`"""
+    return core.resolved(core.parse(text, source_path=SOURCE), context)
 
 
-def rst_to_latex(rst):
-    problems = io.StringIO()
-    try:
-        parts = publish_parts(rst, writer_name="latex", settings_overrides={
-            "table_style": ["booktabs"],
-            "use_latex_toc": True,
-            "doctitle_xform": False,
-            "legacy_column_widths": False,
-            "use_latex_citations": True,
-            "report_level": 2,
-            "halt_level": 2,  # the body is generated: any problem in it is a bug
-            "warning_stream": problems,
-        })
-    except SystemMessage as e:
-        raise ExportError(f"The document's body is malformed: {e}") from e
-    if problems.getvalue():
-        raise ExportError(f"The document's body is malformed: {problems.getvalue()}")
-    return parts
+def document_latex(context, text):
+    """docutils' LaTeX parts for a report document; ExportError if its
+    source has problems"""
+    document = render_document(context, text)
+    found = problems(document)
+    if found:
+        raise ExportError("The document has problems: " + "; ".join(found))
+    return core.write(document, "latex", LATEX)
 
 
 # The whole document, as LaTeX
@@ -317,9 +260,9 @@ def numbered(documents, kind, prefix):
             for n, d in enumerate(of_kind, 1)]
 
 
-def render_tex(m, template, body, manifest_hash, exported):
+def render_tex(data, template, body, manifest_hash, exported):
     settings = template_settings(template)
-    document = m["document"]
+    document = data.document
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(template)),
         block_start_string="((*", block_end_string="*))",
@@ -339,7 +282,7 @@ def render_tex(m, template, body, manifest_hash, exported):
         revision=latex(document["revision"] or "-"),
         author=latex(document["author"]),
         date=latex(exported[:10]),
-        report_id=latex(m["report"]["id"]),
+        report_id=latex(data.id),
         manifest_hash=latex(manifest_hash),
         signatures=[(latex(role), latex(names.get(role, ""))) for role in roles],
         applicable=numbered(document["documents"], "applicable", "AD"),
@@ -395,24 +338,27 @@ def build_pdf(folder):
                           + ("; ".join(errors[:5]) or result.stdout[-500:]))
 
 
-def bundle(root, report_id, template, out_dir):
+def bundle(root, report_id, template, out_dir, base_url=""):
     """Write report-<id>.zip into `out_dir`; returns its path"""
-    m = model(root, report_id)
     exported = store.now_iso()
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         report_name = f"report-{report_id}"
-        copy_report(root, report_id, work / report_name)
-        shutil.copytree(template, work / "template")
-        if not (work / "template" / BODY).exists():  # it used the built-in body
-            shutil.copy(BUILTIN_TEMPLATE / BODY, work / "template" / BODY)
-        manifest_text = manifest(work, [report_name, "template"])
+        folder = work / report_name
+        copy_report(root, report_id, folder)
+        text = source(root, report_id)
+        (folder / SOURCE).write_text(text)
+        if Path(template).resolve() != (folder / TEMPLATE).resolve():
+            shutil.rmtree(folder / TEMPLATE, ignore_errors=True)
+            shutil.copytree(template, folder / TEMPLATE)  # what it is rendered with
+        manifest_text = manifest(work, [report_name])
         (work / "MANIFEST.sha256").write_text(manifest_text)
         manifest_hash = hashlib.sha256(manifest_text.encode()).hexdigest()
 
-        rst = render_rst(m, manifest_hash, exported, template)
-        (work / "report.rst").write_text(rst)
-        tex = render_tex(m, template, rst_to_latex(rst), manifest_hash, exported)
+        found = context(work, report_name, links=ServerLinks(base_url),
+                        exported=exported, manifest_hash=manifest_hash)
+        tex = render_tex(found.data, template, document_latex(found, text),
+                         manifest_hash, exported)
         build = work / "build"
         shutil.copytree(template, build)
         (build / "report.tex").write_text(tex)
@@ -425,12 +371,11 @@ def bundle(root, report_id, template, out_dir):
         target = out_dir / f"{report_name}.zip"
         partial = target.with_suffix(".zip.tmp")
         with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as zf:
-            for name in ["report.pdf", "MANIFEST.sha256", "report.rst", "report.tex"]:
+            for name in ["report.pdf", "MANIFEST.sha256", "report.tex"]:
                 zf.write(work / name, f"{report_name}/{name}")
-            for folder in [report_name, "template"]:
-                for path in sorted((work / folder).rglob("*")):
-                    if path.is_file():
-                        zf.write(path, f"{report_name}/{path.relative_to(work).as_posix()}")
+            for path in sorted(folder.rglob("*")):
+                if path.is_file():
+                    zf.write(path, f"{report_name}/{path.relative_to(work).as_posix()}")
         partial.replace(target)
     return target
 
@@ -439,11 +384,12 @@ def unfinished(root, report_id):
     return [r for r in store.list_runs(root, report_id) if r.get("outcome") is None]
 
 
-def export(root, report_id, out_dir=None, template=None, snapshots=None):
+def export(root, report_id, out_dir=None, template=None, snapshots=None, base_url=""):
     """Freeze the report and write its bundle; returns the zip's path.
     `out_dir` defaults to the report's exports/ folder. `snapshots` (see
     jobs.requirement_snapshots) fill in requirements the report tracked
-    before the database knew them.
+    before the database knew them. `template` overrides the report's own;
+    `base_url` is the server's, for links to its requirement pages.
 
     Raises ExportError, leaving the report as it was, if a run hasn't
     finished or the PDF can't be made."""
@@ -454,7 +400,7 @@ def export(root, report_id, out_dir=None, template=None, snapshots=None):
     if waiting:
         raise ExportError(f"{len(waiting)} runs haven't finished: wait for them, "
                           "or remove them, before exporting")
-    template = Path(template or BUILTIN_TEMPLATE)
+    template = Path(template or report_template(root, report_id))
     if not (template / "template.json").is_file():
         raise ExportError(f"{template} isn't a report template: it has no template.json")
     was_frozen, kept = store.is_frozen(report), report.get("requirement_snapshots") or {}
@@ -464,7 +410,7 @@ def export(root, report_id, out_dir=None, template=None, snapshots=None):
                         requirement_snapshots={**kept, **added})
     try:
         return bundle(root, report_id, template,
-                      out_dir or store.report_dir(root, report_id) / EXPORTS)
+                      out_dir or store.report_dir(root, report_id) / EXPORTS, base_url)
     except Exception:
         store.update_report(root, report_id, frozen=was_frozen, requirement_snapshots=kept)
         raise

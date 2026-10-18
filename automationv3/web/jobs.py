@@ -24,7 +24,7 @@ from flask import (
 
 from ..framework.planning import build_plan
 from ..services import jobs as models
-from ..services.reports import store
+from ..services.reports import export, store
 from ..services.requirements import links
 from ..services.requirements import models as requirement_models
 from ..services.workspace import checked_in, edited_files, find_worktrees
@@ -187,7 +187,9 @@ def queue():
     context, _ = requirement_models.workspace_context(get_db(), workspace_root(plan.workspace))
     try:
         if report is None:
-            report_id, _ = models.queue_plan(get_db(), reports_root(), plan, context=context)
+            report_id, _ = models.queue_plan(
+                get_db(), reports_root(), plan, context=context,
+                template=export.find_template(workspace_root(plan.workspace)))
         else:
             report_id = report["id"]
             tracked = plan.requirements if request.form.getlist("requirement") else {}

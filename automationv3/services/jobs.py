@@ -150,12 +150,17 @@ def closure_hash(files, load_order):
     return Closure(load_order[-1], files, load_order).hash
 
 
-def create_report(root, workspace, name="", uut_versions=None):
+def create_report(root, workspace, name="", uut_versions=None, template=None):
     """An empty report for one workspace. Its UUT versions (name ->
-    {id, digest}) are the default for every addition."""
-    return store.create_report(root, name=name, workspace=workspace,
-                               uut_versions=uut_versions or {}, requirements={},
-                               scripts=[], additions=[])
+    {id, digest}) are the default for every addition. It keeps a copy of
+    `template` (the workspace's report template; default the built-in
+    one) and starts its document from the template's report.rst."""
+    from .reports import export
+    report_id = store.create_report(root, name=name, workspace=workspace,
+                                    uut_versions=uut_versions or {}, requirements={},
+                                    scripts=[], additions=[])
+    export.install_template(root, report_id, template)
+    return report_id
 
 
 def untested(plan):
@@ -262,7 +267,7 @@ def merge_scripts(entries, added):
     return list(merged.values())
 
 
-def queue_plan(conn, root, plan, name=None, context=None):
+def queue_plan(conn, root, plan, name=None, context=None, template=None):
     """Queue every run of `plan` under one new report, tracking the
     requirements it covers: the one-step path from a selection.
 
@@ -271,7 +276,7 @@ def queue_plan(conn, root, plan, name=None, context=None):
     """
     check_runnable(plan, track=True)
     report_id = create_report(root, plan.workspace, name or default_name(plan),
-                              plan.uut_versions)
+                              plan.uut_versions, template)
     return report_id, add_plan(conn, root, report_id, plan, plan.requirements, context)
 
 

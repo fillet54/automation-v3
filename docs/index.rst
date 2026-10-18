@@ -86,5 +86,6 @@ Where to start
    reference/cli
    reference/requirements
    reference/requirements-export
+   reference/report-documents
    reference/api
    reference/glossary

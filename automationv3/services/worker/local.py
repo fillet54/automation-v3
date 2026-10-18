@@ -11,6 +11,7 @@ import threading
 
 from ...framework.planning import build_plan
 from .. import jobs
+from ..reports import export
 from ..database import connect, init_db
 from .host import Host
 from .worker import Worker
@@ -84,7 +85,8 @@ def run_locally(root, scripts, reports_root, host=None, environments=None,
     jobs.check_runnable(plan)  # running locally: something must run
     conn = connect(":memory:")
     init_db(conn)
-    report_id, _ = jobs.queue_plan(conn, reports_root, plan)
+    report_id, _ = jobs.queue_plan(conn, reports_root, plan,
+                                   template=export.find_template(root))
     worker = Worker(LocalServer(conn, reports_root), host, observers)
     worker.check_in(started=True)
     worker.work_until_idle()

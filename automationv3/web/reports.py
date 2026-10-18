@@ -311,7 +311,8 @@ def new():
         if workspace not in workspaces:
             errors.append("Pick a workspace")
         if not errors:
-            report_id = models.create_report(root(), workspace, name)
+            report_id = models.create_report(root(), workspace, name,
+                                             template=workspace_template(workspace))
             return redirect(url_for("reports.report", report_id=report_id))
     return render_template("reports/new.html", workspaces=workspaces,
                            form=request.form, errors=errors)
@@ -445,15 +446,24 @@ def rename(report_id):
     return redirect(target)
 
 
-def report_template(report):
-    """The document template of the report's workspace, else the built-in
-    one"""
+def server_url():
+    """The server's base URL, for links from exported documents: the
+    SERVER_URL setting, else the URL this request came in on"""
+    return current_app.config.get("SERVER_URL") or request.host_url
+
+
+def workspace_template(name):
+    """The document template of a workspace, else the built-in one"""
     try:
-        workspace = find_worktrees(current_app.config["WORKSPACE_PATH"]).get(
-            report.get("workspace"))
+        workspace = find_worktrees(current_app.config["WORKSPACE_PATH"]).get(name)
     except Exception:  # not a git repository, or git missing
         workspace = None
     return export.find_template(workspace)
+
+
+def report_template(report):
+    """The template the report renders with"""
+    return export.report_template(root(), report["id"])
 
 
 @reports.route("/<report_id>/document", methods=["GET", "POST"])
@@ -490,7 +500,7 @@ def export_report(report_id):
     """Freeze the report and write its PDF and bundle"""
     report = store.load_report(root(), report_id) or abort(404)
     try:
-        export.export(root(), report_id, template=report_template(report),
+        export.export(root(), report_id, base_url=server_url(),
                       snapshots=models.requirement_snapshots(
                           get_db(), report.get("requirements", {}),
                           report.get("requirement_context")))
