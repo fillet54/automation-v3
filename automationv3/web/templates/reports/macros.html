@@ -18,13 +18,15 @@
       {%- else %}<span class="ui-call__form">{{ call.form }}</span>{% endif %}
       {%- if value_call and call.value is defined %}<span class="ui-call__out">&rarr; {{ call.value }}</span>{% endif %}
       {%- if call.stdout %}<span class="ui-call__out">{{ call.stdout }}</span>{% endif %}
+      {%- if call.duration is defined and call.duration is not none %}<span class="ui-duration ui-call__duration" title="Duration">{{ call.duration | duration }}</span>{% endif %}
       {%- if call.stderr and call.error and "Traceback (most recent call last)" in call.stderr %}
       <details class="ui-failure__traceback"><summary>{{ call.stderr.strip().splitlines()[-1] }}</summary><pre class="ui-pre">{{ call.stderr }}</pre></details>
       {%- elif call.stderr %}<pre class="ui-pre">{{ call.stderr }}</pre>{% endif %}
     </div>
     {%- if call.children %}
     <details{% if call.state in ("fail", "error") %} open{% endif %}>
-      <summary>{{ call.children | length }} nested call{{ '' if call.children | length == 1 else 's' }}</summary>
+      <summary>{{ call.children | length }} nested call{{ '' if call.children | length == 1 else 's' }}
+        {%- set took = call.children | calls_duration %}{% if took is not none %}<span class="ui-duration" title="Duration of these calls">{{ took | duration }}</span>{% endif %}</summary>
       {{ calls_list(call.children) }}
     </details>
     {%- endif %}

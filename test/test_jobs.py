@@ -1269,6 +1269,17 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "workspace": self.branch, "script": "plain/new.rst"}).get_data(True)
         self.assertIn("not checked in yet", dialog)
 
+    def test_a_run_page_rolls_up_the_time_of_what_is_nested(self):
+        self.edit("plain/rows.rst", rvt(
+            '("a"\n  ["one" [1]\n   "two" [2]])\n(Verify a > 0)', "table"))
+        self.scratch("plain/rows.rst")
+        self.assertEqual(self.worker.work_once(), "pass")
+        (run,) = models.scratch_runs(self.root)
+        page = self.http.get(f"/reports/scratch/runs/{run['id']}").get_data(True)
+        self.assertIn('title="Duration of its steps"', page)  # each row
+        self.assertIn('title="Duration of its rows"', page)  # the table
+        self.assertIn("2 rows", page)
+
     def test_scratch_reports_what_cant_run(self):
         response = self.http.post("/scratch/run", data={
             "workspace": self.branch, "script": "plain/lint.rst"})

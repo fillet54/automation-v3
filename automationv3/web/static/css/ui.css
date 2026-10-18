@@ -729,6 +729,8 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 .ui-call--value { opacity: .7; }
 .ui-call--value .ui-outcome { visibility: hidden; }
 .ui-call .ui-pre { flex-basis: 100%; }
+.ui-call__duration { margin-left: auto; min-width: 0; }
+.ui-calls summary .ui-duration { min-width: 0; margin-left: 8px; }
 .ui-calls details > summary { cursor: pointer; color: var(--ui-muted); font-size: 12px; }
 
 /* a requirement's combinations in the report: each run's outcome and where it ran */
@@ -824,5 +826,6 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 
 /* A table block's rows on a run page */
 .ui-table-rows { display: flex; flex-direction: column; margin-top: 6px; }
+.ui-table-rows__total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; font-size: 12px; color: var(--ui-muted); }
 .ui-table-row > summary { gap: 10px; }
 .ui-table-row .ui-text-caption { margin-left: 4px; }

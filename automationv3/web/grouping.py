@@ -88,11 +88,24 @@ def block_state(items):
     return min(states, key=STATE_ORDER.index) if states else None
 
 
+def item_duration(item):
+    """Seconds an item took: a step's own duration, or a table block's
+    rolled up from its rows; None if nothing in it finished"""
+    if item.get("result") and item["result"].get("duration") is not None:
+        return item["result"]["duration"]
+    return item.get("duration")
+
+
+def total_duration(durations):
+    """The sum of the durations that are known, None if none is"""
+    known = [d for d in durations if d is not None]
+    return round(sum(known), 3) if known else None
+
+
 def block_duration(items):
-    """Seconds a titled block's finished steps took, None if none finished"""
-    times = [item["result"]["duration"] for item in items
-             if item.get("result") and item["result"].get("duration") is not None]
-    return round(sum(times), 3) if times else None
+    """Seconds a titled block's finished steps took, tables' rows
+    included; None if none finished"""
+    return total_duration(item_duration(item) for item in items)
 
 
 def group_definitions(items):

@@ -104,7 +104,8 @@
         {% if top %}{{ calls_list(top) }}{% endif %}
         {% if nested %}
         <details class="ui-calls">
-          <summary>{{ nested | length }} nested call{{ '' if nested | length == 1 else 's' }}</summary>
+          <summary>{{ nested | length }} nested call{{ '' if nested | length == 1 else 's' }}
+            {%- set took = nested | calls_duration %}{% if took is not none %}<span class="ui-duration" title="Duration of these calls">{{ took | duration }}</span>{% endif %}</summary>
           {{ calls_list(nested) }}
         </details>
         {% endif %}
@@ -149,13 +150,17 @@
   {#- A table block: its rows table, then each row (open if it failed) with its steps' results #}
   {% macro table_rows(row) %}
     <div>{{ row.html | safe }}</div>
+    {% if row.duration is not none %}<div class="ui-table-rows__total">{{ row.rows | length }} row{{ '' if row.rows | length == 1 else 's' }}
+      <span class="ui-duration" title="Duration of its rows">{{ row.duration | duration }}</span></div>{% endif %}
     <div class="ui-table-rows">
     {% for r in row.rows %}
       <details class="ui-titled ui-table-row"{% if r.state in ("fail", "error", "running") %} open{% endif %}>
         <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Row</span>
           <span class="ui-titled__title">{{ r.name }}</span>
           {%- if r["values"] %}<span class="ui-text-caption ui-mono">{% for k, v in r["values"].items() %}{{ k }} = {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}
-          <span class="ui-titled__state">{{ ui.outcome(r.state) }}</span></summary>
+          <span class="ui-titled__state">
+            {%- if r.duration is not none %}<span class="ui-duration" title="Duration of its steps">{{ r.duration | duration }}</span>{% endif %}
+            {{- ui.outcome(r.state) }}</span></summary>
         <div class="ui-titled__body">
           {% if r.message %}<div class="ui-failure"><div class="ui-failure__message">{{ r.message }}</div></div>{% endif %}
           {% for s in r.steps %}{% if s.step %}{{ step_row(s.html | safe, s.state, s.result, s.calls, s.attachments, s.failure) }}{% endif %}{% endfor %}

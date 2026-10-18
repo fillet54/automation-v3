@@ -21,7 +21,7 @@ from ..services import jobs as models
 from ..services.reports import export, rollup, store
 from ..services.workspace import find_worktrees
 from .db import get_db
-from .grouping import STATE_ORDER, group, statement_item
+from .grouping import STATE_ORDER, group, item_duration, statement_item, total_duration
 from . import report_view
 
 reports = Blueprint("reports", __name__)
@@ -161,9 +161,11 @@ def table_item(statement, index, steps, statements, found, names, row_events,
             state = "tbd"
         item["rows"].append({"name": name, "values": event.get("values", {}),
                              "state": state, "message": event.get("message"),
-                             "steps": row_steps})
+                             "steps": row_steps,
+                             "duration": total_duration(item_duration(s) for s in row_steps)})
     states = [row["state"] for row in item["rows"]]
     item["state"] = min(states, key=STATE_ORDER.index) if states else "not run"
+    item["duration"] = total_duration(row["duration"] for row in item["rows"])
     if "result" not in item:
         item["result"] = None
     return item
@@ -173,6 +175,12 @@ def table_item(statement, index, steps, statements, found, names, row_events,
 def flatten(fingerprint):
     """A fingerprint's (dotted key, value) pairs, sorted"""
     return sorted(models.flatten(fingerprint).items())
+
+
+@reports.app_template_filter()
+def calls_duration(calls):
+    """Seconds a list of block calls took, for a collapsed group of them"""
+    return total_duration(call.get("duration") for call in calls)
 
 
 @reports.app_template_filter()

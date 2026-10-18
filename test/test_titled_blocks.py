@@ -87,3 +87,7 @@ class TestDurations(unittest.TestCase):
                  {"step": True}, {}]
         self.assertEqual(block_duration(items), 1.251)
         self.assertIsNone(block_duration([{"step": True}]))
+
+    def test_a_table_in_a_block_counts_by_its_rows(self):
+        items = [{"result": {"duration": 0.5}}, {"result": None, "duration": 1.25}]
+        self.assertEqual(block_duration(items), 1.75)
