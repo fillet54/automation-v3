@@ -119,16 +119,24 @@ def known_requirements(conn, ids, context=None):
     return [r for r in found if r is not None]
 
 
-def requirement_texts(conn, ids, context=None):
-    """id -> text of the requirements the database knows, to keep in a
-    report so its document quotes what was tested against"""
-    return {r.id: r.text for r in known_requirements(conn, ids, context)}
+def pinned_context(conn, context=None):
+    """`context` as one fixed version: trunk becomes trunk@N, the import
+    it is as of now; baselines and sets never change"""
+    context = context or "trunk"
+    if context != "trunk":
+        return context
+    (latest,) = conn.execute("SELECT MAX(id) FROM imports").fetchone()
+    return f"trunk@{latest}" if latest else context
 
 
-def requirement_subsystems(conn, ids, context=None):
-    """id -> subsystem of the requirements the database knows, to keep in
-    a report so its pages can group them"""
-    return {r.id: r.subsystem for r in known_requirements(conn, ids, context) if r.subsystem}
+def requirement_snapshots(conn, ids, context=None):
+    """id -> what a report keeps of each requirement it tests: {"spec",
+    "context" (pinned: where links open the text as tested), "text",
+    "text_hash", "subsystem"}, for the requirements the database knows"""
+    pinned = pinned_context(conn, context)
+    return {r.id: {"spec": r.spec, "context": pinned, "text": r.text,
+                   "text_hash": r.text_hash, "subsystem": r.subsystem}
+            for r in known_requirements(conn, ids, context)}
 
 
 def requirement_versions(conn, ids, context=None):
@@ -197,12 +205,13 @@ def add_plan(conn, root, report_id, plan, requirements=None, context=None):
         uut_versions=versions,
         requirements={**report.get("requirements", {}), **(requirements or {})},
         requirement_context=context,
-        requirement_texts={**report.get("requirement_texts", {}),
-                           **requirement_texts(conn, requirements or {}, context)},
-        requirement_subsystems={**report.get("requirement_subsystems", {}),
-                                **requirement_subsystems(conn, requirements or {}, context)},
-        requirement_versions={**report.get("requirement_versions", {}),
-                              **requirement_versions(conn, requirements or {}, context)},
+        # Taken when a requirement is first tracked, and kept: the text
+        # the report verifies, even if it changes later
+        requirement_snapshots={
+            **requirement_snapshots(conn, [r for r in requirements or {}
+                                           if r not in report.get("requirement_snapshots", {})],
+                                    context),
+            **report.get("requirement_snapshots", {})},
         scripts=merge_scripts(report.get("scripts", []), summary["scripts"]),
         additions=[*report.get("additions", []), {
             "added": store.now_iso(),

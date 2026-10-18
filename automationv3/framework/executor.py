@@ -69,7 +69,7 @@ from .language import (
     parse_variations,
 )
 from .steps import (
-    Runtime, elapsed, error_line, notify, run_statement, running_statement,
+    Runtime, elapsed, error_line, json_data, notify, run_statement, running_statement,
 )
 
 
@@ -309,6 +309,8 @@ def _run_step(form, env, observer, index, row=None):
     result.placeholders = runtime.placeholders
     if runtime.placeholders:
         details["placeholders"] = runtime.placeholders
+    if getattr(result, "data", None) is not None:
+        details["data"] = json_data(result.data)
     observer.on_step_end(passed=bool(result), error=result.error,
                          stdout=result.stdout, stderr=result.stderr,
                          duration=elapsed(started), **failure_details(result),

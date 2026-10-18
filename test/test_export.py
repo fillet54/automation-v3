@@ -40,7 +40,7 @@ class ReportTestCase(unittest.TestCase):
         store.update_report(cls.source / "reports", cls.report_id,
                             requirements={"REQ-1": ["BRA/tc_bra_00004.rst"],
                                           "REQ-2": ["BRA/tc_bra_00003.rst"]},
-                            requirement_texts={"REQ-1": "The brakes shall hold."})
+                            requirement_snapshots={"REQ-1": {"text": "The brakes shall hold."}})
 
     @classmethod
     def tearDownClass(cls):
@@ -194,21 +194,23 @@ class TestExport(ReportTestCase):
         with zipfile.ZipFile(second) as zf:
             self.assertFalse([n for n in zf.namelist() if "/exports/" in n])
 
-    def test_requirement_texts_fill_in_what_the_report_lacks(self):
+    def test_snapshots_fill_in_what_the_report_lacks(self):
         export.export(self.root, self.report_id, out_dir=self.tmp / "out",
-                      requirement_texts={"REQ-1": "Other", "REQ-2": "The brakes shall stop.",
-                                         "REQ-9": "Not in the report"})
-        self.assertEqual(self.report()["requirement_texts"], {
-            "REQ-1": "The brakes shall hold.", "REQ-2": "The brakes shall stop."})
+                      snapshots={"REQ-1": {"text": "Other"},
+                                 "REQ-2": {"text": "The brakes shall stop."},
+                                 "REQ-9": {"text": "Not in the report"}})
+        self.assertEqual(self.report()["requirement_snapshots"], {
+            "REQ-1": {"text": "The brakes shall hold."},
+            "REQ-2": {"text": "The brakes shall stop."}})
 
 
 class TestExportRefusals(ReportTestCase):
     def test_a_failed_export_leaves_the_report_as_it_was(self):
         with self.assertRaises(export.ExportError):
             export.export(self.root, self.report_id, template=self.tmp / "no-template",
-                          requirement_texts={"REQ-2": "x"})
+                          snapshots={"REQ-2": {"text": "x"}})
         self.assertFalse(store.is_frozen(self.report()))
-        self.assertNotIn("REQ-2", self.report()["requirement_texts"])
+        self.assertNotIn("REQ-2", self.report()["requirement_snapshots"])
 
     def test_bad_latex_is_reported_and_unfreezes(self):
         if not HAS_LATEX:
@@ -263,8 +265,8 @@ class TestFrozenQueue(QueueTestCase):
         plan = models.build_plan("", self.rvts, ["a.rst"])
         models.add_plan(self.conn, self.root, report_id, plan,
                         {"R-1": ["a.rst"], "R-2": ["a.rst"]})
-        self.assertEqual(store.load_report(self.root, report_id)["requirement_texts"],
-                         {"R-1": "Shall pass."})
+        snapshots = store.load_report(self.root, report_id)["requirement_snapshots"]
+        self.assertEqual({k: v["text"] for k, v in snapshots.items()}, {"R-1": "Shall pass."})
 
 
 class TestCli(ReportTestCase):

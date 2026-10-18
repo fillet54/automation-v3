@@ -267,11 +267,17 @@ class TestReportsRecordVersions(ExportCase):
         report_id, (run_id, *_) = self.queue("set:R1")
         report = report_store.load_report(self.reports, report_id)
         self.assertEqual(report["requirement_context"], "set:R1")
-        self.assertIn("40%", report["requirement_texts"]["SW-1"])
-        recorded = report["requirement_versions"]["SW-1"]
-        self.assertEqual(recorded["spec"], "SRS")
+        recorded = report["requirement_snapshots"]["SW-1"]
+        self.assertIn("40%", recorded["text"])
+        self.assertEqual((recorded["spec"], recorded["context"]), ("SRS", "set:R1"))
         run = report_store.load_run(self.reports, report_id, run_id)
         self.assertEqual(run["requirement_versions"], {"SW-1": recorded["text_hash"]})
+
+    def test_a_trunk_report_links_to_trunk_as_it_was_tracked(self):
+        report_id, _ = self.queue("trunk")
+        (latest,) = self.conn.execute("SELECT MAX(id) FROM imports").fetchone()
+        report = report_store.load_report(self.reports, report_id)
+        self.assertEqual(report["requirement_snapshots"]["SW-1"]["context"], f"trunk@{latest}")
 
     def test_the_report_page_says_when_the_text_has_changed_since(self):
         from automationv3.web import reports as report_pages

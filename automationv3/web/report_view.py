@@ -14,7 +14,8 @@ requirement no script references yet is "untested": it has no scripts.
 import re
 
 from ..framework.document import document_title
-from ..services.reports import export, rollup, store
+from ..services.reports import rollup, store
+from ..services.reports.data import ReportData, duration
 
 UNASSIGNED = "Unassigned"
 OTHER = "Other tests"
@@ -60,8 +61,9 @@ def build(root, report, runs, status, lookup=None):
     for requirements the report didn't record."""
     rows = rollup.combinations(report, runs, status)
     requirements = rollup.requirement_rollup(report, rows)
-    texts = dict(report.get("requirement_texts") or {})
-    subsystems = dict(report.get("requirement_subsystems") or {})
+    snapshots = report.get("requirement_snapshots") or {}
+    texts = {id: s["text"] for id, s in snapshots.items() if s.get("text")}
+    subsystems = {id: s["subsystem"] for id, s in snapshots.items() if s.get("subsystem")}
     missing = [r["id"] for r in requirements
                if r["id"] not in texts or r["id"] not in subsystems]
     for id, (text, subsystem) in (lookup(missing) if lookup and missing else {}).items():
@@ -74,7 +76,7 @@ def build(root, report, runs, status, lookup=None):
         row["title"] = script_title(root, report["id"], row, titles)
         row["dot"] = dot(row["state"])
         row["attempts"] = len(row["earlier"]) + (1 if row["latest"] else 0)
-        row["duration"] = export.duration(row["latest"])
+        row["duration"] = duration(row["latest"])
         row["why"] = why(root, row, report)
         row["label"] = outdated_label(row)
 
@@ -187,7 +189,7 @@ def why(root, row, report=None):
         return (f"{outdated_label(row)}; the report is on {versions_text(now)}. "
                 "Rerun it, or Update tests, to bring it up to date.")
     if state in ("fail", "error") and run:
-        found = export.failure(root, run)
+        found = ReportData(root, run["report_id"]).failure(run)
         parts = [p for p in (found["step"], found["message"]) if p]
         return ": ".join(parts) or None
     if state == "incomplete":

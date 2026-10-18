@@ -424,11 +424,11 @@ def render_page(report_id, page, errors=(), status=200):
 def text_changed(report):
     """The tracked requirements whose text in the report's context is no
     longer the text the report recorded when it took them on"""
-    recorded = report.get("requirement_versions") or {}
+    recorded = report.get("requirement_snapshots") or {}
     current = models.requirement_versions(get_db(), recorded,
                                           report.get("requirement_context"))
     return {id for id, v in recorded.items()
-            if id in current and current[id]["text_hash"] != v["text_hash"]}
+            if id in current and current[id]["text_hash"] != v.get("text_hash")}
 
 
 @reports.route("/<report_id>/rename", methods=["POST"])
@@ -491,8 +491,9 @@ def export_report(report_id):
     report = store.load_report(root(), report_id) or abort(404)
     try:
         export.export(root(), report_id, template=report_template(report),
-                      requirement_texts=models.requirement_texts(
-                          get_db(), report.get("requirements", {})))
+                      snapshots=models.requirement_snapshots(
+                          get_db(), report.get("requirements", {}),
+                          report.get("requirement_context")))
     except export.ExportError as e:
         return render_page(report_id, "overview", [str(e)], 409)
     return redirect(url_for("reports.report", report_id=report_id))

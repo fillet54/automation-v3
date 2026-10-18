@@ -952,7 +952,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         report = store.load_report(self.root, report_id)
         self.assertEqual(report["requirements"], {"R9": []})
-        self.assertEqual(report["requirement_subsystems"], {"R9": "BRK"})
+        self.assertEqual(report["requirement_snapshots"]["R9"]["subsystem"], "BRK")
         self.assertEqual(store.list_runs(self.root, report_id), [])
         (r9,) = rollup.requirement_rollup(report, [])
         self.assertEqual(r9["color"], "untested")

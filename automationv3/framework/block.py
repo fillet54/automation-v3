@@ -50,13 +50,16 @@ class BlockResult:
 
     `value` is what a call of the block gives the code around it. A
     result that didn't pass is an `error` if the block raised (or
-    couldn't run at all) rather than coming out false."""
+    couldn't run at all) rather than coming out false. `data` is
+    anything (JSON) the block wants its result rendered from: it is
+    kept with the call's events and handed to `as_result_rst`."""
 
     passed: bool
     stdout: str = ""
     stderr: str = ""
     value: object = None
     error: bool = False
+    data: object = None
 
     def __bool__(self):
         return bool(self.passed)

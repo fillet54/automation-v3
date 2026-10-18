@@ -45,7 +45,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
-from datetime import datetime
+from types import SimpleNamespace
 from pathlib import Path
 
 import jinja2
@@ -53,13 +53,12 @@ from docutils import nodes
 from docutils.core import publish_doctree, publish_parts
 from docutils.utils import SystemMessage
 
-from ...framework.statements import get_statements
 from . import rollup, rst_template, store
+from .data import KINDS, ReportData, duration  # noqa: F401
 from .rst_template import Rst, indent, literal, text  # noqa: F401
 
 BUILTIN_TEMPLATE = Path(__file__).parent / "template"
 EXPORTS = "exports"  # a report folder's exported bundles; never bundled
-KINDS = ("applicable", "reference")
 
 
 class ExportError(Exception):
@@ -69,17 +68,9 @@ class ExportError(Exception):
 # The report's document fields
 
 def document_fields(report):
-    """The report's document fields, with defaults for any not set. The
-    document's title is the report's name."""
-    fields = dict(report.get("document") or {})
-    return {
-        "title": report.get("name") or fields.get("title") or f"Report {report['id'][:8]}",
-        "number": fields.get("number") or "",
-        "revision": fields.get("revision") or "",
-        "author": fields.get("author") or "",
-        "signatures": dict(fields.get("signatures") or {}),
-        "documents": [d for d in fields.get("documents") or [] if d.get("kind") in KINDS],
-    }
+    """The report's document fields, with defaults for any not set"""
+    return ReportData.document.fget(SimpleNamespace(
+        report=report, name=report.get("name") or f"Report {report['id'][:8]}"))
 
 
 def missing_fields(report):
@@ -151,84 +142,20 @@ def template_settings(template):
 # The model: everything the document says, from the report folder
 
 def model(root, report_id):
-    report = store.load_report(root, report_id)
-    if report is None:
-        raise ExportError(f"No report {report_id} in {root}")
-    runs = store.list_runs(root, report_id)
-    rows = rollup.combinations(report, runs, lambda run: "unfinished")
-    requirements = rollup.requirement_rollup(report, rows)
-    texts = report.get("requirement_texts") or {}
-    for requirement in requirements:
-        requirement["text"] = texts.get(requirement["id"], "")
-    for row in rows:
-        row["attempts"] = len(row["earlier"]) + (1 if row["latest"] else 0)
-        row["duration"] = duration(row["latest"])
-        row["failure"] = failure(root, row["latest"]) if row["state"] in (
-            "fail", "error") else None
-    started = [r["started"] for r in runs if r.get("started")]
-    ended = [r["ended"] for r in runs if r.get("ended")]
+    try:
+        data = ReportData(root, report_id)
+    except LookupError as e:
+        raise ExportError(str(e)) from e
     return {
-        "report": report,
-        "document": document_fields(report),
-        "rows": rows,
-        "requirements": requirements,
-        "runs": runs,
-        "first_run": min(started) if started else None,
-        "last_run": max(ended) if ended else None,
-        "environments": environments(runs),
+        "report": data.report,
+        "document": data.document,
+        "rows": data.combinations,
+        "requirements": data.requirements,
+        "runs": data.runs,
+        "first_run": data.first_run,
+        "last_run": data.last_run,
+        "environments": data.environments(),
     }
-
-
-def duration(run):
-    if not run or not run.get("started") or not run.get("ended"):
-        return None
-    start, end = (datetime.fromisoformat(run[k]) for k in ("started", "ended"))
-    return (end - start).total_seconds()
-
-
-def failure(root, run):
-    """{"step", "message"} for a failed run: its first failed step (by
-    title, where its block has one) and why"""
-    events = store.read_events(root, run["report_id"], run["id"])
-    for event in events:
-        if event.get("kind") == "error":
-            return {"step": "", "message": event.get("message", "")}
-    failed = next((e for e in events if e.get("kind") == "step_end"
-                   and not e.get("passed")), None)
-    if failed is None:
-        return {"step": "", "message": ""}
-    message = failed.get("message") or failed.get("stderr") or failed.get("stdout") or ""
-    return {"step": step_name(root, run, failed), "message": message.strip()}
-
-
-def step_name(root, run, ended):
-    if ended.get("precondition"):
-        return "Precondition"
-    index = ended.get("index")
-    statements = []
-    if run["script"].endswith(".rst"):  # older runs were of .rvt scripts
-        text = store.read_closure(root, run["report_id"], run["id"]).get(run["script"], "")
-        try:
-            statements = get_statements(text)
-        except Exception:
-            pass
-    name = f"step {index + 1}" if isinstance(index, int) else "a step"
-    if isinstance(index, int) and index < len(statements) and statements[index].title:
-        name = f"{statements[index].title} ({name})"
-    if ended.get("row") is not None:
-        name += f", row {ended['row']}"
-    return name
-
-
-def environments(runs):
-    """environment -> the platforms its runs reported"""
-    found = {}
-    for run in runs:
-        fingerprint = run.get("fingerprint") or {}
-        platforms = found.setdefault(run.get("environment") or "", set())
-        if fingerprint.get("platform"):
-            platforms.add(fingerprint["platform"])
-    return {env: sorted(p) for env, p in sorted(found.items())}
 
 
 # The body, as reStructuredText, from the template's body.rst
@@ -512,10 +439,11 @@ def unfinished(root, report_id):
     return [r for r in store.list_runs(root, report_id) if r.get("outcome") is None]
 
 
-def export(root, report_id, out_dir=None, template=None, requirement_texts=None):
+def export(root, report_id, out_dir=None, template=None, snapshots=None):
     """Freeze the report and write its bundle; returns the zip's path.
-    `out_dir` defaults to the report's exports/ folder. `requirement_texts`
-    (id -> text) fills in requirement texts the report didn't record.
+    `out_dir` defaults to the report's exports/ folder. `snapshots` (see
+    jobs.requirement_snapshots) fill in requirements the report tracked
+    before the database knew them.
 
     Raises ExportError, leaving the report as it was, if a run hasn't
     finished or the PDF can't be made."""
@@ -529,16 +457,16 @@ def export(root, report_id, out_dir=None, template=None, requirement_texts=None)
     template = Path(template or BUILTIN_TEMPLATE)
     if not (template / "template.json").is_file():
         raise ExportError(f"{template} isn't a report template: it has no template.json")
-    was_frozen, texts = store.is_frozen(report), report.get("requirement_texts") or {}
-    added = {k: v for k, v in (requirement_texts or {}).items()
-             if k in report.get("requirements", {}) and not texts.get(k)}
+    was_frozen, kept = store.is_frozen(report), report.get("requirement_snapshots") or {}
+    added = {k: v for k, v in (snapshots or {}).items()
+             if k in report.get("requirements", {}) and k not in kept}
     store.update_report(root, report_id, frozen=True,
-                        requirement_texts={**texts, **added})
+                        requirement_snapshots={**kept, **added})
     try:
         return bundle(root, report_id, template,
                       out_dir or store.report_dir(root, report_id) / EXPORTS)
     except Exception:
-        store.update_report(root, report_id, frozen=was_frozen, requirement_texts=texts)
+        store.update_report(root, report_id, frozen=was_frozen, requirement_snapshots=kept)
         raise
 
 

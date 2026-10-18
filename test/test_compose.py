@@ -51,6 +51,13 @@ class Refuses(BuildingBlock):
         return BlockResult(False, stdout="refused")
 
 
+class Measures(BuildingBlock):
+    """An action that hands its result's renderer some data"""
+
+    def execute(self):
+        return BlockResult(True, data={"samples": [1, 2], "unit": object()})
+
+
 class Recorder:
     def __init__(self):
         self.events = []
@@ -130,6 +137,16 @@ class TestCallValues(unittest.TestCase):
         self.assertEqual(outcome, "pass")
         (call,) = [c for c in rec.of("call_end") if c["block_kind"] == VALUE]
         self.assertEqual(call["value"], "42")
+
+    def test_a_blocks_data_is_kept_with_its_call_as_json(self):
+        outcome, rec = run("(Measures)")  # a step of its own: on step_end
+        self.assertEqual(outcome, "pass")
+        (step,) = rec.of("step_end")
+        self.assertEqual(step["data"]["samples"], [1, 2])
+        self.assertIsInstance(step["data"]["unit"], str)  # not JSON: kept as text
+        _, rec = run("(do (Measures))")  # called inside a step: on its call_end
+        (call,) = rec.of("call_end")
+        self.assertEqual(call["data"]["samples"], [1, 2])
 
     def test_an_assertion_gives_true_or_false(self):
         outcome, rec = run("(Verify (= (try-ok? (Verify 1 = 2)) false))")

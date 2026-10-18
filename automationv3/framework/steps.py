@@ -34,6 +34,7 @@ was made in.
 """
 
 import contextvars
+import json
 import time
 import traceback
 from contextlib import contextmanager
@@ -154,9 +155,16 @@ class Runtime:
         extra = {}
         if kind == VALUE and result:
             extra["value"] = text(result.value)
+        if getattr(result, "data", None) is not None:
+            extra["data"] = json_data(result.data)
         self.observer.on_call_end(
             passed=bool(result), error=result.error, stdout=result.stdout,
             stderr=result.stderr, duration=elapsed(started), **extra, **details)
+
+
+def json_data(data):
+    """A block's result data as JSON: anything else becomes its text"""
+    return json.loads(json.dumps(data, default=str))
 
 
 def notify(observer, event, **details):

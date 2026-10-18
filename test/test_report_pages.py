@@ -41,8 +41,8 @@ class ReportPagesTestCase(unittest.TestCase):
         store.update_report(
             cls.source / "reports", cls.report_id, name="Brakes",
             requirements={"BRA-1": ["BRA/tc_bra_00004.rst"], "BRA-2": ["BRA/missing.rst"]},
-            requirement_texts={"BRA-1": "The brakes shall hold."},
-            requirement_subsystems={"BRA-1": "BRA"})
+            requirement_snapshots={"BRA-1": {"text": "The brakes shall hold.",
+                                             "subsystem": "BRA"}})
 
     @classmethod
     def tearDownClass(cls):
@@ -87,7 +87,9 @@ class TestTree(ReportPagesTestCase):
         report = store.load_report(self.root, self.report_id)
         store.update_report(self.root, self.report_id,
                             requirements={**report["requirements"], "BRA-3": []},
-                            requirement_subsystems={"BRA-1": "BRA", "BRA-3": "BRA"})
+                            requirement_snapshots={
+                                **report["requirement_snapshots"],
+                                "BRA-3": {"text": "", "subsystem": "BRA"}})
         view = self.view()
         bra = view["groups"][0]
         (bra3,) = [r for r in bra["requirements"] if r["id"] == "BRA-3"]
