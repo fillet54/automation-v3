@@ -11,18 +11,14 @@ from flask import (
     url_for,
 )
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 
-from ..framework.excerpt import failure_view
-from ..framework.language import DIRECTIVES, head
-from ..framework.statements import get_statements
 from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import export, rollup, store
 from ..services.workspace import find_worktrees
 from .db import get_db
-from .grouping import STATE_ORDER, group, item_duration, statement_item, total_duration
-from . import report_view
+from . import documents, report_view
 
 reports = Blueprint("reports", __name__)
 
@@ -39,148 +35,10 @@ def run_status(run):
     return job.status if job else "unknown"
 
 
-def key(event):
-    """A step's events are keyed by its statement index, and its row when
-    it ran in a table block"""
-    return (event.get("index"), event.get("row"))
-
-
-def statement_rows(run, finished):
-    """The rendered script, each statement paired with its step result.
-    Statements limited to variations other than the run's are left out.
-    A table block's rows become one entry, holding each row's steps."""
-    closure = store.read_closure(root(), run["report_id"], run["id"])
-    text = closure.get(run["script"], "")
-    events = store.read_events(root(), run["report_id"], run["id"])
-
-    found = Results(
-        started={key(e) for e in events if e["kind"] == "step_start"},
-        ended={key(e): e for e in events if e["kind"] == "step_end"},
-        calls=call_trees(events),
-        attachments={},
-        closure=closure,
-        finished=finished,
-    )
-    phases = precondition_phases(events, {i: c for (i, r), c in found.calls.items()
-                                          if r is None})
-    for index_phases in phases.values():
-        for phase in index_phases:
-            phase["failure"] = failure_of(closure, phase.get("result"))
-    for event in events:
-        if event["kind"] == "attachment":
-            found.attachments.setdefault(key(event), []).append(event)
-    table_rows = {e["index"]: e["rows"] for e in events if e["kind"] == "table_start"}
-    row_events = {}
-    for event in events:
-        if event["kind"] in ("row_start", "row_end"):
-            row_events.setdefault((event["index"], event["row"]), {}).update(
-                {k: v for k, v in event.items() if k not in ("seq", "ts")})
-    variation = (run.get("variation") or {}).get("name")
-
-    statements = get_statements(text)
-    in_table = set()
-    rows = []
-    for index, statement in enumerate(statements):
-        if index in in_table:
-            continue
-        if variation and statement.variations and variation not in statement.variations:
-            continue  # limited to other variations: not part of this run
-        if statement.table_rows:
-            steps = [i for i in range(index + 1, len(statements))
-                     if statements[i].table == statement.table]
-            steps = steps[:next((n for n, i in enumerate(steps)
-                                 if i != index + 1 + n), len(steps))]
-            in_table.update(steps)
-            rows.append(table_item(statement, index, steps, statements, found,
-                                   table_rows.get(index), row_events, variation))
-            continue
-        item = step_item(statement, index, None, found, phases.get(index, []))
-        rows.append(item)
-
-    errors = [e for e in events if e["kind"] == "error"]
-    return group(rows, variation), errors
-
-
-@dataclass
-class Results:
-    started: set
-    ended: dict
-    calls: dict
-    attachments: dict
-    closure: dict
-    finished: bool
-
-
-def step_item(statement, index, row, found, phases=()):
-    """One statement with its result (in `row`, for a table block's step)"""
-    form = statement.statement
-    item = statement_item(
-        statement,
-        step=isinstance(form, list) and head(form) not in DIRECTIVES,
-        calls=found.calls.get((index, row), []),
-        phases=phases,
-        attachments=found.attachments.get((index, row), []),
-    )
-    if statement.definition:
-        # Definitions aren't steps; only a failed one has a result
-        item["step"] = (index, row) in found.ended
-    if item["step"]:
-        if (index, row) in found.ended:
-            ended = found.ended[(index, row)]
-            item["state"] = step_state(ended)
-            item["result"] = ended
-            item["failure"] = failure_of(found.closure, ended)
-        elif (index, row) in found.started:
-            item["state"] = "running"
-        else:
-            item["state"] = "not run" if found.finished else "pending"
-    return item
-
-
-def table_item(statement, index, steps, statements, found, names, row_events,
-               variation):
-    """A table block as one entry: its rows table, then each row with its
-    steps' results"""
-    item = statement_item(statement, step=True)
-    if names is None:  # not reached: the rows as written
-        from ..framework.language import parse_table
-        names = [row.name for row in parse_table("", statement.statement, [])]
-    item["rows"] = []
-    for name in names:
-        event = row_events.get((index, name), {})
-        if "outcome" in event:
-            state = {"pass": "pass", "fail": "fail", "error": "error"}[event["outcome"]]
-        elif event:
-            state = "running"
-        else:
-            state = "not run" if found.finished else "pending"
-        row_steps = [step_item(statements[i], i, name, found) for i in steps
-                     if not (variation and statements[i].variations
-                             and variation not in statements[i].variations)]
-        if state == "pass" and any(s.get("state") == "tbd" for s in row_steps):
-            state = "tbd"
-        item["rows"].append({"name": name, "values": event.get("values", {}),
-                             "state": state, "message": event.get("message"),
-                             "steps": row_steps,
-                             "duration": total_duration(item_duration(s) for s in row_steps)})
-    states = [row["state"] for row in item["rows"]]
-    item["state"] = min(states, key=STATE_ORDER.index) if states else "not run"
-    item["duration"] = total_duration(row["duration"] for row in item["rows"])
-    if "result" not in item:
-        item["result"] = None
-    return item
-
-
 @reports.app_template_filter()
 def flatten(fingerprint):
     """A fingerprint's (dotted key, value) pairs, sorted"""
     return sorted(models.flatten(fingerprint).items())
-
-
-@reports.app_template_filter()
-def calls_duration(calls):
-    """Seconds a list of block calls took, for a collapsed group of them"""
-    return total_duration(call.get("duration") for call in calls)
 
 
 @reports.app_template_filter()
@@ -195,89 +53,6 @@ def duration(seconds):
         return f"{ms / 1000:.3f} s"
     minutes, ms = divmod(ms, 60_000)
     return f"{minutes}:{ms / 1000:06.3f}"
-
-
-def precondition_phases(events, calls):
-    """statement index -> the phases its precondition ran (check, heal,
-    check again), in order: each has its action, state, result and the
-    block calls made in it"""
-    phases = {}
-    for event in events:
-        if event["kind"] in ("phase_start", "phase_end"):
-            phase = phases.setdefault((event["index"], event["phase"]), {})
-            phase.update({k: v for k, v in event.items()
-                          if k not in ("kind", "seq", "ts")})
-            if event["kind"] == "phase_end":
-                phase["result"] = event
-    by_index = {}
-    for (index, number), phase in sorted(phases.items()):
-        phase["state"] = phase_state(phase)
-        phase["calls"] = [c for c in calls.get(index, []) if c.get("phase") == number]
-        by_index.setdefault(index, []).append(phase)
-    return by_index
-
-
-def phase_state(phase):
-    """A check is true or false (false is expected before a heal); a heal
-    passes or fails"""
-    if "result" not in phase:
-        return "running"
-    if phase["action"] == "check":
-        return "true" if phase["passed"] else "false"
-    return step_state(phase)
-
-
-def failure_of(files, ended):
-    """Why and where a step (or phase) failed, for display, or None. Runs
-    from before failures carried a message have none."""
-    if not ended or ended.get("passed") or "message" not in ended:
-        return None
-    return failure_view(files, ended["message"], ended.get("trace"),
-                        ended.get("stderr", "") if ended.get("error") else "")
-
-
-def step_state(ended):
-    """pass, fail (an assertion came out false), error (something raised)
-    or tbd (it passed, but reached steps not written yet)"""
-    if ended["passed"]:
-        return "tbd" if ended.get("placeholders") else "pass"
-    return "error" if ended.get("error") else "fail"
-
-
-def call_state(call):
-    """A suppressed call (inside try-ok? or try) is true or false; any
-    other passes, fails or errs"""
-    if "passed" not in call:
-        return "running"
-    if call.get("suppressed") or call.get("checked"):  # checked: older runs
-        return "true" if call["passed"] else "false"
-    if call.get("block_kind") == "placeholder":
-        return "tbd"
-    return step_state(call)
-
-
-def call_trees(events):
-    """(statement index, row) -> its block calls as a tree, quiet calls
-    left out. Each call has its `children` (calls made inside a step
-    form)."""
-    calls = {}
-    for event in events:
-        if event["kind"] not in ("call_start", "call_end") or event.get("quiet"):
-            continue
-        call = calls.setdefault((*key(event), event["call"]), {"children": []})
-        call.update({k: v for k, v in event.items() if k not in ("kind", "seq", "ts")})
-    for call in calls.values():
-        call["state"] = call_state(call)
-
-    trees = {}
-    for (index, row, _), call in sorted(calls.items(), key=lambda kv: (
-            kv[0][0], str(kv[0][1]), kv[0][2])):
-        parent = calls.get((index, row, call.get("parent")))
-        if parent is not None:
-            parent["children"].append(call)
-        else:
-            trees.setdefault((index, row), []).append(call)
-    return trees
 
 
 @reports.route("/", methods=["GET"])
@@ -528,20 +303,27 @@ def run(report_id, run_id):
     run = store.load_run(root(), report_id, run_id) or abort(404)
     status = run_status(run)
     finished = run.get("outcome") is not None
-    rows, errors = statement_rows(run, finished)
+    events = store.read_events(root(), report_id, run_id)
+    seen = request.args.get("seen", type=int)
+    if request.headers.get("HX-Request") and seen == len(events) and not finished:
+        return "", 204  # nothing new: the page stays as it is
 
     template = "reports/run.html"
     if request.headers.get("HX-Request"):
         template = "reports/partials/run_body.html"
     files = store.list_files(root(), report_id, run_id)
-    events = store.read_events(root(), report_id, run_id)
+    errors = [e for e in events if e["kind"] == "error"]
+    document = documents.run_document(
+        root(), report_id, run, lambda r: run_status(r),
+        [export.report_template(root(), report_id) / "snippets"])
     cleanups = [e for e in events if e["kind"] == "cleanup"]
     report = store.load_report(root(), report_id)
     frozen = store.is_frozen(report)
     stale = rollup.stale_versions(report, run) if report else {}
     current = (report or {}).get("uut_versions") or {}
     return render_template(template, run=run, status=status, finished=finished,
-                           rows=rows, errors=errors, files=files, frozen=frozen,
+                           document=document, seen=len(events), errors=errors,
+                           files=files, frozen=frozen,
                            rerun_on=", ".join(f"{n} {current[n]['id']}" for n in sorted(stale)),
                            touched=rollup.touched(events), cleanups=cleanups)
 

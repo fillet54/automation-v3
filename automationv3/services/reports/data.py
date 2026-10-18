@@ -47,7 +47,9 @@ class ReportData:
         self.links = links or Links()
         self.report = store.load_report(root, folder)
         if self.report is None:
-            raise LookupError(f"No report {folder} in {root}")
+            if not store.report_dir(root, folder).is_dir():
+                raise LookupError(f"No report {folder} in {root}")
+            self.report = {"id": folder}  # runs with no report around them (scratch)
         self.id = self.report.get("id", folder)
 
     # The report

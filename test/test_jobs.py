@@ -587,10 +587,10 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(f"/reports/{ids['report_id']}/runs/{ids['run_id']}")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"(Verify 1 = 2) failed: 1 = 2", page.data)
-        self.assertIn(b'<mark class="ui-excerpt__mark">(Verify 1 = 2)</mark>', page.data)
-        self.assertIn(b"ui-step--pass", page.data)
-        self.assertIn(b"ui-step--fail", page.data)
-        self.assertIn(b"ui-step--not-run", page.data)
+        self.assertIn(b"6 | (Verify 1 = 2)\n  | ^^^^^^^^^^^^^^", page.data)  # where
+        self.assertIn(b'class="result pass', page.data)
+        self.assertIn(b'class="result fail', page.data)
+        self.assertIn(b'class="result not-run', page.data)
 
     def test_installs_uut_once_and_records_it(self):
         ids = self.queue("BRA/tc.rst", uut_versions={"demo": "1.0.0"})
@@ -764,7 +764,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         base = f"/reports/{ids['report_id']}/runs/{ids['run_id']}"
         page = self.http.get(base).get_data(True)
         self.assertIn(f'href="{base}/files/state.json"', page)
-        self.assertEqual(page.count('class="ui-attachments"'), 2)  # one per step
+        self.assertEqual(page.count('class="attachments'), 2)  # one per step
         snapshot = self.http.get(f"{base}/files/state.json")
         self.assertEqual(snapshot.status_code, 200)
         self.assertIn('"mode": ":normal"', snapshot.get_data(True))
@@ -806,9 +806,9 @@ class TestWorkerAgainstServer(unittest.TestCase):
         # Static analysis: shown by the statement, with the name marked
         page = self.http.get(f"/workspace/{self.branch}/view?path=plain/unknown.rst")
         self.assertIn(b"This script can&#39;t be queued", page.data)
-        inline = page.data.split(b"ui-diagnostics-inline--")[1]
+        inline = page.data.split(b'class="diagnostic error')[1]
         self.assertIn(b"unknown name nope", inline)
-        self.assertIn(b'<mark class="ui-excerpt__mark">nope</mark>', inline)
+        self.assertRegex(inline, rb"\| +\^\^\^\^")  # the name marked
         self.assertIn(b"the value of (- 1 1) is not used", page.data)
 
     def dialog(self, **params):
@@ -873,7 +873,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertIn("Only for", page)
         self.assertNotIn("Skipped for", page)
         self.assertIn("High only", page)
-        self.assertIn("ui-scoped__tag", page)  # prose and a block: a tag line
+        self.assertIn('<div class="scoped docutils container">\n<p><em>Only for</em>', page)
         page = self.http.get(view + "&variation=low").get_data(True)
         self.assertNotIn("High only", page)  # the variant's prose and block
         self.assertNotIn("Level is high", page)
@@ -882,7 +882,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         details = page.split("ui-script-details")[1].split("</details>")[0]
         self.assertIn('<tr class="ui-row--selected"><td>high</td>', details)
         self.assertNotIn("<td>low</td>", details)  # only the selected one
-        self.assertIn('ui-titled__title">Level is positive<', page)
+        self.assertIn("<strong>Level is positive</strong>", page)
 
         report_id = self.queue_requirements(
             script="BRA/scoped.rst",
@@ -891,14 +891,15 @@ class TestWorkerAgainstServer(unittest.TestCase):
                          ["pass", "pass"])
         for run in store.list_runs(self.root, report_id):
             page = self.http.get(f"/reports/{report_id}/runs/{run['id']}")
-            steps = page.get_data(True).count('class="ui-step ')
+            steps = page.get_data(True).count('class="step docutils')
             self.assertEqual(steps, {"low": 1, "high": 2}[run["variation"]["name"]])
-            summary = page.get_data(True).split('ui-titled__title">Level is positive<')[1]
+            summary = page.get_data(True).split('<strong>Level is positive</strong>')[1]
             summary = summary.split("</summary>")[0]
             self.assertIn("ui-outcome--pass", summary)
-            self.assertRegex(summary, r'class="ui-duration"[^>]*>\d+ ms<')
+            self.assertRegex(summary, r'class="duration">\d+ ms<')
             self.assertRegex(page.get_data(True),
-                             r'ui-step__state"><span class="ui-duration"[^>]*>\d+ ms<')
+                             r'class="result pass docutils container">\n<p><span class="duration">'
+                             r'\d+ ms<')
 
     def test_preconditions_show_like_titled_blocks(self):
         for script, outcome, states in [("BRA/pre.rst", "pass", ["true"]),
@@ -907,12 +908,12 @@ class TestWorkerAgainstServer(unittest.TestCase):
             self.assertEqual(self.worker.work_once(), outcome)
             page = self.http.get(
                 f"/reports/{ids['report_id']}/runs/{ids['run_id']}").get_data(True)
-            block = page.split('<details class="ui-titled ui-precondition"')[1]
+            block = page.split('<details class="precondition collapsible"')[1]
             self.assertEqual(block.startswith(" open>"), outcome != "pass", script)
             summary, body = block.split("</details>")[0].split("</summary>", 1)
-            self.assertIn("ui-duration", summary)
+            self.assertIn('class="duration"', summary)
             self.assertNotIn("<pre", summary)  # output stays inside
-            phases = [s.split('"')[0] for s in body.split('class="ui-step ui-step--')[1:]]
+            phases = [s.split(" docutils")[0] for s in body.split('class="result ')[1:]]
             self.assertEqual(phases, states, script)
 
     def new_report(self, name="Build 7", version="1.0.0"):
@@ -1276,9 +1277,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(self.worker.work_once(), "pass")
         (run,) = models.scratch_runs(self.root)
         page = self.http.get(f"/reports/scratch/runs/{run['id']}").get_data(True)
-        self.assertIn('title="Duration of its steps"', page)  # each row
-        self.assertIn('title="Duration of its rows"', page)  # the table
-        self.assertIn("2 rows", page)
+        self.assertRegex(page, r'<strong>Row</strong> one · a = 1 <span class="duration">')
+        self.assertRegex(page, r'2 rows <span class="duration">\d+ ms')  # the table
 
     def test_scratch_reports_what_cant_run(self):
         response = self.http.post("/scratch/run", data={

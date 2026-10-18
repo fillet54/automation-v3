@@ -4,33 +4,3 @@
 {% macro variation_label(environment, variation) -%}
 {%- if environment or variation %} <span class="ui-text-caption">{{ [environment, variation] | select | join(' · ') }}</span>{% endif -%}
 {%- endmacro %}
-
-{#- A step's block calls: each call's form, outcome and output. A step form's calls nest under its title; value
-    calls read quietly, with what they gave back, unless they failed. #}
-{% macro calls_list(calls) -%}
-<ul class="ui-calls">
-  {%- for call in calls %}
-  {%- set value_call = call.block_kind == "value" and call.state in ("pass", "true") %}
-  <li{% if value_call %} class="ui-calls__value"{% endif %}>
-    <div class="ui-call{{ ' ui-call--value' if value_call }}">
-      {{ ui.outcome(call.state) }}
-      {%- if call.title %}<span class="ui-call__title">{{ call.title }}</span>
-      {%- else %}<span class="ui-call__form">{{ call.form }}</span>{% endif %}
-      {%- if value_call and call.value is defined %}<span class="ui-call__out">&rarr; {{ call.value }}</span>{% endif %}
-      {%- if call.stdout %}<span class="ui-call__out">{{ call.stdout }}</span>{% endif %}
-      {%- if call.duration is defined and call.duration is not none %}<span class="ui-duration ui-call__duration" title="Duration">{{ call.duration | duration }}</span>{% endif %}
-      {%- if call.stderr and call.error and "Traceback (most recent call last)" in call.stderr %}
-      <details class="ui-failure__traceback"><summary>{{ call.stderr.strip().splitlines()[-1] }}</summary><pre class="ui-pre">{{ call.stderr }}</pre></details>
-      {%- elif call.stderr %}<pre class="ui-pre">{{ call.stderr }}</pre>{% endif %}
-    </div>
-    {%- if call.children %}
-    <details{% if call.state in ("fail", "error") %} open{% endif %}>
-      <summary>{{ call.children | length }} nested call{{ '' if call.children | length == 1 else 's' }}
-        {%- set took = call.children | calls_duration %}{% if took is not none %}<span class="ui-duration" title="Duration of these calls">{{ took | duration }}</span>{% endif %}</summary>
-      {{ calls_list(call.children) }}
-    </details>
-    {%- endif %}
-  </li>
-  {%- endfor %}
-</ul>
-{%- endmacro %}

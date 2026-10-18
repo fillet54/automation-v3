@@ -22,6 +22,7 @@ their own the same way (see framework/plugins.py).
 
 import copy
 import io
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 import docutils.core
@@ -147,30 +148,83 @@ def note_transform(document):
 
 def resolve(document, context):
     """Replace every placeholder in `document` with what it resolves to.
-    A resolver that writes nothing removes its placeholder."""
-    for node in list(document.findall(data_block)):
-        rst = RESOLVERS[node["kind"]](context, node["options"])
-        node.replace_self(parse_fragment(rst, document) if rst else [])
-    for node in list(document.findall(data_inline)):
-        rst = ROLE_VALUES[node["kind"]](context, node["name"])
-        node.replace_self(parse_inline(rst, document) if rst else [])
-    return document
+    A resolver that writes nothing removes its placeholder. What they
+    write is parsed in one pass (see parse_many), and placeholders that
+    writes in turn are resolved the same way."""
+    while True:
+        blocks = list(document.findall(data_block))
+        inlines = list(document.findall(data_inline))
+        if not blocks and not inlines:
+            return document
+        written = ([RESOLVERS[n["kind"]](context, n["options"]) for n in blocks]
+                   + [ROLE_VALUES[n["kind"]](context, n["name"]) for n in inlines])
+        parsed = parse_many([str(w) for w in written if w], document)
+        for node, rst in zip(blocks + inlines, written):
+            found = parsed[str(rst)]() if rst else []
+            if isinstance(node, data_inline):
+                found = inline_of(found)
+            node.replace_self(found)
+
+
+class fragment_end(nodes.Element):
+    """Where one fragment of a batch ends (see parse_many)"""
+
+
+class FragmentEnd(Directive):
+    def run(self):
+        return [fragment_end()]
+
+
+directives.register_directive("data-fragment-end", FragmentEnd)
+FRAGMENT_END = "\n\n.. data-fragment-end::\n\n"
+
+# rst -> its parsed nodes, unresolved: what snippets write repeats (every
+# pending step's result, a finished step's on every poll)
+_fragments = OrderedDict()
+FRAGMENT_CACHE = 20000
+
+
+def parse_many(texts, document):
+    """rst -> a function giving fresh nodes it parses to, as body content
+    of `document`, for each of `texts`. Those not parsed before are
+    parsed together, in one pass."""
+    wanted = list(dict.fromkeys(texts))
+    missing = [t for t in wanted if t not in _fragments]
+    if missing:
+        batch = utils.new_document(document.get("source", "<data>"), document.settings)
+        batch._data_transform = True  # resolved by the caller, not as a transform
+        Parser().parse(FRAGMENT_END.join(missing) + FRAGMENT_END, batch)
+        for message in list(batch.findall(nodes.system_message)):
+            if message["level"] < 2:
+                message.parent.remove(message)
+        chunk, chunks = [], []
+        for child in list(batch.children):
+            if isinstance(child, fragment_end):
+                chunks.append(chunk)
+                chunk = []
+            else:
+                chunk.append(child)
+        for text, found in zip(missing, chunks):
+            _fragments[text] = found
+        while len(_fragments) > FRAGMENT_CACHE:
+            _fragments.popitem(last=False)
+    for text in wanted:
+        _fragments.move_to_end(text)
+    return {t: (lambda found=_fragments[t]: [n.deepcopy() for n in found]) for t in wanted}
 
 
 def parse_fragment(rst, document):
-    """The nodes `rst` parses to, as body content of `document`"""
-    fragment = utils.new_document(document.get("source", "<data>"), document.settings)
-    fragment._data_transform = True  # resolved here and now, not again
-    Parser().parse(str(rst), fragment)
-    for message in list(fragment.findall(nodes.system_message)):
-        if message["level"] < 2:
-            message.parent.remove(message)
-    resolve(fragment, context_of(document) or Context())
-    return list(fragment.children)
+    """The nodes `rst` parses to, as body content of `document`, resolved"""
+    holder = nodes.container()
+    holder.extend(parse_many([str(rst)], document)[str(rst)]())
+    holder.document = document
+    wrapper = utils.new_document(document.get("source", "<data>"), document.settings)
+    wrapper += holder
+    resolve(wrapper, context_of(document) or Context())
+    return list(holder.children)
 
 
-def parse_inline(rst, document):
-    found = parse_fragment(rst, document)
+def inline_of(found):
     if len(found) == 1 and isinstance(found[0], nodes.paragraph):
         return list(found[0].children)
     return [nodes.inline("", "", *found)]
@@ -203,15 +257,19 @@ def resolved(doctree, context):
     return resolve(document, context)
 
 
-def write(document, writer_name="html5", settings=None):
-    """docutils' parts for a resolved doctree"""
+def write(document, writer="html5", settings=None):
+    """docutils' parts for a resolved doctree; `writer` is a writer's
+    name or a Writer"""
     output = io.StringIO()
     publisher = docutils.core.Publisher(
         reader=doctree_reader.Reader(parser_name="null"),
         source=docutils_io.DocTreeInput(document),
         destination_class=docutils_io.StringOutput)
-    publisher.set_writer(writer_name)
-    defaults = LATEX_DEFAULTS if writer_name == "latex" else {}
+    if isinstance(writer, str):
+        publisher.set_writer(writer)
+    else:
+        publisher.writer = writer
+    defaults = LATEX_DEFAULTS if writer == "latex" else {}
     publisher.process_programmatic_settings(None, {**SETTINGS, **defaults, **(settings or {}),
                                                    "warning_stream": output}, None)
     publisher.set_destination(None, None)

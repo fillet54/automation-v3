@@ -61,8 +61,8 @@ class TestReading(unittest.TestCase):
 
     def test_rows_render_as_a_table(self):
         rows, _ = get_statements(rvt(ROWS + "\n(Wait 1)", "table"))
-        self.assertIn("<caption>For each row</caption>", rows.html)
-        self.assertIn('<td><tt class="docutils literal">two</tt></td>', rows.html)
+        self.assertIn(".. list-table:: For each row", rows.rst)
+        self.assertIn("* - ``two``", rows.rst)
 
     def test_the_check_knows_row_symbols_and_shapes(self):
         self.assertEqual(check(rvt(ROWS + "\n(Verify a = b)", "table")), ([], []))

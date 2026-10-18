@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from automationv3.documents import core as document_core
+from automationv3.documents import script as document_script
 from automationv3.framework.planning import build_plan
 from automationv3.services import jobs
 from automationv3.services.database import connect, init_db
@@ -110,9 +112,13 @@ class TestScriptPagesQuoteTheirContext(ExportCase):
         self.addCleanup(rst.set_requirement_lookup, None)
         self.addCleanup(get_statements.cache_clear)
         script = "Title\n=====\n\nTests :req:`SW-1`.\n"
-        self.assertIn("45%", get_statements(script)[0].html)
+        def page():
+            tree = document_script.parsed(script)
+            return document_core.write(document_core.resolved(tree, document_core.Context()),
+                                       "html5")["body"]
+        self.assertIn("45%", page())
         context[0] = "set:R1"
-        self.assertIn("40%", get_statements(script)[0].html)
+        self.assertIn("40%", page())  # the cached document is by context
 
 
 class TestTextDiff(unittest.TestCase):

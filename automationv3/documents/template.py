@@ -184,11 +184,14 @@ class Snippets:
     built-in ones"""
 
     plugin_folders = []
+    _envs = {}  # the folders looked in -> their environment, compiled once
 
     def __init__(self, folders=()):
         self.folders = [str(f) for f in folders if f and Path(f).is_dir()]
-        self.env = environment(jinja2.FileSystemLoader(
-            [*self.folders, *map(str, self.plugin_folders), str(BUILTIN)]))
+        found = (*self.folders, *map(str, self.plugin_folders), str(BUILTIN))
+        if found not in self._envs:
+            self._envs[found] = environment(jinja2.FileSystemLoader(list(found)))
+        self.env = self._envs[found]
 
     def render(self, name, **values):
         return Rst(self.env.get_template(name).render(**values))

@@ -140,7 +140,7 @@ class TestRollUp(unittest.TestCase):
     )
 
     def entries(self, variation=None):
-        return group([statement_item(s) for s in get_statements(self.SCRIPT)],
+        return group([statement_item(s, rst=s.rst) for s in get_statements(self.SCRIPT)],
                      variation)
 
     def test_all_variations_keep_each_block(self):
@@ -154,10 +154,10 @@ class TestRollUp(unittest.TestCase):
             self.assertEqual(first[0], "definitions")
             self.assertNotIn("definitions", [kind for kind, _ in rest])
             self.assertNotIn("scoped", [kind for kind, _ in rest])
-            shown = [(item["defines"], item["html"]) for item in first[1]]
+            shown = [(item["defines"], item["rst"]) for item in first[1]]
             self.assertEqual([name for name, _ in shown], [n for n, _ in expected])
-            for (_, html), (_, value) in zip(shown, expected):
-                self.assertIn(f'<span class="literal number integer">{value}</span>', html)
+            for (name, rst), (_, value) in zip(shown, expected):
+                self.assertIn(f"(def {name} {value})", rst)
 
 
 def variant(variations, *chunks):

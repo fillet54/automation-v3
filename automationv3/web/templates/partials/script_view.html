@@ -1,5 +1,4 @@
 {% import "ui/components.html" as ui %}
-{% from "partials/definitions.html" import statements, precondition_block, precondition_parts %}
 {% from "partials/diagnostics.html" import diagnostic %}
 <div id="content" class="ui-stack">
   {% set crumbs = [(workspace.id, url_for('workspace.index', id=workspace.id))] %}
@@ -131,21 +130,9 @@
     <pre class="ui-pre ui-diff-lines">{% for line in lines[2:] %}<span class="{{ 'is-added' if line.startswith('+') else 'is-removed' if line.startswith('-') else 'is-hunk' if line.startswith('@@') else '' }}">{{ line or " " }}</span>{% endfor %}</pre>
   {% endcall %}
   {% endfor %}
-  {% elif parts is not none %}
-  <article class="ui-doc">
-    {#- The variations form is shown in the details above #}
-    {% macro render(item) %}
-      {%- if item.precondition %}{% call precondition_block(item.precondition) %}{{ precondition_parts(item.precondition) }}{% endcall %}
-      {%- elif not (closure and item.directive == "variations") %}<div>{{ item.html | safe }}</div>{% endif %}
-      {%- if item.diagnostics %}
-      {%- set worst = "error" if item.diagnostics | selectattr("severity", "equalto", "error") | list else "warning" %}
-      <div class="ui-diagnostics-inline ui-diagnostics-inline--{{ worst }}">
-        {%- for d in item.diagnostics %}{{ diagnostic(d) }}{% endfor %}
-      </div>
-      {%- endif %}
-    {%- endmacro %}
-    {{ statements(parts, render, selected=variation.name if variation else None) }}
-  </article>
+  {% elif document is not none %}
+  {#- The script's document (documents/script.py): the variations form shows in the details above #}
+  <article class="ui-doc ui-document">{{ document | safe }}</article>
   {% elif text is not none %}
   <pre class="ui-pre">{{ text }}</pre>
   {% else %}

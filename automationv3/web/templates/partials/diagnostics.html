@@ -14,23 +14,6 @@
 </figure>
 {%- endmacro %}
 
-{#- Why a step failed and where: the message, the code it failed at (then each call that led there), and the
-    traceback on request. `view` comes from excerpt.failure_view. #}
-{% macro failure_box(view, state="fail") -%}
-<div class="ui-failure ui-failure--{{ state }}" role="group" aria-label="Failure">
-  <div class="ui-failure__message">{{ view.message }}</div>
-  {%- for ex in view.excerpts %}
-  {{ source_excerpt(ex, None if loop.first else "called from") }}
-  {%- endfor %}
-  {%- if view.traceback %}
-  <details class="ui-failure__traceback">
-    <summary>Traceback</summary>
-    <pre class="ui-pre">{{ view.traceback }}</pre>
-  </details>
-  {%- endif %}
-</div>
-{%- endmacro %}
-
 {#- One static-analysis finding: severity, message, and the code it is about unless `brief` #}
 {% macro diagnostic(d, brief=False) -%}
 <div class="ui-diagnostic ui-diagnostic--{{ d.severity }}">

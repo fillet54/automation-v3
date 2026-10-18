@@ -12,14 +12,12 @@ from ..framework import edn
 from ..framework.closure import is_script, resolve
 from ..framework.document import has_rvt
 from ..framework.excerpt import excerpt
-from ..framework.rst import write_html_parts
-from ..framework.statements import get_statements
 from ..services import jobs
 from ..services.reports import store
 from ..services.requirements import models as requirement_models
 from ..services.workspace import FileNode, committed_text, edited_files, find_worktrees, is_binary
 from .db import get_db
-from .grouping import group, statement_item
+from . import documents
 from .jobs import checked_in_root, live_environments
 
 
@@ -145,26 +143,18 @@ def expand(id):
 # Read-only script viewer
 
 
-def render_file(path, variation=None, diagnostics=()):
-    """The file as grouped entries for display (see grouping.group), for
-    `variation` (a name) if given. Each statement carries the
-    `diagnostics` (views, see diagnostic_views) about lines it covers."""
+def render_file(path, variation=None, diagnostics=(), variations=True):
+    """The file's document as HTML, for `variation` (a name) if given,
+    or None if it isn't rst. A script shows the `diagnostics` (views, see
+    diagnostic_views) by the statements they are about."""
     if is_binary(path):
         return None
     text = path.read_text()
     if path.suffix != ".rst":
         return None
-    if has_rvt(text):  # a script or core.rst: statements, with results' layout
-        items = []
-        for statement in get_statements(text):
-            span = statement.span
-            found = [d for d in diagnostics if span is not None and d["line"] is not None
-                     and span.line <= d["line"] <= span.end_line]
-            for d in found:
-                d["inline"] = True
-            items.append(statement_item(statement, diagnostics=found))
-        return group(items, variation)
-    return [("statement", {"html": html}) for html in write_html_parts([text])]
+    if has_rvt(text):  # a script or core.rst: its statements, as a run shows them
+        return documents.script_document(text, variation, diagnostics, variations)
+    return documents.rst_document(text)
 
 
 def diagnostic_views(closure, path):
@@ -226,7 +216,8 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         if path is None or not path.is_file():
             return render_template("partials/script_view.html", workspace=ws, path=relpath,
                                    files=files, in_work=in_work, not_checked_in=True,
-                                   closure=None, parts=None, text=None, errors=errors or [],
+                                   closure=None, document=None, text=None,
+                                   errors=errors or [],
                                    diagnostics=[], live=[], variation=None)
         closure = resolve(source, relpath) if closure else None
     names = [v.name for v in closure.variations] if closure else []
@@ -235,10 +226,11 @@ def render_view(ws, node, errors=None, variation=None, files=None):
     text = None
     diagnostics = diagnostic_views(closure, relpath) if closure else []
     try:
-        parts = render_file(path, selected.name if selected else None, diagnostics)
+        document = render_file(path, selected.name if selected else None, diagnostics,
+                               variations=closure is None)
     except Exception as e:  # unreadable script: show it raw
-        parts, errors = None, (errors or []) + [f"Could not render: {e}"]
-    if parts is None and not is_binary(path):
+        document, errors = None, (errors or []) + [f"Could not render: {e}"]
+    if document is None and not is_binary(path):
         text = path.read_text()
     return render_template(
         "partials/script_view.html",
@@ -248,7 +240,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         in_work=in_work,
         changes=changes(ws, in_work) if files == "changes" and in_work else None,
         live=sorted(live_environments()),
-        parts=parts,
+        document=document,
         text=text,
         closure=closure,
         variation=selected,

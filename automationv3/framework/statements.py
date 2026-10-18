@@ -11,11 +11,11 @@ import functools
 
 from . import document, edn, rst
 from .language import PRECONDITION, head, is_definition, is_text, parse_precondition
-from .rst import repr_rst, write_html_parts
+from .rst import repr_rst
 
 
 class Statement:
-    """One statement: its edn form and its rst and html renderings.
+    """One statement: its edn form and how it reads, as rst.
 
     `in_definitions` is set for the forms of the script's definitions
     section (rvt blocks marked :definitions:), and `definition` for every
@@ -23,14 +23,13 @@ class Statement:
     the names its block is limited to, else None (every variation);
     `block` is where its rvt block starts (None for prose) and `title`
     that block's title, if it has one. A Precondition's `precondition`
-    holds its name, its heal's description and its check and heal
-    rendered on their own, for pages that show it like a titled block.
+    holds its name, its heal's description and its check and heal as
+    rst on their own, for pages that show it like a titled block.
     """
 
-    def __init__(self, statement, html=None, rst=None, in_definitions=False,
+    def __init__(self, statement, rst=None, in_definitions=False,
                  variations=None, block=None, title=None):
         self.statement = statement
-        self.html = html or ""
         self.rst = rst or ""
         self.in_definitions = in_definitions
         self.definition = is_definition(statement)
@@ -53,9 +52,6 @@ class Statement:
     def __repr__(self):
         return str(self)
 
-    def _repr_html_(self):
-        return self.html
-
     def _repr_rst_(self):
         return self.rst
 
@@ -65,42 +61,30 @@ def get_statements(text):
     return _statements(text, rst.requirement_key())
 
 
-# Rendering runs docutils over the whole script, so cache by content:
-# pages ask for the same script repeatedly. Its :req: references are
-# rendered with the requirements' text, so the cache is by what that
-# text comes from too.
+# Pages ask for the same script repeatedly, so cache by content. Its
+# :req: references read the requirements' text, so the cache is by what
+# that text comes from too.
 @functools.lru_cache(maxsize=128)
 def _statements(text, requirement_key):
     parts = document.parse(text)
-    forms = [part.form for part in parts]
-    rst = [repr_rst(form) for form in forms]
-    # A precondition's check and heal render with the rest, in one pass
-    pieces = []
-    for index, form in enumerate(forms):
-        parsed = head(form) == PRECONDITION and parse_precondition(form)
-        if parsed:
-            pieces.append((index, parsed, repr_rst(parsed.check),
-                           repr_rst(parsed.heal) if parsed.heal is not None else ""))
-    rendered = write_html_parts(rst + [r for *_, check, heal in pieces
-                                       for r in (check, heal)])
-    html, extra = rendered[:len(rst)], rendered[len(rst):]
     section = set(document.definitions_section(parts))
-    statements = [
-        Statement(part.form, h, r, index in section, part.variations,
-                  None if part.prose else part.line, part.title)
-        for index, (part, h, r) in enumerate(zip(parts, html, rst))
-    ]
-    for statement, part in zip(statements, parts):
+    statements = []
+    for index, part in enumerate(parts):
+        statement = Statement(part.form, repr_rst(part.form), index in section,
+                              part.variations, None if part.prose else part.line,
+                              part.title)
         statement.span = part.span
         statement.table = part.table
         statement.table_rows = part.table_rows
-    for n, (index, parsed, _, _) in enumerate(pieces):
-        statements[index].precondition = {
-            "name": parsed.name,
-            "heal_name": parsed.heal_name,
-            "check_html": extra[2 * n],
-            "heal_html": extra[2 * n + 1] if parsed.heal is not None else None,
-        }
+        parsed = head(part.form) == PRECONDITION and parse_precondition(part.form)
+        if parsed:
+            statement.precondition = {
+                "name": parsed.name,
+                "heal_name": parsed.heal_name,
+                "check_rst": repr_rst(parsed.check),
+                "heal_rst": repr_rst(parsed.heal) if parsed.heal is not None else None,
+            }
+        statements.append(statement)
     return statements
 
 

@@ -1,15 +1,15 @@
-"""Rendering scripts through reStructuredText
+"""Scripts as reStructuredText
 
-Every statement becomes rst (prose as written, forms through their
-BuildingBlock), the whole script is rendered to HTML in one pass, and
-the HTML is split back into one part per statement. Scripts may
-reference requirements with the :req:`ID` role.
+Every statement becomes rst: prose as written, forms through their
+BuildingBlock (see documents/script.py for a whole script as one
+document). Scripts may reference requirements with the :req:`ID` role.
 """
 
+import functools
+
 import docutils.core
-from docutils import nodes
-from docutils.parsers.rst import roles, Directive, directives
-from docutils.writers.html4css1 import Writer, HTMLTranslator
+from docutils import nodes, utils
+from docutils.parsers.rst import roles
 
 from . import edn, markup
 from .block import code_block, find_block
@@ -17,7 +17,7 @@ from .language import (
     PRECONDITION, head, is_table_rows, is_text, parse_precondition, parse_table,
     parse_variations,
 )
-from .requirement import Requirement
+from .requirement import SHALL, Requirement
 
 # How a :req:`ID` reference finds its requirement. Applications with a
 # requirements store install their own lookup; it may return None. Its
@@ -45,73 +45,38 @@ def find_requirement(id):
     return found or Requirement(id)
 
 
-class requirement(nodes.Inline, nodes.TextElement):
-    """A :req:`ID` reference, rendered by its Requirement"""
+@functools.lru_cache(maxsize=1024)
+def _plain(text):
+    try:
+        return docutils.core.publish_doctree(text, settings_overrides={
+            "report_level": 5, "halt_level": 5, "doctitle_xform": False}).astext()
+    except Exception:
+        return text
 
-    def __init__(self, id):
-        super().__init__()
-        self.req = find_requirement(id)
+
+def requirement_nodes(req, rawtext=""):
+    """A requirement as inline nodes: its text (plain), each "shall"
+    marked with its id; just its id if its text isn't known"""
+    node = nodes.inline(rawtext, classes=["ui-requirement", "requirement"])
+    if not req.text:
+        node += nodes.strong("", f"[{req.id}]", classes=["shall"])
+        return node
+    words = " ".join(_plain(req.text).split())
+    parts = SHALL.split(f" {words} ")
+    for n, part in enumerate(parts):
+        if n % 2:
+            node += nodes.strong("", f"{part} [{req.id}]", classes=["shall"])
+        elif part.strip(" ") or 0 < n < len(parts) - 1:
+            node += nodes.Text(part[1:] if n == 0 else part[:-1] if n == len(parts) - 1
+                               else part)
+    return node
 
 
 def requirement_role(role, rawtext, text, lineno, inliner, options=None, content=None):
-    return [requirement(text)], []
+    return [requirement_nodes(find_requirement(utils.unescape(text)), rawtext)], []
 
 
 roles.register_canonical_role("REQ", requirement_role)
-
-
-class endstatement(nodes.Inline, nodes.TextElement):
-    """Where one statement's rendering ends and the next one's begins"""
-
-
-class EndStatement(Directive):
-    def run(self):
-        return [endstatement()]
-
-
-directives.register_directive("endstatement", EndStatement)
-
-# The endstatement directive between statements, and what it renders as
-ENDSTATEMENT_RST = "\n\n.. endstatement::\n\n"
-ENDSTATEMENT_HTML = '<splitter id="1234567890!!!!"/>'
-
-
-class StatementsTranslator(HTMLTranslator):
-    """HTML with a splitter at each statement boundary, the start and the
-    end of the document, and no section wrappers (a statement may end
-    inside a section)"""
-
-    def visit_document(self, node):
-        super().visit_document(node)
-        self.body.append(ENDSTATEMENT_HTML)
-
-    def depart_document(self, node):
-        self.body.append(ENDSTATEMENT_HTML)
-        super().depart_document(node)
-
-    def visit_section(self, node):
-        pass
-
-    def depart_section(self, node):
-        pass
-
-    def visit_endstatement(self, node):
-        self.body.append(ENDSTATEMENT_HTML)
-
-    def depart_endstatement(self, node):
-        pass
-
-    def visit_requirement(self, node):
-        self.body.append(node.req.__repr_html__())
-
-    def depart_requirement(self, node):
-        pass
-
-
-class StatementsWriter(Writer):
-    def __init__(self):
-        super().__init__()
-        self.translator_class = StatementsTranslator
 
 
 def repr_rst(form):
@@ -160,16 +125,3 @@ def precondition_rst(form):
     """The precondition's name. Pages show its check and heal themselves,
     like a titled block's steps (see statements.Statement.precondition)."""
     return f"**Precondition:** {parse_precondition(form).name}"
-
-
-def write_html_parts(rst_statements):
-    """Each rst statement as HTML, rendered as one document so headings,
-    lists and references carry across statements"""
-    html = docutils.core.publish_parts(
-        ENDSTATEMENT_RST.join(rst_statements),
-        writer=StatementsWriter(),
-        settings_overrides={"initial_header_level": "3"},
-    )
-    # Splitters wrap the document too: drop what's before the first and
-    # after the last
-    return html["html_body"].split(ENDSTATEMENT_HTML)[1:-1]
