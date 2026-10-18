@@ -150,8 +150,17 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
             "reference": export.numbered(document["documents"], "reference", "RD"),
         },
     }, indent=2))
+    from ...framework.plugins import plugin_css, plugin_latex
+    static = out / "_plugins"
+    static.mkdir()
+    (static / "plugins.css").write_text(plugin_css())
+    settings_file = out / "build.json"
+    found = json.loads(settings_file.read_text())
+    found["plugin_static"] = str(static)
+    found["latex"]["plugins"] = plugin_latex()
+    settings_file.write_text(json.dumps(found, indent=2))
     (out / "conf.py").write_text(
-        "from automationv3.documents.sphinx_conf import configure\n"
+        "from automationv3.services.reports.sphinx_conf import configure\n"
         "configure(globals(), __file__.replace('conf.py', 'build.json'))\n")
     return out
 
@@ -176,8 +185,9 @@ def build(root, report_id, base_url=""):
         shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink(
             missing_ok=True)
     exported = store.now_iso()
+    from ...framework.plugins import plugin_versions
     set_status(root, report_id, state="building", started=exported, ended=None, error=None,
-               framework=framework())
+               framework=framework(), plugins=plugin_versions())
     manifest_text = manifest(root, report_id)
     (folder / "MANIFEST.sha256").write_text(manifest_text)
     manifest_hash = hashlib.sha256(manifest_text.encode()).hexdigest()

@@ -22,8 +22,8 @@ from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from docutils.statemachine import StringList
 
-from . import core, script
-from .template import Snippets
+from ...documents import core, script
+from ...documents.template import Snippets
 
 RUN, FILE = "automation-run:", "automation-file:"
 
@@ -42,7 +42,7 @@ class SiteLinks:
         return f"{FILE}{run_id}/{name}"
 
     def requirement(self, id, snapshot):
-        from ..services.reports.export import ServerLinks
+        from .export import ServerLinks
         return ServerLinks(self.base).requirement(id, snapshot)
 
 
@@ -54,12 +54,12 @@ def build_context(env):
     the run a run page is about (see context_of)"""
     found = _contexts.get(id(env.app))
     if found is None:
-        from ..services.reports.data import ReportData
+        from .data import ReportData
         config = env.config
         data = ReportData(config.automation_root, config.automation_folder,
                           links=SiteLinks(config.automation_server_url))
-        from ..framework import rst
-        from ..framework.requirement import Requirement
+        from ...framework import rst
+        from ...framework.requirement import Requirement
         snapshots = data.snapshots
         rst.set_requirement_lookup(  # scripts' :req: quote the text the report kept
             lambda id: Requirement(id, (snapshots.get(id) or {}).get("text")))
@@ -134,7 +134,21 @@ def latex_values(app):
         app.builder.context["automation"] = app.config.automation_latex
 
 
+def document_context(document):
+    """The Context of a document a build reads (see core.build_contexts)"""
+    env = getattr(document.settings, "env", None)
+    if env is None or "automation_root" not in env.config:
+        return None
+    context = build_context(env)
+    run = document.get("automation_run")
+    return run_context(context, run) if run else context
+
+
 def setup(app):
+    from ...framework.plugins import load_plugins
+    load_plugins()  # their directives, roles, filters and snippets
+    if document_context not in core.build_contexts:
+        core.build_contexts.append(document_context)
     for name in ("root", "folder", "server_url", "exported", "manifest_hash", "snippets"):
         app.add_config_value(f"automation_{name}", "", "env")
     app.add_config_value("automation_latex", {}, "env")

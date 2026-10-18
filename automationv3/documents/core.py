@@ -129,18 +129,22 @@ roles.register_local_role("anchor", anchor_role)
 
 # Resolving
 
+# How a Sphinx build finds the Context its documents resolve with:
+# fn(document) -> Context or None, set by the build's extension
+# (services/reports/sphinx_ext.py)
+build_contexts = []
+
+
 def context_of(document):
     """The Context a document is resolved with: set in its settings
-    (live), or built from a Sphinx build's configuration"""
+    (live), or by a Sphinx build (see build_contexts)"""
     found = getattr(document.settings, "automation", None)
     if found is not None:
         return found
-    env = getattr(document.settings, "env", None)
-    if env is not None and "automation_root" in env.config:
-        from .sphinx import build_context, run_context
-        context = build_context(env)
-        run = document.get("automation_run")
-        return run_context(context, run) if run else context
+    for fn in build_contexts:
+        found = fn(document)
+        if found is not None:
+            return found
     return None
 
 

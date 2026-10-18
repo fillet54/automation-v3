@@ -163,3 +163,46 @@ class TestPluginFunctions(unittest.TestCase):
             self.assertIs(getattr(value_blocks, name), getattr(old_value_blocks, name))
         self.assertTrue(all(is_abstract(b) for b in all_blocks()
                             if type(b).__module__.startswith("automationv3.framework.")))
+
+
+class TestPluginRendering(unittest.TestCase):
+    """What plugins add to documents (see plugins/sample/documents.py)"""
+
+    def setUp(self):
+        plugins.load_plugins()
+        self.rendering = patch.dict(plugins._rendering,
+                                    {k: dict(v) for k, v in plugins._rendering.items()})
+        self.rendering.start()
+        self.addCleanup(self.rendering.stop)
+        self.registry = plugins.PluginRegistry("test-plugin")
+
+    def test_a_plugin_directive_renders_in_documents(self):
+        from automationv3.documents import core
+        self.registry.directive("test-hello", lambda context, options: "Hello *there*.")
+        self.addCleanup(core.RESOLVERS.pop, "test-hello", None)
+        document = core.resolved(core.parse(".. test-hello::\n"), core.Context())
+        self.assertIn("<em>there</em>", core.write(document)["body"])
+
+    def test_names_are_claimed_once(self):
+        with self.assertRaisesRegex(ValueError, "built-in"):
+            self.registry.directive("results", lambda c, o: "")
+        with self.assertRaisesRegex(ValueError, "already registered by automationv3.plugins"):
+            self.registry.directive("attached-files", lambda c, o: "")
+        with self.assertRaisesRegex(ValueError, "built-in"):
+            self.registry.role("report", lambda c, n: "")
+        with self.assertRaisesRegex(ValueError, "built-in"):
+            self.registry.filter("verdict", str)
+
+    def test_two_plugins_cant_give_the_same_snippet(self):
+        import tempfile
+        from pathlib import Path
+        folder = Path(tempfile.mkdtemp()) / "sample"
+        folder.mkdir()
+        (folder / "attached-files.rst").write_text("Mine.\n")
+        with self.assertRaisesRegex(ValueError, "sample/attached-files.rst is already"):
+            self.registry.snippets(folder.parent)
+
+    def test_styles_and_versions_are_kept(self):
+        self.assertIn(".attached-files", plugins.plugin_css())
+        self.assertIn("sphinxclassattached-files", plugins.plugin_latex())
+        self.assertIn("automationv3.plugins.sample", plugins.plugin_versions())

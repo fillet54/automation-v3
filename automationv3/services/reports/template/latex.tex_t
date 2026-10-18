@@ -6,6 +6,7 @@
        automation.title, .number, .revision, .author, .date, .report_id, .manifest_hash
        automation.signatures [(role, name)]
        automation.applicable, .reference [{id, number, revision, title}]
+       automation.plugins   the LaTeX plugins give (as it is, not escaped)
 
      How the document's marked parts look: a verdict is \DUrole{verdict-<state>}{...} and a container
      \begin{sphinxuseclass}{<class>}, which use \DUroleverdict-<state> and the sphinxclass<class>
@@ -63,6 +64,7 @@
 <%- endfor %>
 \newenvironment{sphinxclassrequirement}{\itshape}{}
 \newenvironment{sphinxclassfailure}{\color{verdictbad}}{}
+<%= automation.plugins %>
 \hypersetup{colorlinks=true,linkcolor=acme,urlcolor=acme,
   pdftitle={<%= automation.title %>},pdfauthor={<%= automation.author %>}}
 \sphinxsetup{TitleColor={HTML}{1F4E79}, InnerLinkColor={HTML}{1F4E79}, OuterLinkColor={HTML}{1F4E79}}

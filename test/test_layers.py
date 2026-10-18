@@ -1,10 +1,12 @@
 """The package layers only depend downwards.
 
     framework  language and execution: no storage, no HTTP, no Flask
+    documents  rendering rst documents from data: framework's level, and
+               its rules
     services   storage and processes: no Flask, no web
     web        Flask adapters over services and framework
     cli        entry points
-    plugins    BuildingBlocks, UUTs, environments: framework only
+    plugins    BuildingBlocks, UUTs, environments: framework (and documents) only
 """
 
 import ast
@@ -15,6 +17,10 @@ PACKAGE = Path(__file__).resolve().parent.parent / "automationv3"
 
 FORBIDDEN = {
     "framework": {
+        "automationv3.services", "automationv3.web", "automationv3.cli",
+        "flask", "sqlite3", "requests", "waitress",
+    },
+    "documents": {
         "automationv3.services", "automationv3.web", "automationv3.cli",
         "flask", "sqlite3", "requests", "waitress",
     },

@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-STATIC = HERE.parent / "web" / "static" / "css"
+STATIC = HERE.parent.parent / "web" / "static" / "css"
 
 
 def configure(namespace, settings_file):
@@ -17,13 +17,13 @@ def configure(namespace, settings_file):
     namespace.update(
         project=settings["title"],
         author=settings["author"],
-        extensions=["automationv3.documents.sphinx"],
+        extensions=["automationv3.services.reports.sphinx_ext"],
         root_doc="index",
         exclude_patterns=settings.get("exclude", []),
         templates_path=[settings["template"]],
         html_theme="report",
         html_theme_path=[str(HERE / "sphinx_theme")],
-        html_static_path=[str(STATIC)],
+        html_static_path=[str(STATIC), settings["plugin_static"]],
         html_title=settings["title"],
         html_short_title=settings["title"],
         html_copy_source=False,

@@ -46,6 +46,12 @@ def create_app(**config):
         first = next(iter(find_worktrees(app.config["WORKSPACE_PATH"])))
         return redirect(url_for("workspace.index", id=first))
 
+    @app.route("/plugins.css")
+    def plugins_css():
+        """The CSS plugins give for what their directives and blocks write"""
+        from ..framework.plugins import plugin_css
+        return app.response_class(plugin_css(), mimetype="text/css")
+
     @app.route("/docs/", defaults={"filename": "index.html"})
     @app.route("/docs/<path:filename>")
     def docs(filename):

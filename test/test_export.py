@@ -221,6 +221,8 @@ class TestExport(ReportTestCase):
         self.assertNotIn("automation-run:", index)  # every marker rewritten
         status = build.status(self.root, self.report_id)
         self.assertEqual(status["state"], "done")
+        self.assertIn("automationv3.plugins.sample", status["plugins"])  # what built it
+        self.assertIn(".attached-files", (site / "_static" / "plugins.css").read_text())
         self.assertIn(status["manifest_hash"],
                       (build.build_dir(self.root, self.report_id) / "report.tex").read_text())
 

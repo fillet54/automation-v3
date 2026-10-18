@@ -54,6 +54,12 @@ def render(document, hooks=None):
     return html.render(document, hooks or LiveHooks())
 
 
+def ready():
+    """Plugins loaded: their directives, roles and snippets registered"""
+    from ..framework.plugins import load_plugins
+    load_plugins()
+
+
 # A finished run's page never changes (until it is rerun, as a new run):
 # keep its HTML
 _finished = OrderedDict()
@@ -62,6 +68,7 @@ FINISHED_CACHE = 200
 
 def run_document(root, report_id, run, status, snippets=()):
     """The HTML of a run's document: its script, each step with its result"""
+    ready()
     key = (report_id, run["id"], run.get("outcome"), script_rst.requirement_key())
     if run.get("outcome") is not None and key in _finished:
         _finished.move_to_end(key)
@@ -80,6 +87,7 @@ def run_document(root, report_id, run, status, snippets=()):
 
 def script_document(text, variation=None, diagnostics=(), variations=True):
     """The HTML of a script's document, before any run"""
+    ready()
     tree = script.parsed(text, variation, results=False, diagnostics=diagnostics,
                          variations=variations)
     return render(core.resolved(tree, core.Context()))
@@ -111,6 +119,7 @@ def report_document(text, context, poll=None):
     """The HTML of a report's document `text`, and its problems: each
     data block refreshes itself (from `poll(node)`) while it may change"""
     from ..services.reports import export
+    ready()
     document = core.resolved(parsed_report(text), context)
     return render(document, LiveHooks(poll)), export.problems(document)
 

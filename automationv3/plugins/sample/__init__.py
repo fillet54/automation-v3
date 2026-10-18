@@ -2,10 +2,12 @@
 
 They exercise the UUT/Environment plumbing without real hardware. The
 `sim` environment keeps its state in a work directory; the `demo` UUT
-"installs" by recording the version there.
+"installs" by recording the version there. And an example of what a
+plugin can add to documents (documents.py).
 """
 
 from .blocks import SnapshotDemo, StartDemo
 from .demo import Bench, Demo, Sim
+from .documents import register
 
-__all__ = [Bench, Demo, Sim, SnapshotDemo, StartDemo]
+__all__ = [Bench, Demo, Sim, SnapshotDemo, StartDemo, register]

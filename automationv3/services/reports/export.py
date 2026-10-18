@@ -1,7 +1,7 @@
 """A report as a formal document: a static site, a PDF, and the bundle
 
 Freezing a report makes its data read-only and builds its site and PDF
-with Sphinx (see build.py and documents/sphinx.py); a frozen report serves
+with Sphinx (see build.py and sphinx_ext.py); a frozen report serves
 its site. Exporting writes report-<id>.zip (see `bundle`)::
 
     report-<id>/
@@ -186,6 +186,8 @@ def set_source(root, report_id, text):
 
 def context(root, report_id, host=core.EXPORT, links=None, status=None, **extra):
     """The Context a report's document is resolved with"""
+    from ...framework.plugins import load_plugins
+    load_plugins()  # their directives, roles, filters and snippets
     data = ReportData(root, report_id, **({"status": status} if status else {}),
                       links=links)
     return core.Context(data=data, host=host,

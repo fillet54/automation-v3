@@ -765,6 +765,12 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(base).get_data(True)
         self.assertIn(f'href="{base}/files/state.json"', page)
         self.assertEqual(page.count('class="attachments'), 2)  # one per step
+        # a plugin's directive in the report's document lists them too
+        self.http.post(f"/reports/{ids['report_id']}/source",
+                       data={"source": ".. attached-files::\n"})
+        document = self.http.get(f"/reports/{ids['report_id']}").get_data(True)
+        self.assertIn(f'href="{base}/files/state.json"', document)
+        self.assertIn('class="attached-files', document)
         snapshot = self.http.get(f"{base}/files/state.json")
         self.assertEqual(snapshot.status_code, 200)
         self.assertIn('"mode": ":normal"', snapshot.get_data(True))

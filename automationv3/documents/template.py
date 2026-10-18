@@ -104,6 +104,8 @@ def environment(loader):
 
 
 FILTERS = {}  # more filters for every snippet: see `filter`
+BUILTIN_FILTERS = {"text", "literal", "indent", "verbatim", "heading", "rst", "verdict",
+                   "link", "seconds", "plural", "stamp", "requirement"}
 
 
 def filter(fn=None, name=None):

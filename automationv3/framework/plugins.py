@@ -2,8 +2,13 @@
 
 All packages under ``automationv3.plugins`` and installed entry points in
 the ``automationv3.plugins`` group load automatically. A plugin may expose
-``register(registry)`` to add Lisp functions with ``registry.function``.
-Blocks, UUTs and environments are still discovered through their subclasses.
+``register(registry)`` to add Lisp functions with ``registry.function``,
+and what documents render with (see documents/): directives and roles
+(``registry.directive``, ``registry.role``), snippet filters and folders
+(``registry.filter``, ``registry.snippets``), and CSS and LaTeX to style
+what they write (``registry.css``, ``registry.latex``). Blocks, UUTs and
+environments are still discovered through their subclasses; a block
+renders its own steps and results (BuildingBlock.as_rst, as_result_rst).
 """
 
 import importlib
@@ -41,6 +46,9 @@ class PluginLoadError(RuntimeError):
 
 
 _functions = {}
+_rendering = {"directive": {}, "role": {}, "filter": {}, "snippet": {}}  # name -> plugin
+_styles = {"css": [], "latex": []}  # (plugin, text)
+_versions = {}  # plugin -> its version
 _loaded = False
 _loading = False
 _error = None  # the PluginLoadError of a failed load, raised again when asked
@@ -93,6 +101,82 @@ class PluginRegistry:
             lisp.global_env[name] = fn
         return fn
 
+    # What documents render with
+
+    def _claim(self, kind, name, taken):
+        with _lock:
+            owner = _rendering[kind].get(name)
+            if owner is not None and owner != self.plugin:
+                raise ValueError(f"the {kind} {name} is already registered by {owner}; "
+                                 f"cannot register it for {self.plugin}")
+            if owner is None and name in taken:
+                raise ValueError(f"the {kind} {name} is a built-in one")
+            _rendering[kind][name] = self.plugin
+
+    def directive(self, name, resolver, option_spec=None, arguments=False):
+        """A directive documents can use: ``resolver(context, options)``
+        writes its rst, from context.data (the report) and context.run
+        (see documents/core.py); with `arguments`, its one argument is
+        options["argument"]"""
+        from ..documents import core
+        self._claim("directive", name, core.RESOLVERS)
+        core.directive(name, resolver, option_spec, arguments)
+        return resolver
+
+    def role(self, name, value):
+        """A role documents can use: ``:name:`what``` is ``value(context,
+        what)``, inline rst"""
+        from ..documents import core
+        self._claim("role", name, core.ROLE_VALUES)
+        core.role(name, value)
+        return value
+
+    def filter(self, name, fn):
+        """A filter every snippet can use"""
+        from ..documents import template
+        self._claim("filter", name, {*template.FILTERS, *template.BUILTIN_FILTERS})
+        template.FILTERS[name] = fn
+        return fn
+
+    def snippets(self, folder):
+        """A folder of snippets (by name, e.g. report/results.rst): new
+        ones for the plugin's directives, or the built-in ones overridden.
+        Two plugins can't provide the same snippet."""
+        from pathlib import Path
+
+        from ..documents import template
+        folder = Path(folder)
+        for path in sorted(folder.rglob("*")):
+            if path.is_file():
+                self._claim("snippet", path.relative_to(folder).as_posix(), ())
+        template.register_folder(folder)
+
+    def css(self, text):
+        """CSS for what the plugin's directives and blocks write: on live
+        pages and in a frozen report's site"""
+        _styles["css"].append((self.plugin, text))
+
+    def latex(self, text):
+        """LaTeX for the PDF's preamble: e.g. \\DUroleverdict-... commands
+        or sphinxclass... environments for the plugin's classes"""
+        _styles["latex"].append((self.plugin, text))
+
+
+def plugin_css():
+    load_plugins()
+    return "\n".join(f"/* {plugin} */\n{text}" for plugin, text in _styles["css"])
+
+
+def plugin_latex():
+    load_plugins()
+    return "\n".join(f"% {plugin}\n{text}" for plugin, text in _styles["latex"])
+
+
+def plugin_versions():
+    """plugin -> version, for every plugin loaded"""
+    load_plugins()
+    return dict(sorted(_versions.items()))
+
 
 def registered_functions():
     """Registered Lisp functions, with their plugin and documentation."""
@@ -121,6 +205,10 @@ def load_plugins():
             return
         _loading = True
         before_functions, before_env = dict(_functions), dict(lisp.global_env)
+        from ..documents import template
+        before_rendering = ({k: dict(v) for k, v in _rendering.items()},
+                            list(template.Snippets.plugin_folders),
+                            {k: list(v) for k, v in _styles.items()})
         try:
             modules = sorted(pkgutil.iter_modules(automationv3.plugins.__path__,
                              automationv3.plugins.__name__ + "."),
@@ -128,6 +216,7 @@ def load_plugins():
             for module in modules:
                 with _loading_plugin(module.name):
                     plugin = importlib.import_module(module.name)
+                    _versions[module.name] = bundled_version()
                     register = getattr(plugin, "register", None)
                     if register is not None:
                         register(PluginRegistry(module.name))
@@ -135,6 +224,8 @@ def load_plugins():
                                 key=lambda e: e.name):
                 with _loading_plugin(entry.name):
                     plugin = entry.load()
+                    dist = getattr(entry, "dist", None)
+                    _versions[entry.name] = getattr(dist, "version", None) or "unknown"
                     register = plugin if callable(plugin) else \
                         getattr(plugin, "register", None)
                     if register is None:
@@ -153,10 +244,35 @@ def load_plugins():
             _functions.update(before_functions)
             lisp.global_env.clear()
             lisp.global_env.update(before_env)
+            forget_rendering(before_rendering)
             _error = e
             raise
         finally:
             _loading = False
+
+
+def forget_rendering(before):
+    """Undo what plugins registered for documents since `before`"""
+    from ..documents import core, template
+    names, folders, styles = before
+    for name in set(_rendering["directive"]) - set(names["directive"]):
+        core.RESOLVERS.pop(name, None)
+    for name in set(_rendering["role"]) - set(names["role"]):
+        core.ROLE_VALUES.pop(name, None)
+    for name in set(_rendering["filter"]) - set(names["filter"]):
+        template.FILTERS.pop(name, None)
+    _rendering.update(names)
+    template.Snippets.plugin_folders[:] = folders
+    for kind, texts in styles.items():
+        _styles[kind][:] = texts
+
+
+def bundled_version():
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("automation-v3")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 @contextmanager
