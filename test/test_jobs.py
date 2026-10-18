@@ -958,11 +958,9 @@ class TestWorkerAgainstServer(unittest.TestCase):
         (r9,) = rollup.requirement_rollup(report, [])
         self.assertEqual(r9["color"], "untested")
         overview = self.http.get(f"/reports/{report_id}").get_data(True)
-        self.assertIn("Without tests", overview)
-        self.assertIn("1 without tests", overview)
+        self.assertIn("R9</a>: untested, no script references it yet", overview)
         self.assertIn("Update tests", overview)
-        runs = self.http.get(f"/reports/{report_id}/runs").get_data(True)
-        self.assertIn("No script references this requirement yet", runs)
+        self.assertIn("<em>no tests yet</em>", overview)
 
         # A script is written for it: updating the report's tests runs it
         self.commit({
@@ -1120,8 +1118,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         (row,) = rollup.combinations(report, [old], lambda run: "pending")
         self.assertEqual((row["state"], row["outdated"]), ("outdated", {"demo": "1.0.0"}))
-        page = self.http.get(f"/reports/{report_id}/runs").get_data(True)
-        self.assertIn("Passed on demo 1.0.0", page)
+        page = self.http.get(f"/reports/{report_id}").get_data(True)
+        self.assertIn(": pass on demo 1.0.0, not the report's versions", page)
         self.assertIn("1 outdated", page)
         self.assertEqual(models.passed_combinations(self.root, report_id), set())
         dialog = self.http.get("/runner/new", query_string={

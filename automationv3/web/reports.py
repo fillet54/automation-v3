@@ -36,6 +36,13 @@ def run_status(run):
 
 
 @reports.app_template_filter()
+def make_id(text):
+    """An anchor as docutils makes it (see documents/core.py :anchor:)"""
+    from docutils.nodes import make_id as docutils_id
+    return docutils_id(text)
+
+
+@reports.app_template_filter()
 def flatten(fingerprint):
     """A fingerprint's (dotted key, value) pairs, sorted"""
     return sorted(models.flatten(fingerprint).items())
@@ -156,6 +163,8 @@ def report(report_id):
 
 @reports.route("/<report_id>/<any(runs, values, history):page>", methods=["GET"])
 def report_page(report_id, page):
+    if page == "runs":  # the report's document shows its runs
+        return redirect(url_for("reports.report", report_id=report_id, **request.args))
     return render_page(report_id, page)
 
 
@@ -189,12 +198,88 @@ def render_page(report_id, page, errors=(), status=200):
         connectors=None,
         text_changed=text_changed(report),
     )
+    if page == "overview":
+        live = report_context(report, context["in_progress"],
+                              subsystem=context["subsystem"],
+                              text_changed=context["text_changed"])
+        context["body"], context["problems"] = documents.report_document(
+            export.source(root(), report_id), live, poll=block_poll(report_id, live))
     if page == "values":
         touched = rollup.ref_rollup(
             report, view["rows"],
             lambda run: store.read_events(root(), report_id, run["id"]))
         context["connectors"] = report_view.connectors(touched)
     return render_template(f"reports/{page}.html", **context), status
+
+
+def report_context(report, in_progress, **extra):
+    """The Context the report's document is shown with, live"""
+    return documents.report_context(root(), report["id"], lambda run: run_status(run),
+                                    blocks=in_progress, **extra)
+
+
+def block_poll(report_id, live):
+    """How a data block of the report's document refreshes: while runs are
+    in progress, from its own URL"""
+    if not live.extra.get("blocks"):
+        return None
+    args = {k: v for k, v in request.args.items() if k == "subsystem"}
+    return lambda node: url_for("reports.block", report_id=report_id,
+                                serial=node["serial"], **args)
+
+
+@reports.route("/<report_id>/block/<int:serial>", methods=["GET"])
+def block(report_id, serial):
+    """One data block of the report's document, as it is now. It keeps
+    refreshing itself while runs are in progress."""
+    report = store.load_report(root(), report_id) or abort(404)
+    in_progress = any(r.get("outcome") is None for r in store.list_runs(root(), report_id))
+    live = report_context(report, True, subsystem=request.args.get("subsystem"),
+                          text_changed=text_changed(report))
+    found = documents.report_block(export.source(root(), report_id), serial, live,
+                                   poll=block_poll(report_id, live) if in_progress else None)
+    return found if found is not None else abort(404)
+
+
+@reports.route("/<report_id>/source", methods=["GET", "POST"])
+def source(report_id):
+    """Edit the report's document: its report.rst, with a live preview"""
+    report = store.load_report(root(), report_id) or abort(404)
+    errors = []
+    text = export.source(root(), report_id)
+    if request.method == "POST":
+        text = request.form.get("source", "").replace("\r\n", "\n")
+        try:
+            export.set_source(root(), report_id, text)
+        except export.ExportError as e:
+            errors.append(str(e))
+        else:
+            return redirect(url_for("reports.report", report_id=report_id))
+    body, problems = documents.report_document(text, report_context(report, False))
+    return render_template("reports/source.html", report=report, text=text, body=body,
+                           problems=problems, errors=errors,
+                           frozen=store.is_frozen(report)), 409 if errors else 200
+
+
+@reports.route("/<report_id>/preview", methods=["POST"])
+def preview(report_id):
+    """The document as `source` (being edited) would show it"""
+    report = store.load_report(root(), report_id) or abort(404)
+    body, problems = documents.report_document(request.form.get("source", ""),
+                                               report_context(report, False))
+    return render_template("reports/partials/preview.html", body=body, problems=problems)
+
+
+@reports.route("/<report_id>/template", methods=["POST"])
+def refresh_template(report_id):
+    """Copy the workspace's report template into the report again (its
+    document stays as it is)"""
+    report = store.load_report(root(), report_id) or abort(404)
+    if store.is_frozen(report):
+        return render_page(report_id, "overview", ["The report is frozen: reopen it first"], 409)
+    export.install_template(root(), report_id, workspace_template(report.get("workspace")),
+                            with_source=False)
+    return redirect(url_for("reports.source", report_id=report_id))
 
 
 def text_changed(report):

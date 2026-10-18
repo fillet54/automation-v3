@@ -8,7 +8,7 @@ from pathlib import Path
 
 from automationv3.framework.document import document_title
 from automationv3.services.database import connect, init_db
-from automationv3.services.reports import store
+from automationv3.services.reports import export, store
 from automationv3.services.worker import Host
 from automationv3.services.worker.local import run_locally
 from automationv3.web import report_view
@@ -135,7 +135,9 @@ class TestTree(ReportPagesTestCase):
         self.assertEqual(connectors[0]["refs"][0]["path"], "vm.eps.shed")  # fixed first
 
 
-class TestPages(ReportPagesTestCase):
+class PagesTestCase(ReportPagesTestCase):
+    """The report's pages, served"""
+
     def setUp(self):
         super().setUp()
         gitdir = self.tmp / "repo"
@@ -154,30 +156,33 @@ class TestPages(ReportPagesTestCase):
         self.assertEqual(response.status_code, 200, path)
         return response.get_data(True)
 
+
+class TestPages(PagesTestCase):
     def test_every_page_has_the_navigation(self):
-        for path in ("", "/runs", "/values", "/history"):
+        for path in ("", "/values", "/history"):
             page = self.get(path)
             self.assertIn('id="report-nav"', page)
             self.assertIn("Brake Pressure Modes", page)  # a script in the tree
-            self.assertIn(f"{self.base}/runs?subsystem=BRA#req-BRA-1", page)
+            self.assertIn(f"{self.base}?subsystem=BRA#req-bra-1", page)
 
-    def test_the_runs_page_filters_to_a_subsystem(self):
-        page = self.get("/runs?subsystem=BRA")
-        self.assertIn('data-subsystem="BRA">', page)
-        self.assertIn('data-subsystem="Unassigned" hidden', page)
-        self.assertIn('data-subsystem="Other tests" hidden', page)
-        self.assertIn('id="req-BRA-1"', page)
-        self.assertIn('id="BRA-1--BRA-tc_bra_00004-rst"', page)
-        everything = self.get("/runs")
-        self.assertIn('id="report-filter" hidden', everything)
-        self.assertNotIn('data-subsystem="BRA" hidden', everything)
+    def test_the_document_narrows_to_a_subsystem(self):
+        page = self.get("?subsystem=BRA")
+        self.assertIn('id="report-filter"', page)
+        self.assertIn('id="req-bra-1"', page)
+        self.assertNotIn('id="req-bra-2"', page)  # Unassigned
+        everything = self.get()
+        self.assertNotIn('id="report-filter"', everything)
+        self.assertIn('id="req-bra-2"', everything)
+        # the Runs page it replaces sends its links here
+        response = self.http.get(self.base + "/runs?subsystem=BRA")
+        self.assertEqual(response.headers["Location"], self.base + "?subsystem=BRA")
 
     def test_the_overview_lists_open_issues_with_why(self):
         page = self.get()
         self.assertIn("Open issues", page)
-        self.assertIn("report-why", page)
-        self.assertIn("Subsystems", page)
-        self.assertIn("Other tests", page)
+        self.assertRegex(page, r"ui-outcome--fail.*Failed</span> at step")
+        self.assertIn("Requirements", page)
+        self.assertIn('href="/reports/', page)  # combinations link their runs
 
     def test_the_list_of_reports_sums_each_one_up(self):
         page = self.http.get("/reports/").get_data(True)
@@ -206,3 +211,43 @@ class TestPages(ReportPagesTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDocumentPages(PagesTestCase):
+    def test_the_document_is_the_reports_own_rst(self):
+        response = self.http.post(self.base + "/source", data={
+            "source": "Why\n===\n\nCovers :report:`requirements` requirements.\n\n"
+                      ".. results::\n   :state: pass\n"})
+        self.assertEqual(response.status_code, 302)
+        page = self.get()
+        self.assertIn("Covers 2 requirements.", page)
+        self.assertIn("tc_bra_00004.rst / sim / normal", page)
+        self.assertIn(".. results::", export.source(self.root, self.report_id))
+
+    def test_the_editor_previews_what_it_would_show(self):
+        editor = self.get("/source")
+        self.assertIn(".. report-summary::", editor)  # the report's document
+        self.assertIn('hx-post="' + self.base + '/preview"', editor)
+        preview = self.http.post(self.base + "/preview", data={
+            "source": "Ran :report:`runs` runs.\n\n.. nope::\n"}).get_data(True)
+        self.assertIn("Ran 4 runs.", preview)
+        self.assertIn("Unknown directive type", preview)  # problems listed
+
+    def test_each_block_refreshes_itself_while_runs_are_in_progress(self):
+        page = self.get()
+        self.assertNotIn("hx-get=\"" + self.base + "/block/", page)  # all finished
+        block = self.http.get(self.base + "/block/2")
+        self.assertEqual(block.status_code, 200)
+        self.assertIn('id="block-2"', block.get_data(True))
+        self.assertNotIn("hx-trigger", block.get_data(True))  # finished: it stops
+        self.assertEqual(self.http.get(self.base + "/block/99").status_code, 404)
+        store.update_run(self.root, self.report_id, store.list_runs(
+            self.root, self.report_id)[0]["id"], outcome=None)
+        page = self.get()
+        self.assertIn(f'hx-get="{self.base}/block/2"', page)
+
+    def test_a_frozen_documents_source_is_read_only(self):
+        store.set_frozen(self.root, self.report_id, True)
+        self.assertIn("readonly", self.get("/source"))
+        response = self.http.post(self.base + "/source", data={"source": "x"})
+        self.assertEqual(response.status_code, 409)

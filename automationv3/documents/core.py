@@ -77,7 +77,10 @@ class DataDirective(Directive):
         options = dict(self.options)
         if self.arguments:
             options["argument"] = self.arguments[0]
-        node = data_block(self.block_text, kind=self.kind, options=options)
+        document = self.state.document
+        serial = getattr(document, "_data_serial", 0)
+        document._data_serial = serial + 1
+        node = data_block(self.block_text, kind=self.kind, options=options, serial=serial)
         node.line = self.lineno
         note_transform(self.state.document)
         return [node]
@@ -111,6 +114,15 @@ def verdict_role(name, rawtext, text, lineno, inliner, options=None, content=Non
 
 
 roles.register_local_role("verdict", verdict_role)
+
+
+def anchor_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    """:anchor:`req-BRA-1`: a place pages can link to (#req-bra-1), and
+    nothing to read"""
+    return [nodes.inline(rawtext, "", ids=[nodes.make_id(utils.unescape(text))])], []
+
+
+roles.register_local_role("anchor", anchor_role)
 
 
 # Resolving
@@ -150,7 +162,12 @@ def resolve(document, context):
     """Replace every placeholder in `document` with what it resolves to.
     A resolver that writes nothing removes its placeholder. What they
     write is parsed in one pass (see parse_many), and placeholders that
-    writes in turn are resolved the same way."""
+    writes in turn are resolved the same way.
+
+    With context.extra["blocks"], what each of the document's own
+    directives writes is kept in a ``data-block`` container carrying its
+    serial (its place among them), so a live page can refresh it alone."""
+    first = True
     while True:
         blocks = list(document.findall(data_block))
         inlines = list(document.findall(data_inline))
@@ -163,7 +180,11 @@ def resolve(document, context):
             found = parsed[str(rst)]() if rst else []
             if isinstance(node, data_inline):
                 found = inline_of(found)
+            elif first and context.extra.get("blocks"):
+                found = [nodes.container("", *found, classes=["data-block"],
+                                         serial=node["serial"], kind=node["kind"])]
             node.replace_self(found)
+        first = False
 
 
 class fragment_end(nodes.Element):
@@ -254,6 +275,18 @@ def resolved(doctree, context):
     document = doctree.deepcopy()
     document.settings = copy.copy(doctree.settings)
     document.settings.automation = context
+    return resolve(document, context)
+
+
+def resolved_block(doctree, serial, context):
+    """A document holding only the directive numbered `serial` in a
+    parsed doctree, resolved; None if there is no such directive"""
+    node = next((n for n in doctree.findall(data_block) if n["serial"] == serial), None)
+    if node is None:
+        return None
+    document = utils.new_document("<block>", copy.copy(doctree.settings))
+    document.settings.automation = context
+    document += node.deepcopy()
     return resolve(document, context)
 
 

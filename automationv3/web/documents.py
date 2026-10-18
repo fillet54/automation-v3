@@ -1,6 +1,7 @@
 """Documents on the app's pages: links to its pages, its outcome badges,
 and caches, around documents/ (which knows nothing of Flask)"""
 
+import functools
 from collections import OrderedDict
 
 from flask import get_template_attribute, url_for
@@ -27,11 +28,20 @@ class LiveLinks(Links):
 
 
 class LiveHooks(html.Hooks):
-    """The app's outcome badges and chevrons in documents"""
+    """The app's outcome badges and chevrons in documents; with `poll`
+    (node -> URL or None), data blocks that may change refresh themselves"""
 
-    def __init__(self):
+    def __init__(self, poll=None):
         self.outcome = get_template_attribute("ui/components.html", "outcome")
         self.icon = get_template_attribute("ui/components.html", "icon")
+        self.poll = poll
+
+    def block_attributes(self, node):
+        url = self.poll(node) if self.poll else None
+        if not url:
+            return ""
+        return (f' hx-get="{url}" hx-trigger="every 3s" hx-swap="outerHTML"'
+                ' hx-select="unset"')
 
     def verdict(self, state):
         return str(self.outcome(state))
@@ -40,8 +50,8 @@ class LiveHooks(html.Hooks):
         return str(self.icon("chevron-right", 12))
 
 
-def render(document):
-    return html.render(document, LiveHooks())
+def render(document, hooks=None):
+    return html.render(document, hooks or LiveHooks())
 
 
 # A finished run's page never changes (until it is rerun, as a new run):
@@ -78,3 +88,34 @@ def script_document(text, variation=None, diagnostics=(), variations=True):
 def rst_document(text):
     """The HTML of a plain reStructuredText file"""
     return render(core.resolved(core.parse(text), core.Context()))
+
+
+# A report's document
+
+@functools.lru_cache(maxsize=64)
+def _parsed_report(text, requirement_key):
+    return core.parse(text, source_path="report.rst")
+
+
+def parsed_report(text):
+    return _parsed_report(text, script_rst.requirement_key())
+
+
+def report_context(root, report_id, status, **extra):
+    from ..services.reports import export
+    return export.context(root, report_id, host=core.LIVE, links=LiveLinks(),
+                          status=status, extra=extra)
+
+
+def report_document(text, context, poll=None):
+    """The HTML of a report's document `text`, and its problems: each
+    data block refreshes itself (from `poll(node)`) while it may change"""
+    from ..services.reports import export
+    document = core.resolved(parsed_report(text), context)
+    return render(document, LiveHooks(poll)), export.problems(document)
+
+
+def report_block(text, serial, context, poll=None):
+    """The HTML of one data block of a report's document, or None"""
+    document = core.resolved_block(parsed_report(text), serial, context)
+    return render(document, LiveHooks(poll)) if document is not None else None

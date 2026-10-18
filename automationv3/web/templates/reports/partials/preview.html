@@ -1,0 +1,7 @@
+{#- The document as its source being edited would show it, and what's wrong with the source #}
+<div id="preview" class="ui-stack">
+  {% if problems %}
+  <div class="ui-alert ui-alert--warning" role="status"><ul class="ui-plain-list">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  <article class="ui-doc ui-document report-document">{{ body | safe }}</article>
+</div>

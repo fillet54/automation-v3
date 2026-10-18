@@ -1,86 +1,36 @@
+{#- The report's main page: its document (report.rst), resolved against its data as it is now. While runs are in
+    progress each data block refreshes itself (documents/core.py, web/documents.py); `?subsystem=` narrows the
+    requirements to one subsystem. Below it, the document's fields for the exported PDF. #}
 {% extends "reports/page.html" %}
-{% from "reports/macros.html" import variation_label %}
-{% set runs_url = url_for('reports.report_page', report_id=report.id, page='runs') %}
 
 {% block page %}
-{% call ui.stats("Summary") %}
-  {% set requirements = view.requirements %}
-  {% if requirements %}
-  {% set green = requirements | selectattr('color', 'equalto', 'green') | list | length %}
-  {% set red = requirements | selectattr('color', 'equalto', 'red') | list | length %}
-  {% set untested = view.untested | length %}
-  {% set notes = ([red ~ " red"] if red else []) + ([untested ~ " without tests"] if untested else []) %}
-  {{ ui.stat("Requirements green", green ~ " / " ~ requirements | length, tone="success" if green == requirements | length else None,
-             sub=notes | join(", ") or None) }}
-  {% endif %}
-  {% set passed = rows | selectattr('state', 'equalto', 'pass') | list | length %}
-  {% set failed = rows | selectattr('state', 'in', ['fail', 'error']) | list | length %}
-  {{ ui.stat("Runs passed", passed ~ " / " ~ rows | length, tone="danger" if failed else ("success" if rows and passed == rows | length else None),
-             sub=(failed ~ " failed") if failed else None) }}
-  {{ ui.stat("Created", report.created | utc, mono=True, sub=report.id) }}
-{% endcall %}
-
 {% if not rows and not report.additions %}
 {{ ui.empty("Nothing added yet. Add requirements to run every test linked to them, or add a single test.") }}
 {% endif %}
 
-{% if view.groups or view.other %}
-{% call ui.section("Subsystems", subtitle="Each subsystem's requirements, judged on the latest run of every linked combination") %}
-{% call ui.table(["Subsystem", "State", {"label": "Green", "align": "end"}, {"label": "No tests", "align": "end"}, {"label": "Issues", "align": "end"}]) %}
-  {% for group in view.groups %}
-  <tr>
-    <td><a class="ui-mono" href="{{ runs_url }}?subsystem={{ group.name | urlencode }}">{{ group.name }}</a></td>
-    <td>{{ ui.outcome({"pass": "green", "fail": "red", "running": "running", "none": "untested" if group.untested == group.requirements | length else "not run"}.get(group.dot, "partial")) }}</td>
-    <td class="ui-end ui-number">{{ group.green }} / {{ group.requirements | length }}</td>
-    <td class="ui-end ui-number">{{ group.untested or "—" }}</td>
-    <td class="ui-end ui-number">{{ group.issues or "—" }}</td>
-  </tr>
-  {% endfor %}
-  {% if view.other %}
-  <tr>
-    <td><a href="{{ runs_url }}?subsystem={{ view.other.name | urlencode }}">{{ view.other.name }}</a> <span class="ui-text-caption">not tracked</span></td>
-    <td>{{ ui.outcome({"pass": "pass", "fail": "fail", "running": "running", "none": "not run"}.get(view.other.dot, "partial")) }}</td>
-    <td class="ui-end ui-number">—</td>
-    <td class="ui-end ui-number">—</td>
-    <td class="ui-end ui-number">{{ view.other.issues or "—" }}</td>
-  </tr>
-  {% endif %}
-{% endcall %}
+{% if subsystem %}
+<div class="report-filter" id="report-filter">
+  Showing <strong class="ui-mono">{{ subsystem }}</strong>
+  <a href="{{ url_for('reports.report', report_id=report.id) }}">Show every subsystem</a>
+</div>
+{% endif %}
+
+{% if problems %}
+{% call ui.alert("warning", title="The document has problems") %}
+  <ul class="ui-plain-list">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  {% if not report.frozen %}<a href="{{ url_for('reports.source', report_id=report.id) }}">Edit the document</a>{% endif %}
 {% endcall %}
 {% endif %}
 
-{% if view.issues %}
-{% call ui.section("Open issues", subtitle="Every combination whose latest run didn't pass, and why") %}
-<ul class="report-issues">
-  {% for row in view.issues %}
-  <li>
-    <span class="report-dot report-dot--{{ row.dot }}" aria-hidden="true"></span>
-    <div>
-      <div class="report-issues__head">
-        {% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}">{{ row.title }}</a>{% else %}{{ row.title }}{% endif %}
-        <span class="ui-text-caption ui-mono">{{ row.script }}</span>{{ variation_label(row.environment, row.variation) }}
-        {{ ui.outcome(row.state, label=row.label) }}
-      </div>
-      {% if row.why %}<div class="report-why report-why--{{ row.dot }}">{{ row.why }}</div>{% endif %}
-    </div>
-  </li>
-  {% endfor %}
-</ul>
-{% endcall %}
-{% endif %}
+<div class="ui-row" style="justify-content: flex-end;">
+  {{ ui.button("Edit document…" if not report.frozen else "Document source", icon="edit", size="sm",
+               href=url_for('reports.source', report_id=report.id)) }}
+</div>
+<article class="ui-doc ui-document report-document">
+  {{ body | safe }}
+</article>
 
-{% if view.untested %}
-{% call ui.section("Without tests", subtitle="Tracked requirements no script references yet") %}
-<ul class="report-untested-list">
-  {% for req in view.untested %}
-  <li><a href="{{ runs_url }}?subsystem={{ req.subsystem | urlencode }}#req-{{ req.id }}" class="ui-mono">{{ req.id }}</a>
-    {% if req.text %}<span class="ui-text-caption">{{ req.text | truncate(110) }}</span>{% endif %}</li>
-  {% endfor %}
-</ul>
-{% endcall %}
-{% endif %}
-
-{% call ui.section("Document", subtitle="The PDF a freeze exports, with the report's runs bundled beside it" if not report.frozen else "Frozen: no more runs go into the report until it is reopened") %}
+{% call ui.section("Document fields", subtitle="The PDF a freeze exports, with the report's runs bundled beside it" if not report.frozen else "Frozen: no more runs go into the report until it is reopened") %}
 {% call ui.table(["Number", "Revision", "Author", "Signed by", "Documents", ""]) %}
   <tr style="vertical-align: top;">
     <td class="ui-mono" style="white-space: nowrap;">{{ document.number or "—" }}</td>

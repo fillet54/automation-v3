@@ -108,5 +108,5 @@ A report verifies requirements in its workspace's context, and records it.
 For each requirement it tracks, it keeps the text and the version (the spec
 and a hash of the text) it took on, and each run keeps the version of every
 requirement its script covers. When a requirement's text changes after the
-report took it on, the report's runs page says so beside it: a pass against
+report took it on, the report's document says so beside it: a pass against
 the old text is still a pass against the old text.

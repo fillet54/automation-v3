@@ -129,20 +129,22 @@ Reading a report
 
 A report's pages share a navigation column on the left:
 
-**Overview**
-   The summary, each subsystem's state, every open issue (a combination
-   whose latest run didn't pass) with why, and the report's document.
+**Document**
+   The report's document, ``report.rst``, shown with the report's data as it
+   is now: by default its identification, summary, open issues (each
+   combination whose latest run didn't pass, and why), every tracked
+   requirement with the combinations covering it, the results, reruns and
+   failures. While runs are in progress each part refreshes itself.
+   **Edit document…** opens its source beside a live preview: write what the
+   report is for in prose, and move, filter or drop the parts (see
+   :doc:`../reference/report-documents`). Below it are the fields of the
+   exported PDF.
 
-**Runs**
-   Every tracked requirement, grouped by its subsystem: its text and state,
-   and a row per script, environment and variation with the outcome,
-   attempts and duration. A row that didn't pass says why underneath: the
-   step that failed and its message, steps still to be written, or not run.
-
-   In the navigation, Runs opens into a tree of subsystems, their
-   requirements, and the tests run for each, by their titles. Scripts added
-   on their own, without a requirement, are under **Other tests**. Each entry
-   has a dot for how it stands:
+   In the navigation, Document opens into a tree of subsystems, their
+   requirements, and the tests run for each, by their titles. A subsystem or
+   requirement shows the document narrowed to that subsystem; a test opens
+   its latest run. Scripts added on their own, without a requirement, are
+   under **Other tests**. Each entry has a dot for how it stands:
 
    .. list-table::
       :widths: 20 80
@@ -183,14 +185,16 @@ title of its exported document too.
 Reading a run
 -------------
 
-A run page shows the script as it ran, for the variation it ran:
+A run page is the script's own document (as the workspace shows it) with what
+came of each step after it, for the variation it ran:
 
 - under the breadcrumbs, the variation, the outcome and the **Rerun**
   button;
 - **Details**: the environment, UUT versions, mode, timings and
   configuration facts (see :doc:`configuration-management`);
-- each step with its badge, its duration to the millisecond, and, when
-  expanded, its output, nested block calls and attached files;
+- each step with its badge, its duration to the millisecond, its output,
+  the block calls made in it, attached files, and, if it failed, the message
+  and the code it failed at;
 - preconditions collapsed to their description and badge, expanding to each
   phase.
 
@@ -221,11 +225,12 @@ export **freezes** the report and writes ``report-<id>.zip``:
    manifest's own SHA-256, on its title page and under Identification, so
    anyone can check the bundle is the one the document describes.
 
-``report.rst`` and ``report.tex``
-   The generated body and the whole document, to rebuild the PDF.
+``report.tex``
+   The whole document as LaTeX, to rebuild the PDF. Its source,
+   ``report.rst``, is in the report folder with the data it reads.
 
-Before exporting, fill in the report's **Document** (on the Overview,
-**Edit…**): its number, revision and author, who signs for each role
+Before exporting, fill in the document's fields (on the Document page, under
+**Document fields**, **Edit…**): its number, revision and author, who signs for each role
 on the signature page, and its applicable and reference documents, one per
 line as ``NUMBER | REVISION | TITLE``. Requirement texts are copied into the
 report when requirements are added, so the PDF quotes what was tested

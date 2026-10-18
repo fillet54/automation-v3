@@ -3,11 +3,16 @@
     "Issues only" switch, and filters the Runs page in place. #}
 {% macro dot(tone) -%}<span class="report-dot report-dot--{{ tone }}" aria-hidden="true"></span>{%- endmacro %}
 {% macro count(n) -%}{% if n %}<span class="report-nav__count" title="{{ n }} with issues">{{ n }}</span>{% endif %}{%- endmacro %}
-{% set runs_url = url_for('reports.report_page', report_id=report.id, page='runs') %}
-<nav id="report-nav" class="report-nav" data-report="{{ report.id }}" aria-label="Report">
+{% set runs_url = url_for('reports.report', report_id=report.id) %}
+{#- A script opens its latest run, if it has one #}
+{% macro script_url(script, fallback) -%}
+{%- set ran = script.rows | selectattr('latest') | list -%}
+{{ url_for('reports.run', report_id=report.id, run_id=ran[0].latest.id) if ran else fallback }}
+{%- endmacro %}
+<nav id="report-nav" class="report-nav" data-report="{{ report.id }}" aria-label="Report"
+     {% if in_progress and page == "overview" %}hx-get="{{ request.full_path }}" hx-trigger="every 5s" hx-select="#report-nav" hx-swap="outerHTML"{% endif %}>
   <ul class="report-nav__pages">
-    <li><a href="{{ url_for('reports.report', report_id=report.id) }}"{% if page == "overview" %} aria-current="page"{% endif %}>{{ ui.icon("info", 14) }}Overview</a></li>
-    <li><a href="{{ runs_url }}" data-nav="runs"{% if page == "runs" and not subsystem %} aria-current="page"{% endif %}>{{ dot(view.dot) if rows else ui.icon("list", 14) }}Runs
+    <li><a href="{{ runs_url }}" data-nav="runs"{% if page == "overview" and not subsystem %} aria-current="page"{% endif %}>{{ dot(view.dot) if rows else ui.icon("info", 14) }}Document
       <span class="report-nav__end">{{ count(view.issues | length) }}</span></a></li>
   </ul>
 
@@ -21,14 +26,14 @@
         <ul>
           {% for req in group.requirements %}
           {% if not req.scripts %}
-          <li data-dot="{{ req.dot }}"><a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#req-{{ req.id }}" data-nav="requirement" data-subsystem="{{ group.name }}" title="No tests yet{{ ': ' ~ req.text if req.text }}">{{ dot(req.dot) }}<span class="ui-mono">{{ req.id }}</span></a></li>
+          <li data-dot="{{ req.dot }}"><a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#{{ ('req-' ~ req.id) | make_id }}" data-nav="requirement" data-subsystem="{{ group.name }}" title="No tests yet{{ ': ' ~ req.text if req.text }}">{{ dot(req.dot) }}<span class="ui-mono">{{ req.id }}</span></a></li>
           {% else %}
           <li data-dot="{{ req.dot }}">
             <details data-key="r:{{ req.id }}"{% if req.dot != "pass" %} open{% endif %}>
-              <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#req-{{ req.id }}" data-nav="requirement" data-subsystem="{{ group.name }}" title="{{ req.text }}">{{ dot(req.dot) }}<span class="ui-mono">{{ req.id }}</span>{{ count(req.issues) }}</a></summary>
+              <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#{{ ('req-' ~ req.id) | make_id }}" data-nav="requirement" data-subsystem="{{ group.name }}" title="{{ req.text }}">{{ dot(req.dot) }}<span class="ui-mono">{{ req.id }}</span>{{ count(req.issues) }}</a></summary>
               <ul>
                 {% for script in req.scripts %}
-                <li data-dot="{{ script.dot }}"><a href="{{ runs_url }}?subsystem={{ group.name | urlencode }}#{{ script.anchor }}" data-nav="script" data-subsystem="{{ group.name }}" title="{{ script.script }}">{{ dot(script.dot) }}<span class="report-tree__label">{{ script.title }}</span></a></li>
+                <li data-dot="{{ script.dot }}"><a href="{{ script_url(script, runs_url ~ '?subsystem=' ~ (group.name | urlencode)) }}" data-nav="script" data-subsystem="{{ group.name }}" title="{{ script.script }}">{{ dot(script.dot) }}<span class="report-tree__label">{{ script.title }}</span></a></li>
                 {% endfor %}
               </ul>
             </details>
@@ -45,7 +50,7 @@
         <summary>{{ ui.icon("chevron-right", 12, cls="report-tree__chevron") }}<a href="{{ runs_url }}?subsystem={{ view.other.name | urlencode }}" data-nav="subsystem" data-subsystem="{{ view.other.name }}" title="Tests added without a requirement">{{ dot(view.other.dot) }}<span>{{ view.other.name }}</span>{{ count(view.other.issues) }}</a></summary>
         <ul>
           {% for script in view.other.scripts %}
-          <li data-dot="{{ script.dot }}"><a href="{{ runs_url }}?subsystem={{ view.other.name | urlencode }}#{{ script.anchor }}" data-nav="script" data-subsystem="{{ view.other.name }}" title="{{ script.script }}">{{ dot(script.dot) }}<span class="report-tree__label">{{ script.title }}</span></a></li>
+          <li data-dot="{{ script.dot }}"><a href="{{ script_url(script, runs_url ~ '?subsystem=' ~ (view.other.name | urlencode)) }}" data-nav="script" data-subsystem="{{ view.other.name }}" title="{{ script.script }}">{{ dot(script.dot) }}<span class="report-tree__label">{{ script.title }}</span></a></li>
           {% endfor %}
         </ul>
       </details>

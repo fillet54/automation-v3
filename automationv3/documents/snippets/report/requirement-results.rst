@@ -20,7 +20,9 @@ The report tracks no requirements.
      - Verdict
      - Covered by
 % for r in requirements
-   * - {{ r.id | link(r.url) }}
+   * - :anchor:`req-{{ r.id }}`\ {{ r.id | link(r.url) }}{% if r.changed %}
+
+       :verdict:`text changed since`{% endif %}
      - {{ r.text | requirement | indent(7) }}
      - {{ r.color | verdict }}
      -

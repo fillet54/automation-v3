@@ -1,6 +1,6 @@
 {#- A report page: the report's navigation on the side, its header, and the page in `page`. While runs are in
     progress the page and the navigation refresh every few seconds (static/js/report.js keeps the filter and
-    what's expanded). #}
+    what's expanded); the document page refreshes block by block instead, and only its navigation whole. #}
 {% extends "layout.html" %}
 {% set nav_current = "reports" %}
 {% set browse = True %}
@@ -10,7 +10,7 @@
 
 {% block content %}
 <div id="report-main" class="ui-stack ui-gap-large" data-page="{{ page }}"
-     {% if in_progress %}hx-get="{{ request.full_path }}" hx-trigger="every 3s" hx-select="#report-main"
+     {% if in_progress and page != "overview" %}hx-get="{{ request.full_path }}" hx-trigger="every 3s" hx-select="#report-main"
      hx-swap="outerHTML" hx-select-oob="#report-nav"{% endif %}>
   {% include "reports/partials/header.html" %}
   {% if errors %}

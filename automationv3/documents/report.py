@@ -102,8 +102,13 @@ def requirement_results(context, options):
         return ""
     rows_of(context)
     requirements = context.data.requirements
-    if options.get("subsystem"):
-        requirements = [r for r in requirements if r["subsystem"] == options["subsystem"]]
+    changed = context.extra.get("text_changed") or set()
+    for r in requirements:
+        r["changed"] = r["id"] in changed
+    # A page may narrow every requirement-results to one subsystem
+    subsystem = options.get("subsystem") or context.extra.get("subsystem")
+    if subsystem:
+        requirements = [r for r in requirements if r["subsystem"] == subsystem]
     if options.get("color"):
         requirements = [r for r in requirements if r["color"] == options["color"]]
     if options.get("group-by", "subsystem") == "none":

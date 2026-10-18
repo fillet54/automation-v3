@@ -1,0 +1,43 @@
+{#- Editing a report's document: its report.rst beside a live preview (rendered as the report's data is now) #}
+{% extends "layout.html" %}
+{% set nav_current = "reports" %}
+{% block title %}Document · {{ report.name or report.id[:8] }}{% endblock %}
+
+{% block content %}
+<div class="ui-stack ui-gap-large">
+  <header class="ui-page-header">
+    {{ ui.breadcrumbs([("Reports", url_for('reports.index')), (report.name or report.id[:8], url_for('reports.report', report_id=report.id)), ("Document", None)]) }}
+    <div class="ui-page-header__row">
+      <h1 class="ui-page-header__title">Document</h1>
+      <div class="ui-toolbar ui-page-header__actions">
+        {% if not frozen and report.workspace %}
+        <form method="post" action="{{ url_for('reports.refresh_template', report_id=report.id) }}">
+          {{ ui.button("Refresh template from workspace", icon="refresh", type="submit", size="sm",
+                       attrs={"title": "Copy the workspace's report/ template (snippets, LaTeX, logo) into the report again; the document below stays as it is"}) }}
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    <p class="ui-text-caption">reStructuredText: prose, and directives where the report's data goes
+      (see <a href="/docs/reference/report-documents.html">Report documents</a>).</p>
+  </header>
+  {% if errors %}{% call ui.alert("danger", title="Can't save") %}{{ errors | join(" ") }}{% endcall %}{% endif %}
+  <div class="report-source">
+    <form method="post" class="report-source__edit ui-stack">
+      <textarea class="ui-input report-source__text" name="source" spellcheck="false"
+                {% if frozen %}readonly{% endif %}
+                hx-post="{{ url_for('reports.preview', report_id=report.id) }}" hx-trigger="input changed delay:400ms"
+                hx-target="#preview" hx-swap="outerHTML">{{ text }}</textarea>
+      {% if not frozen %}
+      <div class="ui-toolbar">
+        {{ ui.button("Save", variant="primary", type="submit") }}
+        {{ ui.button("Cancel", href=url_for('reports.report', report_id=report.id)) }}
+      </div>
+      {% else %}
+      <p class="ui-text-caption">The report is frozen: reopen it to change its document.</p>
+      {% endif %}
+    </form>
+    {% include "reports/partials/preview.html" %}
+  </div>
+</div>
+{% endblock %}

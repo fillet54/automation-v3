@@ -26,6 +26,10 @@ class Hooks:
     def verdict(self, state):
         return None
 
+    def block_attributes(self, node):
+        """Extra attributes for a live data block (see core.resolve)"""
+        return ""
+
     def summary_icon(self):
         return ""
 
@@ -49,6 +53,10 @@ class LiveTranslator(HTMLTranslator):
     hooks = Hooks()
 
     def visit_container(self, node):
+        if "data-block" in node["classes"]:
+            self.body.append(f'<div class="data-block" id="block-{node["serial"]}"'
+                             f'{self.hooks.block_attributes(node)}>')
+            return
         if "collapsible" in node["classes"]:
             classes = " ".join(node["classes"])
             self.body.append(f'<details class="{classes}"{" open" if opens(node) else ""}>')
@@ -58,6 +66,9 @@ class LiveTranslator(HTMLTranslator):
         super().visit_container(node)
 
     def depart_container(self, node):
+        if "data-block" in node["classes"]:
+            self.body.append("</div>\n")
+            return
         if "collapsible" in node["classes"]:
             self.body.append("</details>\n")
         else:
