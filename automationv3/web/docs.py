@@ -31,11 +31,12 @@ def serve(filename):
     return in_shell(Path(path).read_text(encoding="utf-8"))
 
 
-def in_shell(page):
-    """`page` (HTML) with its marked regions filled with the site's shell"""
+def in_shell(page, template="docs_shell.html", **values):
+    """`page` (HTML) with its marked regions filled with the site's shell
+    (`template`, rendered for each region with `values`)"""
     for region in REGIONS:
         pattern = re.compile(rf"<!--ui:{region}-->.*?<!--/ui:{region}-->", re.DOTALL)
-        shell = render_template("docs_shell.html", region=region)
+        shell = render_template(template, region=region, **values)
         page = pattern.sub(lambda _: shell, page, count=1)
     config = current_app.config
     if config["UI_THEME"] in ("light", "dark"):

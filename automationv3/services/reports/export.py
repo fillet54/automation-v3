@@ -1,19 +1,19 @@
-"""A report as a formal document: a PDF and the bundle it describes
+"""A report as a formal document: a static site, a PDF, and the bundle
 
-Exporting a report freezes it (no more runs go into it until it is
-reopened) and writes report-<id>.zip::
+Freezing a report makes its data read-only and builds its site and PDF
+with Sphinx (see build.py and documents/sphinx.py); a frozen report serves
+its site. Exporting writes report-<id>.zip (see `bundle`)::
 
     report-<id>/
       report-<id>/      the report folder, as the store keeps it, holding
                         the document's source (report.rst) and its
                         template (template/)
       MANIFEST.sha256   a SHA-256 for every file in the report folder
-      report.tex        the whole document, for LaTeX
-      report.pdf
+      report.pdf, report.tex
+      site/             the static site
 
 The PDF prints the manifest's own SHA-256, so the bundle can be checked
-against the document. The manifest leaves out the files generated from
-it (report.tex and the PDF).
+against the document. The manifest leaves out what is built from it.
 
 The document is the template's front matter (title page, contents,
 signatures, applicable and reference documents) and then report.rst: its
@@ -31,9 +31,9 @@ report.json under "document"::
                     "number", "revision", "title"}]}
 
 A template is a folder holding template.json (company, marking,
-document_type and the signature roles), document.tex (a Jinja template,
-see the built-in one), report.rst (the document a new report starts
-from), optionally snippets/ (overriding the built-in ones, see
+document_type and the signature roles), latex.tex_t (Sphinx's LaTeX
+template, with the title page; see the built-in one), report.rst (the
+document a new report starts from), optionally snippets/ (overriding the built-in ones, see
 documents/template.py) and the files they include, such as logo.pdf. A
 workspace keeps its own in a report/ folder beside its rvts/ folder;
 without one, the built-in template is used. A report copies its
@@ -44,13 +44,11 @@ import hashlib
 import json
 import shutil
 import subprocess
-import tempfile
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import quote
 
-import jinja2
 from docutils import nodes
 
 from ...documents import core
@@ -212,14 +210,6 @@ class ServerLinks(Links):
 
 # The document
 
-LATEX = {
-    "table_style": ["booktabs"],
-    "use_latex_toc": True,
-    "legacy_column_widths": False,
-    "use_latex_citations": True,
-}
-
-
 def problems(document):
     """The parse and resolve problems in a resolved document"""
     return [m.astext() for m in document.findall(nodes.system_message) if m["level"] >= 2]
@@ -230,17 +220,7 @@ def render_document(context, text):
     return core.resolved(core.parse(text, source_path=SOURCE), context)
 
 
-def document_latex(context, text):
-    """docutils' LaTeX parts for a report document; ExportError if its
-    source has problems"""
-    document = render_document(context, text)
-    found = problems(document)
-    if found:
-        raise ExportError("The document has problems: " + "; ".join(found))
-    return core.write(document, "latex", LATEX)
-
-
-# The whole document, as LaTeX
+# Values for the PDF's template (latex.tex_t), escaped for LaTeX
 
 LATEX_SPECIAL = {
     "\\": r"\textbackslash{}", "{": r"\{", "}": r"\}", "$": r"\$", "&": r"\&",
@@ -260,65 +240,12 @@ def numbered(documents, kind, prefix):
             for n, d in enumerate(of_kind, 1)]
 
 
-def render_tex(data, template, body, manifest_hash, exported):
-    settings = template_settings(template)
-    document = data.document
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(template)),
-        block_start_string="((*", block_end_string="*))",
-        variable_start_string="(((", variable_end_string=")))",
-        comment_start_string="((#", comment_end_string="#))",
-        trim_blocks=True, lstrip_blocks=True, autoescape=False,
-        undefined=jinja2.StrictUndefined, keep_trailing_newline=True,
-    )
-    names = document["signatures"]
-    roles = list(settings["roles"]) + [r for r in names if r not in settings["roles"]]
-    return env.get_template("document.tex").render(
-        company=latex(settings.get("company", "")),
-        marking=latex(settings.get("marking", "")),
-        document_type=latex(settings.get("document_type", "Test Report")),
-        title=latex(document["title"]),
-        number=latex(document["number"] or "-"),
-        revision=latex(document["revision"] or "-"),
-        author=latex(document["author"]),
-        date=latex(exported[:10]),
-        report_id=latex(data.id),
-        manifest_hash=latex(manifest_hash),
-        signatures=[(latex(role), latex(names.get(role, ""))) for role in roles],
-        applicable=numbered(document["documents"], "applicable", "AD"),
-        reference=numbered(document["documents"], "reference", "RD"),
-        body=body["body"],
-        requirements=body["requirements"],
-        fallbacks=body["fallbacks"],
-        pdfsetup=body["pdfsetup"],
-    )
-
-
-# The bundle
-
 def sha256(path):
     digest = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def manifest(folder, names):
-    """MANIFEST.sha256 text for every file under `folder`/name, by
-    relative path"""
-    lines = []
-    for name in names:
-        for path in sorted((folder / name).rglob("*")):
-            if path.is_file():
-                lines.append(f"{sha256(path)}  {path.relative_to(folder).as_posix()}")
-    return "\n".join(lines) + "\n"
-
-
-def copy_report(root, report_id, dest):
-    shutil.copytree(store.report_dir(root, report_id), dest,
-                    ignore=lambda folder, names: [EXPORTS] if Path(folder) ==
-                    store.report_dir(root, report_id) else [])
 
 
 def build_pdf(folder):
@@ -338,88 +265,95 @@ def build_pdf(folder):
                           + ("; ".join(errors[:5]) or result.stdout[-500:]))
 
 
-def bundle(root, report_id, template, out_dir, base_url=""):
-    """Write report-<id>.zip into `out_dir`; returns its path"""
-    exported = store.now_iso()
-    with tempfile.TemporaryDirectory() as tmp:
-        work = Path(tmp)
-        report_name = f"report-{report_id}"
-        folder = work / report_name
-        copy_report(root, report_id, folder)
-        text = source(root, report_id)
-        (folder / SOURCE).write_text(text)
-        if Path(template).resolve() != (folder / TEMPLATE).resolve():
-            shutil.rmtree(folder / TEMPLATE, ignore_errors=True)
-            shutil.copytree(template, folder / TEMPLATE)  # what it is rendered with
-        manifest_text = manifest(work, [report_name])
-        (work / "MANIFEST.sha256").write_text(manifest_text)
-        manifest_hash = hashlib.sha256(manifest_text.encode()).hexdigest()
-
-        found = context(work, report_name, links=ServerLinks(base_url),
-                        exported=exported, manifest_hash=manifest_hash)
-        tex = render_tex(found.data, template, document_latex(found, text),
-                         manifest_hash, exported)
-        build = work / "build"
-        shutil.copytree(template, build)
-        (build / "report.tex").write_text(tex)
-        build_pdf(build)
-        (work / "report.tex").write_text(tex)
-        shutil.copy(build / "report.pdf", work / "report.pdf")
-
-        out_dir = Path(out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        target = out_dir / f"{report_name}.zip"
-        partial = target.with_suffix(".zip.tmp")
-        with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as zf:
-            for name in ["report.pdf", "MANIFEST.sha256", "report.tex"]:
-                zf.write(work / name, f"{report_name}/{name}")
-            for path in sorted(folder.rglob("*")):
-                if path.is_file():
-                    zf.write(path, f"{report_name}/{path.relative_to(work).as_posix()}")
-        partial.replace(target)
-    return target
-
+# Freezing, and the bundle
 
 def unfinished(root, report_id):
     return [r for r in store.list_runs(root, report_id) if r.get("outcome") is None]
 
 
-def export(root, report_id, out_dir=None, template=None, snapshots=None, base_url=""):
-    """Freeze the report and write its bundle; returns the zip's path.
-    `out_dir` defaults to the report's exports/ folder. `snapshots` (see
-    jobs.requirement_snapshots) fill in requirements the report tracked
-    before the database knew them. `template` overrides the report's own;
-    `base_url` is the server's, for links to its requirement pages.
+def freeze(root, report_id, snapshots=None, base_url="", template=None, wait=False):
+    """Freeze the report and build its site and PDF (see build.py): in the
+    background, or with `wait`, before returning its status. `snapshots`
+    (see jobs.requirement_snapshots) fill in requirements the report
+    tracked before the database knew them; `template` replaces the
+    report's own; `base_url` is the server's, for links to its
+    requirement pages.
 
-    Raises ExportError, leaving the report as it was, if a run hasn't
-    finished or the PDF can't be made."""
+    Raises ExportError, leaving the report as it was, if it can't be
+    frozen. A build that fails leaves it frozen, with the error in its
+    status, to rebuild once fixed."""
+    from . import build
     report = store.load_report(root, report_id)
     if report is None:
         raise ExportError(f"No report {report_id} in {root}")
     waiting = unfinished(root, report_id)
     if waiting:
         raise ExportError(f"{len(waiting)} runs haven't finished: wait for them, "
-                          "or remove them, before exporting")
-    template = Path(template or report_template(root, report_id))
-    if not (template / "template.json").is_file():
-        raise ExportError(f"{template} isn't a report template: it has no template.json")
-    was_frozen, kept = store.is_frozen(report), report.get("requirement_snapshots") or {}
+                          "or remove them, before freezing")
+    if template is not None:
+        if not (Path(template) / "template.json").is_file():
+            raise ExportError(f"{template} isn't a report template: it has no template.json")
+        install_template(root, report_id, template, with_source=False)
+    kept = report.get("requirement_snapshots") or {}
     added = {k: v for k, v in (snapshots or {}).items()
              if k in report.get("requirements", {}) and k not in kept}
-    store.update_report(root, report_id, frozen=True,
-                        requirement_snapshots={**kept, **added})
-    try:
-        return bundle(root, report_id, template,
-                      out_dir or store.report_dir(root, report_id) / EXPORTS, base_url)
-    except Exception:
-        store.update_report(root, report_id, frozen=was_frozen, requirement_snapshots=kept)
-        raise
+    store.update_report(root, report_id, frozen=True, requirement_snapshots={**kept, **added})
+    build.clear(root, report_id)
+    if wait:
+        return build.build(root, report_id, base_url)
+    build.start(root, report_id, base_url)
+    return build.status(root, report_id)
+
+
+def bundle(root, report_id, out_dir):
+    """report-<id>.zip of a built report in `out_dir`; returns its path::
+
+        report-<id>/
+          report-<id>/      the report folder: data, document and template
+          MANIFEST.sha256   a SHA-256 for every file of the report folder
+          report.pdf, report.tex
+          site/             the static site
+    """
+    from . import build
+    found = build.status(root, report_id) or {}
+    if found.get("state") != "done":
+        raise ExportError("The report hasn't been built: freeze it, and wait for its build"
+                          + (f" (it failed: {found['error']})" if found.get("error") else ""))
+    folder, built = store.report_dir(root, report_id), build.build_dir(root, report_id)
+    name = f"report-{report_id}"
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / f"{name}.zip"
+    partial = target.with_suffix(".zip.tmp")
+    with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as zf:
+        for item in ("MANIFEST.sha256", "report.pdf", "report.tex"):
+            zf.write(built / item, f"{name}/{item}")
+        for path in build.files(root, report_id):
+            zf.write(path, f"{name}/{name}/{path.relative_to(folder).as_posix()}")
+        for path in sorted((built / "site").rglob("*")):
+            if path.is_file():
+                zf.write(path, f"{name}/site/{path.relative_to(built / 'site').as_posix()}")
+    partial.replace(target)
+    return target
+
+
+def export(root, report_id, out_dir=None, template=None, snapshots=None, base_url=""):
+    """Freeze the report, build it (waiting) and write its bundle; returns
+    the zip's path. `out_dir` defaults to the report's exports/ folder.
+    Raises ExportError if it can't be frozen (leaving it as it was) or
+    the build fails (leaving it frozen)."""
+    found = freeze(root, report_id, snapshots, base_url, template, wait=True)
+    if found["state"] != "done":
+        raise ExportError(found.get("error") or "The build failed")
+    return bundle(root, report_id, out_dir or store.report_dir(root, report_id) / EXPORTS)
 
 
 def reopen(root, report_id):
+    from . import build
     if store.load_report(root, report_id) is None:
         raise ExportError(f"No report {report_id} in {root}")
     store.set_frozen(root, report_id, False)
+    build.clear(root, report_id)
 
 
 def exports(root, report_id):

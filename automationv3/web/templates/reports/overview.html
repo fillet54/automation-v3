@@ -4,6 +4,7 @@
 {% extends "reports/page.html" %}
 
 {% block page %}
+{% if report.frozen and build %}{% include "reports/partials/build.html" %}{% endif %}
 {% if not rows and not report.additions %}
 {{ ui.empty("Nothing added yet. Add requirements to run every test linked to them, or add a single test.") }}
 {% endif %}

@@ -25,6 +25,7 @@ setuptools.setup(
         "docopt",
         "requests",
         "pygments",
+        "sphinx",  # a frozen report's site and PDF
     ],
     extras_require={
         "docs": ["sphinx"],

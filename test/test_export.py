@@ -13,8 +13,8 @@ from pathlib import Path
 from automationv3 import cli
 from automationv3.framework.requirement import Requirement
 from automationv3.services import jobs as models
-from automationv3.documents import template
-from automationv3.services.reports import export, store
+from automationv3.documents import core, template
+from automationv3.services.reports import build, export, store
 from automationv3.services.reports.data import ReportData
 from automationv3.services.requirements import models as requirement_models
 from automationv3.services.worker import Host
@@ -61,9 +61,13 @@ class ReportTestCase(unittest.TestCase):
 
 
 def body(root, report_id, text=None, **extra):
-    """The LaTeX body of a report's document (its own report.rst, or `text`)"""
+    """The HTML of a report's document (its own report.rst, or `text`);
+    ExportError if it has problems"""
     context = export.context(root, report_id, **extra)
-    return export.document_latex(context, text or export.source(root, report_id))["body"]
+    document = export.render_document(context, text or export.source(root, report_id))
+    if export.problems(document):
+        raise export.ExportError("; ".join(export.problems(document)))
+    return core.write(document, "html5")["body"]
 
 
 class TestDocument(ReportTestCase):
@@ -82,12 +86,12 @@ class TestDocument(ReportTestCase):
         self.assertTrue(failed["failure"]["message"])
 
     def test_the_default_document_has_every_section_and_renders_cleanly(self):
-        latex = body(self.root, self.report_id)
+        html = body(self.root, self.report_id)
         for heading in ("Identification", "Summary", "Open issues", "Requirements",
                         "Results", "Failures", "Bundle"):
-            self.assertIn("{" + heading, latex)
-        self.assertIn("The brakes shall hold.", latex)
-        self.assertIn(r"\emph{text not recorded}", latex)  # REQ-2 has no text
+            self.assertIn(f">{heading}</h", html)
+        self.assertIn("The brakes shall hold.", html)
+        self.assertIn("<em>text not recorded</em>", html)  # REQ-2 has no text
 
     def test_the_directives_stay_in_the_source(self):
         source = export.source(self.root, self.report_id)
@@ -95,52 +99,53 @@ class TestDocument(ReportTestCase):
         self.assertNotIn("list-table", source)
 
     def test_runs_are_named_by_their_whole_id(self):
-        latex = body(self.root, self.report_id)
+        html = body(self.root, self.report_id)
         for run in store.list_runs(self.root, self.report_id):
-            self.assertIn(run["id"], latex)
+            self.assertIn(run["id"], html)
 
     def test_an_empty_report_renders(self):
         report_id = models.create_report(self.root, "", "Empty")
         self.assertIn("None", body(self.root, report_id))
 
     def test_prose_and_report_values_mix(self):
-        latex = body(self.root, self.report_id,
-                     "Covers :report:`requirements` requirements, "
-                     ":report:`requirements.green` green, on demo :report:`uut.demo`.\n")
-        self.assertIn("Covers 2 requirements, 1 green, on demo 1.0.0.", latex)
+        html = body(self.root, self.report_id,
+                    "Covers :report:`requirements` requirements, "
+                    ":report:`requirements.green` green, on demo :report:`uut.demo`.\n")
+        self.assertIn("Covers 2 requirements, 1 green, on demo 1.0.0.", html)
 
     def test_directive_options_filter(self):
-        latex = body(self.root, self.report_id, ".. results::\n   :state: fail\n")
-        self.assertIn("tc\\_bra\\_00003", latex)
-        self.assertNotIn("tc\\_bra\\_00004", latex)
+        html = body(self.root, self.report_id, ".. results::\n   :state: fail\n")
+        self.assertIn("tc_bra_00003", html)
+        self.assertNotIn("tc_bra_00004", html)
 
     def test_a_problem_in_the_source_stops_the_document(self):
-        with self.assertRaisesRegex(export.ExportError, "no-such-directive"):
+        with self.assertRaisesRegex(export.ExportError, "no-such-directive"):  # unknown
             body(self.root, self.report_id, ".. no-such-directive::\n")
 
     def test_requirements_link_to_the_server_as_tested(self):
         export.store.update_report(self.root, self.report_id, requirement_snapshots={
             "REQ-1": {"text": "The brakes shall hold.", "spec": "SRS",
                       "context": "set:Release 1"}})
-        latex = body(self.root, self.report_id, ".. requirement-results::\n",
-                     links=export.ServerLinks("http://server:8000/"))
-        self.assertIn(r"http://server:8000/requirements/spec/set\%3ARelease\%201/SRS/?req=REQ-1",
-                      latex)
+        html = body(self.root, self.report_id, ".. requirement-results::\n",
+                    links=export.ServerLinks("http://server:8000/"))
+        self.assertIn("http://server:8000/requirements/spec/set%3ARelease%201/SRS/?req=REQ-1",
+                      html)
 
     def test_text_is_never_markup(self):
         rst = template.text("*bold* `x` |sub| 1. not a list")
-        latex = body(self.root, self.report_id, rst)
-        self.assertEqual(latex.count(r"\textbf"), 0)
-        self.assertIn("*bold*", latex)
+        html = body(self.root, self.report_id, rst)
+        self.assertEqual(html.count("<strong>"), 0)
+        self.assertIn("*bold*", html)
 
     def test_text_that_could_open_a_block_stays_a_paragraph(self):
         for value in ["- x", "1. x", ":x: y", "..", "===", "see::", "tc_bra_ x"]:
-            latex = body(self.root, self.report_id, template.text(value))
-            self.assertNotIn(r"\begin", latex, value)
+            html = body(self.root, self.report_id, template.text(value)).strip()
+            self.assertRegex(html, r"\A<p>[^<]*</p>\Z", value)  # one plain paragraph
         self.assertEqual(template.text("BRA/tc_bra_00004.rst"), "BRA/tc_bra_00004.rst")
 
     def test_verdicts_carry_a_class_each_output_can_style(self):
-        self.assertIn(r"\DUrole{fail}{fail}", body(self.root, self.report_id))
+        self.assertIn('<span class="verdict-fail"><strong>fail</strong></span>',
+                      body(self.root, self.report_id))
 
     def test_a_requirement_is_its_own_rst_when_it_stands_alone(self):
         self.assertIn(".. container:: requirement",
@@ -201,6 +206,24 @@ class TestDocument(ReportTestCase):
 
 @unittest.skipUnless(HAS_LATEX, "needs latexmk")
 class TestExport(ReportTestCase):
+    def test_the_site_is_the_document_and_a_page_per_run(self):
+        export.export(self.root, self.report_id, out_dir=self.tmp / "out")
+        site = build.site(self.root, self.report_id)
+        index = (site / "index.html").read_text()
+        self.assertIn("<!--ui:top-->", index)  # the app fills its shell when it serves it
+        runs = store.list_runs(self.root, self.report_id)
+        for run in runs:
+            self.assertTrue((site / "runs" / f"{run['id']}.html").is_file())
+            self.assertIn(f'href="runs/{run["id"]}.html"', index)  # results link their runs
+        page = (site / "runs" / f"{runs[-1]['id']}.html").read_text()
+        self.assertIn("Outcome", page)  # the run's summary, then its script with results
+        self.assertIn('class="result fail', page)
+        self.assertNotIn("automation-run:", index)  # every marker rewritten
+        status = build.status(self.root, self.report_id)
+        self.assertEqual(status["state"], "done")
+        self.assertIn(status["manifest_hash"],
+                      (build.build_dir(self.root, self.report_id) / "report.tex").read_text())
+
     def test_the_bundle_holds_the_report_and_a_manifest_the_pdf_names(self):
         export.set_document(self.root, self.report_id, title="Brakes", number="TR-1",
                             revision="A", author="Me",
@@ -255,16 +278,18 @@ class TestExportRefusals(ReportTestCase):
         self.assertFalse(store.is_frozen(self.report()))
         self.assertNotIn("REQ-2", self.report()["requirement_snapshots"])
 
-    def test_bad_latex_is_reported_and_unfreezes(self):
+    def test_bad_latex_is_reported_and_the_build_can_be_redone(self):
         if not HAS_LATEX:
             self.skipTest("needs latexmk")
         template = self.tmp / "template"
         shutil.copytree(export.BUILTIN_TEMPLATE, template)
-        (template / "document.tex").write_text(r"\documentclass{article}\begin{document}\oops")
+        (template / "latex.tex_t").write_text(r"\documentclass{article}\begin{document}\oops")
         with self.assertRaises(export.ExportError) as e:
             export.export(self.root, self.report_id, template=template)
         self.assertIn("LaTeX", str(e.exception))
-        self.assertFalse(store.is_frozen(self.report()))
+        # it stays frozen, its build failed: fix and rebuild
+        self.assertTrue(store.is_frozen(self.report()))
+        self.assertEqual(build.status(self.root, self.report_id)["state"], "failed")
 
     def test_unfinished_runs_refuse_an_export(self):
         run = store.list_runs(self.root, self.report_id)[0]
@@ -364,7 +389,7 @@ class TestWeb(unittest.TestCase):
         self.root = self.tmp / "reports"
         self.root.mkdir()
         app = create_app(DB_PATH=self.tmp / "test.db", REPORTS_PATH=self.root,
-                         WORKSPACE_PATH=gitdir, TESTING=True)
+                         WORKSPACE_PATH=gitdir, TESTING=True, BUILD_WAIT=True)
         from automationv3.services.database import connect, init_db
         with connect(self.tmp / "test.db") as conn:
             init_db(conn)
@@ -388,23 +413,36 @@ class TestWeb(unittest.TestCase):
         self.assertEqual(document["documents"][0]["number"], "SRS-1")
         page = self.http.get(f"/reports/{self.report_id}")
         self.assertIn(b"Brakes", page.data)
-        self.assertIn(b"Freeze &amp; export", page.data)
+        self.assertIn(b">Freeze</button>", page.data)
 
     @unittest.skipUnless(HAS_LATEX, "needs latexmk")
     def test_freeze_export_download_and_reopen(self):
-        response = self.http.post(f"/reports/{self.report_id}/export")
+        base = f"/reports/{self.report_id}"
+        response = self.http.post(f"{base}/export")
         self.assertEqual(response.status_code, 302)
-        page = self.http.get(f"/reports/{self.report_id}")
-        self.assertIn(b"Frozen", page.data)
-        self.assertNotIn(b"Add a test", page.data)
+        # frozen and built: the report is its site, in the app's shell
+        self.assertEqual(self.http.get(base).headers["Location"], f"{base}/site/")
+        site = self.http.get(f"{base}/site/").get_data(True)
+        self.assertIn("Frozen", site)
+        self.assertIn('class="ui-header"', site)
+        self.assertIn(f'action="{base}/reopen"', site)
+        self.assertNotIn("Add a test", site)
+        self.assertEqual(self.http.get(f"{base}/site/_static/ui.css").status_code, 200)
+        pdf = self.http.get(f"{base}/report.pdf")
+        self.assertEqual((pdf.status_code, pdf.data[:4]), (200, b"%PDF"))
+        pdf.close()
+        bundle = self.http.post(f"{base}/bundle")
+        self.assertEqual(bundle.status_code, 200)
+        bundle.close()
         name = f"report-{self.report_id}.zip"
-        download = self.http.get(f"/reports/{self.report_id}/exports/{name}")
+        download = self.http.get(f"{base}/exports/{name}")
         self.assertEqual(download.status_code, 200)
         download.close()
-        self.assertEqual(self.http.get(f"/reports/{self.report_id}/document").status_code, 302)
+        self.assertEqual(self.http.get(f"{base}/document").status_code, 302)
 
-        self.http.post(f"/reports/{self.report_id}/reopen")
+        self.http.post(f"{base}/reopen")
         self.assertFalse(store.is_frozen(store.load_report(self.root, self.report_id)))
+        self.assertIsNone(build.status(self.root, self.report_id))  # its build is gone
 
     def test_an_export_that_cant_run_says_why(self):
         run_id = store.create_run(self.root, self.report_id, "a.rst", {"a.rst": PASSING})

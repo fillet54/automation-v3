@@ -108,9 +108,11 @@ def role(name, value):
 
 
 def verdict_role(name, rawtext, text, lineno, inliner, options=None, content=None):
-    """:verdict:`fail`: a state, classed so every output can style it"""
+    """:verdict:`fail`: a state, in bold, classed ``verdict-fail`` so every
+    output can style it (\\DUrole{verdict-fail} in LaTeX)"""
     state = utils.unescape(text)
-    return [nodes.strong(rawtext, state, classes=["verdict", state.replace(" ", "-")])], []
+    return [nodes.inline(rawtext, "", nodes.strong(state, state),
+                         classes=[f"verdict-{state.replace(' ', '-')}"], verdict=state)], []
 
 
 roles.register_local_role("verdict", verdict_role)
@@ -134,9 +136,11 @@ def context_of(document):
     if found is not None:
         return found
     env = getattr(document.settings, "env", None)
-    if env is not None:
-        from .sphinx import build_context
-        return build_context(env)
+    if env is not None and "automation_root" in env.config:
+        from .sphinx import build_context, run_context
+        context = build_context(env)
+        run = document.get("automation_run")
+        return run_context(context, run) if run else context
     return None
 
 

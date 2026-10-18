@@ -1,24 +1,28 @@
 """Report and run pages, rendered from the filesystem store"""
 
+from dataclasses import asdict
+from pathlib import Path
+
 from flask import (
     Blueprint,
     abort,
     current_app,
     redirect,
     render_template,
-    send_file,
     request,
+    send_file,
+    send_from_directory,
     url_for,
 )
-
-from dataclasses import asdict
+from werkzeug.security import safe_join
 
 from ..framework.uut import uut_types
 from ..services import jobs as models
-from ..services.reports import export, rollup, store
+from ..services.reports import build, export, rollup, store
 from ..services.workspace import find_worktrees
 from .db import get_db
 from . import documents, report_view
+from .docs import in_shell
 
 reports = Blueprint("reports", __name__)
 
@@ -156,8 +160,13 @@ PAGES = ("overview", "runs", "values", "history")
 
 @reports.route("/<report_id>", methods=["GET"])
 def report(report_id):
+    """The report's document: live, or once frozen and built, its site"""
     if report_id == models.SCRATCH:
         return redirect(url_for("scratch.index"))
+    report = store.load_report(root(), report_id) or abort(404)
+    if store.is_frozen(report) and build.site(root(), report_id) is not None and \
+            (build.status(root(), report_id) or {}).get("state") == "done":
+        return redirect(url_for("reports.site", report_id=report_id))
     return render_page(report_id, "overview")
 
 
@@ -197,6 +206,9 @@ def render_page(report_id, page, errors=(), status=200):
         errors=list(errors),
         connectors=None,
         text_changed=text_changed(report),
+        build=build.status(root(), report_id),
+        report_id=report_id,
+        log=build_log(report_id),
     )
     if page == "overview":
         live = report_context(report, context["in_progress"],
@@ -357,20 +369,87 @@ def document(report_id):
 
 @reports.route("/<report_id>/export", methods=["POST"])
 def export_report(report_id):
-    """Freeze the report and write its PDF and bundle"""
+    """Freeze the report: its site and PDF build in the background"""
     report = store.load_report(root(), report_id) or abort(404)
     try:
-        export.export(root(), report_id, base_url=server_url(),
+        # BUILD_WAIT builds before answering (tests); else in the background
+        export.freeze(root(), report_id, base_url=server_url(),
                       snapshots=models.requirement_snapshots(
                           get_db(), report.get("requirements", {}),
-                          report.get("requirement_context")))
+                          report.get("requirement_context")),
+                      wait=bool(current_app.config.get("BUILD_WAIT")))
     except export.ExportError as e:
         return render_page(report_id, "overview", [str(e)], 409)
     return redirect(url_for("reports.report", report_id=report_id))
 
 
+@reports.route("/<report_id>/rebuild", methods=["POST"])
+def rebuild(report_id):
+    """Build a frozen report's site and PDF again (after a failed build)"""
+    report = store.load_report(root(), report_id) or abort(404)
+    if not store.is_frozen(report):
+        abort(409)
+    build.start(root(), report_id, server_url())
+    return redirect(url_for("reports.report", report_id=report_id))
+
+
+@reports.route("/<report_id>/bundle", methods=["POST"])
+def make_bundle(report_id):
+    """Write the frozen report's bundle (report-<id>.zip), and download it"""
+    store.load_report(root(), report_id) or abort(404)
+    try:
+        path = export.bundle(root(), report_id,
+                             store.report_dir(root(), report_id) / export.EXPORTS)
+    except export.ExportError as e:
+        return render_page(report_id, "overview", [str(e)], 409)
+    return send_file(path, as_attachment=True)
+
+
+@reports.route("/<report_id>/report.pdf", methods=["GET"])
+def pdf(report_id):
+    """The frozen report's PDF"""
+    found = build.build_dir(root(), report_id) / "report.pdf"
+    return send_file(found) if found.is_file() else abort(404)
+
+
+@reports.route("/<report_id>/build", methods=["GET"])
+def build_status(report_id):
+    """A frozen report's build, as it stands: a banner, refreshing itself
+    while it builds; once built, the page reloads into the site"""
+    store.load_report(root(), report_id) or abort(404)
+    found = build.status(root(), report_id) or {}
+    response = render_template("reports/partials/build.html", report_id=report_id,
+                               build=found, log=build_log(report_id))
+    if found.get("state") == "done":
+        return response, 200, {"HX-Redirect": url_for("reports.report", report_id=report_id)}
+    return response
+
+
+def build_log(report_id):
+    path = build.build_dir(root(), report_id) / "log.txt"
+    return path.read_text(errors="replace")[-4000:] if path.is_file() else ""
+
+
+@reports.route("/<report_id>/site/", defaults={"filename": "index.html"}, methods=["GET"])
+@reports.route("/<report_id>/site/<path:filename>", methods=["GET"])
+def site(report_id, filename):
+    """The frozen report's site: its pages in the app's shell, with the
+    report's actions; everything else as it is"""
+    report = store.load_report(root(), report_id) or abort(404)
+    folder = build.site(root(), report_id)
+    if folder is None:
+        return redirect(url_for("reports.report", report_id=report_id))
+    if not filename.endswith(".html"):
+        return send_from_directory(folder, filename)
+    path = safe_join(str(folder), filename)
+    if path is None or not Path(path).is_file():
+        abort(404)
+    return in_shell(Path(path).read_text(encoding="utf-8"), "reports/site_shell.html",
+                    report=report, bundles=[p.name for p in export.exports(root(), report_id)])
+
+
 @reports.route("/<report_id>/reopen", methods=["POST"])
-def reopen(report_id):
+def reopen(report_id):  # its build goes too: it no longer describes the report
     store.load_report(root(), report_id) or abort(404)
     export.reopen(root(), report_id)
     return redirect(url_for("reports.report", report_id=report_id))

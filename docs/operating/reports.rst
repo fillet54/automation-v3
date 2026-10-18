@@ -203,31 +203,43 @@ Earlier runs of the same combination are kept and listed with the latest.
 Issuing a report
 ----------------
 
-When a report has to be handed over as a formal document, export it. An
-export **freezes** the report and writes ``report-<id>.zip``:
+When a report has to be handed over as a formal document, **Freeze** it.
+Freezing needs every run to have finished. The report takes no more runs, and
+its site and PDF are built with Sphinx in the background; the report's page
+says so while they build, and then opens the site. A frozen report *is* its
+site: the document as it was frozen and a page per run, served with a bar
+for its actions:
 
-``report.pdf``
-   The document: a title page, contents, a signature page, the applicable
-   and reference documents, then the report itself (identification, a
-   summary, open issues, every requirement with its text and verdict, and
-   one line per combination). Only failures are spelled out, with the step
-   that failed and why.
+**PDF**
+   The document: a title page, contents, a signature page, the applicable and
+   reference documents, then the report's document, with each failing run's
+   document as an appendix.
 
-``report-<id>/``
-   The report folder as it is kept: ``report.json``, and for each run the
-   files it executed, every event it recorded and the files attached to it.
+**Bundle**
+   Writes and downloads ``report-<id>.zip``:
 
-``template/``
-   The document template the PDF was made with.
+   ``report-<id>/``
+      The report folder as it is kept: ``report.json``, the document's source
+      ``report.rst`` and its ``template/``, and for each run the files it
+      executed, every event it recorded and the files attached to it.
 
-``MANIFEST.sha256``
-   A SHA-256 for every file in the two folders above. The PDF prints the
-   manifest's own SHA-256, on its title page and under Identification, so
-   anyone can check the bundle is the one the document describes.
+   ``MANIFEST.sha256``
+      A SHA-256 for every file in the report folder. The PDF prints the
+      manifest's own SHA-256, on its title page and under Identification, so
+      anyone can check the bundle is the one the document describes.
 
-``report.tex``
-   The whole document as LaTeX, to rebuild the PDF. Its source,
-   ``report.rst``, is in the report folder with the data it reads.
+   ``report.pdf``, ``report.tex``
+      The PDF, and the LaTeX it was made from.
+
+   ``site/``
+      The static site: open ``site/index.html`` in a browser, no server needed.
+
+**Reopen**
+   Takes runs again, and drops the site and PDF: they no longer describe the
+   report until it is frozen again.
+
+If the build fails (a broken template, say), the report stays frozen and its
+page shows why and the build's log, with **Rebuild**.
 
 Before exporting, fill in the document's fields (on the Document page, under
 **Document fields**, **Edit…**): its number, revision and author, who signs for each role
@@ -241,17 +253,14 @@ against. The document's title is the report's name.
 
    stateDiagram-v2
      [*] --> open: New report
-     open --> frozen: Freeze & export, every run finished
+     open --> frozen: Freeze, every run finished
      frozen --> open: Reopen
      open: Open, takes additions and reruns
-     frozen: Frozen, exported as report-ID.zip
+     frozen: Frozen, its site and PDF built, exported as report-ID.zip
 
-**Freeze & export** needs every run to have finished. A frozen report takes
-no more runs: its add buttons and **Rerun** are gone, and the report can't
-be picked as a target. Its **Download** button gets the bundle. If a problem
-turns up, **Reopen** it, fix what's wrong, and export again; only whether a
-report is frozen is kept, not a history of freezes, so the manifest's SHA-256
-is what tells two exports apart.
+A frozen report can't be picked as a target, and **Rerun** is gone from its
+runs. Only whether a report is frozen is kept, not a history of freezes, so
+the manifest's SHA-256 is what tells two exports apart.
 
 The same works without the server, on a report folder:
 
@@ -263,7 +272,9 @@ The same works without the server, on a report folder:
    $ automation-v3 report export reports/<id> --out issued/
    $ automation-v3 report reopen reports/<id>
 
-Making the PDF needs a TeX distribution with ``latexmk`` (e.g. TeX Live).
+``report export`` freezes, builds (waiting for it) and writes the bundle.
+Building needs Sphinx, and the PDF a TeX distribution with ``latexmk`` (e.g.
+TeX Live), on the server's host.
 
 The document template
 ~~~~~~~~~~~~~~~~~~~~~
@@ -277,11 +288,12 @@ used. Start from the built-in one, in
    The company name, the marking printed in every footer, the document type
    on the title page, and the signature page's roles.
 
-``document.tex``
-   The LaTeX document, as a Jinja template written with ``((( value )))``
-   and ``((* statement *))`` so it doesn't clash with LaTeX's braces. It
-   lays out the title page, headers and footers, signature page and
-   documents table, and places the report's body.
+``latex.tex_t``
+   The PDF's LaTeX: Sphinx's LaTeX template (written with ``<%= value %>`` and
+   ``<% statement %>``), with the title page, headers and footers, signature
+   page and documents table, and how the document's marked parts look. The
+   report's values are ``automation.title``, ``automation.number`` and so on
+   (see the built-in one).
 
 ``report.rst``
    The document a new report starts from: prose, and directives where the
@@ -291,16 +303,17 @@ used. Start from the built-in one, in
    Snippets overriding the built-in ones, to change how a directive writes
    its part of the document.
 
-``logo.pdf``, and any other file ``document.tex`` includes.
+``logo.pdf``, and any other file ``latex.tex_t`` includes.
 
 A report copies its workspace's template when it is created (the built-in
 one if the workspace has none), so a report's look never changes under it.
 Its document, ``report.rst``, is the report's own from then on.
 
 Verdicts and requirement texts carry a class, so every output can style
-them: a verdict is ``:verdict:`fail```, and a requirement's text a
-``.. container:: requirement``. Docutils turns these into
-``\DUrole{fail}{...}`` and ``\begin{DUclass}{requirement}``, which use
-``\DUrolefail`` or the ``DUCLASSrequirement`` environment when
-``document.tex`` defines them, and leave the text as it is when it doesn't.
-The built-in template colors the verdicts and sets requirements in italics.
+them: a verdict is ``:verdict:`fail``` (the class ``verdict-fail``), and a
+requirement's text a ``.. container:: requirement``. In the PDF these are
+``\DUrole{verdict-fail}{...}`` and ``\begin{sphinxuseclass}{requirement}``,
+which use ``\DUroleverdict-fail`` or the ``sphinxclassrequirement``
+environment when ``latex.tex_t`` defines them, and leave the text as it is
+when it doesn't. The built-in template colors the verdicts and sets
+requirements in italics; pages and the site style them with CSS.

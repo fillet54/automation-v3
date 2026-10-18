@@ -372,6 +372,17 @@ def table_results(context, options):
                           duration=total_duration(r["duration"] for r in rows))
 
 
+def run_summary(context, options):
+    if context.data is None or context.run is None:
+        return ""
+    return context.render("run/summary.rst")
+
+
+@filter
+def uut_list(versions):
+    return ", ".join(f"{name} {v['id']}" for name, v in (versions or {}).items())
+
+
 def span_state(context, name):
     results = run_results(context)
     if results is None:
@@ -395,4 +406,5 @@ directive("step-result", step_result, {"row": directives.unchanged,
                                        "ended-only": directives.flag}, arguments=True)
 directive("precondition-result", precondition_result, arguments=True)
 directive("table-results", table_results, arguments=True)
+directive("run-summary", run_summary)
 role("run-state", span_state)

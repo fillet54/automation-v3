@@ -99,10 +99,12 @@ class TestTree(ReportPagesTestCase):
         self.assertEqual([r["id"] for r in view["untested"]], ["BRA-3"])
 
         from automationv3.services.reports import export
+        from automationv3.documents import core
         context = export.context(self.root, self.report_id)
-        latex = export.document_latex(context, export.source(self.root, self.report_id))["body"]
-        self.assertIn("untested, no script references it yet", latex)
-        self.assertIn(r"\emph{no tests yet}", latex)
+        document = export.render_document(context, export.source(self.root, self.report_id))
+        html = core.write(document, "html5")["body"]
+        self.assertIn("untested, no script references it yet", html)
+        self.assertIn("<em>no tests yet</em>", html)
 
     def test_a_failure_says_where_and_why(self):
         view = self.view()

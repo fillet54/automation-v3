@@ -47,7 +47,7 @@
       {% endif %}
       {% endif %}
       <form method="post" action="{{ url_for('reports.export_report', report_id=report.id) }}">
-        {{ ui.button("Freeze & export", variant="primary", icon="lock", type="submit", disabled=in_progress, attrs={"onclick": "return confirm('Freeze this report and export its PDF? No more runs can be added until it is reopened.')"}) }}
+        {{ ui.button("Freeze", variant="primary", icon="lock", type="submit", disabled=in_progress, attrs={"onclick": "return confirm('Freeze this report? No more runs can be added until it is reopened; its site and PDF are built, to view and export.')"}) }}
       </form>
       {% endif %}
     </div>

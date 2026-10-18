@@ -43,8 +43,8 @@ def opens(node):
         classes = set(found.get("classes", []))
         if found is not node and "collapsible" in classes:
             continue
-        if ({"result", "table-row", "verdict"} & classes and OPEN & classes) or \
-                ({"diagnostic", "error"} <= classes):
+        if ({"result", "table-row"} & classes and OPEN & classes) or \
+                found.get("verdict") in OPEN or ({"diagnostic", "error"} <= classes):
             return True
     return bool(OPEN & set(node.get("classes", [])) and "table-row" in node["classes"])
 
@@ -91,13 +91,13 @@ class LiveTranslator(HTMLTranslator):
             return
         super().depart_paragraph(node)
 
-    def visit_strong(self, node):
-        if "verdict" in node["classes"]:
-            badge = self.hooks.verdict(node.astext())
+    def visit_inline(self, node):
+        if node.get("verdict"):
+            badge = self.hooks.verdict(node["verdict"])
             if badge is not None:
                 self.body.append(badge)
                 raise nodes.SkipNode
-        super().visit_strong(node)
+        super().visit_inline(node)
 
 
 class LiveWriter(Writer):

@@ -1,0 +1,23 @@
+{#- A frozen report's site (its build's site/, see documents/sphinx_theme/report) in the app's shell: the regions
+    its theme marks, filled like the docs' (docs_shell.html), with a bar for the report's actions. #}
+{% import "ui/components.html" as ui %}
+{%- if region == "top" %}
+{% include "docs_shell.html" %}
+<div class="report-site-bar">
+  {{ ui.breadcrumbs([("Reports", url_for('reports.index')), (report.name or report.id[:8], None)]) }}
+  <div class="ui-toolbar">
+    {{ ui.badge("Frozen", "info", strong=True) }}
+    <a class="ui-btn ui-btn--ghost ui-btn--sm" href="{{ url_for('reports.report_page', report_id=report.id, page='values') }}">Values touched</a>
+    <a class="ui-btn ui-btn--ghost ui-btn--sm" href="{{ url_for('reports.report_page', report_id=report.id, page='history') }}">History</a>
+    {{ ui.button("PDF", icon="download", size="sm", href=url_for('reports.pdf', report_id=report.id)) }}
+    <form method="post" action="{{ url_for('reports.make_bundle', report_id=report.id) }}">
+      {{ ui.button("Bundle", icon="download", size="sm", type="submit", attrs={"title": "report-" ~ report.id ~ ".zip: the report folder, its manifest, the PDF and this site"}) }}
+    </form>
+    <form method="post" action="{{ url_for('reports.reopen', report_id=report.id) }}">
+      {{ ui.button("Reopen", icon="refresh", size="sm", type="submit", attrs={"onclick": "return confirm('Reopen this report? Runs can be added to it again, and its site and PDF are removed until it is frozen again.')"}) }}
+    </form>
+  </div>
+</div>
+{%- else %}
+{% include "docs_shell.html" %}
+{%- endif %}

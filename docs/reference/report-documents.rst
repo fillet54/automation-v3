@@ -122,9 +122,10 @@ reads, copy the built-in snippet into your workspace template's
 How outputs differ
 ------------------
 
-A snippet writes the same reStructuredText for every output. What it wants
-shown differently carries a class: ``:verdict:`fail``` (a ``strong`` with the
-classes ``verdict`` and ``fail``) and ``.. container:: requirement``. Live
-pages and the exported site style them with CSS; the PDF with the LaTeX
-commands docutils turns them into (``\DUrolefail``, the ``DUCLASSrequirement``
-environment), which ``document.tex`` defines.
+A snippet writes the same reStructuredText for every output: live pages
+render it with docutils, a frozen report's site and PDF with Sphinx. What it
+wants shown differently carries a class: ``:verdict:`fail``` (bold text in
+an inline classed ``verdict-fail``) and ``.. container:: requirement``. Live
+pages and the site style them with CSS; the PDF with the LaTeX commands they
+become (``\DUroleverdict-fail``, the ``sphinxclassrequirement`` environment),
+which the template's ``latex.tex_t`` defines.

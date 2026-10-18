@@ -1,0 +1,56 @@
+{#- A frozen report's site: the report's document and a page per run, looking like the app's live pages (its
+    stylesheet, ui.css). The marked regions (<!--ui:...--> to <!--/ui:...-->) are the app's shell: opened as files
+    they show a plain header; served by the app (web/reports.py site) they carry its header and the report's
+    actions. #}
+{%- extends "basic/layout.html" %}
+
+{%- block css %}
+    <!--ui:head--><!--/ui:head-->
+    {{- css() }}
+    <link rel="stylesheet" href="{{ pathto('_static/code-highlighting.css', 1) }}">
+{%- endblock %}
+
+{%- block body_tag %}
+<!--ui:top-->
+<body class="ui" style="--ui-marking-h: 0px;">
+  <header class="ui-header">
+    <a class="ui-brand" href="{{ pathto(root_doc) }}"><span class="ui-brand__name">{{ theme_brand }}</span></a>
+    <nav class="ui-nav" aria-label="Primary"><span class="ui-nav__link" aria-current="page">{{ docstitle|e }}</span></nav>
+  </header>
+<!--/ui:top-->
+{%- endblock %}
+
+{%- block relbar1 %}{% endblock %}
+{%- block relbar2 %}{% endblock %}
+
+{%- block content %}
+  <div class="ui-main">
+    <div class="ui-browse">
+      <aside class="ui-browse__side" aria-label="Report">
+        <nav class="report-nav">
+          <ul class="report-nav__pages">
+            <li><a href="{{ pathto(root_doc) }}"{% if pagename == root_doc %} aria-current="page"{% endif %}>Document</a></li>
+          </ul>
+          {{ toctree(collapse=False, maxdepth=1, titles_only=True, includehidden=True) }}
+        </nav>
+      </aside>
+      <div class="ui-stack">
+        {%- if pagename != root_doc %}
+        <nav aria-label="Breadcrumb">
+          <ol class="ui-crumbs">
+            <li><a href="{{ pathto(root_doc) }}">{{ docstitle|e }}</a></li>
+            <li><span aria-current="page">{{ title|striptags|e }}</span></li>
+          </ol>
+        </nav>
+        {%- endif %}
+        <article id="main" class="body ui-doc ui-document report-document" role="main">
+          {% block body %}{% endblock %}
+        </article>
+      </div>
+    </div>
+  </div>
+{%- endblock %}
+
+{%- block footer %}
+<!--ui:bottom--><!--/ui:bottom-->
+{%- endblock %}
