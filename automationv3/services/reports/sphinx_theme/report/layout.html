@@ -1,13 +1,14 @@
-{#- A frozen report's site: the report's document and a page per run, looking like the app's live pages (its
-    stylesheet, ui.css). The marked regions (<!--ui:...--> to <!--/ui:...-->) are the app's shell: opened as files
+{#- A frozen report's site: the report's document and a page per run, looking like the app's live pages (paper-ui's
+    ui.css and fonts, and automation.css). The marked regions (<!--ui:...--> to <!--/ui:...-->) are the app's shell: opened as files
     they show a plain header; served by the app (web/reports.py site) they carry its header and the report's
     actions. #}
 {%- extends "basic/layout.html" %}
 
 {%- block css %}
-    <!--ui:head--><!--/ui:head-->
+    <link rel="preload" href="{{ pathto('_static/fonts/IBMPlexSans-Regular.woff2', 1) }}" as="font" type="font/woff2" crossorigin>
     {{- css() }}
-    <link rel="stylesheet" href="{{ pathto('_static/code-highlighting.css', 1) }}">
+    <link rel="stylesheet" href="{{ pathto('_static/code.css', 1) }}">
+    <link rel="stylesheet" href="{{ pathto('_static/automation.css', 1) }}">
     <link rel="stylesheet" href="{{ pathto('_static/plugins.css', 1) }}">
 {%- endblock %}
 

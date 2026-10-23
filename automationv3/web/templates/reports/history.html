@@ -29,7 +29,7 @@
     <td>{% if row.latest %}{{ ui.ident(row.script, url_for('reports.run', report_id=report.id, run_id=row.latest.id), plain=True) }}{% else %}{{ ui.ident(row.script, plain=True) }}{% endif %}</td>
     <td>{% if row.environment %}{{ ui.ident(row.environment) }}{% endif %}</td>
     <td>{% if row.variation %}<span class="ui-mono">{{ row.variation }}</span>{% endif %}</td>
-    <td>{% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}" style="text-decoration: none;">{{ ui.outcome(row.state) }}</a>{% else %}{{ ui.outcome(row.state) }}{% endif %}</td>
+    <td>{% if row.latest %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=row.latest.id) }}" style="text-decoration: none;">{{ outcomes.outcome(row.state) }}</a>{% else %}{{ outcomes.outcome(row.state) }}{% endif %}</td>
     <td>
       {%- for run in row.earlier %}<a href="{{ url_for('reports.run', report_id=report.id, run_id=run.id) }}">{{ run.status }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
     </td>

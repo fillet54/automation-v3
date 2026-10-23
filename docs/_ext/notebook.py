@@ -1,8 +1,8 @@
 """Small additions for these docs
 
-- Pages depend on the stylesheets (the theme's docs.css and the web UI's
-  ui.css), so editing one rebuilds them (and copies it) rather than being
-  skipped as up to date.
+- Pages depend on this project's stylesheet (_static/automation-docs.css),
+  so editing it rebuilds them rather than being skipped as up to date (the
+  theme does the same for paper-ui's).
 - :status:`passed` shows a run outcome the way the web UI badges it.
 - ``.. building-blocks::`` documents every BuildingBlock the plugins
   define, from the blocks themselves: each block's `usage()` and its
@@ -25,8 +25,7 @@ STATUSES = {"passed", "failed", "error", "partial", "blocked", "running", "queue
 PLUGINS = "automationv3.plugins"
 
 DOCS = Path(__file__).resolve().parent.parent
-STYLESHEETS = [DOCS / "_themes" / "automation" / "static" / "docs.css",
-               DOCS.parent / "automationv3" / "web" / "static" / "css" / "ui.css"]
+STYLESHEETS = [DOCS / "_static" / "automation-docs.css"]
 
 
 def status_role(name, rawtext, text, lineno, inliner, options=None, content=()):

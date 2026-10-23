@@ -1,0 +1,290 @@
+/* automation's own pieces, on top of paper-ui's ui.css (tokens, shell and components): run outcomes,
+ * report pages, scripts, runs and reports as documents, specs and diffs. Linked after ui.css by
+ * templates/layout.html, and copied into a frozen report's site (services/reports/sphinx_conf.py).
+ */
+
+/* ------------------------------------------------------------------ outcomes */
+
+/* run, job, step and call states (ui.outcome): a glyph shape, a word and a tint each */
+.ui-outcome {
+  --ui-tone: var(--ui-muted);
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 6px; border-radius: var(--ui-radius); border: 1px solid transparent;
+  font-size: 12px; font-weight: 500; line-height: 1.45; white-space: nowrap;
+  min-width: 6.75em; /* passed, failed, partial and error line up in a column */
+  color: var(--ui-tone); background: color-mix(in srgb, var(--ui-tone) 10%, var(--ui-paper));
+}
+.ui-outcome--pass, .ui-outcome--available { --ui-tone: var(--ui-success); }
+.ui-outcome--fail { --ui-tone: var(--ui-danger); }
+.ui-outcome--error { --ui-tone: var(--ui-danger); background: color-mix(in srgb, var(--ui-tone) 16%, var(--ui-paper)); border-color: color-mix(in srgb, var(--ui-tone) 45%, transparent); }
+.ui-outcome--blocked, .ui-outcome--partial { --ui-tone: var(--ui-warning); background: color-mix(in srgb, var(--ui-tone) 16%, var(--ui-paper)); border-color: color-mix(in srgb, var(--ui-tone) 45%, transparent); }
+.ui-outcome--released { background: transparent; border: 1px dashed color-mix(in srgb, var(--ui-tone) 60%, transparent); }
+.ui-outcome--claimed, .ui-outcome--running { --ui-tone: var(--ui-info); }
+.ui-outcome--pending { background: transparent; border-color: color-mix(in srgb, var(--ui-tone) 40%, transparent); }
+.ui-outcome--not-run { --ui-tone: var(--ui-faint); background: transparent; border: 1px dotted currentColor; }
+.ui-outcome--incomplete, .ui-outcome--tbd { --ui-tone: var(--ui-info); background: transparent; border: 1px dashed color-mix(in srgb, var(--ui-tone) 60%, transparent); }
+.ui-outcome--true { --ui-tone: var(--ui-ink); background: transparent; border-color: color-mix(in srgb, var(--ui-tone) 30%, transparent); }
+.ui-outcome--false { background: transparent; border-color: color-mix(in srgb, var(--ui-tone) 30%, transparent); }
+
+/* ------------------------------------------------------------------ report pages */
+
+/* a report's pages (templates/reports): its navigation tree with a dot for each entry's state, and its Runs page */
+.report-dot { --tone: var(--ui-faint); flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--tone); }
+.report-dot--pass { --tone: var(--ui-success); }
+.report-dot--fail { --tone: var(--ui-danger); }
+.report-dot--partial { --tone: var(--ui-warning); }
+.report-dot--running { --tone: var(--ui-info); animation: report-pulse 1.4s ease-in-out infinite; }
+.report-dot--none { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ui-faint); }
+@keyframes report-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .report-dot--running { animation: none; } }
+
+.report-nav { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.report-nav ul { margin: 0; padding: 0; list-style: none; }
+.report-nav__pages { display: flex; flex-direction: column; gap: 1px; }
+.ui .report-nav a { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 8px; border-radius: var(--ui-radius); color: var(--ui-ink); text-decoration: none; }
+.ui .report-nav a:hover { background: var(--ui-soft); }
+.ui .report-nav a[aria-current="page"] { background: color-mix(in srgb, var(--ui-accent) 10%, var(--ui-paper)); color: var(--ui-accent); box-shadow: inset 2px 0 0 var(--ui-accent); font-weight: 500; }
+.report-nav .ui-icon { flex: none; color: var(--ui-muted); }
+.report-nav__end { margin-left: auto; display: flex; }
+.report-nav__count { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
+.report-nav__sub { margin-left: 22px !important; }
+.report-nav__switch { display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; color: var(--ui-muted); cursor: pointer; }
+
+.report-tree ul { margin-left: 12px; padding-left: 6px; border-left: 1px solid var(--ui-rule); }
+.report-tree details > summary { list-style: none; display: flex; align-items: center; gap: 2px; cursor: pointer; }
+.report-tree details > summary::-webkit-details-marker { display: none; }
+.report-tree details > summary > a { flex: 1 1 auto; }
+.report-tree__chevron { flex: none; transition: transform 0.15s; }
+.report-tree details[open] > summary .report-tree__chevron { transform: rotate(90deg); }
+.report-tree > li > a, .report-tree ul > li > a { margin-left: 14px; }
+.report-tree__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-nav--issues li[data-dot="pass"] { display: none; }
+
+.report-filter { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: var(--ui-radius); background: var(--ui-soft); font-size: 13px; }
+.report-filter a { margin-left: auto; }
+.report-group { display: flex; flex-direction: column; gap: 18px; }
+.report-group__title { display: flex; align-items: center; gap: 10px; font: 500 18px/1.3 var(--ui-font-body); }
+.report-group__title .report-dot { width: 9px; height: 9px; }
+.report-req { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
+.report-req__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-req__text { margin: 6px 0 10px; max-width: 90ch; color: var(--ui-muted); font-size: 13px; }
+.report-meter { display: flex; flex-direction: column; gap: 4px; min-width: 140px; font-size: 13px; }
+.report-meter__bar { display: flex; gap: 1px; height: 5px; border-radius: 3px; overflow: hidden; background: var(--ui-soft); }
+.report-meter__bar > span { flex-basis: 0; }
+.report-meter__green { background: var(--ui-success); }
+.report-meter__red { background: var(--ui-danger); }
+.report-meter__partial { background: var(--ui-warning); }
+.report-meter__untested { background: color-mix(in srgb, var(--ui-faint) 45%, var(--ui-soft)); }
+.report-versions-link { font-size: 12px; }
+.report-versions-link[aria-disabled="true"] { pointer-events: none; color: var(--ui-faint); }
+.report-untested { margin: 0; padding: 8px 12px; border: 1px dashed var(--ui-rule); border-radius: var(--ui-radius); color: var(--ui-muted); font-size: 13px; }
+.report-untested-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.report-untested-list li { display: flex; gap: 10px; align-items: baseline; }
+.report-row__title { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.report-row { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
+.report-row--why > td { border-bottom: 0; }
+.report-why-row > td { padding-top: 0; }
+.report-why { font-size: 12px; color: var(--ui-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-why-row .report-why, .report-issues .report-why { --tone: var(--ui-danger); padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--tone) 45%, transparent); }
+.report-why--partial, .report-why--none, .report-why--running { --tone: var(--ui-warning) !important; }
+.report-req .ui-table { table-layout: fixed; }
+.report-req .ui-table th:nth-child(1) { width: 40%; }
+.report-req .ui-table th:nth-child(2) { width: 16%; }
+.report-req .ui-table th:nth-child(3) { width: 18%; }
+.report-req .ui-table th:nth-child(4) { width: 12%; }
+.report-req .ui-table th:nth-child(5) { width: 14%; }
+tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-paper)); }
+.report-req.report-target { outline: 2px solid color-mix(in srgb, var(--ui-accent) 35%, transparent); outline-offset: 6px; border-radius: var(--ui-radius); }
+
+.report-issues { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.report-issues > li { display: flex; align-items: baseline; gap: 10px; }
+.report-issues__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+
+.report-title__show { display: flex; align-items: center; gap: 8px; }
+.report-title__edit { opacity: 0.55; }
+.report-title__show:hover .report-title__edit, .report-title__edit:focus-visible { opacity: 1; }
+.report-title__form { display: flex; align-items: center; gap: 8px; }
+.report-title__form[hidden], .report-title__show[hidden], .report-filter[hidden], .report-group[hidden] { display: none; }
+.report-title__input { min-width: min(48ch, 100%); font: 400 24px/1.2 var(--ui-font-heading); }
+.report-fixed > td:first-child { box-shadow: inset 2px 0 0 var(--ui-warning); }
+.report-refs .ui-table { table-layout: fixed; }
+.report-refs .ui-table td { white-space: normal; overflow-wrap: anywhere; }
+.report-refs .ui-table th:nth-child(1) { width: 34%; }
+.report-refs .ui-table th:nth-child(2) { width: 16%; }
+.report-refs .ui-table th:nth-child(3) { width: 25%; }
+.report-refs .ui-table th:nth-child(4) { width: 25%; }
+.report-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* facts about a script or run: what it loads, where it runs */
+.ui-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--ui-muted); }
+.ui-loads { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; }
+.ui-loads__sep { color: var(--ui-faint); }
+
+/* ------------------------------------------------------------------ scripts, runs and reports as documents */
+
+/* a requirement as scripts see it: "... shall [ID] ..." */
+.ui-requirement strong { font-family: var(--ui-font-mono); font-size: 0.93em; font-weight: 500; color: var(--ui-accent); }
+
+/* tables in the app's documents (blocks write list-tables, see framework/markup.py), ruled like table.docutils (ui.css) */
+.ui-document table { width: auto; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+.ui-document table caption { text-align: left; padding-bottom: 4px; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+.ui-document table :is(th, td) { padding: 4px 14px 4px 0; border: 0; border-bottom: 1px solid var(--ui-rule); text-align: left; vertical-align: top; }
+.ui-document table tr:first-child :is(th, td) { border-top: 1px solid var(--ui-rule); }
+.ui-document table th { font-size: 12px; font-weight: 500; color: var(--ui-muted); }
+.ui-document table p { margin: 0; }
+.ui-document table table { margin: 0; }
+
+/* collapsed definitions: the section, and lone definitions */
+.ui-defs { margin: 10px 0; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
+.ui-defs > summary { list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 8px 0; cursor: pointer; font-size: 13px; }
+.ui-defs > summary::-webkit-details-marker { display: none; }
+.ui-defs > summary:hover { background: var(--ui-soft); }
+.ui-defs > summary .ui-icon { align-self: center; color: var(--ui-muted); transition: transform 0.15s; }
+.ui-defs[open] > summary .ui-icon { transform: rotate(90deg); }
+.ui-defs__label { font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+.ui-defs__names { font-family: var(--ui-font-mono); font-size: 12px; color: var(--ui-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-defs__body { padding: 0 0 8px 22px; }
+.ui-defs--one { border: 0; margin: 4px 0; }
+.ui-defs--one > summary { padding: 2px 0; }
+
+/* the script view's top row: the variation selector, and the Queue button at the far end */
+.ui-script-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.ui-script-details .ui-defs__body { padding-top: 4px; }
+
+/* a step's (or titled block's) duration, just left of its outcome, right-aligned so times line up */
+.ui-duration { min-width: 5.5em; text-align: right; font-family: var(--ui-font-mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ui-muted); white-space: nowrap; }
+
+/* Scripts, runs and reports render as documents (documents/): docutils' HTML with classed containers. The
+   live translator turns "collapsible" containers into <details> and verdicts into outcome badges. */
+
+.ui-document details.collapsible { margin: 10px 0; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
+.ui-document details.collapsible + details.collapsible { margin-top: -11px; }
+.ui-document details.collapsible > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 9px 0; cursor: pointer; }
+.ui-document details.collapsible > summary::-webkit-details-marker { display: none; }
+.ui-document details.collapsible > summary:hover { background: var(--ui-soft); }
+.ui-document details.collapsible > summary .ui-icon { flex: none; color: var(--ui-muted); transition: transform 0.15s; }
+.ui-document details.collapsible[open] > summary .ui-icon { transform: rotate(90deg); }
+.ui-document details.collapsible > summary > strong:first-of-type { flex: 1 1 auto; font-weight: 500; }
+.ui-document details.collapsible > :not(summary) { margin-left: 22px; }
+.ui-document details.collapsible > :last-child { margin-bottom: 8px; }
+.ui-document :is(details.definitions, details.definition) > summary { padding: 6px 0; font-size: 13px; }
+.ui-document :is(details.definitions, details.definition) > summary > strong:first-of-type { flex: none; font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+.ui-document :is(details.definitions, details.definition) > summary .literal { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ui-muted); background: none; }
+.ui-document details.precondition > summary > strong:first-of-type { flex: none; font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+.ui-document details.precondition > summary > em { flex: 1 1 auto; font-style: normal; color: var(--ui-faint); font-size: 12px; }
+
+/* a step: the statement, then its result; tinted down the left edge by its outcome, the outcome at the right */
+.ui-document .step { --ui-tone: var(--ui-rule-strong); position: relative; margin: 10px 0; padding: 4px 190px 4px 14px; border-left: 2px solid var(--ui-tone); }
+.ui-document .step > :first-child { margin-top: 0; }
+.ui-document .step:has(> .result.pass) { --ui-tone: var(--ui-success); }
+.ui-document .step:has(> .result:is(.fail, .error)) { --ui-tone: var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 4%, var(--ui-paper)); }
+.ui-document .step:has(> .result.running) { --ui-tone: var(--ui-info); }
+.ui-document .step:has(> .result:is(.not-run, .pending)) { --ui-tone: var(--ui-rule); }
+.ui-document .result > p:first-child { position: absolute; top: 4px; right: 0; display: flex; align-items: center; gap: 10px; margin: 0; }
+.ui-document .result > * { margin: 6px 0 0; }
+.ui-document .duration { min-width: 5.5em; text-align: right; font-family: var(--ui-font-mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ui-muted); white-space: nowrap; }
+.ui-document summary .duration { margin-left: auto; }
+.ui-document .calls { font-size: 12px; }
+.ui-document .calls ul { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.ui-document .calls ul ul { margin: 4px 0 2px 8px; padding-left: 12px; border-left: 1px solid var(--ui-rule); }
+.ui-document .calls li > p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; }
+.ui-document .calls li .duration { margin-left: auto; min-width: 0; }
+.ui-document .calls .literal { background: none; padding: 0; }
+.ui-document .output pre, .ui-document .failure pre { margin: 0; font-size: 12px; }
+.ui-document .failure { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-left: 3px solid var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 5%, var(--ui-paper)); border-radius: 2px; }
+.ui-document .failure > pre:first-child { background: none; border: 0; padding: 0; font-weight: 500; color: var(--ui-danger); white-space: pre-wrap; }
+.ui-document .excerpt > p { margin: 0 0 2px; font-size: 11px; color: var(--ui-muted); }
+.ui-document details.traceback { border: 0; margin: 0; }
+.ui-document details.traceback > summary { padding: 2px 0; font-size: 12px; color: var(--ui-muted); }
+.ui-document details.traceback > :not(summary) { margin-left: 0; }
+.ui-document .attachments p { margin: 0; font-size: 12px; color: var(--ui-muted); }
+.ui-document .phase > p:first-child strong { font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+/* a table block's rows, each collapsible with its steps */
+.ui-document .table-total p { margin: 2px 0; display: flex; justify-content: space-between; font-size: 12px; color: var(--ui-muted); }
+.ui-document details.table-row > summary > strong:first-of-type { flex: none; font-size: 11px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ui-muted); }
+/* blocks limited to variations: a rule down the side, tagged */
+.ui-document .scoped { margin: 14px 0; padding-left: 14px; border-left: 2px solid color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+.ui-document .scoped > p:first-child { margin: 0 0 4px; font-size: 11px; letter-spacing: 0.06em; color: var(--ui-muted); }
+.ui-document .scoped > p:first-child em { font-style: normal; text-transform: uppercase; letter-spacing: 0.09em; }
+/* static-analysis findings by the statement they are about */
+.ui-document .diagnostic { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--ui-warning); background: color-mix(in srgb, var(--ui-warning) 6%, var(--ui-paper)); font-size: 13px; }
+.ui-document .diagnostic.error { border-left-color: var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 5%, var(--ui-paper)); }
+.ui-document .diagnostic > * { margin: 0; }
+.ui-document .diagnostic pre { margin-top: 6px; font-size: 12px; }
+/* a TBD step */
+.ui-document .tbd { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border: 1px dashed color-mix(in srgb, var(--ui-info) 55%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-paper)); }
+/* a requirement's text kept by a report */
+.ui-document .requirement { font-style: normal; }
+/* verdicts outside the app (exported sites): colored by state */
+[class^="verdict-"] strong { font-weight: 600; }
+:is(.verdict-pass, .verdict-green, .verdict-true) { color: var(--ui-success); }
+:is(.verdict-fail, .verdict-red, .verdict-error) { color: var(--ui-danger); }
+:is(.verdict-partial, .verdict-incomplete, .verdict-outdated, .verdict-blocked, .verdict-text-changed-since) { color: var(--ui-warning); }
+
+/* a frozen report's site, served in the app: a bar of the report's actions under the header */
+.report-site-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 24px; border-bottom: 1px solid var(--ui-rule); background: var(--ui-paper); }
+
+/* a report's document, and its editor: the source beside a live preview */
+.report-document { max-width: none; }
+.ui-document .rubric { margin: 16px 0 4px; font-weight: 600; font-size: 14px; }
+.ui-document dl.field-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 8px 0 16px; font-size: 13px; }
+.ui-document dl.field-list > dt { color: var(--ui-muted); font-weight: 500; }
+.ui-document dl.field-list > dt::after { content: none; }
+.ui-document dl.field-list > dd { margin: 0; }
+.ui-document dl.field-list > dd > p { margin: 0; }
+.ui-document .data-block { display: contents; }
+.report-source { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.report-source textarea.report-source__text { width: 100%; height: 70vh; min-height: 70vh; font-family: var(--ui-font-mono); font-size: 12.5px; line-height: 1.6; resize: vertical; }
+@media (max-width: 900px) { .report-source { grid-template-columns: minmax(0, 1fr); } }
+
+/* ------------------------------------------------------------------ diagnostics, specs and diffs */
+
+/* Failures and diagnostics: the message, then the code it is about with the offending form marked */
+.ui-diagnostic__message { font-family: var(--ui-font-mono); font-size: 12px; color: var(--ui-ink); overflow-wrap: anywhere; }
+.ui-excerpt { margin: 0; }
+.ui-excerpt__where { font-family: var(--ui-font-mono); font-size: 11px; color: var(--ui-muted); }
+.ui-excerpt__label { font-family: inherit; }
+.ui-excerpt__code { margin: 2px 0 0; padding: 6px 8px; font-family: var(--ui-font-mono); font-size: 12px; line-height: 1.5; background: var(--ui-paper); border: 1px solid var(--ui-rule); border-radius: 2px; overflow-x: auto; white-space: pre; }
+.ui-excerpt__no { display: inline-block; min-width: 3ch; margin-right: 1.5ch; text-align: right; color: var(--ui-muted); user-select: none; }
+.ui-excerpt__mark { background: none; color: inherit; text-decoration: underline wavy var(--ui-danger); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.ui-diagnostic { display: flex; flex-direction: column; gap: 4px; }
+.ui-diagnostic--warning .ui-excerpt__mark { text-decoration-color: var(--ui-warning, #b7791f); }
+
+/* Steps not written yet: (TBD "...") */
+div.tbd { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border: 1px dashed color-mix(in srgb, var(--ui-info) 55%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--ui-info) 4%, var(--ui-paper)); }
+div.tbd > p { margin: 0; }
+div.tbd strong:first-child { flex: none; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ui-info); }
+
+/* A requirement written with lists or several paragraphs */
+.ui-requirement--blocks > p { margin: 0 0 4px; }
+.ui-requirement--blocks > ul, .ui-requirement--blocks > ol { margin: 2px 0 4px; padding-left: 20px; }
+.ui-requirement--blocks li > p { margin: 0; }
+
+/* A spec, read as a document: its requirements boxed, with their id, attributes and links */
+.spec-doc { max-width: 76ch; }
+.spec-doc section > h1 { font-size: 1.6em; }
+.spec-req { margin: 14px 0; padding: 10px 14px; border: 1px solid var(--ui-rule); border-left: 3px solid var(--ui-accent); border-radius: 6px; background: var(--ui-paper); }
+.spec-req:target, .spec-req:has(:target) { border-color: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 20%, transparent); }
+.spec-req__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 12px; color: var(--ui-muted); margin-bottom: 4px; scroll-margin-top: 80px; }
+.ui .spec-req__id { font-family: var(--ui-font-mono); font-size: 13px; font-weight: 600; color: var(--ui-accent); text-decoration: none; }
+.spec-req__attr > span { font-family: var(--ui-font-mono); opacity: 0.75; }
+.ui .spec-req__link { font-family: var(--ui-font-mono); }
+.spec-req__text > :first-child { margin-top: 0; }
+.spec-req__text > :last-child { margin-bottom: 0; }
+.spec-toc .spec-toc { margin-left: 12px; }
+.spec-pager { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--ui-rule); }
+
+/* A script with edits that aren't checked in: which files to show, and the changes */
+.ui-in-work { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--ui-warning) 35%, var(--ui-rule)); border-radius: 6px; background: color-mix(in srgb, var(--ui-warning) 7%, var(--ui-paper)); font-size: 13px; }
+.ui-diff-lines { margin: 0; }
+.ui-diff-lines span { display: block; }
+.ui-diff-lines .is-added { background: color-mix(in srgb, var(--ui-success) 14%, transparent); }
+.ui-diff-lines .is-removed { background: color-mix(in srgb, var(--ui-danger) 12%, transparent); }
+.ui-diff-lines .is-hunk { color: var(--ui-muted); }
+
+/* Changes to a requirement: words, attributes and links added and removed */
+.ui-req-change { margin-top: 6px; }
+.ui-diff { margin: 0; line-height: 1.6; }
+.ui-diff .ui-field__label { margin-right: 6px; }
+.ui-diff ins, .ui-diff del { text-decoration: none; border-radius: 3px; padding: 0 2px; }
+.ui-diff ins { background: color-mix(in srgb, var(--ui-success) 16%, transparent); color: var(--ui-ink); }
+.ui-diff del { background: color-mix(in srgb, var(--ui-danger) 14%, transparent); color: var(--ui-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ui-danger) 60%, transparent); }

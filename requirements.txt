@@ -1,3 +1,4 @@
+-e ../paper-ui
 flask
 jinja2
 waitress

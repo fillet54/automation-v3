@@ -26,6 +26,7 @@ setuptools.setup(
         "requests",
         "pygments",
         "sphinx",  # a frozen report's site and PDF
+        "paper-ui",  # the UI's look: ../paper-ui (pip install -e ../paper-ui)
     ],
     extras_require={
         "docs": ["sphinx"],

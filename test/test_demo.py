@@ -89,10 +89,10 @@ class TestDocsLink(unittest.TestCase):
 
     def test_fills_the_pages_shell_with_the_sites(self):
         (self.docs / "page.html").write_text(
-            "<html lang=\"en\"><head><title>Steps</title><!--ui:head--><link href=\"fonts.css\"><!--/ui:head-->"
+            "<html lang=\"en\"><head><title>Steps</title><link href=\"_static/ui.css\">"
             "</head><!--ui:top--><body><header>plain</header><!--/ui:top-->"
             "<p>The page</p><!--ui:bottom--><!--/ui:bottom--></body></html>")
-        client = self.client(self.docs, UI_BRAND="bench", UI_THEME="dark", UI_FONTS_CSS="/fonts.css",
+        client = self.client(self.docs, UI_BRAND="bench", UI_THEME="dark",
                              UI_MARKING={"text": "CUI", "bg": "#502B85", "fg": "#FFFFFF"})
         page = client.get("/docs/page.html").get_data(as_text=True)
         self.assertIn("The page", page)
@@ -102,7 +102,7 @@ class TestDocsLink(unittest.TestCase):
         self.assertRegex(page, r'href="/docs/"\s+aria-current="page"')
         self.assertEqual(page.count("ui-marking--"), 2)
         self.assertIn('<html data-ui-theme="dark"', page)
-        self.assertIn('href="/fonts.css"', page)
+        self.assertIn('href="_static/ui.css"', page)    # the docs' own stylesheet and fonts stay
         self.assertIn("<title>Steps · CUI</title>", page)
 
     def test_serves_other_files_as_they_are(self):

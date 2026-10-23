@@ -1,4 +1,5 @@
 {% import "ui/components.html" as ui %}
+{% import "ui/outcomes.html" as outcomes %}
 <div id="run-body" class="ui-stack"
      {% if not finished %}
      hx-get="{{ url_for('reports.run', report_id=run.report_id, run_id=run.id, seen=seen) }}"
@@ -22,7 +23,7 @@
     </div>
     <div class="ui-toolbar">
       {% if run.non_identical %}{{ ui.badge("Not identical", "warning", outline=True) }}{% endif %}
-      {{ ui.outcome(status) }}
+      {{ outcomes.outcome(status) }}
       {% if scratch %}
       {% if run.workspace %}{{ ui.button("Queue in a report…", size="sm", href=url_for('jobqueue.new', workspace=run.workspace, script=run.script)) }}{% endif %}
       <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">
@@ -99,7 +100,7 @@
   {% call ui.section("Cleanup", subtitle="Run once the script ended, last registered first") %}
   <ul class="ui-plain-list ui-stack ui-gap-small">
     {% for c in cleanups %}
-    <li>{{ ui.outcome("pass" if c.passed else "error") }} <span class="ui-mono">{{ c.description }}</span>
+    <li>{{ outcomes.outcome("pass" if c.passed else "error") }} <span class="ui-mono">{{ c.description }}</span>
       {%- if c.message %} <span class="ui-step__fail">{{ c.message }}</span>{% endif %}</li>
     {% endfor %}
   </ul>

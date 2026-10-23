@@ -1,9 +1,10 @@
 """Sphinx configuration for the automation documentation
 
 Build with `make html` in this folder (or `sphinx-build -b html . _build/html`).
-The theme (_themes/automation) makes the docs a page of the web UI: its
-header, side column and stylesheet (ui.css, copied from the web app). Served
-by the server at /docs, they also get its brand, nav, markings and fonts.
+The theme is paper-ui's ("paper"), the web UI's own look: its header, side
+column, stylesheet and IBM Plex fonts. _static/automation-docs.css adds this
+project's pieces. Served by the server at /docs, the pages also get its brand,
+nav and markings.
 """
 
 import sys
@@ -14,7 +15,6 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE / "_ext"))
 
 from automationv3 import __version__  # noqa: E402
-from automationv3.web.ui import GOOGLE_FONTS  # noqa: E402
 
 # -- Project ---------------------------------------------------------------
 
@@ -38,7 +38,7 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "requirements", "Thumbs.db", ".DS_Store"]
 
 # Script code is edn/Lisp: highlight it as Clojure
-highlight_language = "clojure"  # colours come from the theme's docs.css
+highlight_language = "clojure"  # colours come from the theme (paper-ui's docs.css)
 
 autodoc_member_order = "bysource"
 autodoc_default_options = {"members": True}
@@ -53,11 +53,10 @@ rst_prolog = """
 
 # -- HTML ------------------------------------------------------------------
 
-html_theme = "automation"
-html_theme_path = ["_themes"]
-html_theme_options = {"brand": "automation", "fonts_css": GOOGLE_FONTS}
+html_theme = "paper"
+html_theme_options = {"brand": "automation"}
 html_title = html_short_title = "automation"
-# The web UI's stylesheet, so the docs share its tokens and shell
-html_static_path = [str(HERE.parent / "automationv3" / "web" / "static" / "css" / "ui.css")]
+html_static_path = ["_static"]
+html_css_files = ["automation-docs.css"]
 html_show_sourcelink = False
 html_show_sphinx = False

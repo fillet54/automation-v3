@@ -1,4 +1,5 @@
 {% import "ui/components.html" as ui %}
+{% import "ui/outcomes.html" as outcomes %}
 
 {#- Lines of a file with the part a span covers marked: rows from excerpt.excerpt #}
 {% macro source_excerpt(ex, label=None) -%}
@@ -17,7 +18,7 @@
 {#- One static-analysis finding: severity, message, and the code it is about unless `brief` #}
 {% macro diagnostic(d, brief=False) -%}
 <div class="ui-diagnostic ui-diagnostic--{{ d.severity }}">
-  <div class="ui-diagnostic__message">{{ ui.outcome("error" if d.severity == "error" else "partial", d.severity | capitalize) }}
+  <div class="ui-diagnostic__message">{{ outcomes.outcome("error" if d.severity == "error" else "partial", d.severity | capitalize) }}
     <span>{{ d.message }}</span>{% if brief and d.where %} <span class="ui-text-caption ui-mono">{{ d.where }}</span>{% endif %}</div>
   {%- if not brief and d.excerpt %}{{ source_excerpt(d.excerpt) }}{% endif %}
 </div>

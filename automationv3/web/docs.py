@@ -1,11 +1,11 @@
 """The built documentation, served as a part of the site
 
-The docs theme (docs/_themes/automation) marks the regions of each page that
-are the site's shell: <!--ui:head-->…<!--/ui:head--> (the fonts), <!--ui:top-->
-…<!--/ui:top--> (the body tag, markings and header) and <!--ui:bottom-->
-…<!--/ui:bottom-->. Serving a page fills them from templates/docs_shell.html,
-so the docs carry this server's brand, nav, markings, fonts and theme. A page
-without the marks (another theme, or no theme) is served as it is.
+The docs theme (paper-ui's Sphinx theme, "paper") marks the regions of each
+page that are the site's shell: <!--ui:top-->…<!--/ui:top--> (the body tag,
+markings and header) and <!--ui:bottom-->…<!--/ui:bottom-->. Serving a page
+fills them from templates/docs_shell.html, so the docs carry this server's
+brand, nav, markings and theme. A page without the marks (another theme, or no
+theme) is served as it is.
 """
 
 import re
@@ -15,7 +15,7 @@ from flask import abort, current_app, render_template, send_from_directory
 from markupsafe import escape
 from werkzeug.security import safe_join
 
-REGIONS = ("head", "top", "bottom")
+REGIONS = ("top", "bottom")
 
 
 def serve(filename):

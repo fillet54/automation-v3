@@ -3,11 +3,14 @@
 
 ## Try the demo
 
-From a clone of this repository:
+From a clone of this repository, with
+[paper-ui](../paper-ui) (the UI's look, a separate project) checked out
+next to it:
 
 ```
 python -m venv .venv
 source .venv/bin/activate
+pip install -e ../paper-ui
 pip install -e ".[docs]"
 automation-v3 demo
 ```

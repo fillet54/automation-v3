@@ -1,4 +1,4 @@
-{#- Page shell. Extend it:
+{#- Page shell: paper-ui's (ui/layout.html) with this app's stylesheet and htmx. Extend it:
 
     {% extends "layout.html" %}
     {% set nav_current = "reports" %}      (the current header nav item: a key of ui.NAV)
@@ -6,41 +6,14 @@
     {% block title %}Reports{% endblock %}
     {% block content %}...{% endblock %}
 
-    Blocks: title, head (extra <head> tags), side, content, scripts.
+    Blocks: title, page_head (extra <head> tags), side, content, scripts.
 -#}
+{% extends "ui/layout.html" %}
 {% import "ui/components.html" as ui %}
-<!doctype html>
-<html lang="en"{% if ui_theme in ("light", "dark") %} data-ui-theme="{{ ui_theme }}"{% endif %}>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{{ ui_brand }}{% endblock %}{% if ui_marking %} · {{ ui_marking.text }}{% endif %}</title>
-  {%- if ui_fonts_css %}
-  <link rel="stylesheet" href="{{ ui_fonts_css }}">
-  {%- endif %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/code-highlighting.css') }}">
+{% import "ui/outcomes.html" as outcomes %}
+{%- block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/automation.css') }}">
   <link rel="stylesheet" href="{{ url_for('plugins_css') }}">
   <script src="{{ url_for('static', filename='js/htmx/htmx.min.js') }}"></script>
-  {% block head %}{% endblock %}
-</head>
-<body class="ui"{% if not ui_marking %} style="--ui-marking-h: 0px;"{% endif %}>
-  <a class="ui-skip" href="#main">Skip to content</a>
-  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "top") }}{% endif %}
-  {{ ui.app_header(ui_nav(), nav_current | default(None), brand=ui_brand, home=url_for("index")) }}
-  <main id="main" class="ui-main">
-    {%- if browse %}
-    <div class="ui-browse">
-      <aside class="ui-browse__side">{% block side %}{% endblock %}</aside>
-      <div class="ui-stack">
-    {%- endif %}
-    {% block content %}{% endblock %}
-    {%- if browse %}
-      </div>
-    </div>
-    {%- endif %}
-  </main>
-  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "bottom") }}{% endif %}
-  {% block scripts %}{% endblock %}
-</body>
-</html>
+  {% block page_head %}{% endblock %}
+{%- endblock %}

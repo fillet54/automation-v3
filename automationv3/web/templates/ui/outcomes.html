@@ -1,0 +1,45 @@
+{#- automation's own components: run, job, step and call outcomes. Styles: static/css/automation.css.
+
+    {% import "ui/outcomes.html" as outcomes %}
+    {{ outcomes.outcome("pass") }}
+-#}
+
+
+{#- state -> (glyph, word). Run outcomes (pass | fail | error | blocked | released), job states (pending |
+    claimed | running), step states (not run), suppressed block calls inside try-ok? / try (true | false), requirement rollups
+    (green | partial | red) and worker states (available | busy | missing). #}
+{% set OUTCOMES = {
+  "pass": ("pass", "Passed"), "fail": ("fail", "Failed"), "error": ("error", "Error"),
+  "blocked": ("blocked", "Blocked"), "released": ("released", "Released"),
+  "pending": ("pending", "Queued"), "claimed": ("claimed", "Claimed"), "running": ("running", "Running"),
+  "not run": ("not-run", "Not run"), "unknown": ("not-run", "Unknown"),
+  "true": ("true", "True"), "false": ("false", "False"),
+  "incomplete": ("incomplete", "Incomplete"), "tbd": ("tbd", "To do"),
+  "green": ("pass", "Green"), "partial": ("partial", "Partial"), "red": ("fail", "Red"), "untested": ("not-run", "No tests"), "outdated": ("partial", "Outdated"),
+  "available": ("available", "Available"), "busy": ("running", "Busy"), "missing": ("fail", "Missing"),
+} %}
+
+{% macro outcome_glyph(kind, size=12) -%}
+<svg class="ui-glyph" width="{{ size }}" height="{{ size }}" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  {%- if kind == "pass" %}<circle cx="8" cy="8" r="6.5" fill="currentColor" stroke="none"/><path d="M5 8.2 L7.1 10.2 L11 6" class="ui-glyph__cut" stroke-width="1.7"/>
+  {%- elif kind == "fail" %}<circle cx="8" cy="8" r="6"/><path d="M5.8 5.8 L10.2 10.2 M10.2 5.8 L5.8 10.2"/>
+  {%- elif kind == "error" %}<path d="M8 1.5 L15 14 L1 14 Z"/><path d="M8 6 L8 9.5 M8 11.5 L8 11.6" stroke-width="1.7"/>
+  {%- elif kind == "blocked" %}<circle cx="8" cy="8" r="6"/><path d="M4.8 8 L11.2 8" stroke-width="2"/>
+  {%- elif kind == "released" %}<path d="M13 8 A5 5 0 1 1 11.5 4.4 M13 2.5 L13 5.5 L10 5.5"/>
+  {%- elif kind == "claimed" or kind == "available" %}<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.2" fill="currentColor" stroke="none"/>
+  {%- elif kind == "running" %}<circle cx="8" cy="8" r="6"/><path d="M8 2 A6 6 0 0 1 8 14 Z" fill="currentColor"/>
+  {%- elif kind == "partial" %}<circle cx="8" cy="8" r="6"/><path d="M2 8 A6 6 0 0 0 14 8 Z" fill="currentColor"/>
+  {%- elif kind == "not-run" %}<circle cx="8" cy="8" r="6" stroke-dasharray="1 2.6"/>
+  {%- elif kind == "incomplete" %}<circle cx="8" cy="8" r="6" stroke-dasharray="3 2"/><path d="M8 2 A6 6 0 0 1 14 8 L8 8 Z" fill="currentColor" stroke="none"/>
+  {%- elif kind == "tbd" %}<circle cx="8" cy="8" r="6" stroke-dasharray="3 2"/><path d="M5.5 8 L10.5 8"/>
+  {%- elif kind == "true" %}<circle cx="8" cy="8" r="6"/><path d="M5.3 8.2 L7.2 10 L10.7 6.2"/>
+  {%- elif kind == "false" %}<circle cx="8" cy="8" r="6"/><path d="M5.5 8 L10.5 8"/>
+  {%- else %}<circle cx="8" cy="8" r="6"/>{% endif -%}
+</svg>
+{%- endmacro %}
+
+{#- A run, job, step or call state as glyph + word. `label` replaces the word; `title` is the tooltip. #}
+{% macro outcome(state, label=None, title=None) -%}
+{%- set kind, word = OUTCOMES.get(state, ("pending", state | string | capitalize)) -%}
+<span class="ui-outcome ui-outcome--{{ kind }}"{% if title %} title="{{ title }}"{% endif %}>{{ outcome_glyph(kind) }}{{ label if label is not none else word }}</span>
+{%- endmacro %}

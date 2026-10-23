@@ -1,4 +1,5 @@
 {% import "ui/components.html" as ui %}
+{% import "ui/outcomes.html" as outcomes %}
 {% call ui.page_header("Workers", subtitle="Workers check in every minute; one silent for longer is missing and its jobs go back to the queue.") %}
   {{ ui.button("Hide missing" if not show_all else "Show missing", size="sm",
                attrs={"hx-get": url_for('jobqueue.list_workers', show=show_all), "hx-target": "#workers-content", "hx-push-url": "true"}) }}
@@ -7,7 +8,7 @@
   {% for worker in workers | sort(attribute='last_keepalive', reverse=True) %}
   <tr>
     <td>{{ ui.ident(worker.url, plain=True) }}</td>
-    <td>{{ ui.outcome("missing" if worker.last_keepalive <= missing_time else worker.status) }}</td>
+    <td>{{ outcomes.outcome("missing" if worker.last_keepalive <= missing_time else worker.status) }}</td>
     <td>{{ ui.timestamp(worker.last_keepalive, seconds=True) }} <span class="ui-text-caption">{{ worker.last_keepalive | humanize_ts }}</span></td>
   </tr>
   {% else %}

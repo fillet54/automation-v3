@@ -28,7 +28,7 @@
       <td>{{ ui.badge(run.get("source", "in work"), tone="neutral" if run.get("source") == "checked in" else "warning") }}</td>
       <td>{% if run.environment %}{{ ui.ident(run.environment) }}{% endif %}</td>
       <td>{% if run.variation %}<span class="ui-mono">{{ run.variation.name }}</span>{% endif %}</td>
-      <td>{{ ui.outcome(run.status) }}</td>
+      <td>{{ outcomes.outcome(run.status) }}</td>
       <td>{{ ui.timestamp(run.created) }}</td>
       <td class="ui-end">
         <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">

@@ -8,7 +8,7 @@
   {% for job in jobs %}
   <tr>
     <td>{{ ui.ident(job.script, url_for('reports.run', report_id=job.report_id, run_id=job.id), plain=True) }}</td>
-    <td>{{ ui.outcome(job.status) }}</td>
+    <td>{{ outcomes.outcome(job.status) }}</td>
     <td>{% if job.worker_url %}{{ ui.ident(job.worker_url, plain=True) }}{% else %}<span class="ui-muted">—</span>{% endif %}</td>
     <td>{{ ui.timestamp(job.queued_at) }}</td>
   </tr>

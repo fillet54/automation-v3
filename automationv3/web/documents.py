@@ -32,7 +32,7 @@ class LiveHooks(html.Hooks):
     (node -> URL or None), data blocks that may change refresh themselves"""
 
     def __init__(self, poll=None):
-        self.outcome = get_template_attribute("ui/components.html", "outcome")
+        self.outcome = get_template_attribute("ui/outcomes.html", "outcome")
         self.icon = get_template_attribute("ui/components.html", "icon")
         self.poll = poll
 
