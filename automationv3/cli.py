@@ -1,7 +1,7 @@
 """Automation Framework
 
 Usage:
-    automation-v3 demo [--path PATH] [--port PORT] [--no-docs]
+    automation-v3 demo [--path PATH] [--port PORT] [--no-docs] [--debug]
     automation-v3 server [--port PORT] [--dbpath PATH]
                          [--workspace-path PATH] [--reports-path PATH]
                          [--docs-path PATH] [--local-worker] [--config PATH]
@@ -108,7 +108,9 @@ Options:
     --variation=NAME       variation to run (default: all)
     --filter=EXPR          EDN predicate selecting variations
     --uut=NAME=VERSION     UUT version to use (default: newest)
-    --debug                enables autoload [default: false]
+    --debug                Flask's development server, with its debugger
+                           and reloading on code changes, on 127.0.0.1
+                           only [default: false]
     REPORT                 a report's folder (in the reports path)
     --title=TEXT           the report's name, its document's title
     --number=TEXT          the document's number
@@ -171,7 +173,8 @@ def main(argv=None):
     if args["requirements"]:
         sys.exit(requirements(args))
 
-    print(__banner__)
+    if not reloaded():  # once, not again on each --debug restart
+        print(__banner__)
     if args["client"]:
         start_client(args)
     elif args["demo"]:
@@ -193,7 +196,11 @@ def serve(app, args, name, reload=True, host="0.0.0.0"):
     from waitress import serve
 
     if args["--debug"]:
-        app.run(host=host, port=port(args), debug=True, use_reloader=reload)
+        # Flask's debugger runs code typed into its error pages: this machine only
+        if not reloaded():
+            print(f"   {name} started in debug mode: http://localhost:{port(args)}/ "
+                  "(this machine only)")
+        app.run(host="127.0.0.1", port=port(args), debug=True, use_reloader=reload)
     else:
         print(f"   {name} started: http://localhost:{port(args)}/")
         serve(app, host=host, port=port(args), threads=8)
@@ -284,11 +291,16 @@ def start_server(args):
 
 
 def start_demo(args):
-    """Set up a fresh demo and serve it, with a worker in-process"""
-    from .demo import DemoError, setup
+    """Set up a fresh demo and serve it, with a worker in-process. With
+    --debug, the reloader runs this again in a new process at the start and
+    after each code change: those reuse the demo the first one set up."""
+    from .demo import DemoError, existing, setup
 
     try:
-        demo = setup(args["--path"], docs=not args["--no-docs"])
+        if reloaded():
+            demo = existing(args["--path"])
+        else:
+            demo = setup(args["--path"], docs=not args["--no-docs"])
     except DemoError as e:
         sys.exit(str(e))
     start_server({
@@ -302,9 +314,15 @@ def start_demo(args):
     })
 
 
+def reloaded():
+    """Is this a process the --debug reloader started (which serves), not
+    the one you ran (which only watches the code and restarts it)?"""
+    return os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+
+
 def serving_process(args):
     """False in the --debug reloader's watcher process, which never serves"""
-    return not args["--debug"] or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+    return not args["--debug"] or reloaded()
 
 
 def start_local_worker(db_path, reports_path, config):

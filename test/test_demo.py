@@ -1,11 +1,13 @@
 """`automation-v3 demo`: a fresh demo folder, and the docs it serves"""
 
 import json
+import os
 import shutil
 import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest import mock
 
 from automationv3 import demo
 from automationv3.services.database import connect
@@ -62,6 +64,43 @@ class TestDemoSetup(unittest.TestCase):
         self.path.mkdir()
         demo.setup(self.path, docs=False, log=quiet)
         self.assertTrue((self.path / demo.MARKER).exists())
+
+    def test_existing_finds_what_setup_made(self):
+        made = demo.setup(self.path, docs=False, log=quiet)
+        self.assertEqual(demo.existing(self.path), made)
+        with self.assertRaises(demo.DemoError):
+            demo.existing(self.tmp / "nothing")
+
+
+class TestDemoUnderTheReloader(unittest.TestCase):
+    """`demo --debug`: the reloader's processes reuse the demo, not rebuild it"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.path = self.tmp / "demo"
+        self.args = {"--path": str(self.path), "--no-docs": True, "--debug": True}
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def start(self, reloaded):
+        from automationv3 import cli
+        env = {"WERKZEUG_RUN_MAIN": "true"} if reloaded else {}
+        with mock.patch.dict(os.environ, env, clear=False), \
+                mock.patch.object(cli, "start_server") as start_server, \
+                mock.patch("builtins.print"):
+            if not reloaded:
+                os.environ.pop("WERKZEUG_RUN_MAIN", None)
+            cli.start_demo(self.args)
+        return start_server.call_args.args[0]
+
+    def test_a_reloaded_process_keeps_the_demo(self):
+        first = self.start(reloaded=False)
+        (self.path / "reports" / "made-while-running").mkdir()
+        again = self.start(reloaded=True)
+        self.assertTrue((self.path / "reports" / "made-while-running").is_dir())
+        for key in ("--dbpath", "--workspace-path", "--reports-path", "--config"):
+            self.assertEqual(again[key], first[key])
 
 
 class TestDocsLink(unittest.TestCase):

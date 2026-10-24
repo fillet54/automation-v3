@@ -11,7 +11,7 @@ Command line
    Automation Framework
 
    Usage:
-       automation-v3 demo [--path PATH] [--port PORT] [--no-docs]
+       automation-v3 demo [--path PATH] [--port PORT] [--no-docs] [--debug]
        automation-v3 server [--port PORT] [--dbpath PATH]
                             [--workspace-path PATH] [--reports-path PATH]
                             [--docs-path PATH] [--local-worker] [--config PATH]
@@ -118,7 +118,9 @@ Command line
        --variation=NAME       variation to run (default: all)
        --filter=EXPR          EDN predicate selecting variations
        --uut=NAME=VERSION     UUT version to use (default: newest)
-       --debug                enables autoload [default: false]
+       --debug                Flask's development server, with its debugger
+                              and reloading on code changes, on 127.0.0.1
+                              only [default: false]
        REPORT                 a report's folder (in the reports path)
        --title=TEXT           the report's name, its document's title
        --number=TEXT          the document's number

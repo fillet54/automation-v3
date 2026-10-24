@@ -213,6 +213,18 @@ def build_docs(out):
     return out
 
 
+def existing(path):
+    """The demo already set up at `path` (by `setup`), as it is"""
+    path = Path(path).resolve()
+    if not (path / MARKER).exists():
+        raise DemoError(f"{path} isn't a demo folder")
+    docs = path / "docs" / "html"
+    return Demo(path=path, db_path=path / "automationv3.db",
+                workspace=path / "workspace" / "master", reports=path / "reports",
+                config=path / "worker.json",
+                docs=docs if (docs / "index.html").exists() else None)
+
+
 def setup(path, docs=True, log=print):
     """Build a fresh demo at `path`, deleting an earlier one"""
     check_source()
