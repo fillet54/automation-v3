@@ -476,7 +476,8 @@ def get_job(conn, id):
 
 
 def jobs_for_worker(conn, worker_url):
-    """Pending jobs, oldest first, that `worker_url` is able to run"""
+    """Pending jobs that `worker_url` is able to run, scratch runs first,
+    then oldest first"""
     worker = get_worker(conn, worker_url)
     if worker is None:
         return []
@@ -491,13 +492,15 @@ def jobs_for_worker(conn, worker_url):
 
 
 def find_jobs(conn, status=None):
-    """Jobs oldest first, optionally only those with `status`"""
+    """Jobs in the order workers are offered them: scratch runs first (so
+    trying a script stays quick while long reports queue), then reports'
+    runs, each oldest first. Optionally only those with `status`."""
     query = f"SELECT {JOB_COLUMNS} FROM jobs"
-    params = ()
+    params = (SCRATCH,)
     if status is not None:
         query += " WHERE status = ?"
-        params = (status,)
-    query += " ORDER BY id"
+        params = (status, SCRATCH)
+    query += " ORDER BY report_id = ? DESC, id"
     return [_job(row) for row in conn.execute(query, params)]
 
 

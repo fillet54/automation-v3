@@ -70,6 +70,11 @@ and a pinned rerun only to a worker whose fingerprint matches.
 Scheduling
 ----------
 
+Pending jobs are offered to workers **scratch runs first**, then reports'
+runs, each oldest first. Scratch runs are short and someone is waiting on
+them, so a long report queued ahead doesn't hold up the edit, run, read loop.
+Reports' runs stay first in, first out.
+
 Workers schedule **warm-first**:
 
 1. Every pending job the worker can run is **probed** against the
@@ -77,7 +82,7 @@ Workers schedule **warm-first**:
    preconditions are checked and healed.
 2. The first job whose preconditions hold runs. Others are released back to
    the queue untouched.
-3. If none does, the oldest runs in **force mode**: UUT versions are
+3. If none does, the first in the queue's order runs in **force mode**: UUT versions are
    installed if needed and started fresh, then the job's preconditions run.
    A precondition that still fails makes the run :status:`blocked`.
 

@@ -4,7 +4,8 @@ A Worker takes jobs from a server, which is anything with this
 interface (the HTTP client, or an in-process LocalServer)::
 
     check_in(status, capabilities, started=False) -> bool
-    pending_jobs() -> [job]          jobs this worker can run, oldest first
+    pending_jobs() -> [job]          jobs this worker can run, scratch
+                                     runs first, then oldest first
     claim(job_id) -> job | None      the job with its closure, if claimed
     start(job_id), release(job_id)
     post_events(job_id, events)
@@ -12,8 +13,8 @@ interface (the HTTP client, or an in-process LocalServer)::
 
 Scheduling is warm-first: every pending job is probed against the
 environment as it is, and the first whose preconditions hold (or heal)
-runs. If none does, the oldest runs in force mode with its UUTs
-installed and started fresh.
+runs. If none does, the first (a scratch run, else the oldest) runs in
+force mode with its UUTs installed and started fresh.
 """
 
 import threading
