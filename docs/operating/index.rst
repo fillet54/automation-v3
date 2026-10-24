@@ -63,6 +63,10 @@ In this section
    Single-user and central servers, signing in by emailed link, devices
    and admins.
 
+:doc:`local-client`
+   Signing your machine in, and trying scripts from your worktree before
+   they're pushed.
+
 :doc:`workers`
    Configuring workers and environments, and how jobs are scheduled.
 

@@ -74,6 +74,7 @@ Where to start
    operating/index
    operating/deployment
    operating/accounts
+   operating/local-client
    operating/workers
    operating/reports
    operating/configuration-management

@@ -11,6 +11,13 @@ Usage:
     automation-v3 run SCRIPT... [--root PATH] [--config PATH]
                       [--env NAME]... [--variation NAME]... [--filter EXPR]
                       [--uut NAME=VERSION]... [--reports-path PATH]
+    automation-v3 login --server URL [--email EMAIL]
+    automation-v3 logout [--server URL]
+    automation-v3 whoami [--server URL]
+    automation-v3 scratch SCRIPT... [--root PATH] [--server URL]
+                          [--env NAME]... [--variation NAME]...
+                          [--uut NAME=VERSION]...
+                          [--no-wait]
     automation-v3 report edit REPORT [--title TEXT] [--number TEXT]
                          [--revision TEXT] [--author TEXT]
                          [--sign ROLE=NAME]... [--applicable DOC]...
@@ -32,6 +39,13 @@ Commands:
                            with a worker in the same process
     worker                 take jobs from a server and run them
     run                    run scripts on this machine, without a server
+    login                  sign this machine in to a central server: it
+                           emails you a link to approve it
+    logout                 sign this machine out, and revoke its token
+    whoami                 who this machine is signed in as
+    scratch                run scripts from your worktree in the central
+                           server's scratch space, on its workers: in-work
+                           edits included. Waits and prints each step
     report edit            set a report's document fields: its title,
                            number, revision and author, who signs it, and
                            its applicable and reference documents
@@ -71,6 +85,10 @@ Options:
                            (hosting the environments in --config)
     --root=PATH            root script path SCRIPTs are relative to
                            [default: ./]
+    --server=URL           a central server (default: the one you last
+                           signed in to)
+    --email=EMAIL          your work email (asked for if not given)
+    --no-wait              queue and print the runs' links, without waiting
     --env=NAME             environment to run in (default: all hosted)
     --variation=NAME       variation to run (default: all)
     --filter=EXPR          EDN predicate selecting variations
@@ -130,6 +148,8 @@ def main(argv=None):
         sys.exit(f"{e}\nFix or uninstall the plugin, then start again.")
     if args["run"]:
         sys.exit(run(args))
+    if args["login"] or args["logout"] or args["whoami"] or args["scratch"]:
+        sys.exit(client_command(args))
     if args["report"]:
         sys.exit(report(args))
     if args["requirements"]:
@@ -393,6 +413,75 @@ def run(args):
               f"{' (' + where + ')' if where else ''}")
     passed = runs and all(r.get("outcome") == "pass" for r in runs)
     return 0 if passed else 1
+
+
+def client_command(args):
+    """login, logout, whoami and scratch: the local client. Returns the
+    exit status."""
+    from .services import client
+
+    try:
+        if args["login"]:
+            server = client.normal_server(args["--server"])
+            email = args["--email"] or input("Your work email: ").strip()
+            email = client.CentralClient(server).login(email)
+            print(f"Signed in to {server} as {email}")
+            return 0
+        central = client.CentralClient.signed_in(args["--server"])
+        if args["logout"]:
+            central.logout()
+            print(f"Signed out of {central.server}")
+            return 0
+        if args["whoami"]:
+            me = central.whoami()
+            print(f"{me['email']} on {central.server}{' (admin)' if me['admin'] else ''}")
+            return 0
+        return scratch(args, central)
+    except client.ClientError as e:
+        print(e)
+        return 2
+    except KeyboardInterrupt:
+        return 130
+
+
+def scratch(args, central):
+    """Upload scripts' closures from the worktree and run them in scratch"""
+    from .services import client
+
+    root = Path(args["--root"]).resolve()
+    scripts = [
+        str(Path(s).resolve().relative_to(root)) if Path(s).is_absolute() else s
+        for s in args["SCRIPT"]
+    ]
+    files = client.upload_files(root, scripts)
+    versions = dict(uut.split("=", 1) for uut in args["--uut"])
+    environments = args["--env"] or [None]
+    variations = args["--variation"] or [None]
+    runs = []
+    for environment in environments:
+        for variation in variations:
+            runs += central.scratch(client.current_branch(root), files, scripts,
+                                    environment=environment, variation=variation,
+                                    uut_versions=versions)
+    for r in runs:
+        print(f"Queued {r['script']}{where(r)}: {r['url']}")
+    if args["--no-wait"]:
+        return 0
+    observer = ConsoleObserver()
+    outcomes = []
+    for r in runs:
+        observer.on_job(r["script"], r.get("environment"), r.get("variation"), "scratch")
+        outcome = central.follow(r["id"], lambda e: client.replay(observer, e))
+        outcomes.append(outcome)
+    print()
+    for r, outcome in zip(runs, outcomes):
+        print(f"  {outcome or 'not run':8} {r['script']}{where(r)}")
+    return 0 if outcomes and all(o == "pass" for o in outcomes) else 1
+
+
+def where(run):
+    shown = ", ".join(x for x in (run.get("environment"), run.get("variation")) if x)
+    return f" ({shown})" if shown else ""
 
 
 def report(args):

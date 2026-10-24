@@ -7,6 +7,7 @@ av3u_...`), except the two calls that get one:
                             emails a link that approves the device
     POST /api/login/poll    {code}            -> 200 {token, email} once approved,
                                                  202 while waiting, 410 if expired
+    POST /api/logout                          revokes the token it came with
     GET  /api/whoami                          -> {email, admin, central}
     GET  /api/requirements?id=..&context=..   -> {id: requirement or null}
     GET  /api/environments                    -> {environment: [live worker urls]}
@@ -87,6 +88,16 @@ def login_poll():
         return jsonify({"pending": True}), 202
     user = accounts.token_for(get_db(), token).user
     return jsonify({"token": token, "email": user.email})
+
+
+@api.route("/logout", methods=["POST"])
+def logout():
+    """Revoke the device token this request came with"""
+    from flask import g
+    token = g.get("api_token")
+    if token is not None:
+        accounts.revoke_token(get_db(), token.id, user=current_user())
+    return jsonify({"revoked": token is not None})
 
 
 @api.route("/whoami", methods=["GET"])
