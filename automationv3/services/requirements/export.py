@@ -250,3 +250,47 @@ def duplicate_ids(specs):
                 problems.append(f"requirement {r.id} is in both {owner[r.id]} and {spec.label}")
             owner.setdefault(r.id, spec.label)
     return problems
+
+
+def read_zip(data, name="upload.zip"):
+    """The Export in a zip of an export folder (manifest.json at its top,
+    or in its one top folder). Raises ExportError."""
+    import io
+    import shutil
+    import tempfile
+    import zipfile
+
+    folder = Path(tempfile.mkdtemp(prefix="export-"))
+    try:
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                for member in archive.namelist():
+                    target = (folder / member).resolve()
+                    if not target.is_relative_to(folder.resolve()):
+                        raise ExportError(f"{name}: {member} is outside the export")
+                archive.extractall(folder)
+        except zipfile.BadZipFile:
+            raise ExportError(f"{name} isn't a zip file") from None
+        root = folder
+        if not (root / "manifest.json").is_file():
+            tops = [p for p in folder.iterdir() if p.is_dir()]
+            if len(tops) == 1 and (tops[0] / "manifest.json").is_file():
+                root = tops[0]
+        from dataclasses import replace
+        return replace(read(root), path=name)  # read every file: the folder can go
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def zip_folder(path):
+    """An export folder as zip bytes, to upload"""
+    import io
+    import zipfile
+
+    path = Path(path)
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+        for file in sorted(path.rglob("*")):
+            if file.is_file():
+                archive.write(file, file.relative_to(path).as_posix())
+    return out.getvalue()

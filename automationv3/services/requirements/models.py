@@ -196,6 +196,12 @@ def log(conn, limit=20):
     return out
 
 
+def importers(conn):
+    """import id -> who imported it, for imports that recorded it"""
+    return dict(conn.execute("SELECT id, imported_by FROM imports "
+                             "WHERE imported_by IS NOT NULL").fetchall())
+
+
 def unhashed_attributes(conn):
     """spec -> the attributes any version of its schema marks as not
     hashed: shown, but never a change"""

@@ -20,14 +20,16 @@ def _json(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False)
 
 
-def import_export(conn, export, source=None):
-    """Import `export` (an export.Export). Returns (import id, a list of
-    (spec label, outcome) lines saying what happened to each spec)."""
+def import_export(conn, export, source=None, by=None):
+    """Import `export` (an export.Export); `by` is who imported it.
+    Returns (import id, a list of (spec label, outcome) lines saying what
+    happened to each spec)."""
     with conn:
         import_id = conn.execute(
-            "INSERT INTO imports(exported_at, source, manifest) VALUES (?, ?, ?)",
+            "INSERT INTO imports(exported_at, source, manifest, imported_by) "
+            "VALUES (?, ?, ?, ?)",
             (export.exported_at, str(source or export.path),
-             _json(export.manifest))).lastrowid
+             _json(export.manifest), by)).lastrowid
         outcomes = [(spec.label, import_spec(conn, import_id, spec, export.exported_at))
                     for spec in export.specs]
         outcomes += [(f"set {s['name']}", import_set(conn, import_id, s))

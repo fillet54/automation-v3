@@ -13,6 +13,7 @@ from markupsafe import Markup
 
 from ..services import jobs
 from ..services.requirements import links, models, render, rst_source, suspects, textdiff
+from .auth import admin_required, owner_email
 from .db import get_db
 
 requirements = Blueprint("requirements", __name__)
@@ -206,9 +207,9 @@ def review():
     try:
         if form.get("script"):
             suspects.review_script(conn, form["workspace"], form["script"], form["id"],
-                                   form.get("context") or "trunk")
+                                   form.get("context") or "trunk", by=owner_email())
         else:
-            suspects.review_trace(conn, form["child"], form["parent"])
+            suspects.review_trace(conn, form["child"], form["parent"], by=owner_email())
     except (KeyError, models.ContextError):
         abort(400)
     back = form.get("next") or ""
@@ -235,11 +236,40 @@ def changes():
         **nav(conn, page_state(conn, after), spec=spec, subsystem=subsystem, tab="changes"))
 
 
-@requirements.route("/imports", methods=["GET"])
-def imports():
+def render_imports(outcome=None, errors=(), status=200):
     conn = get_db()
     return render_template("requirement_imports.html", log=models.log(conn, 30),
-                           **nav(conn, page_state(conn, "trunk"), tab="imports"))
+                           importers=models.importers(conn), outcome=outcome,
+                           errors=[*errors],
+                           **nav(conn, page_state(conn, "trunk"), tab="imports")), status
+
+
+@requirements.route("/imports", methods=["GET"])
+def imports():
+    return render_imports()
+
+
+def import_zip(data, name):
+    """Import a zipped export as the current user. Returns (import id,
+    outcomes). Raises export.ExportError."""
+    from ..services.requirements import export, store
+    found = export.read_zip(data, name)
+    return store.import_export(get_db(), found, source=name, by=owner_email())
+
+
+@requirements.route("/imports", methods=["POST"])
+@admin_required
+def upload_import():
+    """Import a DOORS export folder, zipped (admins only)"""
+    from ..services.requirements import export
+    upload = request.files.get("export")
+    if upload is None or not upload.filename:
+        return render_imports(errors=["Choose a zipped export folder"], status=400)
+    try:
+        import_id, outcomes = import_zip(upload.read(), upload.filename)
+    except export.ExportError as e:
+        return render_imports(errors=str(e).splitlines(), status=400)
+    return render_imports(outcome={"id": import_id, "lines": outcomes})
 
 
 def spec_cache():

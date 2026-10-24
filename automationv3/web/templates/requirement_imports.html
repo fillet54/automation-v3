@@ -12,9 +12,28 @@
 {{ ui.page_header("Imports", subtitle="Each import of an export from DOORS, newest first, and the requirements it changed in trunk.") }}
 {% include "partials/requirements_tabs.html" %}
 
+{% if errors %}
+{% call ui.alert("danger", title="Couldn't import that") %}
+  <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+{% endcall %}
+{% endif %}
+{% if outcome %}
+{% call ui.alert("success", title="Import #" ~ outcome.id) %}
+  <ul class="ui-plain-list">{% for label, what in outcome.lines %}<li><span class="ui-mono">{{ label }}</span>: {{ what }}</li>{% endfor %}</ul>
+{% endcall %}
+{% endif %}
+{% if is_admin %}
+<form method="post" action="{{ url_for('requirements.upload_import') }}" enctype="multipart/form-data" class="ui-row" style="margin-bottom: 16px;">
+  {% call ui.field("Import an export", "export", hint="A DOORS export folder, zipped: manifest.json at its top. Imports only ever move trunk forward.") %}
+    <input class="ui-input" type="file" name="export" id="export" accept=".zip" required>
+  {% endcall %}
+  {{ ui.button("Import", variant="primary", type="submit") }}
+</form>
+{% endif %}
+
 {% for import_id, at, source, changes in log %}
 {% call ui.card() %}
-  {{ ui.card_header("Import #" ~ import_id, subtitle=source, mono=True) }}
+  {{ ui.card_header("Import #" ~ import_id, subtitle=source ~ (" · by " ~ importers[import_id] if importers.get(import_id) else ""), mono=True) }}
   {% call ui.card_body() %}
   <div class="ui-stack ui-gap-tight">
     <div class="ui-muted">{{ ui.timestamp(at) }}{% if import_id > 1 %} · <a href="{{ url_for('requirements.changes', **{'from': 'trunk@' ~ (import_id - 1), 'to': 'trunk@' ~ import_id}) }}">compare with the trunk before</a>{% endif %}</div>
@@ -25,6 +44,6 @@
   {% endcall %}
 {% endcall %}
 {% else %}
-{{ ui.empty("Nothing imported yet: run automation-v3 requirements import with an export folder.") }}
+{{ ui.empty("Nothing imported yet: " ~ ("import a zipped export above, or " if is_admin else "an admin can ") ~ "run automation-v3 requirements import with an export folder.") }}
 {% endfor %}
 {% endblock %}

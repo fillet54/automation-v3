@@ -18,7 +18,10 @@ def connect(path):
 # Columns added since their table was first created, for databases made
 # before them: table -> [(column, definition)]
 ADDED_COLUMNS = {"jobs": [("fingerprint_hash", "TEXT"), ("owner", "TEXT")],
-                 "workers": [("token", "TEXT")]}
+                 "workers": [("token", "TEXT")],
+                 "imports": [("imported_by", "TEXT")],
+                 "script_reviews": [("reviewed_by", "TEXT")],
+                 "trace_reviews": [("reviewed_by", "TEXT")]}
 
 
 def init_db(conn):

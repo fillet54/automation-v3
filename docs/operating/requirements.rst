@@ -45,6 +45,23 @@ The import is safe to run as often as you like:
 Keeping each pipeline's export folder as an artifact means any import can be
 looked at, or run again, later.
 
+On a central server
+~~~~~~~~~~~~~~~~~~~
+
+A central server (see :doc:`deployment`) takes imports from admins only, two
+ways:
+
+- **Requirements → Imports** has an upload form for admins: a zip of the
+  export folder, with ``manifest.json`` at its top or in its one top folder.
+- ``automation-v3 requirements import FOLDER --server URL``, from a machine
+  signed in as an admin (see :doc:`local-client`), zips and uploads each
+  folder. A CI job can do the same with its own admin's device, with no
+  access to the server's database needed.
+
+Either way the import is recorded with who made it, shown on the Imports
+page. The same rules apply: unchanged content changes nothing, trunk only
+moves forward, and a bad export is refused whole.
+
 The Requirements pages
 ----------------------
 
@@ -99,7 +116,7 @@ A link counts as reviewed against the text it first meets, so only later
 changes make it suspect, and only changes to the *text*: a new attribute
 value or a reformatted export doesn't. The Suspects page shows each one with
 what changed since its review; fix the script or requirement if it needs it,
-then **Mark reviewed**.
+then **Mark reviewed**. On a central server the review records who marked it.
 
 What a report records
 ---------------------

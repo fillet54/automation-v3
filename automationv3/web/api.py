@@ -138,6 +138,26 @@ def uuts():
                     for name, cls in sorted(uut_types().items())})
 
 
+@api.route("/requirements/import", methods=["POST"])
+def import_requirements():
+    """Import a zipped export folder (admins only): {zip: base64, source}"""
+    import base64
+    from ..services.requirements import export
+    from .requirements import import_zip
+    if not is_admin():
+        return error("Only admins import requirements", 403)
+    data = body()
+    try:
+        content = base64.b64decode(data.get("zip", ""), validate=True)
+    except ValueError:
+        return error("zip must be base64")
+    try:
+        import_id, outcomes = import_zip(content, data.get("source") or "upload.zip")
+    except export.ExportError as e:
+        return error(str(e))
+    return jsonify({"import": import_id, "outcomes": outcomes}), 201
+
+
 # Scratch runs from the client's worktree
 
 

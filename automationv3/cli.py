@@ -27,7 +27,7 @@ Usage:
                          [--reference DOC]...
     automation-v3 report export REPORT [--out DIR] [--template DIR]
     automation-v3 report reopen REPORT
-    automation-v3 requirements import FOLDER... [--dbpath PATH]
+    automation-v3 requirements import FOLDER... [--dbpath PATH] [--server URL]
     automation-v3 requirements log [--limit N] [--dbpath PATH]
     automation-v3 requirements history ID [--dbpath PATH]
     automation-v3 requirements diff FROM TO [--spec KEY]
@@ -64,7 +64,9 @@ Commands:
                            report-<id>.zip
     report reopen          unfreeze an exported report, so runs can be
                            added to it again
-    requirements import    import DOORS export folders, in order
+    requirements import    import DOORS export folders, in order: into the
+                           database, or with --server into a central
+                           server (admins only)
     requirements log       the latest imports, and what each changed
     requirements history   every change to a requirement, and the
                            baselines it is in
@@ -623,6 +625,9 @@ def requirements(args):
     from .services.database import connect, init_db
     from .services.requirements import export, models, store
 
+    if args["import"] and args["--server"]:
+        return import_to_server(args)
+
     with closing(connect(args["--dbpath"])) as conn:
         init_db(conn)
         try:
@@ -654,6 +659,31 @@ def requirements(args):
         except (export.ExportError, models.ContextError) as e:
             print(e)
             return 1
+    return 0
+
+
+def import_to_server(args):
+    """requirements import --server: upload each export folder, zipped"""
+    import base64
+
+    from .services import client
+    from .services.requirements import export
+
+    try:
+        central = client.CentralClient.signed_in(args["--server"])
+        for folder in args["FOLDER"]:
+            if not (Path(folder) / "manifest.json").is_file():
+                print(f"{folder}: no manifest.json")
+                return 1
+            data = base64.b64encode(export.zip_folder(folder)).decode()
+            got = central.call("POST", "/requirements/import",
+                               {"zip": data, "source": Path(folder).resolve().name}).json()
+            print(f"Import {got['import']}: {folder}")
+            for label, outcome in got["outcomes"]:
+                print(f"  {label}: {outcome}")
+    except client.ClientError as e:
+        print(e)
+        return 1
     return 0
 
 

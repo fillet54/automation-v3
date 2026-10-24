@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS imports(
     imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     exported_at TEXT,
     source TEXT NOT NULL,
-    manifest TEXT NOT NULL
+    manifest TEXT NOT NULL,
+    imported_by TEXT
 );
 
 -- Trunk: the version of each spec each import saw, changed or not, and
@@ -170,7 +171,7 @@ CREATE TABLE IF NOT EXISTS requirement_links(
 -- Suspect links: the text of a requirement each link was last reviewed
 -- against. A link whose requirement's text has changed since is suspect.
 -- how is 'first seen' (recorded when the link was first found) or
--- 'reviewed' (someone looked).
+-- 'reviewed' (someone looked: reviewed_by, on a central server).
 CREATE TABLE IF NOT EXISTS script_reviews(
     workspace TEXT NOT NULL,
     script TEXT NOT NULL,
@@ -178,6 +179,7 @@ CREATE TABLE IF NOT EXISTS script_reviews(
     text_hash TEXT NOT NULL,
     reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     how TEXT NOT NULL,
+    reviewed_by TEXT,
     PRIMARY KEY(workspace, script, requirement_id)
 );
 
@@ -189,6 +191,7 @@ CREATE TABLE IF NOT EXISTS trace_reviews(
     text_hash TEXT NOT NULL,
     reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     how TEXT NOT NULL,
+    reviewed_by TEXT,
     PRIMARY KEY(child, parent)
 );
 

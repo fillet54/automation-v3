@@ -72,17 +72,20 @@ def script_suspects(conn, workspace, context=None):
             if id in hashes and hashes[id] != h]
 
 
-def review_script(conn, workspace, script, id, context=None):
-    """Record that `script` was reviewed against `id`'s current text"""
+def review_script(conn, workspace, script, id, context=None, by=None):
+    """Record that `script` was reviewed against `id`'s current text, by
+    `by` (an email) if known"""
     current = text_hashes(conn, context).get(id)
     if current is None:
         raise models.ContextError(f"there is no requirement {id} in {context or 'trunk'}")
     with conn:
         conn.execute(
-            "INSERT INTO script_reviews(workspace, script, requirement_id, text_hash, how) "
-            "VALUES (?, ?, ?, ?, 'reviewed') ON CONFLICT(workspace, script, requirement_id) "
+            "INSERT INTO script_reviews(workspace, script, requirement_id, text_hash, how, "
+            "reviewed_by) VALUES (?, ?, ?, ?, 'reviewed', ?) "
+            "ON CONFLICT(workspace, script, requirement_id) "
             "DO UPDATE SET text_hash = excluded.text_hash, how = 'reviewed', "
-            "reviewed_at = CURRENT_TIMESTAMP", (workspace, script, id, current))
+            "reviewed_at = CURRENT_TIMESTAMP, reviewed_by = excluded.reviewed_by",
+            (workspace, script, id, current, by))
 
 
 # -- traces
@@ -119,15 +122,17 @@ def trace_suspects(conn):
             if (child, parent) in links and parent in hashes and hashes[parent] != h]
 
 
-def review_trace(conn, child, parent):
+def review_trace(conn, child, parent, by=None):
     current = text_hashes(conn, "trunk").get(parent)
     if current is None:
         raise models.ContextError(f"there is no requirement {parent} in trunk")
     with conn:
         conn.execute(
-            "INSERT INTO trace_reviews(child, parent, text_hash, how) VALUES (?, ?, ?, 'reviewed') "
+            "INSERT INTO trace_reviews(child, parent, text_hash, how, reviewed_by) "
+            "VALUES (?, ?, ?, 'reviewed', ?) "
             "ON CONFLICT(child, parent) DO UPDATE SET text_hash = excluded.text_hash, "
-            "how = 'reviewed', reviewed_at = CURRENT_TIMESTAMP", (child, parent, current))
+            "how = 'reviewed', reviewed_at = CURRENT_TIMESTAMP, "
+            "reviewed_by = excluded.reviewed_by", (child, parent, current, by))
 
 
 def reviewed_version(conn, id, text_hash):
