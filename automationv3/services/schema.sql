@@ -195,3 +195,58 @@ CREATE TABLE IF NOT EXISTS expanded_nodes(
     path TEXT NOT NULL,
     PRIMARY KEY(workspace_id, path)
 );
+
+-- Accounts (services/accounts.py). Only hashes of secrets are kept:
+-- sign-in links, sessions, device codes and API tokens.
+
+CREATE TABLE IF NOT EXISTS users(
+    id INTEGER PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT
+);
+
+-- Single-use sign-in links. device_code_hash is set when the link
+-- approves a device login rather than signing a browser in.
+CREATE TABLE IF NOT EXISTS login_links(
+    token_hash TEXT PRIMARY KEY,
+    email TEXT NOT NULL COLLATE NOCASE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    device_code_hash TEXT
+);
+
+-- Browser sessions; expires_at slides forward while the session is used
+CREATE TABLE IF NOT EXISTS sessions(
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+
+-- A client asking to sign in (automation-v3 login): approved when its
+-- link is used, then issued a token once, when it next polls
+CREATE TABLE IF NOT EXISTS device_logins(
+    code_hash TEXT PRIMARY KEY,
+    email TEXT NOT NULL COLLATE NOCASE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    approved_user INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    issued_at TEXT
+);
+
+-- Long-lived API tokens: kind 'user' (a signed-in client device, acting
+-- as user_id) or 'worker' (issued by an admin, created_by)
+CREATE TABLE IF NOT EXISTS api_tokens(
+    id INTEGER PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    last_used_at TEXT,
+    revoked_at TEXT
+);
