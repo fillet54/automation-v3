@@ -31,7 +31,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.todo",
     "notebook",
-    "diagrams",
+    "mermaid_diag.sphinx",
 ]
 
 templates_path = ["_templates"]
@@ -45,6 +45,10 @@ autodoc_default_options = {"members": True}
 autodoc_typehints = "none"
 
 todo_include_todos = True
+
+# Diagrams (``.. mermaid::``) are drawn at build time by mermaid-diag (../mermaid-diag), as inline SVG that follows
+# the theme switcher's light or dark (paper-ui sets data-ui-theme on <html>). No JavaScript on the pages.
+mermaid_diag_theme_attribute = "data-ui-theme"
 
 rst_prolog = """
 .. role:: edn(code)

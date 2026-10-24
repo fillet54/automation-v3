@@ -1,4 +1,5 @@
 -e ../paper-ui
+-e ../mermaid-diag
 flask
 jinja2
 waitress
