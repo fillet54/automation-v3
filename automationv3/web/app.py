@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from ..services.workspace import LocalWorktrees
-from . import auth, docs as documentation, hooks, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
+from . import api, auth, docs as documentation, hooks, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
 from .db import close_db, get_db
 
 
@@ -73,6 +73,7 @@ def create_app(**config):
     app.register_blueprint(reports.reports, url_prefix="/reports")
     app.register_blueprint(scratch.scratch, url_prefix="/scratch")
     app.register_blueprint(hooks.hooks)
+    app.register_blueprint(api.api, url_prefix="/api")
     app.teardown_appcontext(close_db)
     rst.set_requirement_lookup(requirement_lookup, requirement_key)
 
