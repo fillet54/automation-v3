@@ -29,7 +29,7 @@ setuptools.setup(
         "paper-ui",  # the UI's look: ../paper-ui (pip install -e ../paper-ui)
     ],
     extras_require={
-        "docs": ["sphinx"],
+        "docs": ["sphinx", "paper-ui[linebreaks]"],  # TeX line breaks in the docs
     },
     python_requires='>=3.11'  # tomllib,
     include_package_data=True,
