@@ -19,8 +19,8 @@ from werkzeug.security import safe_join
 from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import access, build, export, rollup, store
-from ..services.workspace import find_worktrees
 from .auth import can_change, mine_only, owner_email
+from .jobs import workspaces
 from .db import get_db
 from . import documents, report_view
 from .docs import in_shell
@@ -111,7 +111,7 @@ def uut_choices():
 def new():
     """Create an empty report: a name and a workspace. Its UUT versions
     come from the first tests added to it."""
-    workspaces = sorted(find_worktrees(current_app.config["WORKSPACE_PATH"]))
+    branches = sorted(workspaces().branches())
     errors = []
     if request.method == "POST":
         form = request.form
@@ -119,14 +119,14 @@ def new():
         workspace = form.get("workspace")
         if not name:
             errors.append("A report needs a name")
-        if workspace not in workspaces:
+        if workspace not in branches:
             errors.append("Pick a workspace")
         if not errors:
             report_id = models.create_report(root(), workspace, name,
                                              template=workspace_template(workspace),
                                              owner=owner_email())
             return redirect(url_for("reports.report", report_id=report_id))
-    return render_template("reports/new.html", workspaces=workspaces,
+    return render_template("reports/new.html", workspaces=branches,
                            form=request.form, errors=errors)
 
 
@@ -354,7 +354,7 @@ def server_url():
 def workspace_template(name):
     """The document template of a workspace, else the built-in one"""
     try:
-        workspace = find_worktrees(current_app.config["WORKSPACE_PATH"]).get(name)
+        workspace = workspaces().root(name)
     except Exception:  # not a git repository, or git missing
         workspace = None
     return export.find_template(workspace)

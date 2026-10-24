@@ -5,10 +5,8 @@ use those functions in-process (services.worker.local).
 """
 
 import base64
-import tempfile
 from dataclasses import asdict
 from datetime import datetime
-from pathlib import Path
 
 from flask import (
     Blueprint,
@@ -28,7 +26,6 @@ from ..services import jobs as models
 from ..services.reports import export, store
 from ..services.requirements import links
 from ..services.requirements import models as requirement_models
-from ..services.workspace import checked_in, edited_files, find_worktrees
 from ..services.reports import access
 from .auth import can_change, mine_only, owner_email
 from .db import get_db
@@ -40,37 +37,31 @@ def reports_root():
     return current_app.config["REPORTS_PATH"]
 
 
+def workspaces():
+    """The app's workspace source (services/workspace.py): WORKSPACES, else
+    the worktrees of WORKSPACE_PATH"""
+    config = current_app.config
+    if config.get("WORKSPACES") is None:
+        from .app import workspace_source
+        config["WORKSPACES"] = workspace_source(config)
+    return config["WORKSPACES"]
+
+
 def workspace_root(name):
-    """The rvts root of the worktree for branch `name`, or None"""
-    if not name:
-        return None
-    return find_worktrees(current_app.config["WORKSPACE_PATH"]).get(name)
+    """The rvts root of branch `name` as the workspace shows it, or None"""
+    return workspaces().root(name) if name else None
 
 
 def checked_in_root(name):
-    """The rvts of branch `name` as checked in (its HEAD), which reports
-    run; None for an unknown branch or one with nothing committed. Kept
-    under CHECKED_IN_PATH, else checked-in/ beside the database."""
-    root = workspace_root(name)
-    if root is None:
-        return None
-    config = current_app.config
-    if not config.get("CHECKED_IN_PATH"):
-        db = config.get("DB_PATH")
-        config["CHECKED_IN_PATH"] = (Path(db).resolve().parent / "checked-in"
-                                     if db and db != ":memory:"
-                                     else Path(tempfile.mkdtemp(prefix="checked-in-")))
-    try:
-        return checked_in(root, config["CHECKED_IN_PATH"])
-    except ValueError:
-        return None
+    """The rvts of branch `name` as checked in, which reports run; None
+    for an unknown branch or one with nothing committed"""
+    return workspaces().checked_in(name) if name else None
 
 
 def in_work(plan):
     """script -> the files of its closure with edits that aren't checked
     in, for the plan's scripts that have any: the checked-in version runs"""
-    root = workspace_root(plan.workspace)
-    edited = edited_files(root) if root else set()
+    edited = workspaces().edited(plan.workspace) if plan.workspace else set()
     out = {}
     for s in plan.scripts:
         files = [s.script, *(s.closure.load_order[:-1] if s.closure else [])]

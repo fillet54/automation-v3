@@ -157,3 +157,58 @@ def checked_in(root, cache):
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return out
+
+
+# Workspace sources: where a server's branches and their files come from.
+# Pages ask a source, never git, so a central server can mirror a remote
+# (services/mirror.py) where a single-user server or a local client reads
+# worktrees.
+
+
+class LocalWorktrees:
+    """The branches checked out as git worktrees of `repo`: each branch's
+    rvts on disk (in work, edits included) and as checked in (its HEAD,
+    extracted under `cache` by commit)"""
+
+    editable = True  # files on disk may differ from what is checked in
+
+    def __init__(self, repo, cache):
+        self.repo = Path(repo)
+        self.cache = Path(cache)
+
+    def branches(self):
+        """branch -> its rvts folder on disk"""
+        return find_worktrees(self.repo)
+
+    def root(self, name):
+        """The rvts folder of branch `name` as it is on disk, or None"""
+        return self.branches().get(name) if name else None
+
+    def checked_in(self, name):
+        """The rvts of branch `name` as checked in, or None for an unknown
+        branch or one with nothing committed"""
+        root = self.root(name)
+        if root is None:
+            return None
+        try:
+            return checked_in(root, self.cache)
+        except ValueError:
+            return None
+
+    def edited(self, name):
+        """Paths in branch `name` whose files differ from what is checked in"""
+        root = self.root(name)
+        return edited_files(root) if root else set()
+
+    def committed_text(self, name, path):
+        root = self.root(name)
+        return committed_text(root, path) if root else None
+
+    def commit(self, name):
+        """The commit branch `name` has checked out, or None"""
+        root = self.root(name)
+        return head_commit(root) if root else None
+
+    def refresh(self, name=None):
+        """Worktrees are always current"""
+        return None

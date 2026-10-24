@@ -15,11 +15,11 @@ from ..framework.excerpt import excerpt
 from ..services import jobs
 from ..services.reports import store
 from ..services.requirements import models as requirement_models
-from ..services.workspace import FileNode, committed_text, edited_files, find_worktrees, is_binary
+from ..services.workspace import FileNode, is_binary
 from .db import get_db
 from . import documents
 from .auth import can_change
-from .jobs import checked_in_root, live_environments
+from .jobs import checked_in_root, live_environments, workspaces
 
 
 def expanded_nodes(conn, workspace_id, root):
@@ -69,7 +69,7 @@ def requirement_context():
 
 
 def worktrees():
-    return find_worktrees(current_app.config["WORKSPACE_PATH"])
+    return workspaces().branches()
 
 
 def workspace_or_404(id):
@@ -189,7 +189,7 @@ def changes(ws, files):
     `files` to the text on disk"""
     out = []
     for path in files:
-        before = committed_text(ws.root, path) or ""
+        before = workspaces().committed_text(ws.id, path) or ""
         after = (ws.root / path).read_text() if (ws.root / path).is_file() else ""
         out.append((path, list(difflib.unified_diff(
             before.splitlines(), after.splitlines(), "checked in", "in work", lineterm="", n=3))))
@@ -207,7 +207,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
     closure = None
     if not is_binary(node.path) and is_script(relpath, node.path.read_text()):
         closure = resolve(ws.root, relpath)
-    edited = edited_files(ws.root)
+    edited = workspaces().edited(ws.id)
     in_work = [f for f in dict.fromkeys([relpath, *(closure.load_order if closure else [])])
                if f in edited]
     source, path = ws.root, node.path

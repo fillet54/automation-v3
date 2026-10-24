@@ -13,7 +13,6 @@ from markupsafe import Markup
 
 from ..services import jobs
 from ..services.requirements import links, models, render, rst_source, suspects, textdiff
-from ..services.workspace import find_worktrees
 from .db import get_db
 
 requirements = Blueprint("requirements", __name__)
@@ -35,8 +34,8 @@ def facet_tone(name):
 
 def workspaces():
     """branch -> rvts root, or {} when no workspace is configured"""
-    path = current_app.config.get("WORKSPACE_PATH")
-    return find_worktrees(path) if path else {}
+    source = current_app.config.get("WORKSPACES")
+    return source.branches() if source else {}
 
 
 @dataclass
