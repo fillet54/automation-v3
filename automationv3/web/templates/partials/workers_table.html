@@ -4,14 +4,15 @@
   {{ ui.button("Hide missing" if not show_all else "Show missing", size="sm",
                attrs={"hx-get": url_for('jobqueue.list_workers', show=show_all), "hx-target": "#workers-content", "hx-push-url": "true"}) }}
 {% endcall %}
-{% call ui.table(["Worker", "Status", "Last heard from"]) %}
+{% call ui.table(["Worker", "Status", "Last heard from"] + (["Token"] if central else [])) %}
   {% for worker in workers | sort(attribute='last_keepalive', reverse=True) %}
   <tr>
     <td>{{ ui.ident(worker.url, plain=True) }}</td>
     <td>{{ outcomes.outcome("missing" if worker.last_keepalive <= missing_time else worker.status) }}</td>
     <td>{{ ui.timestamp(worker.last_keepalive, seconds=True) }} <span class="ui-text-caption">{{ worker.last_keepalive | humanize_ts }}</span></td>
+    {% if central %}<td>{% if worker.token %}{{ ui.ident(worker.token) }}{% endif %}</td>{% endif %}
   </tr>
   {% else %}
-  {{ ui.empty_row("No workers have checked in.", 3) }}
+  {{ ui.empty_row("No workers have checked in.", 4 if central else 3) }}
   {% endfor %}
 {% endcall %}

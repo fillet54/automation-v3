@@ -14,6 +14,7 @@ from flask import (
     Blueprint,
     abort,
     current_app,
+    g,
     jsonify,
     make_response,
     redirect,
@@ -256,11 +257,40 @@ def list_workers():
         return jsonify([asdict(worker) for worker in workers])
 
 
-# Worker API
+# Worker API. On a central server only a worker token may call it
+# (web/auth.py), and a worker's url belongs to the token it checked in
+# with.
 
 
 def worker_url():
     return (request.json or {}).get("worker_url")
+
+
+def token_name():
+    """The name of the worker token this request came with, or None"""
+    token = g.get("worker_token")
+    return token.name if token else None
+
+
+def foreign_worker(url):
+    """An error response if `url` checked in with another worker token"""
+    name = token_name()
+    if name is None or not url:
+        return None
+    worker = models.get_worker(get_db(), url)
+    if worker is not None and worker.token and worker.token != name:
+        return jsonify({"error": f"Worker {url} belongs to another worker token"}), 403
+    return None
+
+
+@jobqueue.before_request
+def check_worker():
+    if request.endpoint in WORKER_OPERATIONS:
+        url = (request.args.get("worker_url") if request.method == "GET"
+               else (request.get_json(silent=True) or {}).get("worker_url")
+               or (request.get_json(silent=True) or {}).get("url"))
+        return foreign_worker(url)
+    return None
 
 
 def api_call(operation, *args, **kwargs):
@@ -287,6 +317,7 @@ def register_worker():
         uut_types=data.get("uut_types"),
         environments=data.get("environments"),
         started=bool(data.get("started")),
+        token=token_name(),
     )
     return error or ("OK!", 200)
 
@@ -354,8 +385,14 @@ def complete_job(id):
         outcome,
         **{key: data[key]
            for key in ("installed", "fingerprint", "mode") if key in data},
+        worker_token=token_name(),
     )
     return error or jsonify({"status": "done", "outcome": outcome})
+
+
+WORKER_OPERATIONS = {f"jobqueue.{f.__name__}" for f in (
+    register_worker, list_jobs, claim_job, start_job, release_job, post_events,
+    attach_file, complete_job)}
 
 
 @jobqueue.app_template_filter()

@@ -6,7 +6,40 @@
 <div class="ui-stack ui-gap-large">
 {{ ui.page_header("Admin", subtitle="Who has signed in, and the tokens workers use. Admins are listed in the server's settings.") }}
 
-{% block workers %}{% endblock %}
+{% if central %}
+{% call ui.section("Worker tokens", subtitle="Each worker checks in with a token: put it in the worker's config as \"token\", or in AUTOMATION_WORKER_TOKEN. Revoking one stops that worker at once.") %}
+  {% if new_token %}
+  {% call ui.alert("success", title="Token for " ~ new_token.name) %}
+    <p>Copy it now: it isn't shown again.</p>
+    <pre class="ui-mono" data-new-token>{{ new_token.secret }}</pre>
+  {% endcall %}
+  {% endif %}
+  {% if error %}{% call ui.alert("danger", title="Can't make that token") %}{{ error }}{% endcall %}{% endif %}
+  <form method="post" action="{{ url_for('auth.create_worker_token') }}" class="ui-row" style="margin-bottom: 12px;">
+    {% call ui.field("Worker or bench", "token-name", hint="A name to know it by, e.g. bench-3") %}
+      {{ ui.input("name", id="token-name", required=True) }}
+    {% endcall %}
+    {{ ui.button("Make a token", variant="primary", type="submit") }}
+  </form>
+  {% call ui.table(["Token", "Made by", "Made", "Last used", {"label": "", "sr": True}]) %}
+    {% for token in workers %}
+    <tr>
+      <td>{{ ui.ident(token.name) }}</td>
+      <td>{{ token.created_by or "" }}</td>
+      <td>{{ ui.timestamp(token.created_at) }}</td>
+      <td>{% if token.last_used_at %}{{ ui.timestamp(token.last_used_at) }}{% else %}<span class="ui-muted">Never</span>{% endif %}</td>
+      <td class="ui-end">
+        <form method="post" action="{{ url_for('auth.revoke_worker_token', id=token.id) }}">
+          {{ ui.button("Revoke", size="sm", variant="danger", type="submit") }}
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    {{ ui.empty_row("No worker tokens. Workers can't check in until they have one.", 5) }}
+    {% endfor %}
+  {% endcall %}
+{% endcall %}
+{% endif %}
 
 {% if central %}
 {% call ui.section("Users", subtitle="Everyone who has signed in. Anyone at an allowed domain can sign in.") %}

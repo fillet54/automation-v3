@@ -59,7 +59,7 @@ Options:
     --docs-path=PATH       built HTML documentation to serve at /docs
     --path=PATH            the demo's folder [default: ./demo]
     --no-docs              don't build the documentation
-    --central-server=URL   host:port of the central server
+    --central-server=URL   the central server: host:port, or a URL
     --config=PATH          worker config (JSON) naming the environments
                            it hosts
     --settings=PATH        server settings (TOML): sign-in, mail and a git
@@ -245,11 +245,20 @@ def start_worker(args):
     if not args["--central-server"]:
         sys.exit("--central-server=URL is required")
     self_url = f"http://{socket.gethostname()}:{port(args)}"
+    server = args["--central-server"]
+    if "://" not in server:
+        server = f"http://{server}"
     worker = Worker(
-        ServerClient(f"http://{args['--central-server']}", self_url),
+        ServerClient(server, self_url, token=worker_token(args["--config"])),
         Host.from_file(args["--config"]),
     )
-    if not worker.check_in(started=True):
+    try:
+        registered = worker.check_in(started=True)
+    except PermissionError as e:
+        sys.exit(f"{e}\nA central server needs a worker token: an admin makes one on "
+                 "its Admin page; put it in the config as \"token\", or in "
+                 "AUTOMATION_WORKER_TOKEN.")
+    if not registered:
         sys.exit("Could not register with the central server")
     print("Registration successful")
 
@@ -261,6 +270,17 @@ def start_worker(args):
         worker.start()
         # No reloader: it would start the worker's threads a second time
         serve(create_worker_app(worker), args, "Worker", reload=False)
+
+
+def worker_token(config):
+    """The worker token: AUTOMATION_WORKER_TOKEN, else "token" in the
+    worker's config file, else None"""
+    import json
+    if os.environ.get("AUTOMATION_WORKER_TOKEN"):
+        return os.environ["AUTOMATION_WORKER_TOKEN"]
+    if config:
+        return json.loads(Path(config).read_text()).get("token")
+    return None
 
 
 class ConsoleObserver:

@@ -575,13 +575,14 @@ class Worker:
     last_keepalive: datetime
     uut_types: list = field(default_factory=list)
     environments: dict = field(default_factory=dict)  # name -> fingerprint
+    token: str = None  # the worker token's name it checked in with
 
 
-WORKER_COLUMNS = "id, url, status, last_keepalive, uut_types"
+WORKER_COLUMNS = "id, url, status, last_keepalive, uut_types, token"
 
 
 def _worker(conn, row):
-    id, url, status, last_keepalive, uut_types = row
+    id, url, status, last_keepalive, uut_types, token = row
     environments = {
         name: json.loads(fingerprint)
         for name, fingerprint in conn.execute(
@@ -596,14 +597,16 @@ def _worker(conn, row):
         datetime.fromisoformat(last_keepalive),
         json.loads(uut_types),
         environments,
+        token,
     )
 
 
-def save_worker(conn, url, status, uut_types=None, environments=None):
+def save_worker(conn, url, status, uut_types=None, environments=None, token=None):
     """Register a new worker or record a keepalive for an existing one.
 
     `uut_types` and `environments` (name -> fingerprint) replace what was
-    known about the worker when given.
+    known about the worker when given; so does `token`, the name of the
+    worker token it checked in with.
     """
     with conn:
         conn.execute(
@@ -617,6 +620,8 @@ def save_worker(conn, url, status, uut_types=None, environments=None):
         (worker_id,) = conn.execute(
             "SELECT id FROM workers WHERE url = ?", (url,)
         ).fetchone()
+        if token is not None:
+            conn.execute("UPDATE workers SET token = ? WHERE id = ?", (token, worker_id))
         if uut_types is not None:
             conn.execute(
                 "UPDATE workers SET uut_types = ? WHERE id = ?",
@@ -690,12 +695,13 @@ def job_json(job):
 
 
 def check_in(conn, root, url, status, uut_types=None, environments=None,
-             started=False):
+             started=False, token=None):
     """Register or refresh a worker. A (re)starting worker can't still be
     running anything it held before, so those jobs become errors."""
     if status not in ALLOWED_STATUS:
         raise ValueError(f"Status must be one of {ALLOWED_STATUS}")
-    save_worker(conn, url, status, uut_types=uut_types, environments=environments)
+    save_worker(conn, url, status, uut_types=uut_types, environments=environments,
+                token=token)
     if started:
         fail_worker_jobs(conn, root, url, f"Worker {url} restarted")
 
@@ -756,8 +762,9 @@ def attach_file(conn, root, id, worker_url, name, data):
 
 
 def complete_job(conn, root, id, worker_url, outcome, installed=None,
-                 fingerprint=None, mode=None):
-    """Record the outcome, and what the worker actually ran against"""
+                 fingerprint=None, mode=None, worker_token=None):
+    """Record the outcome, and what the worker actually ran against.
+    `worker_token` is the name of the token the worker used, if any."""
     if outcome not in OUTCOMES:
         raise ValueError(f"outcome must be one of {OUTCOMES}")
     job = held_job(conn, id, worker_url)
@@ -766,6 +773,7 @@ def complete_job(conn, root, id, worker_url, outcome, installed=None,
         details["fingerprint_hash"] = fingerprint_hash(fingerprint)
     run = store.load_run(root, job.report_id, job.id)
     details["identity"] = identity_hash({**run, **details})
+    details["worker_token"] = worker_token  # not part of the identity
     finish(conn, root, job, outcome,
            **{key: value for key, value in details.items() if value is not None})
 

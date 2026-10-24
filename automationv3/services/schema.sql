@@ -110,13 +110,15 @@ CREATE TABLE IF NOT EXISTS baseline_sets(
 );
 
 -- Job queue workers. uut_types is a JSON list of the UUT plugins the
--- worker can install.
+-- worker can install. token is the name of the worker token it checked
+-- in with (central servers); only that token may act as this worker.
 CREATE TABLE IF NOT EXISTS workers(
     id INTEGER PRIMARY KEY,
     url TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'available',
     last_keepalive TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    uut_types TEXT NOT NULL DEFAULT '[]'
+    uut_types TEXT NOT NULL DEFAULT '[]',
+    token TEXT
 );
 
 -- Environments each worker hosts, with their current fingerprint

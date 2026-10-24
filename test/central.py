@@ -16,8 +16,19 @@ from automationv3.web.app import create_app
 from automationv3.web.auth import COOKIE
 
 from .data import make_workspaces as gitutil
+from .rvt import doc, rvt
 
 RVTS = Path(__file__).resolve().parent / "data" / "rvts"
+
+# A small workspace: scripts that need no environment, and one that runs
+# in sim
+SCRIPTS = {
+    "plain/core.rst": rvt("(environments) (uut)"),
+    "plain/pass.rst": doc("Passes :req:`R1`", rvt("(Wait 1)")),
+    "plain/fail.rst": doc("Fails", rvt("(Wait 1) (Verify 1 = 2)")),
+    "sim/core.rst": rvt("(environments :sim) (uut)"),
+    "sim/pass.rst": doc("In sim :req:`R2`", rvt("(Wait 1)")),
+}
 
 AUTH = Auth(allowed_domains=("example.com",), admins=("lead@example.com",))
 
@@ -26,7 +37,12 @@ class Central:
     def __init__(self, settings=None, scripts=RVTS, **config):
         self.tmp = Path(tempfile.mkdtemp())
         self.gitdir = self.tmp / "repo"
-        shutil.copytree(scripts, self.gitdir / "rvts")
+        if isinstance(scripts, dict):
+            for path, text in scripts.items():
+                (self.gitdir / "rvts" / path).parent.mkdir(parents=True, exist_ok=True)
+                (self.gitdir / "rvts" / path).write_text(text)
+        else:
+            shutil.copytree(scripts, self.gitdir / "rvts")
         gitutil.create_repo(self.gitdir)
         self.branch = next(iter(find_worktrees(self.gitdir)))
         self.db = self.tmp / "test.db"
@@ -67,6 +83,39 @@ class Central:
             user = accounts.ensure_user(conn, email) if email else None
             return accounts.create_token(conn, kind, name, user=user if kind == "user" else None,
                                          created_by=user if kind == "worker" else None)
+
+
+class HttpSession:
+    """A requests-like session over a Flask test client, for ServerClient
+    and the local client's API calls"""
+
+    def __init__(self, client, base="http://server"):
+        self.client, self.base = client, base
+
+    def _path(self, url):
+        return url[len(self.base):] if url.startswith(self.base) else url
+
+    def get(self, url, headers=None, params=None, **kw):
+        return Response(self.client.get(self._path(url), headers=headers,
+                                        query_string=params))
+
+    def post(self, url, json=None, headers=None, **kw):
+        return Response(self.client.post(self._path(url), json=json, headers=headers))
+
+
+class Response:
+    def __init__(self, response):
+        self.status_code = response.status_code
+        self.response = response
+        self.text = response.get_data(as_text=True)
+        self.ok = self.status_code < 400
+
+    def json(self):
+        return self.response.get_json()
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}: {self.text[:200]}")
 
 
 @contextmanager

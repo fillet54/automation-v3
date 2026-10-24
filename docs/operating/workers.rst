@@ -36,6 +36,30 @@ Each name must match an environment plugin's ``name``; its parameters are
 passed to the plugin's constructor. See
 :doc:`../blocks/uuts-and-environments`.
 
+Worker tokens
+-------------
+
+A central server (see :doc:`accounts`) only takes work from workers with a
+**worker token**. An admin makes one on the **Admin** page, one per worker or
+bench, and it is shown once. Give it to the worker in its config, or in
+``AUTOMATION_WORKER_TOKEN`` (which wins):
+
+.. code-block:: json
+
+   {
+     "token": "av3w_...",
+     "environments": {"sim": {}}
+   }
+
+The token is sent with every call to the job API. A worker's address belongs
+to the token it first checked in with, so another token can't take over its
+jobs. Each run records the name of the token whose worker ran it, and the
+Workers page shows it. **Revoke** stops that worker at once: its next call
+is refused, and the jobs it held become errors once it goes quiet, as for
+any missing worker.
+
+A single-user server needs no token, and ignores one.
+
 What a worker offers
 --------------------
 

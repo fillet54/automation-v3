@@ -276,9 +276,7 @@ def revoke_device(id):
     return redirect(url_for("auth.account"))
 
 
-@auth.route("/admin/", methods=["GET"])
-@admin_required
-def admin():
+def render_admin(new_token=None, error=None, status=200):
     conn = get_db()
     users = accounts.find_users(conn) if central() else []
     return render_template(
@@ -286,5 +284,34 @@ def admin():
         users=[(u, is_admin(u)) for u in users],
         admins=settings().auth.admins if central() else (),
         workers=accounts.find_tokens(conn, accounts.WORKER_TOKEN),
-        new_token=None,
-    )
+        new_token=new_token,
+        error=error,
+    ), status
+
+
+@auth.route("/admin/", methods=["GET"])
+@admin_required
+def admin():
+    return render_admin()
+
+
+@auth.route("/admin/workers", methods=["POST"])
+@admin_required
+def create_worker_token():
+    """A new worker token, shown once"""
+    if not central():
+        abort(404)
+    name = request.form.get("name", "")
+    try:
+        secret = accounts.create_token(get_db(), accounts.WORKER_TOKEN, name,
+                                       created_by=current_user())
+    except accounts.AccountError as e:
+        return render_admin(error=str(e), status=400)
+    return render_admin(new_token={"name": name.strip(), "secret": secret})
+
+
+@auth.route("/admin/workers/<int:id>/revoke", methods=["POST"])
+@admin_required
+def revoke_worker_token(id):
+    accounts.revoke_token(get_db(), id)
+    return redirect(url_for("auth.admin"))
