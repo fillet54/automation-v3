@@ -44,9 +44,16 @@ def marking_from_env(text=None, colors=None):
 
 
 def _nav():
+    from .auth import central, current_user, is_admin
+    if central() and current_user() is None:
+        return []  # signing in: nowhere else to go yet
     items = [{"key": key, "label": label, "href": url_for(endpoint)} for key, label, endpoint in NAV]
     if current_app.config.get("DOCS_PATH"):
         items.append({"key": "docs", "label": "Docs", "href": url_for("docs")})
+    if central():
+        items.append({"key": "account", "label": "Account", "href": url_for("auth.account")})
+    if is_admin():
+        items.append({"key": "admin", "label": "Admin", "href": url_for("auth.admin")})
     return items
 
 

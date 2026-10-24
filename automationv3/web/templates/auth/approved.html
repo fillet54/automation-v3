@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block title %}Approved{% endblock %}
+
+{% block content %}
+<div class="ui-stack auth-panel">
+{{ ui.page_header(device ~ " is signed in", subtitle="Go back to your terminal: it's signed in as " ~ email ~ ".") }}
+<p class="ui-muted">You can remove it any time from <a href="{{ url_for('auth.account') }}">your account</a>.</p>
+</div>
+{% endblock %}

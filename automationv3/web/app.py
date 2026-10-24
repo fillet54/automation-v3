@@ -6,7 +6,7 @@ from ..framework import rst
 from ..services.requirements import models as requirements
 from ..services.settings import Settings
 from ..services.workspace import find_worktrees
-from . import docs as documentation, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
+from . import auth, docs as documentation, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
 from .db import close_db, get_db
 
 
@@ -35,6 +35,7 @@ def create_app(**config):
     app.config.setdefault("SETTINGS", Settings())
     app.config.update(config)
     ui.init_app(app)
+    auth.init_app(app)
     # Scripts are authored in git; the workspace is a read-only viewer
     app.register_blueprint(workspace.bp, url_prefix="/workspace")
     app.register_blueprint(requirement_pages.requirements, url_prefix="/requirements")

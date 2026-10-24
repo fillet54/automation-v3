@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% set nav_current = "account" %}
+{% block title %}Account{% endblock %}
+
+{% block content %}
+<div class="ui-stack ui-gap-large">
+{% if central %}
+{% call ui.page_header("Account", subtitle="Signed in as " ~ user.email ~ (" (admin)" if is_admin else "") ~ ".") %}
+  <form method="post" action="{{ url_for('auth.logout') }}">{{ ui.button("Sign out", type="submit") }}</form>
+{% endcall %}
+
+{% call ui.section("Devices", subtitle="Clients signed in as you with automation-v3 login. Remove one you no longer use, or have lost.") %}
+  {% call ui.table(["Device", "Signed in", "Last used", {"label": "", "sr": True}]) %}
+    {% for device in devices %}
+    <tr>
+      <td>{{ ui.ident(device.name) }}</td>
+      <td>{{ ui.timestamp(device.created_at) }}</td>
+      <td>{% if device.last_used_at %}{{ ui.timestamp(device.last_used_at) }}{% else %}<span class="ui-muted">Never</span>{% endif %}</td>
+      <td class="ui-end">
+        <form method="post" action="{{ url_for('auth.revoke_device', id=device.id) }}">
+          {{ ui.button("Remove", size="sm", variant="danger", type="submit") }}
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    {{ ui.empty_row("No devices. Run automation-v3 login --server " ~ request.host_url.rstrip('/') ~ " on your machine to sign one in.", 4) }}
+    {% endfor %}
+  {% endcall %}
+{% endcall %}
+{% else %}
+{{ ui.page_header("Account", subtitle="This server is single-user: there's no sign-in, and you can do everything. A server with [auth] in its settings has accounts.") }}
+{% endif %}
+</div>
+{% endblock %}

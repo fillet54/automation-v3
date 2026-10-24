@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block title %}Check your email{% endblock %}
+
+{% block content %}
+<div class="ui-stack auth-panel">
+{{ ui.page_header("Check your email", subtitle="We sent a sign-in link to " ~ email ~ ". It works once, for " ~ minutes ~ " minutes.") }}
+<p class="ui-muted">Nothing there? Check your spam folder, or <a href="{{ url_for('auth.login') }}">ask for another link</a>.</p>
+</div>
+{% endblock %}

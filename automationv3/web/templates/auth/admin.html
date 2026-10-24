@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% set nav_current = "admin" %}
+{% block title %}Admin{% endblock %}
+
+{% block content %}
+<div class="ui-stack ui-gap-large">
+{{ ui.page_header("Admin", subtitle="Who has signed in, and the tokens workers use. Admins are listed in the server's settings.") }}
+
+{% block workers %}{% endblock %}
+
+{% if central %}
+{% call ui.section("Users", subtitle="Everyone who has signed in. Anyone at an allowed domain can sign in.") %}
+  {% call ui.table(["Email", "Role", "First signed in", "Last seen"]) %}
+    {% for user, admin in users %}
+    <tr>
+      <td>{{ user.email }}</td>
+      <td>{% if admin %}{{ ui.badge("Admin", "info") }}{% endif %}</td>
+      <td>{{ ui.timestamp(user.created_at) }}</td>
+      <td>{% if user.last_seen_at %}{{ ui.timestamp(user.last_seen_at) }}{% else %}<span class="ui-muted">—</span>{% endif %}</td>
+    </tr>
+    {% else %}
+    {{ ui.empty_row("Nobody has signed in yet.", 4) }}
+    {% endfor %}
+  {% endcall %}
+{% endcall %}
+{% endif %}
+</div>
+{% endblock %}

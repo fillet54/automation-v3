@@ -55,6 +55,10 @@ Workers
 In this section
 ---------------
 
+:doc:`accounts`
+   Single-user and central servers, signing in by emailed link, devices
+   and admins.
+
 :doc:`workers`
    Configuring workers and environments, and how jobs are scheduled.
 

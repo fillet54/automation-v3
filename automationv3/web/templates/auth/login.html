@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block title %}Sign in{% endblock %}
+
+{% block content %}
+<div class="ui-stack auth-panel">
+{{ ui.page_header("Sign in", subtitle="Enter your work email and we'll send you a link that signs you in. There's no password.") }}
+<form method="post" action="{{ url_for('auth.login') }}" class="ui-stack">
+  <input type="hidden" name="next" value="{{ next }}">
+  {% call ui.field("Email", "email", error=error) %}
+    {{ ui.input("email", email, type="email", required=True, invalid=error is not none, attrs={"autocomplete": "email", "autofocus": ""}) }}
+  {% endcall %}
+  <div>{{ ui.button("Email me a sign-in link", variant="primary", type="submit") }}</div>
+</form>
+</div>
+{% endblock %}

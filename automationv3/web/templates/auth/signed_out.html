@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block title %}Signed out{% endblock %}
+
+{% block content %}
+<div class="ui-stack auth-panel">
+{{ ui.page_header("Signed out") }}
+<div>{{ ui.button("Sign in again", variant="primary", href=url_for('auth.login')) }}</div>
+</div>
+{% endblock %}

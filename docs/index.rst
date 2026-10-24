@@ -72,6 +72,7 @@ Where to start
    :caption: Operating
 
    operating/index
+   operating/accounts
    operating/workers
    operating/reports
    operating/configuration-management

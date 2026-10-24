@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block title %}Sign in{% endblock %}
+
+{% block content %}
+<div class="ui-stack auth-panel">
+{% if error %}
+{{ ui.page_header("That link doesn't work any more", subtitle="Sign-in links work once, for a few minutes.") }}
+<div>{{ ui.button("Ask for a new link", variant="primary", href=url_for('auth.login')) }}</div>
+{% elif device %}
+{{ ui.page_header("Approve " ~ device ~ "?", subtitle="This signs " ~ device ~ " in as " ~ email ~ ". It can then queue scratch runs and read requirements as you, until you remove it from your account page.") }}
+<form method="post"><input type="hidden" name="next" value="{{ next }}">
+  {{ ui.button("Approve " ~ device, variant="primary", type="submit") }}
+</form>
+<p class="ui-muted">Didn't start a sign-in from a terminal? Close this page: nothing happens unless you approve.</p>
+{% else %}
+{{ ui.page_header("Sign in as " ~ email, subtitle="This link works once.") }}
+<form method="post"><input type="hidden" name="next" value="{{ next }}">
+  {{ ui.button("Sign in", variant="primary", type="submit") }}
+</form>
+{% endif %}
+</div>
+{% endblock %}
