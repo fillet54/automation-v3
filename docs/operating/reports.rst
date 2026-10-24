@@ -28,7 +28,8 @@ don't need to have signed in yet.
 Everyone signed in can read every report. Only its owner, its collaborators
 and admins can change it: add to it, rerun its runs, change its versions,
 edit and rename its document, and freeze or reopen it. Anyone else sees
-**View only** in its header. A report made before the server had accounts
+**View only** in its header and none of those buttons; the document's
+source opens read-only. A report made before the server had accounts
 has no owner, so only admins can change it.
 
 **Reports** lists the reports you own or collaborate on. **Everyone** shows

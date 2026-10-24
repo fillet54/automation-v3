@@ -7,6 +7,7 @@ from flask import (
     Blueprint,
     abort,
     current_app,
+    g,
     redirect,
     render_template,
     request,
@@ -31,18 +32,36 @@ reports = Blueprint("reports", __name__)
 READ_ONLY = {"reports.preview", "reports.new", "reports.make_bundle"}
 
 
+# Pages that only change a report, refused even to look at for non-members
+EDIT_PAGES = {"reports.document", "reports.versions"}
+
+
+def may_change_this():
+    """May the current user change the report this request is about? True
+    when it's about no report, or scratch (whose runs are each their own)."""
+    if "may_change" not in g:
+        report_id = (request.view_args or {}).get("report_id")
+        if not report_id or report_id == models.SCRATCH:
+            g.may_change = True
+        else:
+            report = store.load_report(root(), report_id) or abort(404)
+            g.may_change = can_change(report)
+    return g.may_change
+
+
 @reports.before_request
 def check_change():
     """Only a report's owner, its collaborators and admins change it"""
-    if request.method != "POST" or request.endpoint in READ_ONLY:
-        return None
-    report_id = (request.view_args or {}).get("report_id")
-    if not report_id or report_id == models.SCRATCH:
-        return None
-    report = store.load_report(root(), report_id) or abort(404)
-    if not can_change(report):
+    changing = request.method == "POST" and request.endpoint not in READ_ONLY
+    if (changing or request.endpoint in EDIT_PAGES) and not may_change_this():
         abort(403, "Only the report's owner, its collaborators and admins can change it")
     return None
+
+
+@reports.context_processor
+def change_buttons():
+    """`can_change` for every report page: whether to show what changes it"""
+    return {"can_change": may_change_this()}
 
 
 def is_mine(report, email):
@@ -236,7 +255,6 @@ def render_page(report_id, page, errors=(), status=200):
         build=build.status(root(), report_id),
         report_id=report_id,
         log=build_log(report_id),
-        can_change=can_change(report),
     )
     if page == "overview":
         live = report_context(report, context["in_progress"],

@@ -25,12 +25,14 @@
   {% endfor %}
 
   {% call ui.toolbar() %}
+    {% if can_change %}
     <form method="post" action="{{ url_for('reports.rerun', report_id=run.report_id, run_id=run.id) }}">
       <input type="hidden" name="force" value="1">
       {{ ui.button("Rerun anyway", variant="primary", icon="refresh", type="submit") }}
     </form>
+    {% endif %}
     {{ ui.button("Back to the run", href=url_for('reports.run', report_id=run.report_id, run_id=run.id)) }}
-    <span class="ui-muted">A forced rerun is marked not identical.</span>
+    {% if can_change %}<span class="ui-muted">A forced rerun is marked not identical.</span>{% endif %}
   {% endcall %}
 </div>
 {% endblock %}

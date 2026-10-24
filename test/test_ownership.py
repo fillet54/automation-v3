@@ -56,6 +56,29 @@ class TestOwnership(unittest.TestCase):
         (run,) = store.list_runs(self.server.reports, report_id)
         self.assertEqual(run["queued_by"], "ann@example.com")
 
+    def test_non_members_see_no_change_buttons(self):
+        report_id = self.new_report(self.ann, "Ann's")
+        self.assertEqual(self.queue_into(self.ann, report_id).status_code, 302)
+        changes = [f"/reports/{report_id}/{action}"
+                   for action in ("rename", "export", "document")]
+        ann = self.ann.get(f"/reports/{report_id}").get_data(as_text=True)
+        bob = self.bob.get(f"/reports/{report_id}").get_data(as_text=True)
+        for url in changes:
+            self.assertIn(url, ann)
+            self.assertNotIn(url, bob)
+        self.assertIn("Edit document…", ann)
+        self.assertNotIn("Edit document…", bob)
+        self.assertNotIn("Add a collaborator",
+                         self.bob.get(f"/reports/{report_id}/history").get_data(as_text=True))
+
+        source = self.bob.get(f"/reports/{report_id}/source").get_data(as_text=True)
+        self.assertIn("readonly", source)
+        self.assertIn("Only the report's owner", source)
+        self.assertNotIn("readonly", self.ann.get(f"/reports/{report_id}/source").get_data(True))
+        for page in ("document", "versions"):
+            self.assertEqual(self.bob.get(f"/reports/{report_id}/{page}").status_code, 403)
+            self.assertEqual(self.ann.get(f"/reports/{report_id}/{page}").status_code, 200)
+
     def test_collaborators(self):
         report_id = self.new_report(self.ann, "Ann's")
         self.assertEqual(self.bob.post(f"/reports/{report_id}/collaborators",

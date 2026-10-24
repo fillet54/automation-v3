@@ -12,10 +12,12 @@
   {% call ui.alert("danger", title="The build failed") %}
     <p>{{ build.error }}</p>
     {% if log %}<details><summary>Log</summary><pre class="ui-pre">{{ log }}</pre></details>{% endif %}
+    {% if can_change %}
     <form method="post" action="{{ url_for('reports.rebuild', report_id=report_id) }}" style="margin-top: 8px;">
       {{ ui.button("Rebuild", icon="refresh", type="submit", size="sm") }}
     </form>
     <p class="ui-text-caption">Fix the template or the document's source (reopen the report to change it), then rebuild.</p>
+    {% endif %}
   {% endcall %}
   {% elif build.state == "done" %}
   {% call ui.alert("success", title="Built") %}<a href="{{ url_for('reports.site', report_id=report_id) }}">Open the report's site</a>{% endcall %}

@@ -13,9 +13,11 @@
     <form method="post" action="{{ url_for('reports.make_bundle', report_id=report.id) }}">
       {{ ui.button("Bundle", icon="download", size="sm", type="submit", attrs={"title": "report-" ~ report.id ~ ".zip: the report folder, its manifest, the PDF and this site"}) }}
     </form>
+    {% if can_change %}
     <form method="post" action="{{ url_for('reports.reopen', report_id=report.id) }}">
       {{ ui.button("Reopen", icon="refresh", size="sm", type="submit", attrs={"onclick": "return confirm('Reopen this report? Runs can be added to it again, and its site and PDF are removed until it is frozen again.')"}) }}
     </form>
+    {% endif %}
   </div>
 </div>
 {%- else %}

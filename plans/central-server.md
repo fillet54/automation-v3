@@ -127,8 +127,6 @@ Changes to the plan along the way:
 - The local `client` listens on 127.0.0.1 without its own sign-in, so other
   accounts on the same machine could use it as you. Fine on a personal
   workstation, not on a shared one.
-- Report pages still show change buttons to people who can't use them (the
-  server refuses with 403). Hide them.
 - The local client has no offline cache of requirements; `:req:` shows bare
   ids when the server can't be reached.
 - `datetime.utcnow()` deprecation warnings in services/jobs.py (older code).

@@ -19,12 +19,12 @@
 {% if problems %}
 {% call ui.alert("warning", title="The document has problems") %}
   <ul class="ui-plain-list">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
-  {% if not report.frozen %}<a href="{{ url_for('reports.source', report_id=report.id) }}">Edit the document</a>{% endif %}
+  {% if not report.frozen and can_change %}<a href="{{ url_for('reports.source', report_id=report.id) }}">Edit the document</a>{% endif %}
 {% endcall %}
 {% endif %}
 
 <div class="ui-row" style="justify-content: flex-end;">
-  {{ ui.button("Edit document…" if not report.frozen else "Document source", icon="edit", size="sm",
+  {{ ui.button("Edit document…" if not report.frozen and can_change else "Document source", icon="edit", size="sm",
                href=url_for('reports.source', report_id=report.id)) }}
 </div>
 <article class="ui-doc ui-document report-document">
@@ -42,7 +42,7 @@
     <td class="ui-end">
       {% if report.frozen %}
       {% for name in bundles %}{{ ui.button("Download", icon="download", size="sm", href=url_for('reports.bundle', report_id=report.id, name=name)) }}{% endfor %}
-      {% else %}
+      {% elif can_change %}
       {{ ui.button("Edit…", icon="edit", size="sm", href=url_for('reports.document', report_id=report.id)) }}
       {% endif %}
     </td>
