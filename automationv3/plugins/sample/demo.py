@@ -1,11 +1,13 @@
 import hashlib
 import json
+import os
 import platform
+import shutil
 import tempfile
 from pathlib import Path
 
 from automationv3.framework import edn
-from automationv3.framework.uut import UUT, Environment, Version
+from automationv3.framework.uut import UUT, Environment, LocalBuild, Version
 
 
 class Sim(Environment):
@@ -49,12 +51,52 @@ class Demo(UUT):
 
     name = "demo"
     VERSIONS = ["1.0.0", "1.1.0"]
+    BUILD = "demo.bin"  # what a demo build is: one file
 
     def list_versions(self):
-        return [
+        """The released versions, then any uploaded builds, oldest first"""
+        released = [
             Version(id, hashlib.sha256(f"demo-{id}".encode()).hexdigest())
             for id in self.VERSIONS
         ]
+        return released + self.uploaded()
+
+    # Builds. The demo's build repository is a folder (in real life, a git
+    # repository with its own clean-up): AUTOMATION_DEMO_BUILDS, one
+    # subfolder per uploaded build holding its demo.bin.
+
+    @staticmethod
+    def build_repo():
+        path = os.environ.get("AUTOMATION_DEMO_BUILDS")
+        return Path(path) if path else None
+
+    def report_versions(self):
+        """Only the released versions: uploaded builds are for scratch"""
+        return [v for v in self.list_versions() if v.id in self.VERSIONS]
+
+    def uploaded(self):
+        repo = self.build_repo()
+        if repo is None or not repo.is_dir():
+            return []
+        builds = sorted((p for p in repo.iterdir() if (p / self.BUILD).is_file()),
+                        key=lambda p: (p / self.BUILD).stat().st_mtime)
+        return [Version(p.name, digest(p / self.BUILD)) for p in builds]
+
+    def find_local_build(self, path):
+        build = Path(path) / self.BUILD
+        if not build.is_file():
+            return None
+        found = digest(build)
+        return LocalBuild(self.name, build, f"local-{found[:12]}", found,
+                          build.stat().st_mtime)
+
+    def upload_build(self, build):
+        repo = self.build_repo()
+        if repo is None:
+            raise RuntimeError("Set AUTOMATION_DEMO_BUILDS to the demo's build repository")
+        (repo / build.id).mkdir(parents=True, exist_ok=True)
+        shutil.copy2(build.path, repo / build.id / self.BUILD)
+        return Version(build.id, build.digest)
 
     def state(self, env):
         path = env.workdir / "demo-state.json"
@@ -83,6 +125,10 @@ class Demo(UUT):
 
     def handle(self, version, env):
         return DemoHandle(self, env)
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def key(name):

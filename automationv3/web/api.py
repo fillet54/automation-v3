@@ -192,6 +192,7 @@ def scratch():
         write_files(folder, clean)
         plan = build_plan(
             data.get("workspace") or "", folder, [safe_path(s) for s in scripts],
+            scratch=True,
             environments=[environment] if environment else None,
             versions=data.get("uut_versions") or {},
             variations={f"{s}::{variation}" for s in scripts} if variation else None)

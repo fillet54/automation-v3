@@ -62,3 +62,42 @@ def init_app(app):
             return {"client_mode": False}
         return {"client_mode": True, "central_server": app.config["CENTRAL"].server,
                 "local_worker": local_worker(), "central_url": central_url}
+
+
+def central_uuts(fresh=False):
+    """uut -> the central server's versions ([{id, digest}], oldest
+    first; {} if it can't be reached), kept for a few seconds"""
+    cached = current_app.config.get("_CENTRAL_UUTS")
+    if not fresh and cached and time.monotonic() - cached[0] < ENVIRONMENTS_TTL:
+        return cached[1]
+    try:
+        found = central().uuts()
+    except ClientError:
+        found = {}
+    current_app.config["_CENTRAL_UUTS"] = (time.monotonic(), found)
+    return found
+
+
+def build_choices(uuts):
+    """What to offer for each UUT a script uses: the server's versions,
+    and the local build (to upload, or already uploaded)"""
+    from ..services import builds
+    try:
+        return builds.choices(uuts, central_uuts())
+    except ValueError:  # a broken client.json: offer the server's versions only
+        return builds.choices(uuts, central_uuts(), config={})
+
+
+def resolve_versions(chosen):
+    """uut -> version id for a scratch run, uploading the local build of
+    any UUT chosen as "upload"; remembers them as the ones used last.
+    Raises ClientError if an upload fails."""
+    from ..services import builds
+    try:
+        resolved = builds.resolve_versions(chosen)
+    except (ValueError, RuntimeError, NotImplementedError, OSError) as e:
+        raise ClientError(f"Couldn't upload the build: {e}") from None
+    if builds.UPLOAD in chosen.values():
+        central_uuts(fresh=True)
+    builds.remember_used(resolved)
+    return resolved

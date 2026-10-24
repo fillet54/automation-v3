@@ -19,6 +19,7 @@ from ..services.workspace import FileNode, is_binary
 from .db import get_db
 from . import documents
 from .auth import can_change
+from .client_mode import build_choices, central
 from .jobs import checked_in_root, live_environments, workspaces
 
 
@@ -272,6 +273,8 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         errors=(errors or []) + [e for e in (closure.errors if closure else [])
                                  if not closure.diagnostics or e not in diagnostic_errors(closure)],
         diagnostics=diagnostics,
+        builds=build_choices(closure.uuts)
+        if central() is not None and closure and not closure.errors else [],
     )
 
 

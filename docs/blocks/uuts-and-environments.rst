@@ -167,3 +167,57 @@ The lifecycle of a job
 UUTs stay as the last job left them; nothing is torn down between jobs.
 That is what makes warm scheduling possible, and why preconditions should
 check for the state a script needs rather than assume it.
+
+Local builds
+------------
+
+Builds live in a build repository of the plugin's own, for example a git
+repository with its own clean-up. automation-v3 never stores them, and
+``install`` pulls from that repository. A developer's machine can add to it:
+the local client finds a build they've just made and offers to upload it
+(see :doc:`../operating/local-client`). Two optional methods make that work:
+
+.. code-block:: python
+
+   class Demo(UUT):
+       name = "demo"
+
+       def find_local_build(self, path):
+           """The newest build in `path`, where builds land on this machine"""
+           build = Path(path) / "demo.bin"
+           if not build.is_file():
+               return None
+           digest = sha256_of(build)
+           return LocalBuild(self.name, build, f"local-{digest[:12]}", digest,
+                             build.stat().st_mtime)
+
+       def upload_build(self, build):
+           """Push it to the build repository; return its Version"""
+           push_to_build_repository(build.path, build.id)   # your credentials
+           return Version(build.id, build.digest)
+
+``find_local_build(path)``
+   ``path`` is the folder the developer's ``client.json`` names for this UUT.
+   Return a :class:`~automationv3.framework.uut.LocalBuild` for the newest
+   build there: its ``digest`` must be computed the same way as the
+   ``digest`` of the versions ``list_versions`` returns, because the client
+   compares them to tell whether the build is uploaded already. ``id`` is the
+   version id it gets once uploaded.
+
+``upload_build(build)``
+   Called on the developer's machine, with their own credentials, only for a
+   build no listed version has the digest of. Put it where ``list_versions``
+   and ``install`` will find it, on the server and on workers, and return its
+   :class:`~automationv3.framework.uut.Version`.
+
+``report_versions()``
+   The versions a report may run on. The default is everything
+   ``list_versions`` returns. A plugin whose ``list_versions`` includes
+   uploaded builds leaves them out here, because uploaded builds are for
+   scratch runs only. Report pages offer and accept only these, while
+   scratch runs may use any listed version.
+
+None of these is required. A UUT without them simply has no local builds to
+offer.
+The sample ``demo`` UUT implements both, against the folder named by
+``AUTOMATION_DEMO_BUILDS``.

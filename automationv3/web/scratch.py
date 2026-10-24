@@ -20,7 +20,7 @@ from ..services import jobs as models
 from ..services.reports import store
 from ..services import client
 from .auth import mine_only, owner_email
-from .client_mode import CENTRAL, central, central_url
+from .client_mode import CENTRAL, central, central_url, resolve_versions
 from .db import get_db
 from .jobs import checked_in_root, workspace_root
 from .reports import run_status
@@ -69,9 +69,15 @@ def run():
     environment = form.get("environment")
     versions = {uut: form.get(f"version-{uut}") for uut in uut_types()
                 if form.get(f"version-{uut}")}
-    if central() is not None and form.get("where", CENTRAL) == CENTRAL:
-        return run_on_central(workspace, source, scripts, environment, variation, versions)
-    plan = build_plan(workspace, source, scripts,
+    if central() is not None:
+        try:
+            versions = resolve_versions(versions)
+        except client.ClientError as e:
+            return render_page([str(e)], 400)
+        if form.get("where", CENTRAL) == CENTRAL:
+            return run_on_central(workspace, source, scripts, environment, variation,
+                                  versions)
+    plan = build_plan(workspace, source, scripts, scratch=True,
                       environments=[environment] if environment else None,
                       versions=versions,
                       variations={f"{s}::{variation}" for s in scripts} if variation else None)

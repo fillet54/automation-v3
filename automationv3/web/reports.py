@@ -103,7 +103,7 @@ def index():
 
 def uut_choices():
     """UUT name -> version ids, newest first, for every UUT plugin"""
-    return {name: [v.id for v in reversed(cls().list_versions())]
+    return {name: [v.id for v in reversed(cls().report_versions())]
             for name, cls in sorted(uut_types().items())}
 
 
@@ -159,7 +159,8 @@ def versions(report_id):
     if request.method == "POST" and not errors:
         updated = dict(current)
         for name, id in chosen.items():
-            version = uut_types()[name]().find_version(id) if name in uut_types() else None
+            uut = uut_types()[name]() if name in uut_types() else None
+            version = uut.find_version(id, uut.report_versions()) if uut else None
             if version is None:
                 errors.append(f"{name} has no version {id}")
             else:

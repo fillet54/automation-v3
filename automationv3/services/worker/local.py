@@ -78,7 +78,8 @@ def run_locally(root, scripts, reports_root, host=None, environments=None,
     host = host or Host()
     if environments is None:
         environments = list(host.environments)
-    plan = build_plan("", root, scripts, environments=environments,
+    # On your own machine: any version, uploaded builds included
+    plan = build_plan("", root, scripts, environments=environments, scratch=True,
                       versions=versions, variations=variations,
                       filter_source=filter_source)
 

@@ -187,9 +187,14 @@ def plan_variations(script_plan, selection, predicate, errors, variation_symbols
         script_plan.variations.append(choice)
 
 
+def offered(uut, scratch):
+    """The versions of `uut` a plan may use"""
+    return uut.list_versions() if scratch else uut.report_versions()
+
+
 def build_plan(workspace, root, scripts, requirements=None, environments=None,
                versions=None, variations=None, filter_source="", links=None,
-               texts=None, passed=None, rerun_passed=()):
+               texts=None, passed=None, rerun_passed=(), scratch=False):
     """Plan a queue request.
 
     `links` maps requirement id -> scripts referencing it; requirements
@@ -198,7 +203,9 @@ def build_plan(workspace, root, scripts, requirements=None, environments=None,
     "script::name" keys. `versions` maps UUT name -> version id. `texts`
     overrides scripts' content on disk. `passed` is a set of (script,
     environment, variation) already passed, left out unless the script
-    is in `rerun_passed`.
+    is in `rerun_passed`. A report's plan offers and takes only the
+    versions a report may run on (UUT.report_versions); a `scratch` plan,
+    every listed version.
     """
     passed = passed or set()
     links = links or {}
@@ -259,9 +266,8 @@ def build_plan(workspace, root, scripts, requirements=None, environments=None,
                 )
                 continue
         for name in closure.uuts:
-            plan.uut_choices.setdefault(
-                name, [v.id for v in known[name]().list_versions()]
-            )
+            if name not in plan.uut_choices:
+                plan.uut_choices[name] = [v.id for v in offered(known[name](), scratch)]
         plan_variations(script_plan, variations, predicate, plan.errors,
                         variation_symbols)
         script_plan.passed = [combo for combo in script_plan.expected()
@@ -270,7 +276,8 @@ def build_plan(workspace, root, scripts, requirements=None, environments=None,
     versions = versions or {}
     for name, ids in plan.uut_choices.items():
         uut = known[name]()
-        version = uut.find_version(versions.get(name) or (ids[-1] if ids else ""))
+        version = uut.find_version(versions.get(name) or (ids[-1] if ids else ""),
+                                   offered(uut, scratch))
         if version is None:
             plan.errors.append(f"UUT {name} has no version {versions.get(name)}")
             continue

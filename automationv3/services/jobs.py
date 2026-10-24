@@ -858,6 +858,7 @@ def run_again(conn, root, workspace_root, run_id, owner=None):
         run.get("workspace", ""),
         workspace_root,
         [run["script"]],
+        scratch=True,
         environments=[run["environment"]] if run.get("environment") else None,
         versions={uut: v["id"] for uut, v in (run.get("uut_versions") or {}).items()},
         variations={f"{run['script']}::{variation}"} if variation else None,

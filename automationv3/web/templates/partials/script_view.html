@@ -56,6 +56,11 @@
       {% for e in closure.environments %}{% set _ = options.append((e, e ~ ("" if e in live else " (no worker)"))) %}{% endfor %}
       {{ ui.select("environment", options, selected=(closure.environments | select("in", live) | first) or "", id="scratch-environment", mono=True, attrs={"aria-label": "Environment"}) }}
       {% endif %}
+      {% for choice in builds %}
+      <label class="ui-row" for="version-{{ choice.uut }}"><span class="ui-field__label">{{ choice.uut }}</span>
+      {{ ui.select("version-" ~ choice.uut, choice.options, selected=choice.selected, id="version-" ~ choice.uut, mono=True) }}</label>
+      {% if choice.needs_upload %}{{ ui.badge("New local build", "warning", outline=True) }}{% endif %}
+      {% endfor %}
       {% if client_mode and local_worker %}
       {{ ui.select("where", [("central", "on the central server"), ("local", "on this machine")], selected="central", id="scratch-where", attrs={"aria-label": "Where to run"}) }}
       {% elif client_mode %}<input type="hidden" name="where" value="central">{% endif %}

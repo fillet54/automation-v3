@@ -61,6 +61,38 @@ On the central server, **Run again** on an uploaded run runs the same files
 again, since the worktree they came from is on someone else's machine.
 Upload again from the client to run your latest edits.
 
+Local builds
+------------
+
+To run a scratch test on a build you've just made, tell the client where each
+UUT's builds land on your machine, in ``client.json`` next to your
+credentials:
+
+.. code-block:: json
+
+   {"builds": {"demo": "~/work/demo/build/out"}}
+
+For each UUT a script uses, **Run in scratch** then offers a version:
+
+- **upload your local build**, when the newest build in that folder isn't in
+  the build repository yet. A **New local build** badge marks it. Choosing it
+  pushes the build to the build repository, using your own credentials (the
+  UUT's plugin does the pushing; the central server never handles builds),
+  and runs on it.
+- the build repository's versions, newest first, with your uploaded build
+  marked **your local build**, and the one you used last marked
+  **last used**.
+
+The default is your local build once it's uploaded, then whatever you used
+last, then the newest version. Uploaded builds are cleaned up by the build
+repository's own rules, and they're for scratch only: reports offer and
+accept only the versions the UUT's plugin releases (its ``report_versions``,
+see :doc:`../blocks/uuts-and-environments`).
+
+From the command line, ``automation-v3 builds`` lists your local builds and
+whether each is uploaded, and ``automation-v3 scratch SCRIPT --uut demo=local``
+uses yours, uploading it first if needed.
+
 Trying a script from the command line
 -------------------------------------
 

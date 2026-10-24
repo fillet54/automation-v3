@@ -16,6 +16,7 @@ Usage:
     automation-v3 login --server URL [--email EMAIL]
     automation-v3 logout [--server URL]
     automation-v3 whoami [--server URL]
+    automation-v3 builds [--server URL]
     automation-v3 scratch SCRIPT... [--root PATH] [--server URL]
                           [--env NAME]... [--variation NAME]...
                           [--uut NAME=VERSION]...
@@ -51,7 +52,11 @@ Commands:
     whoami                 who this machine is signed in as
     scratch                run scripts from your worktree in the central
                            server's scratch space, on its workers: in-work
-                           edits included. Waits and prints each step
+                           edits included. Waits and prints each step.
+                           With --uut NAME=local it uses your local build
+                           of NAME, uploading it first if it isn't yet
+    builds                 your local builds (see client.json), and whether
+                           each is uploaded
     report edit            set a report's document fields: its title,
                            number, revision and author, who signs it, and
                            its applicable and reference documents
@@ -156,7 +161,8 @@ def main(argv=None):
         sys.exit(f"{e}\nFix or uninstall the plugin, then start again.")
     if args["run"]:
         sys.exit(run(args))
-    if args["login"] or args["logout"] or args["whoami"] or args["scratch"]:
+    if args["login"] or args["logout"] or args["whoami"] or args["scratch"] \
+            or args["builds"]:
         sys.exit(client_command(args))
     if args["report"]:
         sys.exit(report(args))
@@ -480,6 +486,8 @@ def client_command(args):
             me = central.whoami()
             print(f"{me['email']} on {central.server}{' (admin)' if me['admin'] else ''}")
             return 0
+        if args["builds"]:
+            return list_builds(central)
         return scratch(args, central)
     except client.ClientError as e:
         print(e)
@@ -498,7 +506,7 @@ def scratch(args, central):
         for s in args["SCRIPT"]
     ]
     files = client.upload_files(root, scripts)
-    versions = dict(uut.split("=", 1) for uut in args["--uut"])
+    versions = local_versions(central, dict(uut.split("=", 1) for uut in args["--uut"]))
     environments = args["--env"] or [None]
     variations = args["--variation"] or [None]
     runs = []
@@ -521,6 +529,56 @@ def scratch(args, central):
     for r, outcome in zip(runs, outcomes):
         print(f"  {outcome or 'not run':8} {r['script']}{where(r)}")
     return 0 if outcomes and all(o == "pass" for o in outcomes) else 1
+
+
+def local_versions(central, versions):
+    """`versions` with each NAME=local replaced by the version of your
+    local build, uploaded first if it isn't yet"""
+    from .framework.uut import uut_types
+    from .services import builds, client
+
+    server = None
+    for uut, value in versions.items():
+        if value != "local":
+            continue
+        build = builds.find_local_build(uut)
+        if build is None:
+            raise client.ClientError(f"No local {uut} build: set where they land in "
+                                     f"{client.config_home() / 'client.json'}")
+        server = server or central.uuts()
+        uploaded = next((v["id"] for v in server.get(uut, [])
+                         if v["digest"] == build.digest), None)
+        if uploaded is None:
+            print(f"Uploading your {uut} build {build.id}...")
+            try:
+                uploaded = uut_types()[uut]().upload_build(build).id
+            except (RuntimeError, NotImplementedError, OSError) as e:
+                raise client.ClientError(f"Couldn't upload the build: {e}") from None
+        versions[uut] = uploaded
+    builds.remember_used(versions)
+    return versions
+
+
+def list_builds(central):
+    from .services import builds, client
+
+    folders = builds.build_folders()
+    if not folders:
+        print(f"No build folders: say where each UUT's builds land in "
+              f"{client.config_home() / 'client.json'}, e.g.\n"
+              '  {"builds": {"demo": "~/work/demo/build/out"}}')
+        return 1
+    server = central.uuts()
+    for uut, folder in sorted(folders.items()):
+        build = builds.find_local_build(uut)
+        if build is None:
+            print(f"{uut}: no build in {folder}")
+            continue
+        uploaded = next((v["id"] for v in server.get(uut, [])
+                         if v["digest"] == build.digest), None)
+        state = f"uploaded as {uploaded}" if uploaded else "not uploaded yet"
+        print(f"{uut}: {build.id} in {folder}, {state}")
+    return 0
 
 
 def where(run):
