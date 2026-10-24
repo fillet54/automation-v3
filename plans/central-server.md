@@ -96,3 +96,39 @@ green. Steps marked **docs** update the documentation in the same commit.
 - Per-report privacy: everything stays visible to every signed-in user.
 - Moving existing single-user data into a central server: existing reports
   have no owner, so only admins can change them.
+
+## Status (2026-10-24)
+
+Steps 1–15 are done, one commit each. The suite has 636 tests, all passing
+except two that were already failing before this work (URL-encoding
+assertions in `test_jobs.TestWorkerAgainstServer.test_requirements_page_lists_linked_scripts`
+and `test_requirement_features.TestPages.test_a_spec_as_a_page`). A smoke
+test with real processes worked end to end: a central server mirroring a
+local remote, browser sign-in by the logged link, an admin-made worker token,
+`login` by device link, `scratch` from a clone running on that worker, the
+local `client` uploading to the server, and a signed GitHub-style webhook
+fetching a new branch.
+
+Changes to the plan along the way:
+
+- Uploaded builds would have shown up in reports, because a plugin's
+  `list_versions` includes them. UUTs gained `report_versions()` (default:
+  every version), which report pages and plans use; scratch plans use every
+  version.
+- `Run again` on an uploaded scratch run reruns the same files on the
+  server, since the worktree is on someone's machine.
+- The CLI reference now copies the real `--help` text, with a test that
+  keeps the two the same.
+
+## Follow-ups
+
+- Rate-limit sign-in emails (per address and per client IP). Today anyone
+  can make the server email any allowed-domain address.
+- The local `client` listens on 127.0.0.1 without its own sign-in, so other
+  accounts on the same machine could use it as you. Fine on a personal
+  workstation, not on a shared one.
+- Report pages still show change buttons to people who can't use them (the
+  server refuses with 403). Hide them.
+- The local client has no offline cache of requirements; `:req:` shows bare
+  ids when the server can't be reached.
+- `datetime.utcnow()` deprecation warnings in services/jobs.py (older code).

@@ -52,6 +52,12 @@ Workers
    stream each run's events and attached files back. A server can also run
    a worker in-process (``--local-worker``).
 
+The client
+   Runs on each person's machine against their own worktrees, for a team's
+   central server. It reads requirements from the server and sends it scratch
+   runs and local builds. :doc:`deployment` shows how the pieces fit for a
+   team: the central server, the client and the single-user server.
+
 In this section
 ---------------
 
@@ -83,8 +89,9 @@ In this section
 Storage
 -------
 
-The database only holds the job queue and in-progress state. It is created,
-or brought up to date, when the server starts.
+The database holds the job queue and in-progress state, the requirements,
+and on a central server the accounts. It is created, or brought up to date,
+when the server starts.
 
 Finished runs are plain files under ``--reports-path`` (default
 ``./reports``):

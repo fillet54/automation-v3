@@ -3,7 +3,8 @@ Command line
 
 .. rst-class:: lead
 
-   ``automation-v3`` runs the server, a worker, or scripts on this machine.
+   ``automation-v3`` runs the server, a worker, the local client, or scripts
+   on this machine.
 
 .. code-block:: text
 
@@ -14,13 +15,29 @@ Command line
        automation-v3 server [--port PORT] [--dbpath PATH]
                             [--workspace-path PATH] [--reports-path PATH]
                             [--docs-path PATH] [--local-worker] [--config PATH]
-                            [--debug]
+                            [--settings PATH] [--debug]
        automation-v3 worker [--port PORT] [--config PATH]
                             [--central-server URL] [--no-http] [--debug]
        automation-v3 run SCRIPT... [--root PATH] [--config PATH]
                          [--env NAME]... [--variation NAME]... [--filter EXPR]
                          [--uut NAME=VERSION]... [--reports-path PATH]
-       automation-v3 requirements import FOLDER... [--dbpath PATH]
+       automation-v3 client [--port PORT] [--workspace-path PATH] [--server URL]
+                            [--config PATH] [--data-path PATH] [--debug]
+       automation-v3 login --server URL [--email EMAIL]
+       automation-v3 logout [--server URL]
+       automation-v3 whoami [--server URL]
+       automation-v3 builds [--server URL]
+       automation-v3 scratch SCRIPT... [--root PATH] [--server URL]
+                             [--env NAME]... [--variation NAME]...
+                             [--uut NAME=VERSION]...
+                             [--no-wait]
+       automation-v3 report edit REPORT [--title TEXT] [--number TEXT]
+                            [--revision TEXT] [--author TEXT]
+                            [--sign ROLE=NAME]... [--applicable DOC]...
+                            [--reference DOC]...
+       automation-v3 report export REPORT [--out DIR] [--template DIR]
+       automation-v3 report reopen REPORT
+       automation-v3 requirements import FOLDER... [--dbpath PATH] [--server URL]
        automation-v3 requirements log [--limit N] [--dbpath PATH]
        automation-v3 requirements history ID [--dbpath PATH]
        automation-v3 requirements diff FROM TO [--spec KEY]
@@ -35,37 +52,90 @@ Command line
                               with a worker in the same process
        worker                 take jobs from a server and run them
        run                    run scripts on this machine, without a server
-       requirements import    import DOORS export folders, in order
+       client                 the local client's web UI, on this machine only:
+                              your worktrees' scripts, checked as you write them,
+                              run in scratch on the central server (or here,
+                              with --config). Sign in first with login
+       login                  sign this machine in to a central server: it
+                              emails you a link to approve it
+       logout                 sign this machine out, and revoke its token
+       whoami                 who this machine is signed in as
+       scratch                run scripts from your worktree in the central
+                              server's scratch space, on its workers: in-work
+                              edits included. Waits and prints each step.
+                              With --uut NAME=local it uses your local build
+                              of NAME, uploading it first if it isn't yet
+       builds                 your local builds (see client.json), and whether
+                              each is uploaded
+       report edit            set a report's document fields: its title,
+                              number, revision and author, who signs it, and
+                              its applicable and reference documents
+       report export          freeze a report and write its PDF and bundle,
+                              report-<id>.zip
+       report reopen          unfreeze an exported report, so runs can be
+                              added to it again
+       requirements import    import DOORS export folders, in order: into the
+                              database, or with --server into a central
+                              server (admins only)
        requirements log       the latest imports, and what each changed
        requirements history   every change to a requirement, and the
                               baselines it is in
        requirements diff      the requirements added, removed and changed
-                              from one context to another
+                              from one context to another: trunk, trunk@N
+                              (as of import N), set:NAME (a baseline set)
+                              or SPEC@BASELINE
 
    Options:
        -h --help              show this help message and exit
        --port=PORT            tcp port to bind to [default: 8080]
        --dbpath=PATH          path to application database file
                               [default: ./automationv3.db]
-       --workspace-path=PATH  path to git repo [default: ./]
+       --workspace-path=PATH  path to git repo [default: ./] (not used when the
+                              settings name a [git] remote to mirror)
        --reports-path=PATH    directory holding reports and runs
                               [default: ./reports]
        --docs-path=PATH       built HTML documentation to serve at /docs
        --path=PATH            the demo's folder [default: ./demo]
        --no-docs              don't build the documentation
-       --central-server=URL   host:port of the central server
+       --central-server=URL   the central server: host:port, or a URL
        --config=PATH          worker config (JSON) naming the environments
                               it hosts
+       --settings=PATH        server settings (TOML): sign-in, mail and a git
+                              remote to mirror. Without it the server is
+                              single-user
        --no-http              run the worker without its status page
        --local-worker         also run a worker inside the server process
                               (hosting the environments in --config)
        --root=PATH            root script path SCRIPTs are relative to
                               [default: ./]
+       --server=URL           a central server (default: the one you last
+                              signed in to)
+       --email=EMAIL          your work email (asked for if not given)
+       --no-wait              queue and print the runs' links, without waiting
+       --data-path=PATH       where the client keeps its own scratch runs
+                              (default: ~/.local/share/automation-v3/client)
        --env=NAME             environment to run in (default: all hosted)
        --variation=NAME       variation to run (default: all)
        --filter=EXPR          EDN predicate selecting variations
        --uut=NAME=VERSION     UUT version to use (default: newest)
        --debug                enables autoload [default: false]
+       REPORT                 a report's folder (in the reports path)
+       --title=TEXT           the report's name, its document's title
+       --number=TEXT          the document's number
+       --revision=TEXT        the document's revision
+       --author=TEXT          the document's author
+       --sign=ROLE=NAME       who signs for a role, e.g. "Approved by=J. Doe"
+       --applicable=DOC       an applicable document, "NUMBER | REVISION | TITLE";
+                              replaces the report's list
+       --reference=DOC        a reference document, "NUMBER | REVISION | TITLE";
+                              replaces the report's list
+       --out=DIR              where to write the bundle (default: the report
+                              folder's exports/)
+       --template=DIR         the document template (default: the built-in one)
+       FOLDER                 an export folder, holding manifest.json
+       --limit=N              how many imports to show [default: 10]
+       --spec=KEY             only this spec's requirements
+       --subsystem=NAME       only this subsystem's requirements
 
 ``demo``
 --------
@@ -78,6 +148,9 @@ and serves it with a worker in-process. See :doc:`../overview/getting-started`.
 
 Serves the web app and the job API. ``--workspace-path`` is the git checkout
 scripts are read from; ``--reports-path`` is where finished runs are stored.
+``--settings`` makes it a central server: sign-in, mail, and a mirror of the
+team's git remote instead of ``--workspace-path`` (see
+:doc:`../operating/deployment`).
 With ``--local-worker`` it also runs a worker in-process, hosting the
 environments in ``--config``. ``--docs-path`` serves a build of these docs
 at ``/docs``, with a **Docs** link in the navigation.
@@ -86,7 +159,25 @@ at ``/docs``, with a **Docs** link in the navigation.
 ----------
 
 Takes jobs from the server at ``--central-server`` and runs them in the
-environments named in ``--config``. See :doc:`../operating/workers`.
+environments named in ``--config``. A central server needs a worker token,
+``"token"`` in the config or ``AUTOMATION_WORKER_TOKEN``. See
+:doc:`../operating/workers`.
+
+``client``, ``login``, ``logout``, ``whoami``, ``scratch`` and ``builds``
+-------------------------------------------------------------------------
+
+The local client, on your own machine (see :doc:`../operating/local-client`).
+``login --server URL`` signs this machine in by emailed link, and the rest use
+that sign-in. ``client`` serves the web UI for your worktrees on
+``127.0.0.1``. ``scratch SCRIPT...`` uploads scripts from your worktree, edits
+included, to run in the central server's scratch space, printing each step.
+``builds`` lists your local builds and whether each is uploaded.
+
+.. code-block:: bash
+
+   automation-v3 login --server https://automation.example.com
+   automation-v3 client --workspace-path ~/work/scripts
+   automation-v3 scratch BRA/tc_bra_00004.rst --env sim --uut demo=local
 
 ``run``
 -------
@@ -108,6 +199,9 @@ what happened to each spec; an export with a problem is refused whole and
 changes nothing. ``log`` lists the latest imports and the requirements each
 added, removed or changed; ``history`` follows one requirement through every
 import and baseline.
+
+With ``--server URL``, ``import`` uploads each folder to a central server
+instead, which takes imports from admins only.
 
 ``diff`` compares two contexts: ``trunk``, ``trunk@N`` (trunk as of import
 ``N``), ``set:NAME`` (a baseline set) or ``SPEC@BASELINE``. Each line is a

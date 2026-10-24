@@ -83,6 +83,46 @@ automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/
 automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/worker.json --variation limp-home --uut demo=1.0.0
 ```
 
+## A central server and the local client
+
+The server above is **single-user**: it reads local worktrees and nobody
+signs in. For a team, give the server a settings file and it becomes
+**central**. Everyone signs in with a link emailed to their work address
+(no passwords). Scripts come from a mirror of the team's git remote, and
+workers need a token an admin makes on the Admin page:
+
+```toml
+# server.toml
+base_url = "https://automation.example.com"
+
+[auth]
+allowed_domains = ["example.com"]
+admins = ["lead@example.com"]
+
+[smtp]                      # without it, sign-in links are printed in the log
+host = "mail.example.com"
+sender = "automation@example.com"
+
+[git]
+remote = "git@git.example.com:team/scripts.git"
+webhook_secret = "..."      # the git host's push webhook: POST /hooks/git
+```
+```
+automation-v3 server --settings server.toml
+automation-v3 worker --central-server https://automation.example.com --config worker.json   # "token" in worker.json
+```
+
+On each person's machine, the **client** works on their own worktrees and
+sends scratch runs (edits included) and local builds to the central server:
+```
+automation-v3 login --server https://automation.example.com
+automation-v3 client --workspace-path ~/work/scripts       # http://localhost:8080
+automation-v3 scratch BRA/tc_bra_00004.rst --uut demo=local
+```
+Reports run only what's pushed. Reports, Queue and Scratch show your own by
+default, with an Everyone tab. See `docs/operating/deployment.rst`,
+`accounts.rst` and `local-client.rst`.
+
 ## Code organization
 
 Each layer only imports from the ones above it (`test/test_layers.py`
@@ -227,7 +267,9 @@ EXISTS`) every time the server starts. There are no migrations: to
 change a table, edit `schema.sql`, delete the database file and reload the
 sample data.
 
-The database only holds the job queue and in-progress state. Finished runs
+The database holds the job queue and in-progress state, the requirements,
+and on a central server the accounts (only hashes of sign-in links, sessions
+and tokens). Finished runs
 are plain files under `--reports-path` (default `./reports`): one uuidv7
 folder per report, with one uuidv7 folder per run holding `run.json`,
 `events.jsonl` and the exact `closure/` that was executed.

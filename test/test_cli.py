@@ -125,3 +125,11 @@ class TestServerWithLocalWorker(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCliReference(unittest.TestCase):
+    def test_the_reference_shows_the_help_as_it_is(self):
+        import textwrap
+        from automationv3 import cli
+        reference = (Path(__file__).resolve().parents[1] / "docs" / "reference" / "cli.rst")
+        self.assertIn(textwrap.indent(cli.__doc__.strip("\n"), "   "), reference.read_text())
