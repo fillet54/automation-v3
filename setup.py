@@ -31,7 +31,7 @@ setuptools.setup(
     extras_require={
         "docs": ["sphinx"],
     },
-    python_requires='>=3.10',
+    python_requires='>=3.11'  # tomllib,
     include_package_data=True,
     entry_points = {
         'console_scripts': ['automation-v3=automationv3.cli:main'],

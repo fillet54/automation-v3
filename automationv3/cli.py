@@ -5,7 +5,7 @@ Usage:
     automation-v3 server [--port PORT] [--dbpath PATH]
                          [--workspace-path PATH] [--reports-path PATH]
                          [--docs-path PATH] [--local-worker] [--config PATH]
-                         [--debug]
+                         [--settings PATH] [--debug]
     automation-v3 worker [--port PORT] [--config PATH]
                          [--central-server URL] [--no-http] [--debug]
     automation-v3 run SCRIPT... [--root PATH] [--config PATH]
@@ -62,6 +62,9 @@ Options:
     --central-server=URL   host:port of the central server
     --config=PATH          worker config (JSON) naming the environments
                            it hosts
+    --settings=PATH        server settings (TOML): sign-in, mail and a git
+                           remote to mirror. Without it the server is
+                           single-user
     --no-http              run the worker without its status page
     --local-worker         also run a worker inside the server process
                            (hosting the environments in --config)
@@ -158,9 +161,15 @@ def serve(app, args, name, reload=True):
 
 
 def start_server(args):
+    from .services import settings as server_settings
     from .services.database import connect, init_db
     from .services.jobs import cleanup_finished
     from .web.app import create_app
+
+    try:
+        settings = server_settings.load(args.get("--settings"))
+    except server_settings.SettingsError as e:
+        sys.exit(str(e))
 
     db_path = Path(args["--dbpath"]).resolve()
     reports_path = Path(args["--reports-path"]).resolve()
@@ -185,6 +194,7 @@ def start_server(args):
     app = create_app(
         DB_PATH=db_path, WORKSPACE_PATH=workspace_path, REPORTS_PATH=reports_path,
         DOCS_PATH=Path(docs_path).resolve() if docs_path else None,
+        SETTINGS=settings,
     )
     if args["--local-worker"] and serving_process(args):
         start_local_worker(db_path, reports_path, args["--config"])

@@ -4,6 +4,7 @@ from flask import Flask, g, has_app_context, redirect, url_for
 
 from ..framework import rst
 from ..services.requirements import models as requirements
+from ..services.settings import Settings
 from ..services.workspace import find_worktrees
 from . import docs as documentation, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
 from .db import close_db, get_db
@@ -27,9 +28,11 @@ def requirement_key():
 
 
 def create_app(**config):
-    """The server app. Config: DB_PATH, WORKSPACE_PATH, REPORTS_PATH, and
-    DOCS_PATH (built HTML documentation, served at /docs) if there is one."""
+    """The server app. Config: DB_PATH, WORKSPACE_PATH, REPORTS_PATH,
+    DOCS_PATH (built HTML documentation, served at /docs) if there is one,
+    and SETTINGS (services.settings.Settings; default single-user)."""
     app = Flask(__name__)
+    app.config.setdefault("SETTINGS", Settings())
     app.config.update(config)
     ui.init_app(app)
     # Scripts are authored in git; the workspace is a read-only viewer
