@@ -336,7 +336,7 @@ def passed_combinations(root, report_id):
 
 
 def queue_script(conn, root, workspace_root, script, text=None,
-                 environment=None, versions=None, workspace="", owner=None):
+                 environment=None, versions=None, workspace="", owner=None, commit=None):
     """Queue one script, in one environment, as a new report.
 
     The environment defaults to the first the script declares. Every
@@ -359,7 +359,7 @@ def queue_script(conn, root, workspace_root, script, text=None,
         texts={script: text} if text is not None else None,
     )
     check_runnable(plan)  # a script must run: there's nothing to track
-    report_id, run_ids = queue_plan(conn, root, plan, owner=owner)
+    report_id, run_ids = queue_plan(conn, root, plan, owner=owner, commit=commit)
     return report_id, run_ids[0]
 
 

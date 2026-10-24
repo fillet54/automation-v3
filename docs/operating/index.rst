@@ -55,6 +55,10 @@ Workers
 In this section
 ---------------
 
+:doc:`deployment`
+   The central server, the client on each person's machine and the
+   single-user server; settings, and mirroring the team's git remote.
+
 :doc:`accounts`
    Single-user and central servers, signing in by emailed link, devices
    and admins.

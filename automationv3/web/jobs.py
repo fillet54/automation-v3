@@ -201,8 +201,14 @@ def queue():
     """Queue the dialog's selection as a new report, or add it to the
     report it targets: requirements added there are tracked, tests added
     on their own are not"""
+    # Run what was pushed last: a mirror fetches first (worktrees are current)
+    try:
+        workspaces().refresh(request.form.get("workspace"))
+    except RuntimeError as e:
+        current_app.logger.warning("Fetching before queuing failed: %s", e)
     plan = plan_from(request.form)
     report = target_report(request.form)
+    commit = workspaces().commit(plan.workspace)
     # A new report verifies the requirements its workspace does
     context, _ = requirement_models.workspace_context(get_db(), workspace_root(plan.workspace))
     try:
@@ -210,12 +216,12 @@ def queue():
             report_id, _ = models.queue_plan(
                 get_db(), reports_root(), plan, context=context,
                 template=export.find_template(workspace_root(plan.workspace)),
-                owner=owner_email())
+                owner=owner_email(), commit=commit)
         else:
             report_id = report["id"]
             tracked = plan.requirements if request.form.getlist("requirement") else {}
             models.add_plan(get_db(), reports_root(), report_id, plan, tracked, context,
-                            owner=owner_email())
+                            owner=owner_email(), commit=commit)
     except models.QueueError as e:
         return render_dialog(plan, report, e.errors)
     target = url_for("reports.report", report_id=report_id)
@@ -235,6 +241,10 @@ def queue_job():
     and uut_versions (uut name -> version id).
     """
     data = request.json or {}
+    try:
+        workspaces().refresh(data.get("workspace"))
+    except RuntimeError as e:
+        current_app.logger.warning("Fetching before queuing failed: %s", e)
     root = checked_in_root(data.get("workspace"))
     if root is None or not data.get("script"):
         return jsonify({"errors": ["a known workspace and a script are required"]}), 400
@@ -249,6 +259,7 @@ def queue_job():
             versions=data.get("uut_versions"),
             workspace=data["workspace"],
             owner=owner_email(),
+            commit=workspaces().commit(data["workspace"]) if data.get("text") is None else None,
         )
     except models.QueueError as e:
         return jsonify({"errors": e.errors}), 400

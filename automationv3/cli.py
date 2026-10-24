@@ -53,7 +53,8 @@ Options:
     --port=PORT            tcp port to bind to [default: 8080]
     --dbpath=PATH          path to application database file
                            [default: ./automationv3.db]
-    --workspace-path=PATH  path to git repo [default: ./]
+    --workspace-path=PATH  path to git repo [default: ./] (not used when the
+                           settings name a [git] remote to mirror)
     --reports-path=PATH    directory holding reports and runs
                            [default: ./reports]
     --docs-path=PATH       built HTML documentation to serve at /docs
@@ -196,6 +197,15 @@ def start_server(args):
         DOCS_PATH=Path(docs_path).resolve() if docs_path else None,
         SETTINGS=settings,
     )
+    if settings.git is not None:
+        from .services.mirror import MirrorError
+        print(f"   Mirroring {settings.git.remote}")
+        try:
+            app.config["WORKSPACES"].refresh()
+        except MirrorError as e:
+            sys.exit(str(e))
+        if not settings.git.webhook_secret:
+            print("   No [git] webhook_secret: pushes show only when a report is queued")
     if args["--local-worker"] and serving_process(args):
         start_local_worker(db_path, reports_path, args["--config"])
     serve(app, args, "Server")

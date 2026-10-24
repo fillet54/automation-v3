@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from ..services.workspace import LocalWorktrees
-from . import auth, docs as documentation, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
+from . import auth, docs as documentation, hooks, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
 from .db import close_db, get_db
 
 
@@ -42,7 +42,14 @@ def checked_in_cache(config):
 
 
 def workspace_source(config):
-    """The worktrees of WORKSPACE_PATH, or None without one"""
+    """A mirror of the settings' [git] remote, else the worktrees of
+    WORKSPACE_PATH, else None"""
+    git = config["SETTINGS"].git if config.get("SETTINGS") else None
+    if git is not None:
+        from ..services.mirror import MirrorWorkspaces
+        db = config.get("DB_PATH")
+        base = Path(db).resolve().parent if db and str(db) != ":memory:" else Path.cwd()
+        return MirrorWorkspaces(git.remote, base / git.mirror_path, checked_in_cache(config))
     path = config.get("WORKSPACE_PATH")
     return LocalWorktrees(path, checked_in_cache(config)) if path else None
 
@@ -65,12 +72,15 @@ def create_app(**config):
     app.register_blueprint(jobs.jobqueue, url_prefix="/runner")
     app.register_blueprint(reports.reports, url_prefix="/reports")
     app.register_blueprint(scratch.scratch, url_prefix="/scratch")
+    app.register_blueprint(hooks.hooks)
     app.teardown_appcontext(close_db)
     rst.set_requirement_lookup(requirement_lookup, requirement_key)
 
     @app.route("/")
     def index():
-        first = next(iter(app.config["WORKSPACES"].branches()))
+        first = next(iter(app.config["WORKSPACES"].branches()), None)
+        if first is None:  # e.g. a mirror of an empty remote
+            return redirect(url_for("reports.index"))
         return redirect(url_for("workspace.index", id=first))
 
     @app.route("/plugins.css")
