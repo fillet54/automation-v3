@@ -1,6 +1,28 @@
 {% extends "reports/page.html" %}
 
 {% block page %}
+{% if central %}
+{% import "partials/who.html" as who with context %}
+{% call ui.section("People", subtitle="The owner and collaborators can change the report: add to it, rerun, edit its document, freeze and reopen it. Everyone can read it.", id="people") %}
+  {% call ui.table(["Who", "Role", {"label": "", "sr": True}]) %}
+    <tr><td>{{ who.person(report.owner) }}</td><td>{{ ui.badge("Owner", "info") if report.owner else "" }}{% if not report.owner %}<span class="ui-muted">Made before accounts: admins can change it</span>{% endif %}</td><td></td></tr>
+    {% for c in report.collaborators or [] %}
+    <tr>
+      <td>{{ who.person(c) }}</td><td>Collaborator</td>
+      <td class="ui-end">{% if can_change %}<form method="post" action="{{ url_for('reports.collaborators', report_id=report.id) }}"><input type="hidden" name="remove" value="{{ c }}">{{ ui.button("Remove", size="sm", type="submit") }}</form>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  {% endcall %}
+  {% if can_change %}
+  <form method="post" action="{{ url_for('reports.collaborators', report_id=report.id) }}" class="ui-row" style="margin-top: 8px;">
+    {% call ui.field("Add a collaborator", "collaborator", hint="Their work email; they needn't have signed in yet") %}
+      {{ ui.input("email", type="email", id="collaborator", required=True) }}
+    {% endcall %}
+    {{ ui.button("Add", type="submit") }}
+  </form>
+  {% endif %}
+{% endcall %}
+{% endif %}
 {% if not rows and not report.additions %}
 {{ ui.empty("Nothing added yet.") }}
 {% endif %}

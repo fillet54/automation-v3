@@ -1,4 +1,5 @@
 {% extends "layout.html" %}
+{% import "partials/who.html" as who with context %}
 {% set nav_current = "reports" %}
 {% block title %}Reports{% endblock %}
 
@@ -6,7 +7,8 @@
 {% call ui.page_header("Reports", subtitle="A report tests one build: the requirements and tests added to it, and how they came out.") %}
   {{ ui.button("New report", variant="primary", icon="plus", href=url_for('reports.new')) }}
 {% endcall %}
-{% call ui.table(["Report", "Created", "Workspace", "Requirements", {"label": "Runs passed", "align": "end"}, {"label": "Failed", "align": "end"}]) %}
+{{ who.tabs("reports.index", mine="Mine and shared with me") }}
+{% call ui.table(["Report", "Created"] + (["Owner"] if central else []) + ["Workspace", "Requirements", {"label": "Runs passed", "align": "end"}, {"label": "Failed", "align": "end"}]) %}
   {% for report in reports %}
   {% set m = report.summary %}
   <tr class="ui-row--link" data-href="{{ url_for('reports.report', report_id=report.id) }}">
@@ -16,6 +18,7 @@
       {% if m.in_progress %} <span class="ui-spinner" title="Runs in progress"></span>{% endif %}
     </td>
     <td>{{ ui.timestamp(report.created) }}</td>
+    {% if central %}<td>{{ who.person(report.owner) }}{% if report.collaborators %} <span class="ui-muted">+{{ report.collaborators | length }}</span>{% endif %}</td>{% endif %}
     <td>{% if report.workspace %}{{ ui.ident(report.workspace) }}{% endif %}</td>
     <td>
       {% if m.requirements_total %}
@@ -32,7 +35,7 @@
     <td class="ui-end ui-number">{% if m.failed %}<span class="ui-tone-danger" style="color: var(--ui-tone);">{{ m.failed }}</span>{% else %}<span class="ui-muted">—</span>{% endif %}</td>
   </tr>
   {% else %}
-  {{ ui.empty_row("No reports yet. Create one, or queue scripts from the workspace or the requirements page.", 6) }}
+  {{ ui.empty_row(("None of yours yet: switch to Everyone to see the team's. " if central and request.args.get("who") != "everyone" else "No reports yet. ") ~ "Create one, or queue scripts from the workspace or the requirements page.", 7 if central else 6) }}
   {% endfor %}
 {% endcall %}
 {% endblock %}

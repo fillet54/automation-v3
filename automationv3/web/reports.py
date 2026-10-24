@@ -18,13 +18,35 @@ from werkzeug.security import safe_join
 
 from ..framework.uut import uut_types
 from ..services import jobs as models
-from ..services.reports import build, export, rollup, store
+from ..services.reports import access, build, export, rollup, store
 from ..services.workspace import find_worktrees
+from .auth import can_change, mine_only, owner_email
 from .db import get_db
 from . import documents, report_view
 from .docs import in_shell
 
 reports = Blueprint("reports", __name__)
+
+# POSTs that change nothing
+READ_ONLY = {"reports.preview", "reports.new", "reports.make_bundle"}
+
+
+@reports.before_request
+def check_change():
+    """Only a report's owner, its collaborators and admins change it"""
+    if request.method != "POST" or request.endpoint in READ_ONLY:
+        return None
+    report_id = (request.view_args or {}).get("report_id")
+    if not report_id or report_id == models.SCRATCH:
+        return None
+    report = store.load_report(root(), report_id) or abort(404)
+    if not can_change(report):
+        abort(403, "Only the report's owner, its collaborators and admins can change it")
+    return None
+
+
+def is_mine(report, email):
+    return email is None or access.is_member(report, email)
 
 
 def root():
@@ -68,10 +90,13 @@ def duration(seconds):
 
 @reports.route("/", methods=["GET"])
 def index():
+    """Reports, newest first: on a central server, by default only those
+    the user owns or collaborates on (?who=everyone for all)"""
+    mine = mine_only()
     all_reports = [
         {**report, "summary": report_view.summary(report,
                                                   store.list_runs(root(), report["id"]))}
-        for report in store.list_reports(root())
+        for report in store.list_reports(root()) if is_mine(report, mine)
     ]
     return render_template("reports/reports.html", reports=all_reports)
 
@@ -98,7 +123,8 @@ def new():
             errors.append("Pick a workspace")
         if not errors:
             report_id = models.create_report(root(), workspace, name,
-                                             template=workspace_template(workspace))
+                                             template=workspace_template(workspace),
+                                             owner=owner_email())
             return redirect(url_for("reports.report", report_id=report_id))
     return render_template("reports/new.html", workspaces=workspaces,
                            form=request.form, errors=errors)
@@ -209,6 +235,7 @@ def render_page(report_id, page, errors=(), status=200):
         build=build.status(root(), report_id),
         report_id=report_id,
         log=build_log(report_id),
+        can_change=can_change(report),
     )
     if page == "overview":
         live = report_context(report, context["in_progress"],
@@ -506,9 +533,27 @@ def rerun(report_id, run_id):
     run = store.load_run(root(), report_id, run_id) or abort(404)
     force = request.form.get("force") == "1"
     try:
-        new_id = models.rerun(get_db(), root(), report_id, run_id, force=force)
+        new_id = models.rerun(get_db(), root(), report_id, run_id, force=force,
+                              owner=owner_email())
     except models.Drift as drift:
         return render_template("reports/drift.html", run=run, drift=drift), 409
     except models.QueueError as e:
         return render_page(report_id, "overview", e.errors, 409)
     return redirect(url_for("reports.run", report_id=report_id, run_id=new_id))
+
+
+@reports.route("/<report_id>/collaborators", methods=["POST"])
+def collaborators(report_id):
+    """Add a collaborator (email), or remove one (remove=email)"""
+    from ..services import accounts
+    store.load_report(root(), report_id) or abort(404)
+    if request.form.get("remove"):
+        access.remove_collaborator(root(), report_id, request.form["remove"])
+    else:
+        try:
+            email = accounts.normal_email(request.form.get("email", ""))
+        except accounts.AccountError as e:
+            return render_page(report_id, "history", [str(e)], 400)
+        access.add_collaborator(root(), report_id, email)
+    return redirect(url_for("reports.report_page", report_id=report_id, page="history")
+                    + "#people")

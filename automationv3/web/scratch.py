@@ -18,6 +18,7 @@ from ..framework.planning import build_plan
 from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import store
+from .auth import mine_only, owner_email
 from .db import get_db
 from .jobs import checked_in_root, workspace_root
 from .reports import run_status
@@ -37,7 +38,7 @@ def files_root(workspace, files):
 
 
 def render_page(errors=(), status=200):
-    runs = models.scratch_runs(root())
+    runs = models.scratch_runs(root(), owner=mine_only())
     for run in runs:
         run["status"] = run_status(run)
     return render_template("scratch.html", runs=runs, errors=errors), status
@@ -69,7 +70,7 @@ def run():
                       versions=versions,
                       variations={f"{s}::{variation}" for s in scripts} if variation else None)
     try:
-        run_ids = models.queue_scratch(get_db(), root(), plan, files)
+        run_ids = models.queue_scratch(get_db(), root(), plan, files, owner=owner_email())
     except models.QueueError as e:
         return render_page(e.errors, 400)
     if len(run_ids) == 1:
@@ -85,7 +86,7 @@ def again(run_id):
     if source is None:
         return render_page(["That run's workspace is gone"], 404)
     try:
-        new_id = models.run_again(get_db(), root(), source, run_id)
+        new_id = models.run_again(get_db(), root(), source, run_id, owner=owner_email())
     except models.QueueError as e:
         return render_page(e.errors, 400)
     return redirect(url_for("reports.run", report_id=models.SCRATCH, run_id=new_id))
@@ -93,6 +94,6 @@ def again(run_id):
 
 @scratch.route("/clear", methods=["POST"])
 def clear():
-    """Delete the finished scratch runs"""
-    models.clear_scratch(root())
+    """Delete the finished scratch runs: on a central server, only yours"""
+    models.clear_scratch(root(), owner=owner_email())
     return redirect(url_for("scratch.index"))

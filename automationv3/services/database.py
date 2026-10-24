@@ -17,7 +17,7 @@ def connect(path):
 
 # Columns added since their table was first created, for databases made
 # before them: table -> [(column, definition)]
-ADDED_COLUMNS = {"jobs": [("fingerprint_hash", "TEXT")],
+ADDED_COLUMNS = {"jobs": [("fingerprint_hash", "TEXT"), ("owner", "TEXT")],
                  "workers": [("token", "TEXT")]}
 
 

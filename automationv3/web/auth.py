@@ -78,6 +78,26 @@ def owner_email():
     return user.email if central() and user is not None else None
 
 
+def can_change(report):
+    """May the current user change `report`? (see services/reports/access.py)"""
+    from ..services.reports import access
+    if not central():
+        return True
+    user = current_user()
+    return user is not None and access.can_change(report, user.email, is_admin(user))
+
+
+def everyone():
+    """Is the page showing everyone's things (?who=everyone), not just the
+    current user's? Always, on a single-user server."""
+    return not central() or request.args.get("who") == "everyone"
+
+
+def mine_only():
+    """The email to filter a page's list by, or None to show everything"""
+    return None if everyone() else owner_email()
+
+
 def bearer():
     header = request.headers.get("Authorization", "")
     kind, _, secret = header.partition(" ")

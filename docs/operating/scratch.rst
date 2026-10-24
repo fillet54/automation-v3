@@ -42,7 +42,11 @@ How it differs from a report
 
 - Scratch runs may use files that were never committed.
 - They never appear in a report or a rollup.
-- There is one scratch space, shared by everyone.
+- There is one scratch space. On a central server each run belongs to
+  whoever ran it: **Scratch** shows your runs (**Everyone** shows the
+  team's), and **Clear my finished runs** clears only yours.
+- On the queue, scratch runs go ahead of reports' runs, so the edit, run,
+  read loop stays quick while a long report is queued (see :doc:`workers`).
 
 When the script works
 ---------------------

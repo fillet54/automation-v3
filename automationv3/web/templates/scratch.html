@@ -1,4 +1,5 @@
 {% extends "layout.html" %}
+{% import "partials/who.html" as who with context %}
 {% set nav_current = "scratch" %}
 {% block title %}Scratch{% endblock %}
 
@@ -12,10 +13,11 @@
 {% endcall %}
 {% endif %}
 
+{{ who.tabs("scratch.index") }}
 {% call ui.section("Runs", subtitle="Newest first") %}
   {% if runs | selectattr("outcome") | list %}
   <form method="post" action="{{ url_for('scratch.clear') }}" style="margin-bottom: 8px;">
-    {{ ui.button("Clear finished runs", size="sm", type="submit") }}
+    {{ ui.button("Clear my finished runs" if central else "Clear finished runs", size="sm", type="submit") }}
   </form>
   {% endif %}
   {% call ui.table(["Script", "Files", "Environment", "Variation", "State", "Queued", {"label": "", "sr": True}]) %}
@@ -25,7 +27,7 @@
         {{ ui.ident(run.script, url_for('reports.run', report_id=run.report_id, run_id=run.id), plain=True) }}
         {% if run.workspace %}<a class="ui-muted" style="font-size: 12px; margin-left: 6px;" href="{{ url_for('workspace.index', id=run.workspace, path=run.script) }}">in {{ run.workspace }}</a>{% endif %}
       </td>
-      <td>{{ ui.badge(run.get("source", "in work"), tone="neutral" if run.get("source") == "checked in" else "warning") }}</td>
+      <td>{{ ui.badge(run.get("source", "in work"), tone="neutral" if run.get("source") == "checked in" else "warning") }}{% if central and request.args.get("who") == "everyone" %} <span class="ui-muted" style="font-size: 12px;">{{ who.person(run.queued_by) }}</span>{% endif %}</td>
       <td>{% if run.environment %}{{ ui.ident(run.environment) }}{% endif %}</td>
       <td>{% if run.variation %}<span class="ui-mono">{{ run.variation.name }}</span>{% endif %}</td>
       <td>{{ outcomes.outcome(run.status) }}</td>

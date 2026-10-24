@@ -1,19 +1,22 @@
 {% extends "layout.html" %}
+{% import "partials/who.html" as who with context %}
 {% set nav_current = "queue" %}
 {% block title %}Queue{% endblock %}
 
 {% block content %}
-{{ ui.page_header("Queue", subtitle="Every job, oldest first. Workers claim pending jobs; each job is one run of a report.") }}
-{% call ui.table(["Script", "Status", "Worker", "Queued"]) %}
+{{ ui.page_header("Queue", subtitle="Every job, in the order workers are offered them: scratch runs first, then reports' runs, oldest first. Each job is one run.") }}
+{{ who.tabs("jobqueue.list") }}
+{% call ui.table(["Script", "Status", "Worker", "Queued"] + (["By"] if central else [])) %}
   {% for job in jobs %}
   <tr>
-    <td>{{ ui.ident(job.script, url_for('reports.run', report_id=job.report_id, run_id=job.id), plain=True) }}</td>
+    <td>{{ ui.ident(job.script, url_for('reports.run', report_id=job.report_id, run_id=job.id), plain=True) }}{% if job.scratch %} {{ ui.badge("scratch", "warning", outline=True) }}{% endif %}</td>
     <td>{{ outcomes.outcome(job.status) }}</td>
     <td>{% if job.worker_url %}{{ ui.ident(job.worker_url, plain=True) }}{% else %}<span class="ui-muted">—</span>{% endif %}</td>
     <td>{{ ui.timestamp(job.queued_at) }}</td>
+    {% if central %}<td>{{ who.person(job.owner) }}</td>{% endif %}
   </tr>
   {% else %}
-  {{ ui.empty_row("The queue is empty. Queue scripts from the workspace or the requirements page.", 4) }}
+  {{ ui.empty_row("The queue is empty. Queue scripts from the workspace or the requirements page.", 5 if central else 4) }}
   {% endfor %}
 {% endcall %}
 {% endblock %}

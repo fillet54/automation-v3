@@ -1,0 +1,16 @@
+{#- Mine / Everyone tabs for a list page on a central server. Import with context:
+    {% import "partials/who.html" as who with context %}  ...  {{ who.tabs("reports.index") }} #}
+{% macro tabs(endpoint, mine="Mine", values=None) -%}
+{%- if central %}
+{%- set showing_everyone = request.args.get("who") == "everyone" %}
+<nav class="ui-tabs" aria-label="Whose">
+  <a class="ui-tabs__link" href="{{ url_for(endpoint, **(values or {})) }}"{% if not showing_everyone %} aria-current="page"{% endif %}>{{ mine }}</a>
+  <a class="ui-tabs__link" href="{{ url_for(endpoint, who='everyone', **(values or {})) }}"{% if showing_everyone %} aria-current="page"{% endif %}>Everyone</a>
+</nav>
+{%- endif %}
+{%- endmacro %}
+
+{#- Who someone is, shortly: "you", or their address #}
+{% macro person(email) -%}
+{%- if current_user and email and email == current_user.email %}you{% elif email %}{{ email }}{% else %}<span class="ui-muted">—</span>{% endif -%}
+{%- endmacro %}

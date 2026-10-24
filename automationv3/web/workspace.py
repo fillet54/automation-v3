@@ -18,6 +18,7 @@ from ..services.requirements import models as requirement_models
 from ..services.workspace import FileNode, committed_text, edited_files, find_worktrees, is_binary
 from .db import get_db
 from . import documents
+from .auth import can_change
 from .jobs import checked_in_root, live_environments
 
 
@@ -247,7 +248,8 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         variation_names=names,
         variation_rows=[(v.name, written_values(v))
                         for v in (closure.variations if closure else [])],
-        reports=jobs.reports_for(current_app.config["REPORTS_PATH"], ws.id)
+        reports=[r for r in jobs.reports_for(current_app.config["REPORTS_PATH"], ws.id)
+                 if can_change(r)]
         if closure and not closure.errors else [],
         target=request.args.get("report", ""),
         errors=(errors or []) + [e for e in (closure.errors if closure else [])

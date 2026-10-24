@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS worker_environments(
 -- environment is NULL when the script declares none (any worker may run
 -- it); uut_versions is JSON: uut name -> {"id", "digest"}.
 -- fingerprint_hash pins an identical rerun to workers whose environment
--- still has that fingerprint.
+-- still has that fingerprint. owner is who queued it (central servers).
 CREATE TABLE IF NOT EXISTS jobs(
     id TEXT PRIMARY KEY,
     report_id TEXT NOT NULL,
@@ -147,7 +147,8 @@ CREATE TABLE IF NOT EXISTS jobs(
     worker_url TEXT,
     queued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     claimed_at TEXT,
-    fingerprint_hash TEXT
+    fingerprint_hash TEXT,
+    owner TEXT
 );
 
 -- Requirement links: a derived index of the :req: references in each

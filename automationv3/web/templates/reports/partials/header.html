@@ -6,6 +6,7 @@
 {% set outdated = rows | selectattr('state', 'equalto', 'outdated') | list | length %}
 {% if outdated %}{% set _ = meta.append(outdated ~ " outdated") %}{% endif %}
 {% if report.filter %}{% set _ = meta.append("filter " ~ report.filter) %}{% endif %}
+{% if central and report.owner %}{% set _ = meta.append("owner " ~ report.owner) %}{% endif %}
 {% set title = report.name or ("Report " ~ report.id[:8]) %}
 <header class="ui-page-header">
   {{ ui.breadcrumbs([("Reports", url_for('reports.index')), (title, url_for('reports.report', report_id=report.id) if page != "overview" else None)]
@@ -29,6 +30,12 @@
       {%- if meta %}<div class="ui-row ui-page-header__meta">{% for m in meta %}{{ ui.chip(m) }}{% endfor %}
         {%- if uuts and not report.frozen %}<a class="report-versions-link" href="{{ url_for('reports.versions', report_id=report.id) }}"{% if in_progress %} aria-disabled="true" title="Change versions once the runs in progress finish"{% endif %}>Versions…</a>{% endif %}</div>{% endif %}
     </div>
+    {%- if can_change is defined and not can_change %}
+    <div class="ui-toolbar ui-page-header__actions">
+      {{ ui.badge("View only", "neutral", outline=True) }}
+      <a href="{{ url_for('reports.report_page', report_id=report.id, page='history') }}#people" class="ui-muted" style="font-size: 12px;">Who can change it</a>
+    </div>
+    {%- else %}
     <div class="ui-toolbar ui-page-header__actions">
       {% if in_progress %}<span class="ui-row ui-muted" style="font-size: 12px;"><span class="ui-spinner"></span>Runs in progress</span>{% endif %}
       {% if report.frozen %}
@@ -51,5 +58,6 @@
       </form>
       {% endif %}
     </div>
+    {%- endif %}
   </div>
 </header>

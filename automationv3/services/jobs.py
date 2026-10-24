@@ -28,11 +28,16 @@ class Job:
     queued_at: datetime
     claimed_at: datetime
     fingerprint_hash: str = None  # a CM rerun's: only matching workers run it
+    owner: str = None  # who queued it, on a central server
+
+    @property
+    def scratch(self):
+        return self.report_id == SCRATCH
 
 
 def _job(row):
     (id, report_id, script, environment, variation, uut_versions,
-     status, worker_url, queued_at, claimed_at, fingerprint_hash) = row
+     status, worker_url, queued_at, claimed_at, fingerprint_hash, owner) = row
     return Job(
         id,
         report_id,
@@ -45,12 +50,13 @@ def _job(row):
         datetime.fromisoformat(queued_at),
         datetime.fromisoformat(claimed_at) if claimed_at else None,
         fingerprint_hash,
+        owner,
     )
 
 
 JOB_COLUMNS = (
     "id, report_id, script, environment, variation, uut_versions, "
-    "status, worker_url, queued_at, claimed_at, fingerprint_hash"
+    "status, worker_url, queued_at, claimed_at, fingerprint_hash, owner"
 )
 
 
@@ -64,13 +70,16 @@ class QueueError(Exception):
 
 def enqueue(conn, root, report_id, script, files, load_order,
             environment=None, uut_versions=None, imports=(), variation=None,
-            fingerprint_hash=None, **run_fields):
+            fingerprint_hash=None, owner=None, **run_fields):
     """Create a run folder in the report and queue it as a job.
 
     `variation` is None or {"name", "values"} (values as edn text).
     `fingerprint_hash` pins the job to workers whose environment has that
-    fingerprint; `run_fields` are recorded in run.json as they are.
+    fingerprint; `owner` is who queued it (recorded as queued_by);
+    `run_fields` are recorded in run.json as they are.
     """
+    if owner is not None:
+        run_fields["queued_by"] = owner
     check_open(root, report_id)
     uut_versions = uut_versions or {}
     run_id = store.create_run(root, report_id, script, files)
@@ -90,8 +99,8 @@ def enqueue(conn, root, report_id, script, files, load_order,
         conn.execute(
             """
             INSERT INTO jobs(id, report_id, script, environment, variation,
-                             uut_versions, fingerprint_hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                             uut_versions, fingerprint_hash, owner)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
@@ -101,6 +110,7 @@ def enqueue(conn, root, report_id, script, files, load_order,
                 variation["name"] if variation else None,
                 json.dumps(uut_versions),
                 fingerprint_hash,
+                owner,
             ),
         )
     return run_id
@@ -150,15 +160,19 @@ def closure_hash(files, load_order):
     return Closure(load_order[-1], files, load_order).hash
 
 
-def create_report(root, workspace, name="", uut_versions=None, template=None):
+def create_report(root, workspace, name="", uut_versions=None, template=None,
+                  owner=None):
     """An empty report for one workspace. Its UUT versions (name ->
     {id, digest}) are the default for every addition. It keeps a copy of
     `template` (the workspace's report template; default the built-in
-    one) and starts its document from the template's report.rst."""
+    one) and starts its document from the template's report.rst. `owner`
+    (an email; None on a single-user server) may change it, with the
+    collaborators they add."""
     from .reports import export
+    people = {"owner": owner, "collaborators": []} if owner else {}
     report_id = store.create_report(root, name=name, workspace=workspace,
                                     uut_versions=uut_versions or {}, requirements={},
-                                    scripts=[], additions=[])
+                                    scripts=[], additions=[], **people)
     export.install_template(root, report_id, template)
     return report_id
 
@@ -178,7 +192,8 @@ def check_runnable(plan, track=False):
         raise QueueError(errors)
 
 
-def add_plan(conn, root, report_id, plan, requirements=None, context=None):
+def add_plan(conn, root, report_id, plan, requirements=None, context=None, owner=None,
+             commit=None):
     """Queue every run of `plan` in an existing report. `requirements`
     (id -> linked scripts) join the report's tracked requirements.
 
@@ -186,6 +201,9 @@ def add_plan(conn, root, report_id, plan, requirements=None, context=None):
     services/requirements/models.py): the one it was first given, else
     `context`, else trunk. It records each tracked requirement's version
     in it, and each run the text of the requirements its script covers.
+
+    `owner` is who is adding (recorded on its runs); `commit` the commit
+    the plan's files are from, when known.
 
     Returns the run ids. Raises QueueError if nothing can run and there
     are no requirements to track: requirements without tests yet are
@@ -226,6 +244,8 @@ def add_plan(conn, root, report_id, plan, requirements=None, context=None):
             "uut_versions": plan.uut_versions,
             "filter": plan.filter,
             "runs": len(runs),
+            **({"by": owner} if owner else {}),
+            **({"commit": commit} if commit else {}),
         }],
     )
 
@@ -249,6 +269,8 @@ def add_plan(conn, root, report_id, plan, requirements=None, context=None):
             requirement_versions={
                 id: v["text_hash"] for id, v in
                 requirement_versions(conn, script_plan.requirements, context).items()},
+            owner=owner,
+            **({"commit": commit} if commit else {}),
         ))
     return run_ids
 
@@ -267,17 +289,20 @@ def merge_scripts(entries, added):
     return list(merged.values())
 
 
-def queue_plan(conn, root, plan, name=None, context=None, template=None):
+def queue_plan(conn, root, plan, name=None, context=None, template=None, owner=None,
+               commit=None):
     """Queue every run of `plan` under one new report, tracking the
-    requirements it covers: the one-step path from a selection.
+    requirements it covers: the one-step path from a selection. `owner`
+    owns the new report.
 
     Returns (report_id, run_ids). Raises QueueError if the plan has
     errors, or nothing to run and no requirements to track.
     """
     check_runnable(plan, track=True)
     report_id = create_report(root, plan.workspace, name or default_name(plan),
-                              plan.uut_versions, template)
-    return report_id, add_plan(conn, root, report_id, plan, plan.requirements, context)
+                              plan.uut_versions, template, owner=owner)
+    return report_id, add_plan(conn, root, report_id, plan, plan.requirements, context,
+                               owner=owner, commit=commit)
 
 
 def default_name(plan):
@@ -311,7 +336,7 @@ def passed_combinations(root, report_id):
 
 
 def queue_script(conn, root, workspace_root, script, text=None,
-                 environment=None, versions=None, workspace=""):
+                 environment=None, versions=None, workspace="", owner=None):
     """Queue one script, in one environment, as a new report.
 
     The environment defaults to the first the script declares. Every
@@ -334,7 +359,7 @@ def queue_script(conn, root, workspace_root, script, text=None,
         texts={script: text} if text is not None else None,
     )
     check_runnable(plan)  # a script must run: there's nothing to track
-    report_id, run_ids = queue_plan(conn, root, plan)
+    report_id, run_ids = queue_plan(conn, root, plan, owner=owner)
     return report_id, run_ids[0]
 
 
@@ -351,7 +376,7 @@ class Drift(Exception):
         self.diffs = diffs
 
 
-def rerun(conn, root, report_id, run_id, force=False):
+def rerun(conn, root, report_id, run_id, force=False, owner=None):
     """Queue the run again, exactly: the same closure, environment,
     variation and UUT versions, as a new run in the same report. A run
     outdated by the report's versions is queued on them instead.
@@ -389,11 +414,14 @@ def rerun(conn, root, report_id, run_id, force=False):
             id: v["text_hash"] for id, v in requirement_versions(
                 conn, run["requirement_versions"],
                 report.get("requirement_context")).items()}
+    for kept in ("workspace", "source", "commit"):  # a scratch run's, or a report run's
+        if kept in run:
+            extra[kept] = run[kept]
     return enqueue(conn, root, report_id, run["script"], files,
                    run.get("load_order", [run["script"]]),
                    run.get("environment"), versions,
                    run.get("imports", []), run.get("variation"),
-                   fingerprint_hash=pin, **extra)
+                   fingerprint_hash=pin, owner=owner, **extra)
 
 
 def live_fingerprints(conn, environment):
@@ -787,13 +815,14 @@ def complete_job(conn, root, id, worker_url, outcome, installed=None,
 SCRATCH = "scratch"
 
 
-IN_WORK, CHECKED_IN = "in work", "checked in"
+IN_WORK, CHECKED_IN, UPLOADED = "in work", "checked in", "uploaded"
 
 
-def queue_scratch(conn, root, plan, files=IN_WORK):
+def queue_scratch(conn, root, plan, files=IN_WORK, owner=None, **run_fields):
     """Queue every run of `plan` in the scratch space. `files` says which
-    of the workspace's files the plan was built from: IN_WORK (on disk)
-    or CHECKED_IN. Returns the run ids."""
+    of the workspace's files the plan was built from: IN_WORK (on disk),
+    CHECKED_IN or UPLOADED (from a client's worktree). `owner` is who
+    runs them. Returns the run ids."""
     check_runnable(plan)
     run_ids = []
     for script_plan, environment, variation in plan.runs():
@@ -805,16 +834,18 @@ def queue_scratch(conn, root, plan, files=IN_WORK):
             conn, root, SCRATCH, closure.script, closure.files, closure.load_order,
             environment, {name: plan.uut_versions[name] for name in closure.uuts},
             closure.imports, variation, workspace=plan.workspace, source=files,
+            owner=owner, **run_fields,
         ))
     return run_ids
 
 
-def scratch_runs(root):
-    """Scratch runs, newest first"""
-    return list(reversed(store.list_runs(root, SCRATCH)))
+def scratch_runs(root, owner=None):
+    """Scratch runs, newest first; only `owner`'s, if given"""
+    runs = reversed(store.list_runs(root, SCRATCH))
+    return [r for r in runs if owner is None or r.get("queued_by") == owner]
 
 
-def run_again(conn, root, workspace_root, run_id):
+def run_again(conn, root, workspace_root, run_id, owner=None):
     """Queue a scratch run again with the script as it is now: the same
     script, environment, variation and UUT versions, from `workspace_root`
     (the run's files: in work or checked in). Returns the run id."""
@@ -828,14 +859,14 @@ def run_again(conn, root, workspace_root, run_id):
         versions={uut: v["id"] for uut, v in (run.get("uut_versions") or {}).items()},
         variations={f"{run['script']}::{variation}"} if variation else None,
     )
-    (run_id,) = queue_scratch(conn, root, plan, run.get("source", IN_WORK))
+    (run_id,) = queue_scratch(conn, root, plan, run.get("source", IN_WORK), owner=owner)
     return run_id
 
 
-def clear_scratch(root):
-    """Delete the finished scratch runs; queued and running ones stay.
-    Returns how many were deleted."""
-    finished = [run for run in store.list_runs(root, SCRATCH) if run.get("outcome")]
+def clear_scratch(root, owner=None):
+    """Delete the finished scratch runs (only `owner`'s, if given); queued
+    and running ones stay. Returns how many were deleted."""
+    finished = [run for run in scratch_runs(root, owner) if run.get("outcome")]
     for run in finished:
         store.delete_run(root, SCRATCH, run["id"])
     return len(finished)

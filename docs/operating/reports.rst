@@ -17,6 +17,26 @@ Creating a report
 The report starts empty. Its UUT versions come from the first tests added
 to it (see `UUT versions`_).
 
+Who can change a report
+-----------------------
+
+On a central server (see :doc:`accounts`) a report belongs to whoever made
+it: its **owner**. The owner can add **collaborators** by email in the
+report's **History → People** section, and remove them again. Collaborators
+don't need to have signed in yet.
+
+Everyone signed in can read every report. Only its owner, its collaborators
+and admins can change it: add to it, rerun its runs, change its versions,
+edit and rename its document, and freeze or reopen it. Anyone else sees
+**View only** in its header. A report made before the server had accounts
+has no owner, so only admins can change it.
+
+**Reports** lists the reports you own or collaborate on. **Everyone** shows
+the whole team's, with each one's owner. Each addition and run records who
+queued it.
+
+On a single-user server there are no owners, and anyone can change anything.
+
 Adding to a report
 ------------------
 

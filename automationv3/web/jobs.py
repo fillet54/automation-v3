@@ -29,6 +29,8 @@ from ..services.reports import export, store
 from ..services.requirements import links
 from ..services.requirements import models as requirement_models
 from ..services.workspace import checked_in, edited_files, find_worktrees
+from ..services.reports import access
+from .auth import can_change, mine_only, owner_email
 from .db import get_db
 
 jobqueue = Blueprint("jobqueue", __name__)
@@ -78,11 +80,34 @@ def in_work(plan):
     return out
 
 
+def my_jobs(jobs, email):
+    """The jobs `email` queued, or that are in reports they own or
+    collaborate on"""
+    reports = {}
+
+    def mine(job):
+        if job.owner == email:
+            return True
+        if job.scratch:
+            return False
+        if job.report_id not in reports:
+            report = store.load_report(reports_root(), job.report_id) or {}
+            reports[job.report_id] = access.is_member(report, email)
+        return reports[job.report_id]
+    return [job for job in jobs if mine(job)]
+
+
 @jobqueue.route("/", methods=["GET"])
 def list():
+    """Every queued and running job, in the order workers are offered them:
+    on a central server by default only the user's own"""
     conn = get_db()
     models.reap_lost_jobs(conn, reports_root())
-    return render_template("queue.html", jobs=models.find_jobs(conn))
+    jobs = models.find_jobs(conn)
+    email = mine_only()
+    if email is not None:
+        jobs = my_jobs(jobs, email)
+    return render_template("queue.html", jobs=jobs)
 
 
 # Pages
@@ -99,11 +124,14 @@ def live_environments():
 
 def target_report(args):
     """The report a queue dialog adds to (its `report` argument), or None
-    for a new one"""
+    for a new one. Only those who may change it may add to it."""
     report_id = args.get("report")
     if not report_id:
         return None
-    return store.load_report(reports_root(), report_id) or abort(404)
+    report = store.load_report(reports_root(), report_id) or abort(404)
+    if not can_change(report):
+        abort(403, "Only the report's owner, its collaborators and admins can add to it")
+    return report
 
 
 def plan_from(args):
@@ -190,11 +218,13 @@ def queue():
         if report is None:
             report_id, _ = models.queue_plan(
                 get_db(), reports_root(), plan, context=context,
-                template=export.find_template(workspace_root(plan.workspace)))
+                template=export.find_template(workspace_root(plan.workspace)),
+                owner=owner_email())
         else:
             report_id = report["id"]
             tracked = plan.requirements if request.form.getlist("requirement") else {}
-            models.add_plan(get_db(), reports_root(), report_id, plan, tracked, context)
+            models.add_plan(get_db(), reports_root(), report_id, plan, tracked, context,
+                            owner=owner_email())
     except models.QueueError as e:
         return render_dialog(plan, report, e.errors)
     target = url_for("reports.report", report_id=report_id)
@@ -226,6 +256,8 @@ def queue_job():
             text=data.get("text"),
             environment=data.get("environment"),
             versions=data.get("uut_versions"),
+            workspace=data["workspace"],
+            owner=owner_email(),
         )
     except models.QueueError as e:
         return jsonify({"errors": e.errors}), 400
