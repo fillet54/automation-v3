@@ -11,6 +11,8 @@ Usage:
     automation-v3 run SCRIPT... [--root PATH] [--config PATH]
                       [--env NAME]... [--variation NAME]... [--filter EXPR]
                       [--uut NAME=VERSION]... [--reports-path PATH]
+    automation-v3 client [--port PORT] [--workspace-path PATH] [--server URL]
+                         [--config PATH] [--data-path PATH] [--debug]
     automation-v3 login --server URL [--email EMAIL]
     automation-v3 logout [--server URL]
     automation-v3 whoami [--server URL]
@@ -39,6 +41,10 @@ Commands:
                            with a worker in the same process
     worker                 take jobs from a server and run them
     run                    run scripts on this machine, without a server
+    client                 the local client's web UI, on this machine only:
+                           your worktrees' scripts, checked as you write them,
+                           run in scratch on the central server (or here,
+                           with --config). Sign in first with login
     login                  sign this machine in to a central server: it
                            emails you a link to approve it
     logout                 sign this machine out, and revoke its token
@@ -89,6 +95,8 @@ Options:
                            signed in to)
     --email=EMAIL          your work email (asked for if not given)
     --no-wait              queue and print the runs' links, without waiting
+    --data-path=PATH       where the client keeps its own scratch runs
+                           (default: ~/.local/share/automation-v3/client)
     --env=NAME             environment to run in (default: all hosted)
     --variation=NAME       variation to run (default: all)
     --filter=EXPR          EDN predicate selecting variations
@@ -156,7 +164,9 @@ def main(argv=None):
         sys.exit(requirements(args))
 
     print(__banner__)
-    if args["demo"]:
+    if args["client"]:
+        start_client(args)
+    elif args["demo"]:
         start_demo(args)
     elif args["server"]:
         start_server(args)
@@ -171,14 +181,48 @@ def port(args):
     return value
 
 
-def serve(app, args, name, reload=True):
+def serve(app, args, name, reload=True, host="0.0.0.0"):
     from waitress import serve
 
     if args["--debug"]:
-        app.run(port=port(args), debug=True, use_reloader=reload)
+        app.run(host=host, port=port(args), debug=True, use_reloader=reload)
     else:
         print(f"   {name} started: http://localhost:{port(args)}/")
-        serve(app, port=port(args), threads=8)
+        serve(app, host=host, port=port(args), threads=8)
+
+
+def data_home():
+    base = os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+    return Path(base) / "automation-v3"
+
+
+def start_client(args):
+    """The local client's web UI, for this machine only (127.0.0.1)"""
+    from .services import client
+    from .services.database import connect, init_db
+    from .web.app import create_app
+
+    try:
+        central = client.CentralClient.signed_in(args["--server"])
+        me = central.whoami()
+    except client.ClientError as e:
+        sys.exit(str(e))
+    workspace_path = Path(args["--workspace-path"]).resolve()
+    if not workspace_path.exists():
+        sys.exit("--workspace-path=PATH should exist")
+    data = Path(args["--data-path"] or data_home() / "client").resolve()
+    (data / "reports").mkdir(parents=True, exist_ok=True)
+    db_path = data / "client.db"
+    with closing(connect(db_path)) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        init_db(conn)
+    app = create_app(DB_PATH=db_path, WORKSPACE_PATH=workspace_path,
+                     REPORTS_PATH=data / "reports", CENTRAL=central,
+                     LOCAL_WORKER=bool(args["--config"]))
+    print(f"   Signed in to {central.server} as {me['email']}")
+    if args["--config"] and serving_process(args):
+        start_local_worker(db_path, data / "reports", args["--config"])
+    serve(app, args, "Client", host="127.0.0.1")
 
 
 def start_server(args):

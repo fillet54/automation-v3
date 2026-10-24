@@ -390,7 +390,7 @@ def rerun(conn, root, report_id, run_id, force=False, owner=None):
     files = store.read_closure(root, report_id, run_id)
     pin, extra = None, {"rerun_of": run_id}
     versions = run.get("uut_versions")
-    report = store.load_report(root, report_id)
+    report = store.load_report(root, report_id) or {}  # scratch has none
     if rollup.stale_versions(report, run):
         # Outdated: the same closure, on the report's versions now. A new
         # install, so no fingerprint to match.

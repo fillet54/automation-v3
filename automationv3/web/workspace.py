@@ -64,8 +64,25 @@ def requirement_context():
     """:req: references on a workspace's pages read the requirements in
     the context the workspace verifies (see app.requirement_lookup)"""
     root = worktrees().get((request.view_args or {}).get("id"))
-    if root is not None:
+    if root is None:
+        return
+    if current_app.config.get("CENTRAL") is not None:
+        # The local client has no requirements of its own: the central
+        # server resolves the context the workspace names
+        g.requirement_context = configured_context(root)
+    else:
         g.requirement_context, _ = requirement_models.workspace_context(get_db(), root)
+
+
+def configured_context(root):
+    """The requirements context named in the workspace's automation.json,
+    unchecked; None for trunk"""
+    import json
+    path = Path(root) / requirement_models.WORKSPACE_CONFIG
+    try:
+        return json.loads(path.read_text()).get("requirements") or None
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def worktrees():

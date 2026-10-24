@@ -47,7 +47,11 @@ def _nav():
     from .auth import central, current_user, is_admin
     if central() and current_user() is None:
         return []  # signing in: nowhere else to go yet
-    items = [{"key": key, "label": label, "href": url_for(endpoint)} for key, label, endpoint in NAV]
+    from .client_mode import CENTRAL_NAV, central as central_server, central_url
+    items = [{"key": key, "label": label,
+              "href": central_url(CENTRAL_NAV[key]) if central_server() and key in CENTRAL_NAV
+              else url_for(endpoint)}
+             for key, label, endpoint in NAV]
     if current_app.config.get("DOCS_PATH"):
         items.append({"key": "docs", "label": "Docs", "href": url_for("docs")})
     if central():

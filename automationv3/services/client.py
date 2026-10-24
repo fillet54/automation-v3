@@ -245,3 +245,39 @@ def replay(observer, event):
             method(**payload)
         except TypeError:
             pass
+
+
+class RemoteRequirements:
+    """Requirements looked up on the central server, kept for `ttl`
+    seconds, for :req: references in the local client's pages"""
+
+    def __init__(self, central, ttl=60, clock=time.monotonic):
+        self.central = central
+        self.ttl = ttl
+        self.clock = clock
+        self.cache = {}  # (context, id) -> (when, Requirement | None)
+        self.latest_import = None
+
+    def find(self, id, context=None):
+        from ..framework.requirement import Requirement
+        key = (context or "trunk", id)
+        hit = self.cache.get(key)
+        if hit is not None and self.clock() - hit[0] < self.ttl:
+            return hit[1]
+        try:
+            got = self.central.requirements([id], context)
+        except ClientError:
+            found = None  # offline, or an unknown context: show the bare id
+        else:
+            self.latest_import = got.get("import")
+            data = got["requirements"].get(id)
+            found = None if data is None else Requirement(**{
+                **data, "satisfies": tuple(data.get("satisfies") or ()),
+                "section": tuple(data.get("section") or ())})
+        self.cache[key] = (self.clock(), found)
+        return found
+
+    def key(self, context=None):
+        """What the answers depend on: the context and the server's latest
+        import (rendered pages are cached by it)"""
+        return context or "trunk", self.latest_import

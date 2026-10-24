@@ -105,11 +105,17 @@ def list():
 
 
 def live_environments():
+    """environment -> the live workers offering it: this server's, and on
+    the local client the central server's too"""
     since = datetime.utcnow() - models.MISSING_AFTER
     live = {}
     for worker in models.find_workers(get_db(), since=since):
         for name in worker.environments:
             live.setdefault(name, []).append(worker.url)
+    from .client_mode import central, central_environments
+    if central() is not None:
+        for name, urls in central_environments().items():
+            live.setdefault(name, []).extend(urls)
     return live
 
 

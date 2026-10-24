@@ -7,6 +7,12 @@
 <div class="ui-stack ui-gap-large">
 {{ ui.page_header("Scratch", subtitle="Scripts tried while they're written: run from a script's page in the workspace with Run in scratch, with its files in work (uncommitted edits included) or as checked in. Scratch runs never count toward a report.") }}
 
+{% if central_scratch %}
+{% call ui.alert("info", title="Runs on the central server's workers are listed there") %}
+  Run in scratch sends your files to the central server unless you pick this machine. <a href="{{ central_scratch }}">Your scratch runs on the central server</a>. Below are the runs on this machine, which stay here.
+{% endcall %}
+{% endif %}
+
 {% if errors %}
 {% call ui.alert("danger", title="Can't run that") %}
   <ul class="ui-plain-list">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
@@ -34,7 +40,8 @@
       <td>{{ ui.timestamp(run.created) }}</td>
       <td class="ui-end">
         <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">
-          {{ ui.button("Run again", size="sm", icon="refresh", type="submit") }}
+          {{ ui.button("Run again", size="sm", icon="refresh", type="submit",
+                       attrs={"title": "With the same files: they were uploaded from someone's worktree"} if run.source == "uploaded" else None) }}
         </form>
       </td>
     </tr>

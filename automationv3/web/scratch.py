@@ -18,7 +18,9 @@ from ..framework.planning import build_plan
 from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import store
+from ..services import client
 from .auth import mine_only, owner_email
+from .client_mode import CENTRAL, central, central_url
 from .db import get_db
 from .jobs import checked_in_root, workspace_root
 from .reports import run_status
@@ -41,7 +43,8 @@ def render_page(errors=(), status=200):
     runs = models.scratch_runs(root(), owner=mine_only())
     for run in runs:
         run["status"] = run_status(run)
-    return render_template("scratch.html", runs=runs, errors=errors), status
+    return render_template("scratch.html", runs=runs, errors=errors,
+                           central_scratch=central_url("/scratch/") if central() else None), status
 
 
 @scratch.route("/", methods=["GET"])
@@ -54,7 +57,8 @@ def run():
     """Run scripts (every variation, or the one picked) in one
     environment, or every environment each supports, from the files in
     work or as checked in. Goes to the run, or the list when there are
-    several."""
+    several. The local client sends them to the central server's workers
+    unless `where` is this machine."""
     form = request.form
     files = form.get("files") or models.IN_WORK
     workspace = form.get("workspace", "")
@@ -65,6 +69,8 @@ def run():
     environment = form.get("environment")
     versions = {uut: form.get(f"version-{uut}") for uut in uut_types()
                 if form.get(f"version-{uut}")}
+    if central() is not None and form.get("where", CENTRAL) == CENTRAL:
+        return run_on_central(workspace, source, scripts, environment, variation, versions)
     plan = build_plan(workspace, source, scripts,
                       environments=[environment] if environment else None,
                       versions=versions,
@@ -78,10 +84,29 @@ def run():
     return redirect(url_for("scratch.index"))
 
 
+def run_on_central(workspace, source, scripts, environment, variation, versions):
+    """Upload the scripts' files to the central server's scratch space;
+    go to the run there, or to its scratch page when there are several"""
+    try:
+        files = client.upload_files(source, scripts)
+        runs = central().scratch(workspace, files, scripts, environment=environment,
+                                 variation=variation, uut_versions=versions)
+    except client.ClientError as e:
+        return render_page(str(e).splitlines(), 400)
+    if len(runs) == 1:
+        return redirect(runs[0]["url"])
+    return redirect(central_url("/scratch/"))
+
+
 @scratch.route("/runs/<run_id>/again", methods=["POST"])
 def again(run_id):
-    """Run a scratch run's script again, as it is now"""
+    """Run a scratch run's script again, as it is now; an uploaded one
+    (whose worktree is on someone's machine) with the same files"""
     previous = store.load_run(root(), models.SCRATCH, run_id) or {}
+    if previous.get("source") == models.UPLOADED:
+        new_id = models.rerun(get_db(), root(), models.SCRATCH, run_id, force=True,
+                              owner=owner_email())
+        return redirect(url_for("reports.run", report_id=models.SCRATCH, run_id=new_id))
     source = files_root(previous.get("workspace"), previous.get("source", models.IN_WORK))
     if source is None:
         return render_page(["That run's workspace is gone"], 404)

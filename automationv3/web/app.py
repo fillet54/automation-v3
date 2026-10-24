@@ -1,6 +1,6 @@
 """The server's Flask app"""
 
-from flask import Flask, g, has_app_context, redirect, url_for
+from flask import Flask, current_app, g, has_app_context, redirect, url_for
 
 from ..framework import rst
 from ..services.requirements import models as requirements
@@ -9,15 +9,19 @@ import tempfile
 from pathlib import Path
 
 from ..services.workspace import LocalWorktrees
-from . import api, auth, docs as documentation, hooks, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
+from . import api, auth, client_mode, docs as documentation, hooks, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
 from .db import close_db, get_db
 
 
 def requirement_lookup(id):
     """Resolve :req: references from the requirements database when
-    serving: in the context the page's workspace verifies, else trunk"""
+    serving: in the context the page's workspace verifies, else trunk. The
+    local client asks the central server instead."""
     if not has_app_context():
         return None
+    remote = current_app.config.get("REMOTE_REQUIREMENTS")
+    if remote is not None:
+        return remote.find(id, g.get("requirement_context"))
     return requirements.find_by_id(get_db(), id, g.get("requirement_context"))
 
 
@@ -26,6 +30,9 @@ def requirement_key():
     import (which may have changed any requirement's text)"""
     if not has_app_context():
         return None
+    remote = current_app.config.get("REMOTE_REQUIREMENTS")
+    if remote is not None:
+        return remote.key(g.get("requirement_context"))
     latest = get_db().execute("SELECT MAX(id) FROM imports").fetchone()[0]
     return g.get("requirement_context") or "trunk", latest
 
@@ -59,13 +66,21 @@ def create_app(**config):
     DOCS_PATH (built HTML documentation, served at /docs) if there is one,
     SETTINGS (services.settings.Settings; default single-user), and
     WORKSPACES, a workspace source (default: the worktrees of
-    WORKSPACE_PATH; see services/workspace.py)."""
+    WORKSPACE_PATH; see services/workspace.py).
+
+    The local client (automation-v3 client) also gives CENTRAL, a
+    services.client.CentralClient signed in to the central server, and
+    LOCAL_WORKER, True when this machine runs scratch runs itself."""
     app = Flask(__name__)
     app.config.setdefault("SETTINGS", Settings())
     app.config.update(config)
     app.config.setdefault("WORKSPACES", workspace_source(app.config))
+    if app.config.get("CENTRAL") is not None:
+        from ..services.client import RemoteRequirements
+        app.config.setdefault("REMOTE_REQUIREMENTS", RemoteRequirements(app.config["CENTRAL"]))
     ui.init_app(app)
     auth.init_app(app)
+    client_mode.init_app(app)
     # Scripts are authored in git; the workspace is a read-only viewer
     app.register_blueprint(workspace.bp, url_prefix="/workspace")
     app.register_blueprint(requirement_pages.requirements, url_prefix="/requirements")

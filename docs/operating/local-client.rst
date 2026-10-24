@@ -27,6 +27,40 @@ as you until you sign out or remove the device on your Account page (see
 ``automation-v3 logout`` signs it out and revokes its token. Commands talk to
 the server you last signed in to unless you name another with ``--server``.
 
+The local web UI
+----------------
+
+.. code-block:: console
+
+   $ automation-v3 client --workspace-path ~/work/scripts
+      Signed in to https://automation.example.com as ann@example.com
+      Client started: http://localhost:8080/
+
+``client`` serves the workspace pages for your own clone and its worktrees, on
+this machine only (it listens on 127.0.0.1). Scripts are rendered and checked
+as you save them, with in-work edits marked just as on a single-user server.
+
+What belongs to the team stays on the central server:
+
+- **Requirements**, **Queue**, **Reports** and **Workers** in the header open
+  the central server's pages.
+- ``:req:`` references show the central server's text for the requirements
+  your workspace verifies (its ``automation.json``). They're looked up live
+  and kept for a minute.
+- **Run in scratch** uploads the script's files, edits included, to the
+  central server's scratch space and opens the run there. Start the client
+  with ``--config worker.json`` and you can pick **on this machine** instead.
+  The run then happens in the client's own worker, with the environments
+  that config hosts, and its results stay in the client's folder
+  (``~/.local/share/automation-v3/client``, or ``--data-path``). The client's
+  **Scratch** page lists those runs.
+- **Queue on the central server…** opens the central server's queue dialog
+  for your branch. Reports run what was pushed, so push first.
+
+On the central server, **Run again** on an uploaded run runs the same files
+again, since the worktree they came from is on someone else's machine.
+Upload again from the client to run your latest edits.
+
 Trying a script from the command line
 -------------------------------------
 
