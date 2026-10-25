@@ -6,7 +6,7 @@
 .ui-status-word {
   --ui-tone: var(--ui-muted);
   display: inline-block; min-width: 6.75em; padding: 1px 7px; border-radius: var(--ui-radius);
-  font: 500 11px/1.45 var(--ui-font-body); color: var(--ui-tone);
+  font: 500 var(--ui-text-xs)/1.45 var(--ui-font-body); color: var(--ui-tone);
   background: color-mix(in srgb, var(--ui-tone) 10%, var(--ui-paper));
 }
 .ui-status-word--passed { --ui-tone: var(--ui-success); }
@@ -17,5 +17,5 @@
 
 /* the block reference: each block's usage leads its entry, its source closes it */
 .ui-doc div.block-usage div[class^="highlight"], .ui-doc div.highlight-clojure.block-usage { border-left: 2px solid var(--ui-accent); }
-.ui .ui-doc p.block-source { font-size: 12px; color: var(--ui-muted); }
+.ui .ui-doc p.block-source { font-size: var(--ui-text-xs); color: var(--ui-muted); }
 .ui-doc p.block-source code { background: none; border: 0; padding: 0; color: var(--ui-muted); }
