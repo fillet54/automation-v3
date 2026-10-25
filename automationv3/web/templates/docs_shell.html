@@ -6,7 +6,7 @@
 <body class="ui ui-docs"{% if not ui_marking %} style="--ui-marking-h: 0px;"{% endif %}>
   <a class="ui-skip" href="#main">Skip to content</a>
   {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "top") }}{% endif %}
-  {{ ui.app_header(ui_nav, "docs", brand=ui_brand, home=ui_home) }}
+  {{ ui.app_header(ui_nav, "docs", brand=ui_brand, home=ui_home, settings=True) }}
 {%- elif region == "bottom" %}
   {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "bottom") }}{% endif %}
 {%- endif %}

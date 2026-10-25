@@ -58,7 +58,7 @@ rst_prolog = """
 # -- HTML ------------------------------------------------------------------
 
 html_theme = "paper"
-html_theme_options = {"brand": "automation", "line_breaks": "tex"}  # TeX line breaks from linebreaks.json
+html_theme_options = {"brand": "automation", "line_breaks": "live"}  # TeX line breaks, worked out in the browser
 html_title = html_short_title = "automation"
 html_static_path = ["_static"]
 html_css_files = ["automation-docs.css"]
