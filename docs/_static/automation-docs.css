@@ -1,26 +1,4 @@
-/* automation's additions to the docs theme (paper-ui's "paper"): its diagrams and project pieces. */
-
-/* ------------------------------------------------------------------ diagrams (.. mermaid::, mermaid-diag) */
-
-/* Drawn at build time as inline SVG. Their palette follows the site's tokens. */
-.mermaid-diag svg {
-  --md-paper: var(--ui-paper); --md-soft: var(--ui-soft); --md-ink: var(--ui-ink); --md-muted: var(--ui-muted);
-  --md-faint: var(--ui-faint); --md-rule: var(--ui-rule); --md-rule-strong: var(--ui-rule-strong);
-  --md-accent: var(--ui-accent); --md-success: var(--ui-success); --md-danger: var(--ui-danger);
-  --md-warning: var(--ui-warning); --md-info: var(--ui-info); --md-review: var(--ui-review); --md-verify: var(--ui-verify);
-}
-.ui-doc figure.mermaid-diag { margin: 8px 0 24px; }
-.ui-doc .mermaid-diag__canvas {
-  padding: 20px 16px; overflow-x: auto;
-  border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule);
-}
-.ui-doc figure.mermaid-diag figcaption { margin-top: 8px; font-size: 12px; color: var(--ui-muted); opacity: 1; }
-.ui-doc .mermaid-diag--error .mermaid-diag__canvas {
-  text-align: left; border-left: 3px solid var(--ui-danger);
-  background: color-mix(in srgb, var(--ui-danger) 5%, var(--ui-paper));
-}
-.ui .ui-doc .mermaid-diag__message { margin: 0 0 8px; font: 12px var(--ui-font-mono); color: var(--ui-danger); }
-.ui-doc .mermaid-diag__source { margin: 0; color: var(--ui-muted); font-size: 12px; white-space: pre; }
+/* automation's additions to the docs theme (paper-ui's "paper"): its project pieces. (Diagrams are styled by the theme.) */
 
 /* ------------------------------------------------------------------ project pieces */
 
