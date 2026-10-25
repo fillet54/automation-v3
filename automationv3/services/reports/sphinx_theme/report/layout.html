@@ -1,8 +1,19 @@
 {#- A frozen report's site: the report's document and a page per run, looking like the app's live pages (paper-ui's
     ui.css and fonts, and automation.css). The marked regions (<!--ui:...--> to <!--/ui:...-->) are the app's shell: opened as files
     they show a plain header; served by the app (web/reports.py site) they carry its header and the report's
-    actions. #}
+    actions. Either way the header has paper-ui's settings menu (settings.js: the reader's colour scheme). #}
 {%- extends "basic/layout.html" %}
+
+{%- block extrahead %}
+    <script>(function () {
+      {#- the reader's colour scheme (paper-ui's settings.js), before the page is drawn #}
+      var root = document.documentElement, kept = null;
+      root.setAttribute("data-ui-theme-default", root.getAttribute("data-ui-theme") || "auto");
+      try { kept = localStorage.getItem("paper-ui-theme"); } catch (e) {}
+      if (kept === "light" || kept === "dark") root.setAttribute("data-ui-theme", kept);
+      else if (kept === "auto") root.removeAttribute("data-ui-theme");
+    })();</script>
+{%- endblock %}
 
 {%- block css %}
     <link rel="preload" href="{{ pathto('_static/fonts/IBMPlexSans-Regular.woff2', 1) }}" as="font" type="font/woff2" crossorigin>
@@ -18,6 +29,7 @@
   <header class="ui-header">
     <a class="ui-brand" href="{{ pathto(root_doc) }}"><span class="ui-brand__name">{{ theme_brand }}</span></a>
     <nav class="ui-nav" aria-label="Primary"><span class="ui-nav__link" aria-current="page">{{ docstitle|e }}</span></nav>
+    <div class="ui-settings" data-ui-settings></div>
   </header>
 <!--/ui:top-->
 {%- endblock %}
@@ -51,6 +63,11 @@
       </div>
     </div>
   </div>
+{%- endblock %}
+
+{%- block scripts %}
+    {{- super() }}
+    <script src="{{ pathto('_static/settings.js', 1) }}" defer></script>
 {%- endblock %}
 
 {%- block footer %}

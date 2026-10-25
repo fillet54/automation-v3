@@ -11,7 +11,7 @@
 {% extends "ui/layout.html" %}
 {% import "ui/components.html" as ui %}
 {% import "ui/outcomes.html" as outcomes %}
-{%- block header %}{{ ui.app_header(ui_nav, nav_current | default(None), brand=ui_brand, home=ui_home, user=ui_user) }}{% endblock %}
+{%- block header %}{{ ui.app_header(ui_nav, nav_current | default(None), brand=ui_brand, home=ui_home, user=ui_user, settings=True) }}{% endblock %}
 {%- block head %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/automation.css') }}">
   <link rel="stylesheet" href="{{ url_for('plugins_css') }}">
