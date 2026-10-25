@@ -1,4 +1,4 @@
--e ../paper-ui[linebreaks]
+-e ../paper-ui
 -e ../mermaid-diag
 flask
 jinja2

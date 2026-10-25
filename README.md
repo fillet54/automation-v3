@@ -72,12 +72,8 @@ make -C docs html
 automation-v3 server --workspace-path ./test/data/git_repos/master --docs-path docs/_build/html
 ```
 
-The docs' paragraphs use TeX line breaks, from `docs/linebreaks.json`. After
-editing the docs, measure them again and commit the file (this needs Chromium
-or Chrome; the build itself doesn't):
-```
-python -m paper_ui.measure_lines docs
-```
+The docs' paragraphs use TeX line breaks, worked out in the reader's browser
+(paper-ui's `line_breaks = "live"`); there is nothing to measure or commit.
 
 ### Running scripts without a server
 
