@@ -37,7 +37,9 @@ Command line
                             [--reference DOC]...
        automation-v3 report export REPORT [--out DIR] [--template DIR]
        automation-v3 report reopen REPORT
-       automation-v3 requirements import FOLDER... [--dbpath PATH] [--server URL]
+       automation-v3 requirements import SOURCE... [--spec KEY] [--baseline NAME]
+                            [--title TEXT] [--level LEVEL] [--parents KEYS]
+                            [--sheet NAME] [--dbpath PATH] [--server URL]
        automation-v3 requirements log [--limit N] [--dbpath PATH]
        automation-v3 requirements history ID [--dbpath PATH]
        automation-v3 requirements diff FROM TO [--spec KEY]
@@ -74,7 +76,10 @@ Command line
                               report-<id>.zip
        report reopen          unfreeze an exported report, so runs can be
                               added to it again
-       requirements import    import DOORS export folders, in order: into the
+       requirements import    import requirements, in order: DOORS export
+                              folders (or zips of them), or a spec as a
+                              spreadsheet (CSV, TSV or Excel) or a list, one
+                              per line (with --spec). Into the
                               database, or with --server into a central
                               server (admins only)
        requirements log       the latest imports, and what each changed
@@ -122,7 +127,8 @@ Command line
                               and reloading on code changes, on 127.0.0.1
                               only [default: false]
        REPORT                 a report's folder (in the reports path)
-       --title=TEXT           the report's name, its document's title
+       --title=TEXT           the report's name, its document's title; or a
+                              CSV or list spec's title
        --number=TEXT          the document's number
        --revision=TEXT        the document's revision
        --author=TEXT          the document's author
@@ -134,9 +140,19 @@ Command line
        --out=DIR              where to write the bundle (default: the report
                               folder's exports/)
        --template=DIR         the document template (default: the built-in one)
-       FOLDER                 an export folder, holding manifest.json
+       SOURCE                 an export folder (holding manifest.json) or a
+                              zip of one; or a spec's requirements in a .csv,
+                              .tsv, .xlsx or .txt (a list), with --spec
+       --sheet=NAME           the sheet of an Excel workbook (default: the
+                              first)
+       --baseline=NAME        the baseline a CSV or list is (default: trunk)
+       --level=LEVEL          a CSV or list spec's level: system, segment or
+                              software [default: software]
+       --parents=KEYS         the specs a CSV or list spec's requirements
+                              trace up to, comma separated
        --limit=N              how many imports to show [default: 10]
-       --spec=KEY             only this spec's requirements
+       --spec=KEY             the spec a CSV or list is; for diff, only
+                              this spec's requirements
        --subsystem=NAME       only this subsystem's requirements
 
 ``demo``
@@ -195,14 +211,17 @@ folder under ``--reports-path`` and exits non-zero unless every run passed.
 ``requirements``
 ----------------
 
-Imports and inspects requirements. ``import`` reads each export ``FOLDER``
-(see :doc:`requirements-export`) and imports them in the order given, saying
-what happened to each spec; an export with a problem is refused whole and
-changes nothing. ``log`` lists the latest imports and the requirements each
+Imports and inspects requirements. ``import`` reads each ``SOURCE`` and
+imports them in the order given, saying what happened to each spec; a source
+with a problem is refused whole and changes nothing. A source is an export
+folder (see :doc:`requirements-export`) or a zip of one, or one spec's
+requirements as a CSV or a list (see :ref:`flat-requirements`), which needs
+``--spec`` to say which spec it is, and may take ``--title``, ``--baseline``,
+``--level`` and ``--parents`` (and ``--sheet``, for a workbook). ``log`` lists the latest imports and the requirements each
 added, removed or changed; ``history`` follows one requirement through every
 import and baseline.
 
-With ``--server URL``, ``import`` uploads each folder to a central server
+With ``--server URL``, ``import`` uploads each source to a central server
 instead, which takes imports from admins only.
 
 ``diff`` compares two contexts: ``trunk``, ``trunk@N`` (trunk as of import
@@ -213,5 +232,6 @@ requirement and what changed: ``added``, ``removed``, or its ``text``,
 .. code-block:: bash
 
    automation-v3 requirements import exports/2026-10-15
+   automation-v3 requirements import srs.csv --spec SRS --parents SYS
    automation-v3 requirements diff "set:Release 1" trunk --spec SRS-VM
    automation-v3 requirements history VM-EPS-002

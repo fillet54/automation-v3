@@ -18,6 +18,16 @@ from .db import get_db
 
 requirements = Blueprint("requirements", __name__)
 
+
+@requirements.before_request
+def on_the_central_server():
+    """The local client keeps no requirements of its own: its
+    requirement pages are the central server's"""
+    from .client_mode import central
+    if central() is not None:
+        query = request.query_string.decode()
+        return redirect(central().server + request.path + (f"?{query}" if query else ""))
+
 FACET_LABELS = {"text": "text", "metadata": "attributes", "links": "links",
                 "section": "moved", "spec": "spec", "added": "added", "removed": "removed"}
 FACET_TONES = {"added": "success", "removed": "danger", "text": "warning"}
@@ -249,26 +259,212 @@ def imports():
     return render_imports()
 
 
-def import_zip(data, name):
-    """Import a zipped export as the current user. Returns (import id,
-    outcomes). Raises export.ExportError."""
+def import_upload(data, name, **flat_options):
+    """Import an uploaded file (a zipped export, or a CSV or list as a
+    spec: see export.read_upload) as the current user. Returns (import
+    id, outcomes). Raises export.ExportError."""
     from ..services.requirements import export, store
-    found = export.read_zip(data, name)
+    found = export.read_upload(data, name, **flat_options)
     return store.import_export(get_db(), found, source=name, by=owner_email())
 
 
 @requirements.route("/imports", methods=["POST"])
 @admin_required
 def upload_import():
-    """Import a DOORS export folder, zipped (admins only)"""
-    from ..services.requirements import export
+    """Import a DOORS export folder, zipped (admins only). A spreadsheet
+    or a list goes on to the page that matches its columns and previews
+    it, unless the form already names its spec."""
+    from ..services.requirements import export, flat, staging
     upload = request.files.get("export")
     if upload is None or not upload.filename:
-        return render_imports(errors=["Choose a zipped export folder"], status=400)
+        return render_imports(errors=["Choose a file to import"], status=400)
+    form = request.form
+    data = upload.read()
+    if flat.is_flat(upload.filename) and not form.get("spec", "").strip():
+        token = staging.stage(staging_root(), data, upload.filename)
+        return redirect(url_for("requirements.sheet_import", token=token))
     try:
-        import_id, outcomes = import_zip(upload.read(), upload.filename)
+        import_id, outcomes = import_upload(
+            data, upload.filename, spec=form.get("spec", "").strip(),
+            baseline=form.get("baseline", "").strip() or None,
+            title=form.get("title", "").strip() or None,
+            level=form.get("level") or None, parents=form.get("parents", "").split(","))
     except export.ExportError as e:
         return render_imports(errors=str(e).splitlines(), status=400)
+    return render_imports(outcome={"id": import_id, "lines": outcomes})
+
+
+def staging_root():
+    """Where uploads wait to be imported: STAGING_PATH, else uploads/
+    beside the database"""
+    config = current_app.config
+    if not config.get("STAGING_PATH"):
+        db = config.get("DB_PATH")
+        config["STAGING_PATH"] = (Path(db).resolve().parent / "uploads"
+                                  if db and str(db) != ":memory:"
+                                  else Path(tempfile.mkdtemp(prefix="uploads-")))
+    return config["STAGING_PATH"]
+
+
+ROLE_CHOICES = [("", "Ignore"), ("id", "Id"), ("text", "Text"), ("satisfies", "Satisfies"),
+                ("section", "Section"), ("attribute", "Attribute")]
+
+
+@dataclass
+class SheetForm:
+    """The sheet import page's choices: the spec, and for a spreadsheet
+    its sheet and each column's role"""
+    spec: str = ""
+    title: str = ""
+    baseline: str = ""
+    level: str = "software"
+    parents: str = ""
+    sheet: str = None
+    columns: object = None  # flat.Columns
+    problems: list = None
+
+    def params(self, headers):
+        """The choices as form fields, to carry to the import"""
+        out = {"spec": self.spec, "title": self.title, "baseline": self.baseline,
+               "level": self.level, "parents": self.parents}
+        if self.sheet:
+            out["sheet"] = self.sheet
+        if self.columns is not None:
+            for i in range(len(headers)):
+                role = next((r for r in ("id", "text", "satisfies", "section")
+                             if getattr(self.columns, r) == i), None)
+                if role is None and i in self.columns.attributes:
+                    role = "attribute"
+                    out[f"attr_{i}"] = self.columns.attributes[i]
+                out[f"role_{i}"] = role or ""
+        return out
+
+
+def sheet_form(values, headers, remembered):
+    """The SheetForm in `values` (the page's query or its import form);
+    on the first visit, the choices the same file had last time, or
+    guesses"""
+    from ..services.requirements import flat
+    if "spec" not in values:
+        last = remembered or {}
+        columns = None
+        if headers is not None:
+            columns = (flat.Columns.from_headers(last["columns"], headers)
+                       if last.get("columns") else flat.guess(headers))
+        return SheetForm(spec=last.get("spec") or "", title=last.get("title") or "",
+                         level=last.get("level") or "software",
+                         parents=", ".join(last.get("parents") or []),
+                         sheet=last.get("sheet"), columns=columns)
+    form = SheetForm(spec=values.get("spec", "").strip(), title=values.get("title", "").strip(),
+                     baseline=values.get("baseline", "").strip(),
+                     level=values.get("level") or "software",
+                     parents=values.get("parents", "").strip(),
+                     sheet=values.get("sheet") or None, problems=[])
+    if headers is not None:
+        form.columns = flat.Columns()
+        for i, header in enumerate(headers):
+            role = values.get(f"role_{i}", "")
+            label = header or f"column {i + 1}"
+            if role in ("id", "text", "satisfies", "section"):
+                if getattr(form.columns, role) is not None:
+                    form.problems.append(f"Two columns are the {role}: pick one")
+                else:
+                    setattr(form.columns, role, i)
+            elif role == "attribute":
+                name = values.get(f"attr_{i}", "").strip() or flat.attribute_name(header)
+                if not name:
+                    form.problems.append(f"Name the attribute {label} becomes")
+                form.columns.attributes[i] = name
+    return form
+
+
+def staged_or_404(token):
+    from ..services.requirements import staging
+    found = staging.load(staging_root(), token)
+    if found is None:
+        abort(404, "That upload is gone: uploads are kept for a day. Upload it again.")
+    return found
+
+
+def read_staged(data, name, form):
+    """(Export or None, problems) for a staged file read as `form` says"""
+    from ..services.requirements import export, flat
+    if form.problems:
+        return None, form.problems
+    try:
+        return flat.read(data, name, form.spec, baseline=form.baseline or None,
+                         title=form.title or None, level=form.level,
+                         parents=form.parents.split(","), columns=form.columns,
+                         sheet=form.sheet), []
+    except export.ExportError as e:
+        return None, str(e).splitlines()
+
+
+@requirements.route("/imports/sheet/<token>", methods=["GET"])
+@admin_required
+def sheet_import(token):
+    """Match a staged spreadsheet's columns, and preview its import"""
+    from ..services.requirements import export, flat, staging
+    data, name = staged_or_404(token)
+    conn = get_db()
+    remembered = staging.remembered(conn, name) if "spec" not in request.args else None
+    table, table_error = None, None
+    if flat.is_sheet(name):
+        sheet = request.args.get("sheet") or (remembered or {}).get("sheet")
+        try:
+            table = flat.table(data, name, sheet)
+        except export.ExportError as e:
+            if sheet and "spec" not in request.args:
+                table = flat.table(data, name)  # last time's sheet is gone
+            else:
+                table_error = str(e)
+    headers = table.headers if table is not None else None
+    form = sheet_form(request.args, headers, remembered)
+    if table is not None:
+        form.sheet = table.sheet
+    preview, problems = None, []
+    if "spec" in request.args and table_error is None:
+        found, problems = read_staged(data, name, form)
+        if found is not None:
+            preview = staging.preview(conn, found)
+    samples = []
+    if table is not None:
+        for i in range(len(table.headers)):
+            values = [row[i] for _, row in table.rows if row[i]]
+            samples.append(values[:3])
+    known = {s.key: s for s in models.specs(conn)}
+    return render_template(
+        "requirement_sheet_import.html", token=token, name=name, table=table,
+        table_error=table_error, samples=samples, form=form, roles=ROLE_CHOICES,
+        params=form.params(headers or []), preview=preview, problems=problems,
+        remembered=remembered, known_specs=known, levels=export.LEVELS,
+        row_count=len(table.rows) if table is not None else None,
+        unhashed=models.unhashed_attributes(conn), what_changed=what_changed,
+        **nav(conn, page_state(conn, "trunk"), tab="imports"))
+
+
+@requirements.route("/imports/sheet/<token>", methods=["POST"])
+@admin_required
+def sheet_import_commit(token):
+    """Import a staged spreadsheet or list as the form says"""
+    from ..services.requirements import export, flat, staging, store
+    data, name = staged_or_404(token)
+    headers = None
+    if flat.is_sheet(name):
+        try:
+            headers = flat.table(data, name, request.form.get("sheet") or None).headers
+        except export.ExportError as e:
+            return render_imports(errors=[str(e)], status=400)
+    form = sheet_form(request.form, headers, None)
+    found, problems = read_staged(data, name, form)
+    if found is None:
+        return render_imports(errors=problems, status=400)
+    try:
+        import_id, outcomes = store.import_export(get_db(), found, source=name,
+                                                  by=owner_email())
+    except export.ExportError as e:  # e.g. a baseline imported before
+        return render_imports(errors=str(e).splitlines(), status=400)
+    staging.drop(staging_root(), token)
     return render_imports(outcome={"id": import_id, "lines": outcomes})
 
 

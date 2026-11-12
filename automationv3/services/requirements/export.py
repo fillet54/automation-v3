@@ -282,6 +282,33 @@ def read_zip(data, name="upload.zip"):
         shutil.rmtree(folder, ignore_errors=True)
 
 
+def read_upload(data, name, spec=None, baseline=None, title=None, level=None,
+                parents=(), columns=None, sheet=None):
+    """The Export in an uploaded file's bytes: a zipped export folder, or
+    a flat file (a spreadsheet or a list, see flat.py) as spec `spec`.
+    Raises ExportError."""
+    from . import flat
+    if flat.is_flat(name):
+        return flat.read(data, name, spec, baseline=baseline, title=title,
+                         level=level or "software", parents=parents,
+                         columns=columns, sheet=sheet)
+    if str(name).lower().endswith(".zip"):
+        return read_zip(data, name)
+    raise ExportError(f"{name}: import a zipped export folder (.zip), a spreadsheet "
+                      f"(.csv, .tsv, .xlsx) or a list (.txt), one requirement per line")
+
+
+def read_source(path, **flat_options):
+    """The Export at `path`: an export folder, a zipped one, or a flat
+    file (see read_upload)"""
+    path = Path(path)
+    if path.is_dir():
+        return read(path)
+    if not path.is_file():
+        raise ExportError(f"{path}: no such file or folder")
+    return read_upload(path.read_bytes(), path.name, **flat_options)
+
+
 def zip_folder(path):
     """An export folder as zip bytes, to upload"""
     import io

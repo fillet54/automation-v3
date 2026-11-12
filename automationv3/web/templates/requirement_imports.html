@@ -9,7 +9,7 @@
 {% endblock %}
 
 {% block content %}
-{{ ui.page_header("Imports", subtitle="Each import of an export from DOORS, newest first, and the requirements it changed in trunk.") }}
+{{ ui.page_header("Imports", subtitle="Each import, from DOORS or a CSV or list, newest first, and the requirements it changed in trunk.") }}
 {% include "partials/requirements_tabs.html" %}
 
 {% if errors %}
@@ -23,12 +23,17 @@
 {% endcall %}
 {% endif %}
 {% if is_admin %}
-<form method="post" action="{{ url_for('requirements.upload_import') }}" enctype="multipart/form-data" class="ui-row" style="margin-bottom: 16px;">
-  {% call ui.field("Import an export", "export", hint="A DOORS export folder, zipped: manifest.json at its top. Imports only ever move trunk forward.") %}
-    <input class="ui-input" type="file" name="export" id="export" accept=".zip" required>
+{% call ui.card() %}
+  {{ ui.card_header("Import requirements") }}
+  {% call ui.card_body() %}
+  <form method="post" action="{{ url_for('requirements.upload_import') }}" enctype="multipart/form-data" class="ui-row" style="align-items: end;">
+    {% call ui.field("File", "export", hint="A spreadsheet (.xlsx, .csv, .tsv) or a list (.txt, an id and its text per line) opens a page to match its columns and preview the changes first. A zipped DOORS export (manifest.json at its top) imports straight away.") %}
+      <input class="ui-input" type="file" name="export" id="export" accept=".xlsx,.csv,.tsv,.txt,.list,.zip" required>
+    {% endcall %}
+    {{ ui.button("Upload", variant="primary", type="submit") }}
+  </form>
   {% endcall %}
-  {{ ui.button("Import", variant="primary", type="submit") }}
-</form>
+{% endcall %}
 {% endif %}
 
 {% for import_id, at, source, changes in log %}
@@ -44,6 +49,6 @@
   {% endcall %}
 {% endcall %}
 {% else %}
-{{ ui.empty("Nothing imported yet: " ~ ("import a zipped export above, or " if is_admin else "an admin can ") ~ "run automation-v3 requirements import with an export folder.") }}
+{{ ui.empty("Nothing imported yet: " ~ ("upload a spreadsheet, a list or a zipped export above, or " if is_admin else "an admin can ") ~ "run automation-v3 requirements import with an export folder, or a CSV or list and --spec.") }}
 {% endfor %}
 {% endblock %}

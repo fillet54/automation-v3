@@ -5,7 +5,8 @@ Requirements export format
 
    What the DOORS exporter writes and automation imports: a folder holding a
    manifest and one Sphinx source tree per spec. This page is the contract
-   between the two; the exporter is a separate application.
+   between the two; the exporter is a separate application. Without DOORS, a
+   spec can be imported from a CSV or a list instead.
 
 An export is a folder. Each run of the exporter writes a new one; automation
 imports it with ``automation-v3 requirements import FOLDER``.
@@ -211,6 +212,74 @@ section
 
 The whole source tree of each spec is kept too, so any version can be shown
 exactly as it was.
+
+.. _flat-requirements:
+
+A CSV or a list
+---------------
+
+Without DOORS, or before its exporter is ready, a spec can come from a
+spreadsheet or a text file instead. Each file is one spec; importing it names
+the spec (``--spec SRS`` on the command line, or the Spec field on the
+Imports page), and may give its title, baseline, level (software by default)
+and parents. It is read into the same form as an export, so everything works
+the same: re-importing an edited file is a new trunk, with its history,
+changes and suspects, and ``--baseline 1.0`` freezes a version.
+
+A **spreadsheet** (``.csv``, ``.tsv`` with tabs, or an Excel workbook,
+``.xlsx``) has a header row, then a row per requirement. Each column has a
+role: the id, the text, the ids it satisfies, its section, an attribute, or
+ignored. On the command line the roles are guessed from the headers; the
+Imports page guesses too, then lets you change them (see
+:doc:`../operating/requirements`). A workbook's sheet is ``--sheet NAME``, by
+default the first with anything on it. Reading workbooks needs ``openpyxl``
+(``pip install automation-v3[xlsx]``).
+
+.. code-block:: text
+
+   id,text,satisfies,section,subsystem,verification
+   SRS-001,The VM shall shed loads below 40%.,SYS-12,Power,EPS,Test
+   SRS-002,The VM shall report the state of charge.,,Power,EPS,Test
+   SRS-003,The VM shall keep time.,SYS-3,Time,TIM,Analysis
+
+``id`` and ``text``
+   Needed. Guessed from headers like *ID*, *Req ID*, *Object Identifier*,
+   and *Text*, *Requirement*, *Object Text*. An id has no spaces or commas,
+   and is unique in the file; a text
+   may span lines (quoted, as spreadsheets save it), and a blank line in it
+   starts a new paragraph.
+``satisfies``
+   Optional (*Parent*, *Parent Requirements*, *Traces to*): the ids it
+   traces up to, separated by commas, semicolons or line breaks. They should
+   be in the specs given as ``parents``, or show as trace issues.
+``section``
+   Optional: a heading to file it under, as a spec document's headings do.
+   Moving a requirement to another section is a change; reordering rows is
+   not.
+Every other column
+   An attribute, kept as text, named after its header in lower case with
+   ``-`` between words (*Verification Method* is ``verification-method``). A
+   ``subsystem`` attribute groups requirements as it does for DOORS.
+
+A **list** (``.txt``) has one requirement per line: its id (a colon after it
+is fine), then spaces or a tab, then its text. Blank lines, and lines starting with
+``#``, are skipped.
+
+.. code-block:: text
+
+   # The VM SRS, until DOORS
+   SRS-001  The VM shall shed loads below 40%.
+   SRS-002: The VM shall report the state of charge.
+
+The text is plain: characters reStructuredText would read as markup, like
+``*`` or a leading ``-``, are kept as written. Save files as UTF-8 (Excel's
+*CSV UTF-8*). A file with a problem (a missing id or text, an id twice) is
+refused whole, with every problem and its line listed.
+
+Each requirement needs an id that stays the same from one import to the
+next: it is how history, ``:req:`` references and reports find it. A list of
+bare texts can't be imported, as an id made up from a line's position or its
+words would change whenever the file did.
 
 Checklist for the exporter
 --------------------------

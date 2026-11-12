@@ -140,19 +140,32 @@ def uuts():
 
 @api.route("/requirements/import", methods=["POST"])
 def import_requirements():
-    """Import a zipped export folder (admins only): {zip: base64, source}"""
+    """Import requirements (admins only): {file: base64, name}, a zipped
+    export folder (name ending .zip), or a CSV or list with what makes it
+    a spec: {spec, baseline?, title?, level?, parents?}. The older
+    {zip: base64, source} is a zipped export folder."""
     import base64
     from ..services.requirements import export
-    from .requirements import import_zip
+    from .requirements import import_upload
     if not is_admin():
         return error("Only admins import requirements", 403)
     data = body()
+    if "zip" in data:
+        data = {"file": data["zip"], "name": data.get("source") or "upload.zip"}
+        if not data["name"].lower().endswith(".zip"):
+            data["name"] += ".zip"
     try:
-        content = base64.b64decode(data.get("zip", ""), validate=True)
+        content = base64.b64decode(data.get("file", ""), validate=True)
     except ValueError:
-        return error("zip must be base64")
+        return error("file must be base64")
+    parents = data.get("parents") or []
+    if isinstance(parents, str):
+        parents = parents.split(",")
     try:
-        import_id, outcomes = import_zip(content, data.get("source") or "upload.zip")
+        import_id, outcomes = import_upload(
+            content, data.get("name") or "upload.zip", spec=data.get("spec"),
+            baseline=data.get("baseline"), title=data.get("title"),
+            level=data.get("level"), parents=parents, sheet=data.get("sheet"))
     except export.ExportError as e:
         return error(str(e))
     return jsonify({"import": import_id, "outcomes": outcomes}), 201

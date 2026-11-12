@@ -27,7 +27,9 @@ Usage:
                          [--reference DOC]...
     automation-v3 report export REPORT [--out DIR] [--template DIR]
     automation-v3 report reopen REPORT
-    automation-v3 requirements import FOLDER... [--dbpath PATH] [--server URL]
+    automation-v3 requirements import SOURCE... [--spec KEY] [--baseline NAME]
+                         [--title TEXT] [--level LEVEL] [--parents KEYS]
+                         [--sheet NAME] [--dbpath PATH] [--server URL]
     automation-v3 requirements log [--limit N] [--dbpath PATH]
     automation-v3 requirements history ID [--dbpath PATH]
     automation-v3 requirements diff FROM TO [--spec KEY]
@@ -64,7 +66,10 @@ Commands:
                            report-<id>.zip
     report reopen          unfreeze an exported report, so runs can be
                            added to it again
-    requirements import    import DOORS export folders, in order: into the
+    requirements import    import requirements, in order: DOORS export
+                           folders (or zips of them), or a spec as a
+                           spreadsheet (CSV, TSV or Excel) or a list, one
+                           per line (with --spec). Into the
                            database, or with --server into a central
                            server (admins only)
     requirements log       the latest imports, and what each changed
@@ -112,7 +117,8 @@ Options:
                            and reloading on code changes, on 127.0.0.1
                            only [default: false]
     REPORT                 a report's folder (in the reports path)
-    --title=TEXT           the report's name, its document's title
+    --title=TEXT           the report's name, its document's title; or a
+                           CSV or list spec's title
     --number=TEXT          the document's number
     --revision=TEXT        the document's revision
     --author=TEXT          the document's author
@@ -124,9 +130,19 @@ Options:
     --out=DIR              where to write the bundle (default: the report
                            folder's exports/)
     --template=DIR         the document template (default: the built-in one)
-    FOLDER                 an export folder, holding manifest.json
+    SOURCE                 an export folder (holding manifest.json) or a
+                           zip of one; or a spec's requirements in a .csv,
+                           .tsv, .xlsx or .txt (a list), with --spec
+    --sheet=NAME           the sheet of an Excel workbook (default: the
+                           first)
+    --baseline=NAME        the baseline a CSV or list is (default: trunk)
+    --level=LEVEL          a CSV or list spec's level: system, segment or
+                           software [default: software]
+    --parents=KEYS         the specs a CSV or list spec's requirements
+                           trace up to, comma separated
     --limit=N              how many imports to show [default: 10]
-    --spec=KEY             only this spec's requirements
+    --spec=KEY             the spec a CSV or list is; for diff, only
+                           this spec's requirements
     --subsystem=NAME       only this subsystem's requirements
 
 """
@@ -650,9 +666,10 @@ def requirements(args):
         init_db(conn)
         try:
             if args["import"]:
-                for folder in args["FOLDER"]:
-                    import_id, outcomes = store.import_export(conn, export.read(folder))
-                    print(f"Import {import_id}: {folder}")
+                for source in import_sources(args):
+                    found = export.read_source(source, **flat_options(args))
+                    import_id, outcomes = store.import_export(conn, found)
+                    print(f"Import {import_id}: {source}")
                     for label, outcome in outcomes:
                         print(f"  {label}: {outcome}")
             elif args["log"]:
@@ -680,6 +697,27 @@ def requirements(args):
     return 0
 
 
+def import_sources(args):
+    """The SOURCEs to import. A CSV or list is one spec, so --spec names
+    one source at most."""
+    from .services.requirements import export, flat
+    sources = args["SOURCE"]
+    flats = [s for s in sources if flat.is_flat(s)]
+    if flats and not args["--spec"]:
+        raise export.ExportError(f"{flats[0]}: say which spec it is with --spec KEY")
+    if len(flats) > 1:
+        raise export.ExportError("import one CSV or list at a time: each is one spec")
+    return sources
+
+
+def flat_options(args):
+    """What a CSV or list needs to be a spec: --spec, --baseline, ..."""
+    return {"spec": args["--spec"], "baseline": args["--baseline"],
+            "title": args["--title"], "level": args["--level"],
+            "parents": [p for p in (args["--parents"] or "").split(",") if p.strip()],
+            "sheet": args["--sheet"]}
+
+
 def import_to_server(args):
     """requirements import --server: upload each export folder, zipped"""
     import base64
@@ -689,17 +727,25 @@ def import_to_server(args):
 
     try:
         central = client.CentralClient.signed_in(args["--server"])
-        for folder in args["FOLDER"]:
-            if not (Path(folder) / "manifest.json").is_file():
-                print(f"{folder}: no manifest.json")
+        for source in import_sources(args):
+            path = Path(source)
+            if path.is_dir():
+                if not (path / "manifest.json").is_file():
+                    print(f"{source}: no manifest.json")
+                    return 1
+                upload = {"file": base64.b64encode(export.zip_folder(path)).decode(),
+                          "name": path.resolve().name + ".zip"}
+            elif path.is_file():
+                upload = {"file": base64.b64encode(path.read_bytes()).decode(),
+                          "name": path.name, **flat_options(args)}
+            else:
+                print(f"{source}: no such file or folder")
                 return 1
-            data = base64.b64encode(export.zip_folder(folder)).decode()
-            got = central.call("POST", "/requirements/import",
-                               {"zip": data, "source": Path(folder).resolve().name}).json()
-            print(f"Import {got['import']}: {folder}")
+            got = central.call("POST", "/requirements/import", upload).json()
+            print(f"Import {got['import']}: {source}")
             for label, outcome in got["outcomes"]:
                 print(f"  {label}: {outcome}")
-    except client.ClientError as e:
+    except (client.ClientError, export.ExportError) as e:
         print(e)
         return 1
     return 0

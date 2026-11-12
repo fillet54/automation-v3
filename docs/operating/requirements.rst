@@ -45,6 +45,52 @@ The import is safe to run as often as you like:
 Keeping each pipeline's export folder as an artifact means any import can be
 looked at, or run again, later.
 
+From a spreadsheet or a list
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Without DOORS, keep each spec as a spreadsheet (Excel, or CSV) or a text
+file, one requirement per line (see :ref:`flat-requirements`).
+
+On the **Imports** page, upload the file. A page follows that asks which
+spec it is and shows each column with a few of its values and a guessed role:
+id, text, satisfies, section, an attribute (with its name), or ignored.
+**Preview** shows what importing would do against what is there now: the
+requirements added, removed and changed, with each change word by word, or
+every problem in the file with its row. Nothing changes until **Import**.
+Uploading a file of the same name again, next month's export say, fills
+everything in as it was read last time, columns matched by their headers even
+if they moved.
+
+On the command line, name the spec; the columns are guessed from the
+headers:
+
+.. code-block:: bash
+
+   automation-v3 requirements import srs.csv --spec SRS --title "VM SRS" --parents SYS
+   automation-v3 requirements import srs.csv --spec SRS --baseline 1.0
+   automation-v3 requirements import vm.xlsx --spec SRS-VM --sheet Requirements
+
+Import the file again whenever it changes: what changed shows as it would
+from DOORS, and scripts referencing a changed requirement become suspect.
+Even with no requirements imported at all, scripts' ``:req:`` references
+still list each id with the scripts that test it, and reports still roll up
+by requirement; only the text, its history and suspects need an import.
+
+Where requirements live
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Requirements live in one server's database, and everything reads them from
+there:
+
+- **On its own** (``automation-v3 server``, no settings): this machine's
+  database. Import on the command line with ``--dbpath``, or on the
+  **Imports** page, where anyone can upload.
+- **A central server**: its database. Admins import on the Imports page or
+  with ``--server URL`` from a signed-in machine.
+- **The local client** (``automation-v3 client``) keeps none of its own: its
+  ``:req:`` references show the central server's text, and its Requirements
+  pages are the central server's.
+
 On a central server
 ~~~~~~~~~~~~~~~~~~~
 
@@ -52,10 +98,11 @@ A central server (see :doc:`deployment`) takes imports from admins only, two
 ways:
 
 - **Requirements → Imports** has an upload form for admins: a zip of the
-  export folder, with ``manifest.json`` at its top or in its one top folder.
-- ``automation-v3 requirements import FOLDER --server URL``, from a machine
-  signed in as an admin (see :doc:`local-client`), zips and uploads each
-  folder. A CI job can do the same with its own admin's device, with no
+  export folder, with ``manifest.json`` at its top or in its one top folder,
+  or a spreadsheet or list, matched and previewed as above.
+- ``automation-v3 requirements import SOURCE --server URL``, from a machine
+  signed in as an admin (see :doc:`local-client`), uploads each folder
+  (zipped) or file. A CI job can do the same with its own admin's device, with no
   access to the server's database needed.
 
 Either way the import is recorded with who made it, shown on the Imports

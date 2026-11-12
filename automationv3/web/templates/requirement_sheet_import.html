@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+{% import "partials/requirement_diff.html" as diff %}
+{% set nav_current = "requirements" %}
+{% set browse = True %}
+{% block title %}Import {{ name }} · Requirements{% endblock %}
+
+{% block side %}
+{% include "partials/requirements_side.html" %}
+{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Import a spreadsheet", subtitle="Say which spec " ~ name ~ " is" ~ (" and which column is which" if table else "") ~ ", then preview what changes. Nothing is imported until you choose Import.") }}
+{% include "partials/requirements_tabs.html" %}
+
+{% if remembered %}
+{% call ui.alert("info", title="Filled in from the last import of " ~ name) %}
+  As spec <span class="ui-mono">{{ remembered.spec }}</span>{% if table %}, with the same columns{% endif %}. Check them, then preview.
+{% endcall %}
+{% endif %}
+{% if table_error %}
+{% call ui.alert("danger", title="Couldn't read " ~ name) %}{{ table_error }}{% endcall %}
+{% endif %}
+
+<form method="get" action="{{ url_for('requirements.sheet_import', token=token) }}" class="ui-form">
+  {% call ui.card() %}
+    {{ ui.card_header("The spec", subtitle="A file is one spec. Importing the same spec again later shows what changed since.") }}
+    {% call ui.card_body() %}
+    <div class="ui-form-grid">
+      {% call ui.field("Spec", "spec", hint=("Updates " ~ known_specs[form.spec].title if form.spec in known_specs else "Its key, e.g. SRS")) %}
+        {{ ui.input("spec", value=form.spec, mono=True, placeholder="SRS", required=True, attrs={"list": "known-specs", "autocomplete": "off"}) }}
+        <datalist id="known-specs">{% for key, s in known_specs.items() %}<option value="{{ key }}">{{ s.title }}</option>{% endfor %}</datalist>
+      {% endcall %}
+      {% call ui.field("Title", "title", hint="Default: the key") %}{{ ui.input("title", value=form.title) }}{% endcall %}
+      {% call ui.field("Baseline", "baseline", hint="Empty for trunk") %}{{ ui.input("baseline", value=form.baseline, mono=True, placeholder="1.0") }}{% endcall %}
+      {% call ui.field("Level", "level", hint="Where it sits") %}{{ ui.select("level", levels, selected=form.level) }}{% endcall %}
+      {% call ui.field("Parents", "parents", hint="Specs it traces up to: SYS, SEG") %}{{ ui.input("parents", value=form.parents, mono=True) }}{% endcall %}
+    </div>
+    {% endcall %}
+  {% endcall %}
+
+  {% if table %}
+  {% call ui.card(flush=True) %}
+    {{ ui.card_header("Columns", subtitle=(row_count ~ " rows below the header row" ~ (" of sheet " ~ table.sheet if table.sheet else "") ~ ". An id and a text are needed; other columns can be kept as attributes.")) }}
+    {% if table.sheets | length > 1 %}
+    {% call ui.card_body() %}
+      <div style="max-width: 360px;">{% call ui.field("Sheet", "sheet", hint="Another sheet's columns show when you preview") %}{{ ui.select("sheet", table.sheets, selected=table.sheet) }}{% endcall %}</div>
+    {% endcall %}
+    {% elif table.sheet %}<input type="hidden" name="sheet" value="{{ table.sheet }}">{% endif %}
+    <div class="ui-table-wrap"><table class="ui-table">
+      <thead><tr><th scope="col">Column</th><th scope="col">Examples</th><th scope="col">Role</th><th scope="col">Attribute name</th></tr></thead>
+      <tbody>
+      {% for header in table.headers %}
+      {% set i = loop.index0 %}
+      <tr style="vertical-align: top;">
+        <td>{% if header %}<strong>{{ header }}</strong>{% else %}<span class="ui-muted">Column {{ i + 1 }}, no header</span>{% endif %}</td>
+        <td class="ui-muted" style="max-width: 32ch;">{% for v in samples[i] %}<div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ v }}</div>{% else %}<span class="ui-muted">empty</span>{% endfor %}</td>
+        <td>{{ ui.select("role_" ~ i, roles, selected=params["role_" ~ i]) }}</td>
+        <td>{{ ui.input("attr_" ~ i, value=params.get("attr_" ~ i, ""), mono=True, placeholder="from the header") }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  {% endcall %}
+  {% endif %}
+
+  <div class="ui-row">{{ ui.button("Preview", variant="primary" if not preview else "secondary", type="submit", icon="refresh" if preview else None) }}
+    <a class="ui-btn ui-btn--secondary" href="{{ url_for('requirements.imports') }}">Cancel</a></div>
+</form>
+
+{% if problems %}
+{% call ui.alert("danger", title="Fix these before importing") %}
+  <ul class="ui-plain-list">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+{% endcall %}
+{% endif %}
+
+{% if preview %}
+{% call ui.section("What importing does", subtitle=(preview.label ~ (", against " ~ preview.against if preview.against else ", a new spec"))) %}
+<div class="ui-stack">
+  <div class="ui-row" style="gap: 8px; flex-wrap: wrap;">
+    {{ ui.badge(preview.added | length ~ " added", tone="success" if preview.added else "neutral") }}
+    {{ ui.badge(preview.changed | length ~ " changed", tone="warning" if preview.changed else "neutral") }}
+    {{ ui.badge(preview.removed | length ~ " removed", tone="danger" if preview.removed else "neutral") }}
+    {{ ui.badge(preview.unchanged ~ " unchanged") }}
+  </div>
+
+  {% if preview.refused %}
+  {% call ui.alert("danger", title="This import would be refused") %}{{ preview.refused }}{% endcall %}
+  {% else %}
+  <form method="post" action="{{ url_for('requirements.sheet_import_commit', token=token) }}" class="ui-row">
+    {% for key, value in params.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    {{ ui.button(("Import " ~ preview.label) if preview.changes else "Import (nothing changes)", variant="primary", type="submit") }}
+    {% if preview.removed %}<span class="ui-muted">Removed requirements leave {{ "trunk" if not form.baseline else "this baseline" }}; scripts referencing them will show them as not in the database.</span>{% endif %}
+  </form>
+  {% endif %}
+
+  {% if preview.changed %}
+  <details open><summary><strong>Changed</strong> ({{ preview.changed | length }})</summary>
+  <div class="ui-stack ui-gap-tight" style="margin-top: 8px;">
+    {% for before, after in preview.changed %}
+    <div class="ui-stack ui-gap-tight"><div>{{ ui.ident(after.id) }}</div>{{ diff.details(what_changed(before, after, unhashed)) }}</div>
+    {% endfor %}
+  </div></details>
+  {% endif %}
+
+  {% if preview.added %}
+  <details{% if preview.added | length <= 50 %} open{% endif %}><summary><strong>Added</strong> ({{ preview.added | length }})</summary>
+  <div class="ui-table-wrap" style="margin-top: 8px;"><table class="ui-table">
+    <tbody>{% for r in preview.added %}<tr style="vertical-align: top;"><td style="white-space: nowrap;">{{ ui.ident(r.id) }}</td><td>{{ r.__repr_html__() | safe }}</td><td class="ui-muted">{{ r.section[1:] | join(" › ") }}</td></tr>{% endfor %}</tbody>
+  </table></div></details>
+  {% endif %}
+
+  {% if preview.removed %}
+  <details open><summary><strong>Removed</strong> ({{ preview.removed | length }})</summary>
+  <div class="ui-table-wrap" style="margin-top: 8px;"><table class="ui-table">
+    <tbody>{% for r in preview.removed %}<tr style="vertical-align: top;"><td style="white-space: nowrap;">{{ ui.ident(r.id) }}</td><td><del>{{ r.__repr_html__() | safe }}</del></td></tr>{% endfor %}</tbody>
+  </table></div></details>
+  {% endif %}
+</div>
+{% endcall %}
+{% endif %}
+{% endblock %}

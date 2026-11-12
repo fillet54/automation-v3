@@ -30,6 +30,7 @@ setuptools.setup(
     ],
     extras_require={
         "docs": ["sphinx"],
+        "xlsx": ["openpyxl"],  # importing requirements from Excel workbooks
     },
     python_requires='>=3.11'  # tomllib,
     include_package_data=True,
