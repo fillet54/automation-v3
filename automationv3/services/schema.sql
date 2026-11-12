@@ -202,6 +202,15 @@ CREATE TABLE IF NOT EXISTS expanded_nodes(
     PRIMARY KEY(workspace_id, path)
 );
 
+-- Workspace editor: the files open in tabs, per workspace
+CREATE TABLE IF NOT EXISTS open_tabs(
+    workspace_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    active INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(workspace_id, path)
+);
+
 -- Accounts (services/accounts.py). Only hashes of secrets are kept:
 -- sign-in links, sessions, device codes and API tokens.
 

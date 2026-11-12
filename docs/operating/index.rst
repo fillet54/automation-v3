@@ -19,7 +19,7 @@ The pieces
        web[Web app]
        api[Job API]:::accent
        queue[("Job queue<br/>sqlite")]
-       workspace[("Workspace<br/>git checkout, read-only")]
+       workspace[("Workspace<br/>git checkout")]
        reports[("reports/<br/>run folders")]
      end
      subgraph lab [Lab PC]
@@ -82,6 +82,9 @@ In this section
 
 :doc:`configuration-management`
    What a run records, identity, reruns and drift.
+
+:doc:`editor`
+   Opening files in tabs and editing scripts a part at a time.
 
 :doc:`scratch`
    Running scripts under development, outside any report.

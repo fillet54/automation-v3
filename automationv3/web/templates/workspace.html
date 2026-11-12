@@ -3,6 +3,11 @@
 {% set browse = True %}
 {% block title %}{{ workspace.id }} · Workspace{% endblock %}
 
+{% block page_head %}
+<script src="{{ url_for('static', filename='js/codemirror.bundle.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}" defer></script>
+{% endblock %}
+
 {% block side %}
 {% set options = [] %}
 {% for other in workspaces %}{% set _ = options.append((url_for('workspace.index', id=other), other)) %}{% endfor %}
@@ -10,6 +15,10 @@
 {{ ui.select("workspace", options, selected=url_for('workspace.index', id=workspace.id), id="workspace-select", mono=True, attrs={"onchange": "window.location.href = this.value"}) }}
 {% endcall %}
 {% if report %}<input type="hidden" id="target-report" name="report" value="{{ report.id }}">{% endif %}
+{% if editable %}<div class="ed-tree-tools">
+  {{ ui.button("New script", size="sm", attrs={"data-ed-file": "new"}) }}
+  {{ ui.button("New folder", size="sm", attrs={"data-ed-file": "folder"}) }}
+</div>{% endif %}
 <nav class="ui-tree" id="treeview" aria-label="Scripts"{% if report %} hx-include="#target-report"{% endif %}
      hx-get="{{ url_for('workspace.tree', id=workspace.id) }}"
      hx-trigger="load">
@@ -18,25 +27,36 @@
 {% endblock %}
 
 {% block content %}
-{% set path = request.args.get("path") %}
-<div id="content"{% if path %} hx-get="{{ url_for('workspace.view', id=workspace.id, path=path, variation=request.args.get('variation'), files=request.args.get('files'), report=request.args.get('report')) }}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
-  {{ ui.page_header(workspace.id, subtitle="Scripts are authored in git; this is a read-only view of the branch's rvts.", eyebrow="Workspace", mono=True) }}
-  {% if report %}
-  {% call ui.alert("info", title="Adding a test to " ~ (report.name or "a report")) %}Pick a script from the tree, then add it to the report.{% endcall %}
-  {% else %}
-  {{ ui.empty("Pick a script from the tree to read it, see what it loads, and queue it.") }}
-  {% endif %}
+{#- Files open in tabs (static/js/editor.js): a pane per tab, the active one holding #content #}
+<div id="ed" class="ed" data-workspace="{{ workspace.id }}" data-editable="{{ 'true' if editable else 'false' }}"
+     data-base="{{ url_for('workspace.index', id=workspace.id) }}"
+     data-tabs='{{ tabs | tojson }}' data-active="{{ active_tab or '' }}"
+     data-variation="{{ request.args.get('variation') or '' }}" data-files="{{ request.args.get('files') or '' }}"
+     data-report="{{ request.args.get('report') or '' }}">
+  <div class="ed-bar" hidden>
+    <div class="ed-tabs" role="tablist" aria-label="Open files"></div>
+    {% if editable %}<div class="ed-actions"><span class="ed-status ui-muted" aria-live="polite"></span>
+      <details class="ed-menu" hidden><summary class="ui-btn ui-btn--secondary">File</summary>
+        <div class="ed-menu__items">
+          <button type="button" data-ed-file="clone">Clone…</button>
+          <button type="button" data-ed-file="move">Rename or move…</button>
+          <button type="button" data-ed-file="delete">Delete…</button>
+        </div></details>
+      {{ ui.button("Discard edits", variant="secondary", attrs={"data-ed-discard": "", "hidden": "", "title": "Drop this file's unsaved edits"}) }}
+      {{ ui.button("Save", variant="primary", attrs={"data-ed-save": "", "disabled": "", "title": "Save this file (Ctrl+S)"}) }}</div>{% endif %}
+  </div>
+  <div class="ed-panes">
+    <div class="ed-pane ed-pane--home">
+      <div id="content">
+        {{ ui.page_header(workspace.id, subtitle=("Pick a file from the tree. It opens in a tab; click any part of it to edit it." if editable else "This is what was pushed to the branch: scripts are edited in a worktree and pushed."), eyebrow="Workspace", mono=True) }}
+        {% if report %}
+        {% call ui.alert("info", title="Adding a test to " ~ (report.name or "a report")) %}Pick a script from the tree, then add it to the report.{% endcall %}
+        {% else %}
+        {{ ui.empty("Pick a script from the tree to read it, see what it loads, and queue it.") }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <dialog id="ed-dialog" class="ed-dialog"></dialog>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  // Mark the file being viewed in the tree
-  document.addEventListener("click", function (event) {
-    var row = event.target.closest(".ui-tree__row--file");
-    if (!row) return;
-    document.querySelectorAll(".ui-tree__row[aria-current]").forEach(function (r) { r.removeAttribute("aria-current"); });
-    row.setAttribute("aria-current", "true");
-  });
-</script>
 {% endblock %}

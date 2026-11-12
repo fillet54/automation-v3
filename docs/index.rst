@@ -79,6 +79,7 @@ Where to start
    operating/reports
    operating/configuration-management
    operating/requirements
+   operating/editor
    operating/scratch
 
 .. toctree::

@@ -19,8 +19,7 @@
   {%- for file in node.children() | is_file | sort %}
   <li>
     <button type="button" class="ui-tree__row ui-tree__row--file{% if file.path.suffix != '.rst' %} ui-tree__row--plain{% endif %}"
-            hx-get="{{ url_for('workspace.view', id=workspace.id, path=file.relative_path) }}"
-            hx-target="#content" hx-swap="outerHTML">
+            data-open="{{ file.relative_path }}">
       {{ ui.tree_icon("script" if file.path.suffix == ".rst" else "file") }}<span>{{ file.path.name }}</span>
     </button>
   </li>

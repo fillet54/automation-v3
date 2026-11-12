@@ -84,11 +84,13 @@ blocks; block developers make them trustworthy.
 
 .. seealso:: :doc:`../blocks/index`
 
-Authored in git, viewed in the app
-----------------------------------
+Authored in git, edited anywhere
+--------------------------------
 
-Scripts live in git and are reviewed like code. The web app's workspace is a
-read-only viewer over a checkout: it renders scripts, lints them and queues
-them, but never edits them. While a script is under development, the
-:doc:`scratch space <../operating/scratch>` runs it straight from the working
+Scripts live in git and are reviewed like code. The web app's workspace
+renders a checkout's scripts, lints them and queues them. On your own
+machine it also :doc:`edits them <../operating/editor>`, writing the same
+files any other editor would; committing stays with git. While a script is
+under development, the :doc:`scratch space <../operating/scratch>` runs it
+straight from the working
 tree without touching any report.

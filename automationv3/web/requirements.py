@@ -11,6 +11,7 @@ from flask import (Blueprint, current_app, render_template, request, abort, redi
                    send_from_directory, url_for)
 from markupsafe import Markup
 
+from . import editor
 from ..services import jobs
 from ..services.requirements import links, models, render, rst_source, suspects, textdiff
 from .auth import admin_required, owner_email
@@ -184,6 +185,7 @@ def requirement(id):
             scripts.append((script, s, change))
     return render_template(
         "requirement.html", requirement=found, id=id, parents=parents, children=children,
+        can_edit=editor.editable(),
         events=[(e, what_changed(e.before, e.requirement, unhashed)) for e in reversed(events)],
         scripts=scripts, in_trunk=in_trunk,
         **nav(conn, state, spec=found.spec if found else None, tab="list"))

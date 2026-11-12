@@ -1,4 +1,5 @@
-"""Workspace pages: the file tree and the read-only script viewer"""
+"""Workspace pages: the file tree, and the files open in tabs, each shown
+as its cards (see editor.py) to read and, in a worktree, to edit"""
 
 import difflib
 from dataclasses import dataclass
@@ -17,7 +18,7 @@ from ..services.reports import store
 from ..services.requirements import models as requirement_models
 from ..services.workspace import FileNode, is_binary
 from .db import get_db
-from . import documents
+from . import documents, editor
 from .auth import can_change
 from .client_mode import build_choices, central
 from .jobs import checked_in_root, live_environments, workspaces
@@ -114,9 +115,16 @@ def target_report():
 
 @bp.route("/<path:id>", methods=["GET"])
 def index(id):
+    ws = workspace_or_404(id)
+    tabs, active = editor.open_tabs(get_db(), ws.id)
+    tabs = [p for p in tabs if (ws.root / p).is_file()]
+    path = request.args.get("path")
+    if path:  # a link to a file: it opens in a tab of its own
+        tabs, active = (tabs if path in tabs else tabs + [path]), path
     return render_template(
-        "workspace.html", workspaces=list(worktrees()), workspace=workspace_or_404(id),
-        report=target_report(),
+        "workspace.html", workspaces=list(worktrees()), workspace=ws,
+        report=target_report(), tabs=tabs, active_tab=active if active in tabs else None,
+        editable=editor.editable(),
     )
 
 
@@ -244,13 +252,21 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         if closure else None
     text = None
     diagnostics = diagnostic_views(closure, relpath) if closure else []
-    try:
-        document = render_file(path, selected.name if selected else None, diagnostics,
-                               variations=closure is None)
-    except Exception as e:  # unreadable script: show it raw
-        document, errors = None, (errors or []) + [f"Could not render: {e}"]
-    if document is None and not is_binary(path):
-        text = path.read_text()
+    cards = file_hash = document = None
+    if files == jobs.IN_WORK and selected is None and not is_binary(path):
+        # The file as it is on disk, whole: its cards, which a worktree can edit
+        documents.ready()
+        raw = editor.read(path)
+        file_hash = editor.text_hash(raw)
+        cards = editor.card_views(path, raw, diagnostics)
+    else:
+        try:
+            document = render_file(path, selected.name if selected else None, diagnostics,
+                                   variations=closure is None)
+        except Exception as e:  # unreadable script: show it raw
+            document, errors = None, (errors or []) + [f"Could not render: {e}"]
+        if document is None and not is_binary(path):
+            text = path.read_text()
     return render_template(
         "partials/script_view.html",
         workspace=ws,
@@ -261,6 +277,9 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         live=sorted(live_environments()),
         document=document,
         text=text,
+        cards=cards,
+        file_hash=file_hash,
+        editable=editor.editable(),
         closure=closure,
         variation=selected,
         variation_names=names,
@@ -287,6 +306,16 @@ def view(id):
     ws = workspace_or_404(id)
     node = node_or_404(ws, request.args.get("path", ""))
     if not node.is_file():
-        abort(404)
+        if node.path.exists() or not editor.editable():
+            abort(404)
+        # A file the editor made that isn't saved yet: the page fills it in
+        return render_template(
+            "partials/script_view.html", workspace=ws, path=str(node.relative_path),
+            files=jobs.IN_WORK, in_work=[], closure=None, document=None, text=None,
+            errors=[], diagnostics=[], live=[], variation=None, cards=[], file_hash="",
+            editable=True, unsaved=True)
     return render_view(ws, node, variation=request.args.get("variation"),
                        files=request.args.get("files"))
+
+
+editor.register(bp, workspace_or_404, node_or_404)

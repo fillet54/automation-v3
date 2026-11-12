@@ -1,0 +1,20 @@
+{
+  "name": "automation-v3-editor",
+  "private": true,
+  "description": "Builds the CodeMirror bundle the workspace editor loads (automationv3/web/static/js/codemirror.bundle.js)",
+  "scripts": {
+    "build": "esbuild codemirror.js --bundle --minify --format=iife --global-name=CM --outfile=../automationv3/web/static/js/codemirror.bundle.js"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6",
+    "@codemirror/commands": "^6",
+    "@codemirror/language": "^6",
+    "@codemirror/legacy-modes": "^6",
+    "@codemirror/lint": "^6",
+    "@codemirror/search": "^6",
+    "@codemirror/state": "^6",
+    "@codemirror/view": "^6",
+    "@lezer/highlight": "^1",
+    "esbuild": "^0.24"
+  }
+}

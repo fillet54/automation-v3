@@ -63,6 +63,7 @@
     {% if suspect %}{{ diff.details(change) }}{{ review_button({"workspace": workspace, "script": script, "id": id, "context": context}) }}{% endif %}
   </div>
   {% else %}{{ ui.empty("No script references it.") }}{% endfor %}
+  {% if can_edit and workspace %}<div>{{ ui.button("Write a script for this", size="sm", href=url_for('workspace.index', id=workspace, new=1, requirement=id)) }}</div>{% endif %}
 {% endcall %}{% endcall %}
 {% endif %}
 

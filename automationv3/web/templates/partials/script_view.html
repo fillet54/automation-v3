@@ -147,6 +147,16 @@
     <pre class="ui-pre ui-diff-lines">{% for line in lines[2:] %}<span class="{{ 'is-added' if line.startswith('+') else 'is-removed' if line.startswith('-') else 'is-hunk' if line.startswith('@@') else '' }}">{{ line or " " }}</span>{% endfor %}</pre>
   {% endcall %}
   {% endfor %}
+  {% elif cards is not none %}
+  {% if unsaved %}<p class="ui-muted ed-unsaved">This file isn't on disk yet: Save writes it.</p>{% endif %}
+  {#- The file as its cards (web/editor.py): static/js/editor.js makes them editable in a worktree #}
+  <article class="ui-doc ui-document ed-doc" data-ed-doc data-path="{{ path }}" data-hash="{{ file_hash }}"
+           data-count="{{ cards | length }}" data-plain="{{ 'false' if path.endswith('.rst') else 'true' }}"
+           data-editable="{{ 'true' if editable else 'false' }}">
+    {%- for card in cards %}
+    <section class="ed-card ed-card--{{ card.kind }}" data-card="{{ card.data }}"><div class="ed-card__view">{{ card.html | safe }}</div></section>
+    {%- endfor %}
+  </article>
   {% elif document is not none %}
   {#- The script's document (documents/script.py): the variations form shows in the details above #}
   <article class="ui-doc ui-document">{{ document | safe }}</article>
