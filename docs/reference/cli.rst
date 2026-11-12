@@ -44,6 +44,7 @@ Command line
        automation-v3 requirements history ID [--dbpath PATH]
        automation-v3 requirements diff FROM TO [--spec KEY]
                             [--subsystem NAME] [--dbpath PATH]
+       automation-v3 lsp [--scripts PATH]
        automation-v3 (-h | --help)
 
    Commands:
@@ -89,6 +90,10 @@ Command line
                               from one context to another: trunk, trunk@N
                               (as of import N), set:NAME (a baseline set)
                               or SPEC@BASELINE
+       lsp                    the language server for scripts, on stdin and
+                              stdout: errors as you type and completion, in
+                              any editor that speaks the Language Server
+                              Protocol
 
    Options:
        -h --help              show this help message and exit
@@ -154,6 +159,9 @@ Command line
        --spec=KEY             the spec a CSV or list is; for diff, only
                               this spec's requirements
        --subsystem=NAME       only this subsystem's requirements
+       --scripts=PATH         the folder scripts are in (default: the rvts
+                              folder of the folder the editor has open, or
+                              that folder itself)
 
 ``demo``
 --------
@@ -235,3 +243,16 @@ requirement and what changed: ``added``, ``removed``, or its ``text``,
    automation-v3 requirements import srs.csv --spec SRS --parents SYS
    automation-v3 requirements diff "set:Release 1" trunk --spec SRS-VM
    automation-v3 requirements history VM-EPS-002
+
+``lsp``
+-------
+
+Runs the language server for scripts on stdin and stdout, which is how
+editors start one. It reports the same errors and warnings a script's page
+shows, as you type, and completes the names a block can use: blocks,
+builtins, the definitions of the script and its ``core.rst`` files, UUT
+handles and variation values. The web app's editor uses the same server.
+
+The scripts root is the ``rvts`` folder of the folder the editor has open,
+or that folder itself when it has none; ``--scripts`` names another. See
+:doc:`../operating/editor` for setting up an editor.

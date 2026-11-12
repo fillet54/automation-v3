@@ -107,6 +107,11 @@
       close.setAttribute("aria-label", close.title);
       close.dataset.edClose = path;
       tab.appendChild(open);
+      if (st.errors) {
+        var errors = el("span", "ed-tab__errors", String(st.errors));
+        errors.title = st.errors + (st.errors === 1 ? " error" : " errors");
+        tab.appendChild(errors);
+      }
       if (st.dirty) tab.appendChild(el("span", "ed-tab__dot"));
       tab.appendChild(close);
       strip.appendChild(tab);
@@ -187,6 +192,7 @@
     var st = states[path];
     if (!st) return;
     st.pane.remove();
+    lspClose(path);
     delete states[path];
     var at = tabs.indexOf(path);
     tabs.splice(at, 1);
@@ -250,6 +256,8 @@
       if (doc.dataset.plain !== "true") doc.insertBefore(adder(), doc.firstChild);
       else if (!cardsOf(doc).length) doc.appendChild(decorate(section({ kind: "source", source: null, index: null, text: "" }, "")));
     }
+    st.problems = st.problems || [];
+    lspSync(path);
     drawTabs();
   }
 
@@ -290,6 +298,205 @@
     keepDraft(path);
     say("Unsaved edits");
     drawTabs();
+    lspSync(path);
+  }
+
+  // The language server (lsp/server.py, behind /lsp): it is sent each
+  // tab's file as the cards make it, edits in progress included, and its
+  // diagnostics are drawn on the cards they fall in
+
+  var lsp = { session: Math.random().toString(36).slice(2) + Date.now().toString(36), next: 1, started: false, sent: {}, queue: Promise.resolve() };
+  var TYPES = { 3: "function", 6: "variable", 7: "class", 14: "keyword" };
+  var NAME = /[^\s()\[\]{}"';,]*/;
+
+  function lspUri(path) { return "rvt:///" + path.split("/").map(encodeURIComponent).join("/"); }
+
+  // Send messages, in order with every other send; gives the answers
+  function lspPost(messages) {
+    lsp.queue = lsp.queue.then(function () {
+      return post(base + "/lsp", { session: lsp.session, messages: messages })
+        .then(function (response) { return response.ok ? response.json() : { messages: [] }; })
+        .then(function (found) {
+          if (found.reset) { lspReset(); return []; }
+          found.messages.forEach(function (message) {
+            if (message.method !== "textDocument/publishDiagnostics") return;
+            var path = decodeURIComponent(message.params.uri.replace(/^rvt:\/\/\//, ""));
+            if (!states[path]) return;
+            states[path].problems = message.params.diagnostics;
+            showProblems(path);
+          });
+          return found.messages;
+        });
+    }).catch(function () { return []; });
+    return lsp.queue;
+  }
+
+  // The server forgot this page: start over, opening every document again
+  function lspReset() {
+    lsp.started = false;
+    lsp.sent = {};
+    setTimeout(function () { tabs.forEach(function (path) { lspSync(path); }); }, 0);
+  }
+
+  function withoutTail(text) { return text.replace(/(?:[ \t]*\r?\n)*$/, ""); }
+  function count(text, what) { return text.split(what).length - 1; }
+
+  // An edited card as it is written in the file (framework/cards.py: written)
+  function written(data) {
+    if (data.kind !== "rvt") return (data.text || "").replace(/^\n+|\n+$/g, "") + "\n";
+    var title = (data.title || "").split(/\s+/).filter(Boolean).join(" ");
+    var lines = [title ? ".. rvt:: " + title : ".. rvt::"];
+    if (data.definitions) lines.push("   :definitions:");
+    if (data.table) lines.push("   :table:");
+    if ((data.variations || []).length) lines.push("   :variations: " + data.variations.join(", "));
+    var code = (data.code || "").replace(/^\n+|\n+$/g, "");
+    if (code) lines = lines.concat([""], code.split("\n").map(function (line) { return line.trim() ? "   " + line : ""; }));
+    return lines.join("\n") + "\n";
+  }
+
+  // The file a tab's cards make (framework/cards.py: build), and where
+  // each card is in it: {text, places: [{card, start, end, codeStart, codeIndent}]},
+  // lines counted from 0. A card's code (what its editor holds) starts at
+  // codeStart, indented by codeIndent.
+  function derive(doc, original) {
+    var parts = cardsOf(doc).map(function (card) {
+      return { card: card, data: card._edit ? current(card) : card._card };
+    }).filter(function (p) { return p.data.source != null || p.data.kind === "rvt" || (p.data.text || "").trim(); });
+    var text = "", places = [];
+    parts.forEach(function (part, n) {
+      var data = part.data, fresh = data.source == null;
+      var piece = fresh ? written(data) : data.source;
+      if (n === parts.length - 1) {
+        if (fresh || data.index !== original - 1) piece = withoutTail(piece) + "\n";
+      } else {
+        var after = parts[n + 1].data;
+        var follows = !fresh && after.source != null && data.index != null && after.index === data.index + 1;
+        if (!follows) piece = withoutTail(piece) + "\n\n";
+      }
+      var start = count(text, "\n"), place = { card: part.card, start: start, codeStart: start, codeIndent: 0 };
+      if (data.kind === "rvt" && fresh) {
+        var options = (data.definitions ? 1 : 0) + (data.table ? 1 : 0) + ((data.variations || []).length ? 1 : 0);
+        place.codeStart = start + 2 + options - (/^\n*/.exec(data.code || "")[0].length);
+        place.codeIndent = 3;
+      } else if (data.kind === "rvt") {
+        place.codeStart = start + (data.code_offset || 0);
+        place.codeIndent = data.code_indent || 0;
+      } else if (fresh) {
+        place.codeStart = start - (/^\n*/.exec(data.text || "")[0].length);
+      }
+      text += piece;
+      place.end = count(text, "\n") + (/\n$/.test(text) ? 0 : 1);
+      places.push(place);
+    });
+    return { text: text, places: places };
+  }
+
+  // Tell the server what a tab's file is now, if that changed
+  function lspSync(path) {
+    var st = states[path], doc = docOf(path);
+    if (!editable || !st || !doc || doc.dataset.plain === "true" || doc.dataset.editable !== "true") return Promise.resolve();
+    var found = derive(doc, st.count), messages = [];
+    st.places = found.places;
+    var named = { uri: lspUri(path) };
+    if (!lsp.started) {
+      lsp.started = true;
+      messages.push({ jsonrpc: "2.0", id: lsp.next++, method: "initialize", params: {} },
+                    { jsonrpc: "2.0", method: "initialized", params: {} });
+    }
+    if (!(path in lsp.sent)) {
+      messages.push({ jsonrpc: "2.0", method: "textDocument/didOpen", params: { textDocument: { uri: named.uri, languageId: "rst", version: 1, text: found.text } } });
+    } else if (lsp.sent[path] !== found.text) {
+      messages.push({ jsonrpc: "2.0", method: "textDocument/didChange", params: { textDocument: named, contentChanges: [{ text: found.text }] } });
+    }
+    lsp.sent[path] = found.text;
+    if (!messages.length) { showProblems(path); return lsp.queue; }
+    return lspPost(messages).then(function () { showProblems(path); });
+  }
+
+  function lspClose(path) {
+    if (!(path in lsp.sent)) return;
+    delete lsp.sent[path];
+    lspPost([{ jsonrpc: "2.0", method: "textDocument/didClose", params: { textDocument: { uri: lspUri(path) } } }]);
+  }
+
+  function lspRequest(method, params) {
+    var id = lsp.next++;
+    return lspPost([{ jsonrpc: "2.0", id: id, method: method, params: params }]).then(function (answers) {
+      var answer = answers.filter(function (a) { return a.id === id; })[0];
+      return answer ? answer.result : null;
+    });
+  }
+
+  // Draw a tab's diagnostics: squiggles in the card being edited, a list
+  // under any other card, and a count on the tab
+  function showProblems(path) {
+    var st = states[path], doc = docOf(path);
+    if (!st || !doc || !st.places) return;
+    var problems = st.problems || [];
+    doc.classList.add("is-live");  // the diagnostics drawn when the page was made are out of date now
+    st.places.forEach(function (place, n) {
+      var last = n === st.places.length - 1;
+      var own = problems.filter(function (p) {
+        var line = p.range.start.line;
+        return line >= place.start && (line < place.end || last);
+      });
+      var card = place.card, list = $(":scope > .ed-card__problems", card);
+      if (list) list.remove();
+      if (card._edit) {
+        var view = card._edit.view, text = view.state.doc;
+        var at = function (position) {
+          var line = position.line - place.codeStart;
+          if (line < 0) return 0;
+          if (line >= text.lines) return text.length;
+          var found = text.line(line + 1);
+          return Math.min(found.from + Math.max(position.character - place.codeIndent, 0), found.to);
+        };
+        view.dispatch(window.CM.setDiagnostics(view.state, own.map(function (p) {
+          var from = at(p.range.start), to = Math.max(at(p.range.end), from);
+          if (to === from && to < text.length) to += 1;
+          return { from: from, to: to, severity: p.severity === 1 ? "error" : "warning", message: p.message };
+        })));
+      }
+      if (!own.length) return;
+      list = el("ul", "ed-card__problems");
+      own.forEach(function (p) {
+        var item = el("li", p.severity === 1 ? "is-error" : "is-warning");
+        item.appendChild(el("strong", null, p.severity === 1 ? "Error" : "Warning"));
+        item.appendChild(document.createTextNode(" " + p.message));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    });
+    var errors = problems.filter(function (p) { return p.severity === 1; }).length;
+    if (errors !== st.errors) { st.errors = errors; drawTabs(); }
+  }
+
+  // The names that complete where the cursor is in a block's editor
+  function completions(card) {
+    return function (context) {
+      var word = context.matchBefore(NAME) || { from: context.pos, to: context.pos };
+      var before = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
+      if (!context.explicit && word.from === word.to && before !== "(") return null;
+      var path = pathOf(card);
+      return lspSync(path).then(function () {
+        var place = (states[path].places || []).filter(function (p) { return p.card === card; })[0];
+        if (!place) return null;
+        var line = context.state.doc.lineAt(context.pos);
+        return lspRequest("textDocument/completion", {
+          textDocument: { uri: lspUri(path) },
+          position: { line: place.codeStart + line.number - 1, character: place.codeIndent + context.pos - line.from },
+        });
+      }).then(function (found) {
+        if (!found || !found.items.length) return null;
+        return {
+          from: word.from, validFor: /^[^\s()\[\]{}"';,]*$/,
+          options: found.items.map(function (item) {
+            return { label: item.label, type: TYPES[item.kind], detail: item.detail, info: item.documentation || null,
+                     boost: 5 - Number((item.sortText || "5")[0]) };
+          }),
+        };
+      });
+    };
   }
 
   // Editing a card
@@ -343,23 +550,31 @@
     card.appendChild(edit);
     card.classList.add("is-editing");
     function done() { closeCard(card, true); return true; }
+    var path = pathOf(card), typing;
     var view = window.CM.editor(holder, {
       text: rvt ? data.code || "" : data.text || "",
       language: rvt ? "rvt" : null,
       placeholder: rvt ? "(Verify ...)" : "Text, as reStructuredText",
       keys: [{ key: "Mod-Enter", run: done }, { key: "Escape", run: done }],
+      extensions: rvt ? [window.CM.autocompletion({ override: [completions(card)] })] : [],
+      onChange: function () {  // the language server checks what is typed, once typing pauses
+        clearTimeout(typing);
+        typing = setTimeout(function () { if (card._edit && states[path]) lspSync(path); }, 300);
+      },
     });
     card._edit = { view: view, element: edit, isNew: !!isNew };
+    all("input", edit).forEach(function (input) {
+      input.addEventListener("change", function () { if (card._edit) lspSync(path); });
+    });
     view.focus();
+    lspSync(path);
   }
 
   function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
-  // Close a card's editor; with `commit`, keep what it holds
-  function closeCard(card, commit) {
-    var edit = card._edit, path = pathOf(card);
-    if (!edit) return Promise.resolve();
-    var data = card._card, text = edit.view.state.doc.toString();
+  // What a card being edited holds right now, as an edited card
+  function current(card) {
+    var data = card._card, text = card._edit.view.state.doc.toString();
     var next = { kind: data.kind, source: null, index: null, level: data.level || 0 };
     if (data.kind === "rvt") {
       next.code = text.replace(/\s+$/, "");
@@ -370,6 +585,15 @@
     } else {
       next.text = text.replace(/\s+$/, "");
     }
+    return next;
+  }
+
+  // Close a card's editor; with `commit`, keep what it holds
+  function closeCard(card, commit) {
+    var edit = card._edit, path = pathOf(card);
+    if (!edit) return Promise.resolve();
+    var data = card._card, next = current(card);
+    setTimeout(function () { if (states[path]) lspSync(path); }, 0);
     var was = data.kind === "rvt"
       ? [data.code || "", data.title || null, !!data.definitions, !!data.table, data.variations || []]
       : [data.text || ""];
@@ -429,6 +653,7 @@
       dropDraft(path);
       st.dirty = false;
       if (st.isNew) refreshTree();
+      lspPost([{ jsonrpc: "2.0", method: "textDocument/didSave", params: { textDocument: { uri: lspUri(path) } } }]);
       return load(path).then(function () { if (active === path) say("Saved"); });
     }).catch(function () { say("Couldn't save: the server didn't answer"); });
   }

@@ -352,3 +352,13 @@ div.tbd strong:first-child { flex: none; font-size: var(--ui-text-xs); font-weig
 .ed-dialog__note { margin: 0; font-size: var(--ui-text-sm); }
 .ed-dialog .ui-field { display: flex; flex-direction: column; gap: 4px; }
 .ed-dialog__foot { gap: 8px; margin-top: 4px; }
+.ed-tab__errors { min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--ui-danger); color: var(--ui-paper); font-size: 11px; line-height: 16px; text-align: center; }
+.ed-doc.is-live .ed-card__view .diagnostic { display: none; }
+.ed-card__problems { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: var(--ui-text-sm); }
+.ed-card__problems li { padding: 4px 10px; border-left: 3px solid var(--ui-warning); background: color-mix(in srgb, var(--ui-warning) 7%, var(--ui-paper)); }
+.ed-card__problems li.is-error { border-left-color: var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 6%, var(--ui-paper)); }
+.ed-card__problems strong { font-weight: 500; }
+.ed-card__problems li.is-error strong { color: var(--ui-danger); }
+.cm-tooltip.cm-tooltip-autocomplete > ul { font-family: var(--ui-font-mono); max-height: 16em; }
+.cm-completionDetail { color: var(--ui-muted); font-style: normal; margin-left: 1.5em; }
+.cm-tooltip.cm-completionInfo { max-width: 360px; padding: 6px 10px; white-space: pre-wrap; }

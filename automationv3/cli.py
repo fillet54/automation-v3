@@ -34,6 +34,7 @@ Usage:
     automation-v3 requirements history ID [--dbpath PATH]
     automation-v3 requirements diff FROM TO [--spec KEY]
                          [--subsystem NAME] [--dbpath PATH]
+    automation-v3 lsp [--scripts PATH]
     automation-v3 (-h | --help)
 
 Commands:
@@ -79,6 +80,10 @@ Commands:
                            from one context to another: trunk, trunk@N
                            (as of import N), set:NAME (a baseline set)
                            or SPEC@BASELINE
+    lsp                    the language server for scripts, on stdin and
+                           stdout: errors as you type and completion, in
+                           any editor that speaks the Language Server
+                           Protocol
 
 Options:
     -h --help              show this help message and exit
@@ -144,6 +149,9 @@ Options:
     --spec=KEY             the spec a CSV or list is; for diff, only
                            this spec's requirements
     --subsystem=NAME       only this subsystem's requirements
+    --scripts=PATH         the folder scripts are in (default: the rvts
+                           folder of the folder the editor has open, or
+                           that folder itself)
 
 """
 from . import __version__
@@ -188,6 +196,9 @@ def main(argv=None):
         sys.exit(report(args))
     if args["requirements"]:
         sys.exit(requirements(args))
+    if args["lsp"]:
+        from .lsp import stdio
+        sys.exit(stdio.serve(args["--scripts"]))
 
     if not reloaded():  # once, not again on each --debug restart
         print(__banner__)

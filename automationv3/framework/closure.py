@@ -184,7 +184,7 @@ def ancestors(script):
     return [str(folder / CORE) if str(folder) != "." else CORE for folder in folders]
 
 
-def find_imports(root, script, forms, chain, errors):
+def find_imports(root, script, forms, chain, errors, texts=()):
     """The core.rst paths the script's (import folder) forms load, beyond
     its chain"""
     imports = []
@@ -198,15 +198,18 @@ def find_imports(root, script, forms, chain, errors):
         path = str(PurePosixPath(folder) / CORE)
         if not (root / path).resolve().is_relative_to(root):
             errors.append(f"{script}: cannot import {folder}, it is outside the root")
-        elif not (root / path).is_file():
+        elif path not in texts and not (root / path).is_file():
             errors.append(f"{script}: cannot import {folder}, it has no core.rst")
         elif path not in chain and path not in imports:
             imports.append(path)
     return imports
 
 
-def resolve(root, script, text=None):
-    """The closure of `script` (relative to `root`), using `text` if given"""
+def resolve(root, script, text=None, texts=None):
+    """The closure of `script` (relative to `root`), using `text` if given.
+    `texts` maps paths to text that stands in for those files on disk (an
+    editor's unsaved documents)."""
+    texts = texts or {}
     root = Path(root).resolve()
     script = str(PurePosixPath(script))
     closure = Closure(script)
@@ -215,15 +218,16 @@ def resolve(root, script, text=None):
     if PurePosixPath(script).name == CORE:
         errors.append(f"{script}: core.rst files are not scripts")
     if text is None:
-        text = (root / script).read_text()
+        text = texts[script] if script in texts else (root / script).read_text()
     script_parts = read_parts(script, text, errors)
     script_forms = [part.form for part in script_parts if not part.prose]
 
-    chain = [path for path in ancestors(script) if (root / path).is_file()]
-    closure.imports = find_imports(root, script, script_forms, chain, errors)
+    chain = [path for path in ancestors(script) if path in texts or (root / path).is_file()]
+    closure.imports = find_imports(root, script, script_forms, chain, errors, texts)
     closure.load_order = chain + closure.imports + [script]
     core_paths = closure.load_order[:-1]
-    closure.files = {path: (root / path).read_text() for path in core_paths}
+    closure.files = {path: texts[path] if path in texts else (root / path).read_text()
+                     for path in core_paths}
     closure.files[script] = text
 
     core_forms = {}

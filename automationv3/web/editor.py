@@ -21,6 +21,8 @@ import json
 import os
 import re
 import tempfile
+import threading
+import time
 from html import escape
 from pathlib import Path, PurePosixPath
 
@@ -122,6 +124,9 @@ def payload(card):
     """What the page keeps of a card, and sends back to save"""
     data = {name: getattr(card, name) for name in FIELDS}
     data["level"] = card.level
+    if card.kind == RVT and card.line:  # where its code is in its source
+        data["code_offset"] = card.code_line - card.line
+        data["code_indent"] = card.code_indent
     return data
 
 
@@ -274,6 +279,31 @@ def set_open_tabs(conn, workspace_id, paths, active):
         conn.executemany(
             "INSERT INTO open_tabs(workspace_id, path, position, active) VALUES (?, ?, ?, ?)",
             [(workspace_id, p, n, int(p == active)) for n, p in enumerate(paths)])
+
+
+# The language server's sessions: one per page showing a workspace
+
+LSP_IDLE = 2 * 3600  # seconds a session is kept after its last message
+LSP_SESSIONS = 40
+_lsp_lock = threading.Lock()
+
+
+def lsp_session(ws, session):
+    """(the Server of a page's session, its lock)"""
+    from ..lsp.server import Server
+    sessions = current_app.config.setdefault("LSP_SESSIONS", {})
+    now = time.monotonic()
+    with _lsp_lock:
+        for key in [k for k, (_, _, used) in sessions.items() if now - used > LSP_IDLE]:
+            del sessions[key]
+        key = (ws.id, session[:64])
+        if key not in sessions:
+            while len(sessions) >= LSP_SESSIONS:  # the longest idle goes
+                del sessions[min(sessions, key=lambda k: sessions[k][2])]
+            sessions[key] = (Server(ws.root), threading.Lock(), now)
+        server, lock, _ = sessions[key]
+        sessions[key] = (server, lock, now)
+    return server, lock
 
 
 # Routes, on the workspace blueprint
@@ -447,6 +477,30 @@ def register(bp, workspace_or_404, node_or_404):
                   titled(f"{name} definitions", over=False) + "\n\n.. rvt::\n   :definitions:\n")
         expand_to(get_db(), ws.id, node.relative_path, itself=True)
         return jsonify(path=str(node.relative_path))
+
+    @bp.route("/<path:id>/lsp", methods=["POST"])
+    def lsp(id):
+        """The language server (lsp/server.py) for the page's editor:
+        the messages sent are handled in order, and the answer is every
+        message the server has for the page, responses and notifications.
+        Each page has a session of its own, with the documents it has
+        open as it has them."""
+        ws, data = workspace(id), body()
+        messages, session = data.get("messages"), data.get("session")
+        if not isinstance(messages, list) or not isinstance(session, str) or not session:
+            abort(400)
+        server, lock = lsp_session(ws, session)
+        replies = []
+        first = messages[0].get("method") if messages and isinstance(messages[0], dict) else None
+        if not server.initialized and first != "initialize":
+            # The session is gone (idle too long, or the server restarted):
+            # the page starts over and opens its documents again
+            return jsonify(messages=[], reset=True)
+        with lock:
+            for message in messages:
+                if isinstance(message, dict):
+                    replies += server.handle(message)
+        return jsonify(messages=replies)
 
     @bp.route("/<path:id>/tabs", methods=["PUT"])
     def tabs(id):

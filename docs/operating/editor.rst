@@ -84,6 +84,47 @@ edits** drops a tab's unsaved edits and shows the file again.
 A script is only cut into cards in the **In work** view with every
 variation showing; pick a variation, or **Checked in**, to read it that way.
 
+Errors and completion as you type
+---------------------------------
+
+While a script is open, a language server checks it as its cards make it,
+unsaved edits included, a moment after you stop typing. It reports what a
+script's page reports: unknown names, wrong calls, code that can't be read.
+
+- In the card being edited, the code at fault is underlined; hover it for
+  the message.
+- Every card lists its problems beneath it, and the tab counts the errors.
+- A ``core.rst`` open in another tab is checked with: break a definition
+  there and the scripts that use it say so before anything is saved.
+
+In a block, **Ctrl+Space** completes the names it can use: blocks (offered
+first after an opening parenthesis, with how they are called), builtins,
+the definitions of the script and of its ``core.rst`` files, UUT handles,
+variation values, and the parameters and ``let`` names around the cursor.
+Completion also opens by itself as you type a name.
+
+In another editor
+~~~~~~~~~~~~~~~~~
+
+The same server runs on its own as ``automation-v3 lsp``, speaking the
+Language Server Protocol on stdin and stdout, so an editor with an LSP
+client gets the same errors and completion. Start it for ``.rst`` files
+with the worktree as the root; it takes the worktree's ``rvts`` folder as
+the scripts root. In Neovim, for example:
+
+.. code-block:: lua
+
+   vim.api.nvim_create_autocmd("FileType", {
+     pattern = "rst",
+     callback = function(args)
+       vim.lsp.start({
+         name = "automation-v3",
+         cmd = { "automation-v3", "lsp" },
+         root_dir = vim.fs.root(args.buf, { "rvts", ".git" }),
+       })
+     end,
+   })
+
 When the file changes on disk
 -----------------------------
 

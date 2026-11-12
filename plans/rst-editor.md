@@ -60,7 +60,7 @@ see update the docs in the same commit.
   - [x] 1g. Docs: operating guide for the editor.
 - [x] **2. File operations.** New (skeleton, and from a requirement's
   page), clone (opens unsaved), rename, move, delete, new folder.
-- [ ] **3. Language server.** Transport-free core; `automation-v3 lsp`
+- [x] **3. Language server.** Transport-free core; `automation-v3 lsp`
   (stdio); the two web routes; document sync from the tab's derived text;
   diagnostics and name completion in the cards.
 - [ ] **4. More language features.** Hover and signature help, `:req:`
@@ -116,3 +116,30 @@ see update the docs in the same commit.
   on, so not in the local client: there requirement pages are the central
   server's, which can't link back to a person's machine.
 - **Rename, move and delete are for files only**, not folders.
+- **Step 3 (language server).** `automationv3/lsp/`: `service.py`
+  (problems and completion, no protocol), `server.py` (LSP messages in,
+  messages out, no transport), `stdio.py` (`automation-v3 lsp`). The web
+  route is `POST /workspace/<id>/lsp` in `web/editor.py`, one Server per
+  page session.
+- **No event stream, against the interview's decision.** The decision was
+  POST plus a server-sent event stream. Nothing the server sends is
+  asynchronous: diagnostics are computed while handling the message that
+  caused them, so the POST answers with every message, responses and
+  notifications. A stream would also hold one of waitress's 8 threads per
+  open page. Add one if something ever needs to push on its own.
+- **Unsaved text reaches the analyzer through `closure.resolve(...,
+  texts=)`**, which maps paths to text standing in for the files on disk.
+- **The page derives the file text itself** (`derive` in editor.js, a port
+  of `cards.build` and `cards.written`: keep the two in step) and records
+  where each card, and each block's code, is in it, to place diagnostics
+  and to say where the cursor is.
+- **Completion reads names with a regex and a small bracket scanner**, not
+  the analyzer, because code being typed rarely reads cleanly. UUT handles
+  and variation values come from the last closure that did.
+- **Unreadable code is reported on its own**: while a block can't be read,
+  only that is reported, since nothing else can be checked.
+- **Diagnostics on a closed card are a list under the card**, not yet a
+  marker on the step (step 6). The diagnostics drawn into the page when it
+  was made are hidden once the server answers (`.ed-doc.is-live`).
+- **A collapsed block** (definitions, titled) toggles when clicked; use
+  the card's Edit button, or expand it and click its code.
