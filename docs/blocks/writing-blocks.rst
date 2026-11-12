@@ -88,16 +88,16 @@ The parts of a block
 
 ``quoted``
    Parameters of ``execute`` that get their argument **as written** instead,
-   for arguments that are syntax. ``Verify`` quotes its operator and gets the
-   two sides evaluated:
+   for arguments that are syntax. A block comparing two values could quote
+   its operator and get the two sides evaluated:
 
    .. code-block:: python
 
-      class Verify(BuildingBlock):
+      class Compare(BuildingBlock):
           kind = ASSERTION
           quoted = {"op"}
 
-          def execute(self, actual, op=None, expected=None):
+          def execute(self, actual, op, expected):
               passed = OPERATORS[str(op)](actual, expected)
               return BlockResult(passed, stdout=f"{show(actual)} {op} {show(expected)}")
 
@@ -148,7 +148,7 @@ every block the plugins define. Two things go into its entry:
    .. code-block:: python
 
       def usage(self):
-          return "(Verify actual op expected)\n(Verify value)"
+          return "(Verify actual predicate args...)\n(Verify value)"
 
    Write parameters as names, ``name?`` for an optional one, and ``name ...``
    for repeats, with the brackets and braces of the shape the block expects

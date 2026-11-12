@@ -26,6 +26,7 @@ class Wait(BuildingBlock):
     Examples::
 
         (Wait nav.mode = :run :within 5s)
+        (Wait nav.time within? 10 20 :within 5s)   ; (defn within? [v lo hi] ...)
         (Wait cpu.nav.mode = :run :within 10s :every 500ms)
         (Wait (Telemetry :mode) = :safe :within 2min)
         (Wait 2s)
@@ -36,7 +37,7 @@ class Wait(BuildingBlock):
     options = ("within", "every")
 
     def usage(self):
-        return (f"({self.name()} actual op expected :within time? :every time?)\n"
+        return (f"({self.name()} actual predicate args... :within time? :every time?)\n"
                 f"({self.name()} value :within time? :every time?)\n"
                 f"({self.name()} time)")
 
@@ -50,7 +51,7 @@ class Wait(BuildingBlock):
         check = parse(forms, self.options)
         options = {name: seconds(context.evaluate(form), name)
                    for name, form in check.options.items()}
-        if check.op is None and not options and self.mode == "all":
+        if check.predicate is None and not options and self.mode == "all":
             value = context.evaluate(check.actual)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 clock.current().sleep(value)
@@ -100,14 +101,14 @@ class WaitSame(Wait):
         return "(WaitSame group :within time? :every time?)"
 
     def check_syntax_forms(self, *forms):
-        check = parse(forms, self.options, comparisons=False)
+        check = parse(forms, self.options, predicates=False)
         return check is not None
 
     def evaluated_forms(self, *forms):
-        return parse(forms, self.options, comparisons=False).forms()
+        return parse(forms, self.options, predicates=False).forms()
 
     def execute_forms(self, *forms):
-        check = parse(forms, self.options, comparisons=False)
+        check = parse(forms, self.options, predicates=False)
         options = {name: seconds(context.evaluate(form), name)
                    for name, form in check.options.items()}
         within = options.get("within", default("wait-timeout", DEFAULT_TIMEOUT))
@@ -118,16 +119,15 @@ class WaitSame(Wait):
 def wait_rst(block, forms):
     """Wait 2 seconds, or Wait until <check> within 5s every 1s"""
     name = markup.strong(block.name())
-    check = parse(forms, block.options, comparisons=block.mode != "same")
+    check = parse(forms, block.options, predicates=block.mode != "same")
     if check is None:
         return markup.line(name, markup.code(*forms))
-    if (not check.options and block.mode == "all" and check.op is None
+    if (not check.options and block.mode == "all" and check.predicate is None
             and isinstance(check.actual, (int, float))
             and not isinstance(check.actual, bool)):
         unit = "" if isinstance(check.actual, edn.Duration) else " seconds"
         return markup.line(name, markup.text(check.actual) + unit)
-    written = [check.actual] + ([check.op, check.expected] if check.op is not None else [])
-    parts = [name, "until", markup.code(*written)]
+    parts = [name, "until", markup.code(*check.written())]
     for option in ("within", "every"):
         if option in check.options:
             parts += [option, markup.code(check.options[option])]

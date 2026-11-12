@@ -106,7 +106,7 @@ class BuildingBlock:
     def usage(self):
         """How scripts call the block, one call per line, e.g.::
 
-            (Verify actual op expected)
+            (Verify actual predicate args...)
             (Verify value)
 
         By default, the name and the parameters of `execute` (or

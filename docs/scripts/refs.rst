@@ -55,6 +55,14 @@ and a right side:
 names, so results say which one disagreed. Reach one member by its own name,
 ``cpu1.app.nav.mode``.
 
+A path below a group is itself a group, so a ``def`` can name it, as for a
+single ref:
+
+.. code-block:: clojure
+
+   (def navs cpu.app.nav)                 ; cpu1.app.nav and cpu2.app.nav
+   (Verify navs.mode = :run)              ; both
+
 Reading and writing
 -------------------
 
@@ -78,19 +86,30 @@ reading and writing: each implements these blocks for its own kind of ref
 Verify
 ------
 
-Either side of a check can be a ref, which is read for the check:
+A check is written ``actual predicate args...``. The predicate is any
+function, built in or the script's own: ``Verify`` calls it with the actual
+value, then the args, if any, and the check holds if it returns something
+truthy. The comparisons (``= not= < <= > >=``) are predicates that take one
+arg. A value alone is checked for being truthy.
+
+The actual value and any arg can be a ref, which is read for the check, so
+the predicate gets values:
 
 .. code-block:: clojure
 
    (Verify nav.mode = :run)
    (Verify cpu1.cmd = cpu2.echo)
    (Verify nav.ready)                     ; truthy
+   (Verify nav.error nil?)                ; (nil? error)
+
+   (defn within? [v lo hi] (and (>= v lo) (<= v hi)))
+   (Verify nav.time within? 10 20)        ; (within? time 10 20)
 
 On a group, ``Verify`` checks every member, and all have to pass;
 ``VerifyAll`` is the same block by another name. ``VerifyAny`` passes if any
-member does. A group against a single value, or a single ref, compares each
-member with it; a group against a group pairs members in order, and the two
-need as many members.
+member does. The predicate is called once per member. A group with single
+values or refs as args checks each member with them; groups, as the actual
+value and as args, pair members in order, and need as many members.
 
 .. code-block:: clojure
 

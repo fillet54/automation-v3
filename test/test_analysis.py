@@ -110,9 +110,15 @@ class TestShapes(unittest.TestCase):
         self.assertEqual(check(rvt("(Verify (= (- 3) (- 1 2 2)))"))[0], [])
 
     def test_block_syntax(self):
-        (error,) = check(rvt("(Verify 1 ~ 2)"))[0]
+        (error,) = check(rvt("(Verify 1 2 3)"))[0]
         self.assertIn("no form of Verify matches this call: see its usage, "
-                      "(Verify actual op expected) or (Verify value)", error)
+                      "(Verify actual predicate args...) or (Verify value)", error)
+
+    def test_a_check_names_its_predicate(self):
+        (error,) = check(rvt("(Verify 1 ~ 2)"))[0]
+        self.assertIn("unknown name ~", error)
+        self.assertEqual(check(rvt("(defn within? [v lo hi] (and (>= v lo) (<= v hi)))\n"
+                                   "(Verify 2 within? 1 3)"))[0], [])
 
     def test_quoted_and_as_written_arguments_are_not_names(self):
         self.assertEqual(check(rvt("(Verify 1 <= 2) (Table-Driven [a b] [[1 2]])"))[0],

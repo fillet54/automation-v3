@@ -193,6 +193,43 @@ class TestVerify(unittest.TestCase):
                          'cpu1.app.nav.mode ("run") = "run"\n'
                          'cpu2.app.nav.mode ("run") = "run"')
 
+    def test_a_def_names_a_path_below_a_group(self):
+        core = CORE + "(def navs cpu.app.nav)"
+        outcome, rec, _ = run('(Verify navs.mode = "run")', core=core)
+        self.assertEqual(outcome, "pass")
+        self.assertEqual(rec.steps()[0]["stdout"],
+                         'cpu1.app.nav.mode ("run") = "run"\n'
+                         'cpu2.app.nav.mode ("run") = "run"')
+        outcome, _, _ = run('(Verify (Read navs.mode) = {:cpu1 "run" :cpu2 "run"})', core=core)
+        self.assertEqual(outcome, "pass")
+
+    def test_a_predicate_gets_the_value_then_the_args(self):
+        core = CORE + "(defn within? [v lo hi] (and (>= v lo) (<= v hi)))"
+        outcome, rec, _ = run("(Verify cpu1.cmd within? 0 100)", core=core)
+        self.assertEqual(outcome, "pass")
+        self.assertEqual(rec.steps()[0]["stdout"],
+                         "cpu1.cmd (5) within? 0 100")
+        self.assertEqual(run("(Verify cpu.cmd within? 0 100)", core=core)[0], "pass")
+        self.assertEqual(run("(Verify cpu.cmd within? -2 -1)", core=core)[0], "fail")
+        self.assertEqual(run("(Verify cpu.cmd within? 0 cpu.echo)", core=core)[0], "pass")
+        self.assertEqual(run("(Verify 5 within? 0 10)", core=core)[0], "pass")
+
+    def test_a_predicate_without_args(self):
+        self.assertEqual(run("(Verify cpu.role some?)")[0], "pass")
+        self.assertEqual(run("(Verify cpu1.role nil?)")[0], "fail")
+        self.assertEqual(run("(Verify cpu1.cmd (fn [v] (= v cmd)))",
+                             core=CORE + "(def cmd 5)")[0], "pass")
+
+    def test_a_predicate_has_to_be_a_function(self):
+        outcome, rec, _ = run("(def n 3) (Verify cpu1.cmd n 1)")
+        self.assertEqual(outcome, "error")
+        self.assertIn("n isn't a predicate: it is 3", rec.steps()[-1]["message"])
+
+    def test_wait_takes_a_predicate(self):
+        core = CORE + "(defn within? [v lo hi] (and (>= v lo) (<= v hi)))"
+        self.assertEqual(run("(Wait cpu.cmd within? 0 100 :within 1s)", core=core)[0], "pass")
+        self.assertEqual(run("(Wait cpu.cmd within? -2 -1 :within 1s)", core=core)[0], "fail")
+
     def test_group_fails_if_one_member_does(self):
         outcome, rec, _ = run('(Verify cpu.role = "primary")')
         self.assertEqual(outcome, "fail")
