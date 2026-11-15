@@ -70,7 +70,7 @@ Decisions this forces:
 - Whether the browser keeps deriving the file's text itself or asks the
   server.
 
-Write this up as its own plan before touching code.
+The plan is `plans/source-tree.md`.
 
 ## 3. Features that need more development
 
