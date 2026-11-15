@@ -1,7 +1,7 @@
 """Script closures: everything a script needs, resolved statically
 
 Scripts and core.rst files are reStructuredText documents whose code is
-in rvt blocks (see document.py). A script's closure is the core.rst
+in rvt blocks (see source.py). A script's closure is the core.rst
 chain from the root script path down to the script's folder, then the
 core.rst of every folder it imports with `(import folder)`, then the
 script itself. That is also the load order. Nothing is executed to
@@ -18,7 +18,7 @@ chain or in the script, and the last one in load order wins. Imported
 core.rst files contribute definitions only.
 
 Blocks limited to variations (`:variations:` on an rvt block, or an
-rvt-variant directive; see document.py) must name variations the script
+rvt-variant directive; see source.py) must name variations the script
 declares, may not hold directives, and may only appear in scripts.
 
 The forms a script is made of (definitions, declarations, variations,
@@ -29,18 +29,16 @@ errors stop the script from queuing, its warnings are only shown.
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from . import document, edn
+from . import document, edn, source
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_definition, is_step,
     name_of, parse_precondition, parse_variations,
 )
 
 CORE = "core.rst"
-REQUIREMENT_REF = re.compile(r":req:`([^`]+)`", re.IGNORECASE)
 
 
 def lint_preconditions(path, forms):
@@ -62,15 +60,10 @@ def lint_preconditions(path, forms):
 
 
 def requirement_refs(text):
-    """Requirement ids referenced with :req:`ID` in a script's prose"""
-    try:
-        prose = [part.form for part in document.parse(text) if part.prose]
-    except Exception:
-        prose = [text]
-    refs = []
-    for chunk in prose:
-        refs.extend(ref.strip() for ref in REQUIREMENT_REF.findall(chunk))
-    return list(dict.fromkeys(refs))
+    """Requirement ids referenced with :req:`ID` in a script's prose,
+    each once, in order"""
+    refs = source.requirement_refs(source.parse(text))
+    return list(dict.fromkeys(id for id, _ in refs))
 
 
 def is_script(path, text):
@@ -98,12 +91,15 @@ class Closure:
         return hashlib.sha256(json.dumps(ordered).encode()).hexdigest()
 
 
-def read_parts(path, text, errors):
-    try:
-        return document.parse(text, path=path)
-    except Exception as e:
-        errors.append(f"{path}: could not be read ({e})")
+def read_statements(path, text, errors):
+    """The statements of `text` (see source.statements), or none and an
+    error if a block can't be read"""
+    tree = source.parse(text, path)
+    problems = source.unreadable(tree)
+    if problems:
+        errors.append(f"{path}: could not be read ({problems[0].message})")
         return []
+    return source.statements(tree)
 
 
 def nested_imports(form):
@@ -130,14 +126,14 @@ def lint(path, forms):
     return errors
 
 
-def lint_definitions(path, parts):
+def lint_definitions(path, statements):
     """The definitions section comes before any step, and holds only
     definitions"""
     errors = []
     seen_step = False
-    for part in parts:
-        form = part.form
-        if "definitions" in part.options:
+    for statement in statements:
+        form = statement.form
+        if statement.definitions:
             if not is_definition(form):
                 errors.append(f"{path}: a :definitions: block may only hold "
                               f"definitions, not {edn.writes(form)}")
@@ -149,27 +145,33 @@ def lint_definitions(path, parts):
     return errors
 
 
-def lint_variation_scopes(path, parts, variations):
-    """`:variations:` blocks name declared variations and hold no
-    declarations; core.rst files can't scope blocks at all"""
+def lint_variation_scopes(path, text, variations):
+    """`:variations:` blocks and rvt-variants name declared variations,
+    and blocks hold no declarations; core.rst files can't scope blocks
+    at all. Nothing is said of a file that can't be read."""
     errors = []
+    tree = source.parse(text, path)
+    if source.unreadable(tree):
+        return errors
     is_core = PurePosixPath(path).name == CORE
     declared = {v.name for v in variations}
     reported = set()
-    for part in parts:
-        if part.variations is None:
+    for node in source.walk(tree):
+        names = node["variations"]
+        if not names:
             continue
+        forms = [form for form, _ in node["forms"]] if isinstance(node, source.rvt_block) else []
+        directive = next((head(form) for form in forms if head(form) in DIRECTIVES), None)
         if is_core:
             message = f"{path}: core.rst blocks can't be limited to variations"
         elif not declared:
             message = (f"{path}: a block is limited to variations, "
                        "but the script declares none")
-        elif unknown := [n for n in part.variations if n not in declared]:
+        elif unknown := [n for n in names if n not in declared]:
             message = (f"{path}: no variation named {', '.join(unknown)} "
                        f"(the script declares {', '.join(sorted(declared))})")
-        elif head(part.form) in DIRECTIVES:
-            message = (f"{path}: {head(part.form)} can't be limited to "
-                       "variations")
+        elif directive is not None:
+            message = f"{path}: {directive} can't be limited to variations"
         else:
             continue
         if message not in reported:
@@ -219,8 +221,8 @@ def resolve(root, script, text=None, texts=None):
         errors.append(f"{script}: core.rst files are not scripts")
     if text is None:
         text = texts[script] if script in texts else (root / script).read_text()
-    script_parts = read_parts(script, text, errors)
-    script_forms = [part.form for part in script_parts if not part.prose]
+    script_statements = read_statements(script, text, errors)
+    script_forms = [statement.form for statement in script_statements]
 
     chain = [path for path in ancestors(script) if path in texts or (root / path).is_file()]
     closure.imports = find_imports(root, script, script_forms, chain, errors, texts)
@@ -231,14 +233,14 @@ def resolve(root, script, text=None, texts=None):
     closure.files[script] = text
 
     core_forms = {}
-    parsed = {script: script_parts}
+    parsed = {script: script_statements}
     for path in core_paths:
-        parts = parsed[path] = read_parts(path, closure.files[path], errors)
-        core_forms[path] = [part.form for part in parts if not part.prose]
+        found = parsed[path] = read_statements(path, closure.files[path], errors)
+        core_forms[path] = [statement.form for statement in found]
         errors.extend(lint(path, core_forms[path]))
-        if any(part.table is not None for part in parts):
+        if any(statement.table is not None for statement in found):
             errors.append(f"{path}: core.rst blocks can't be tables")
-        errors.extend(lint_variation_scopes(path, parts, []))
+        errors.extend(lint_variation_scopes(path, closure.files[path], []))
 
     # Declarations: the chain's, then the script's; the last one wins.
     # Imported core.rst files only add definitions.
@@ -255,15 +257,15 @@ def resolve(root, script, text=None, texts=None):
         closure.variations = parse_variations(script, declared[0], errors)
     errors.extend(lint(script, script_forms))
     errors.extend(lint_preconditions(script, script_forms))
-    errors.extend(lint_definitions(script, script_parts))
-    errors.extend(lint_variation_scopes(script, script_parts, closure.variations))
+    errors.extend(lint_definitions(script, script_statements))
+    errors.extend(lint_variation_scopes(script, text, closure.variations))
     if not errors:
         check(closure, parsed)
     return closure
 
 
 def check(closure, parsed=None):
-    """Run the static analysis (over the documents' parts, if already
+    """Run the static analysis (over the documents' statements, if already
     `parsed`): its errors join the closure's errors, its warnings its
     warnings"""
     from .analysis import ERROR, analyze

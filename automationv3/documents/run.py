@@ -85,7 +85,8 @@ class RunResults:
         self.events = data.events(run)
         self.finished = run.get("outcome") is not None
         self.closure = data.closure(run)
-        self.statements = data.statements(run)
+        # the forms, by index: what events count (prose has no index)
+        self.statements = [s for s in data.statements(run) if s.index is not None]
         self.started = {key(e) for e in self.events if e["kind"] == "step_start"}
         self.ended = {key(e): e for e in self.events if e["kind"] == "step_end"}
         self.calls = call_trees(self.events)

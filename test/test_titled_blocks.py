@@ -2,7 +2,7 @@
 
 import unittest
 
-from automationv3.framework import document
+from automationv3.framework import source
 from automationv3.framework.statements import get_statements
 from automationv3.documents.grouping import block_duration, block_state, group, statement_item
 from automationv3.web.reports import duration
@@ -26,8 +26,7 @@ def kinds(entries):
 
 class TestParsing(unittest.TestCase):
     def test_title_is_the_directive_argument(self):
-        titles = [(part.title, part.form) for part in document.parse(SCRIPT)
-                  if not part.prose]
+        titles = [(s.title, s.form) for s in source.statements(source.parse(SCRIPT))]
         self.assertEqual([t for t, _ in titles], [
             "Ignored for the definitions section", "Check the limit",
             "Check the limit", "Check the limit", None])
@@ -40,7 +39,7 @@ class TestParsing(unittest.TestCase):
     def test_title_with_options(self):
         script = doc(rvt('(variations "x" ["a" [1]])'),
                      rvt("(Wait 0)", title="Pause", variations="a"))
-        (part,) = [p for p in document.parse(script) if not p.prose][1:]
+        (part,) = source.statements(source.parse(script))[1:]
         self.assertEqual((part.title, part.variations), ("Pause", ["a"]))
 
 

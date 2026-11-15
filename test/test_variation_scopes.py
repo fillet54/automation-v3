@@ -6,7 +6,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from automationv3.framework import document
+from automationv3.framework import document, source, statements
 from automationv3.framework.closure import resolve
 from automationv3.framework.planning import build_plan
 from automationv3.framework.statements import get_statements
@@ -59,9 +59,8 @@ class TestRunning(unittest.TestCase):
     def test_skipped_blocks_are_not_reported(self):
         _, recorder = run(SCRIPT, variation="nominal")
         indexes = [kw["index"] for kind, kw in recorder.events if kind == "step_start"]
-        statements = get_statements(SCRIPT)
-        self.assertTrue(all(statements[i].variations in (None, ["nominal"])
-                            for i in indexes))
+        forms = source.statements(source.parse(SCRIPT))
+        self.assertTrue(all(forms[i].variations in (None, ["nominal"]) for i in indexes))
 
     def test_planning_sees_scoped_definitions(self):
         script = doc(
@@ -179,8 +178,8 @@ VARIANT_SCRIPT = doc(
 
 class TestVariant(unittest.TestCase):
     def test_content_is_limited_to_its_variations(self):
-        parts = document.parse(VARIANT_SCRIPT)
-        scoped = [(p.prose, p.variations, p.title) for p in parts]
+        parts = statements.parts(source.parse(VARIANT_SCRIPT))
+        scoped = [(p.index is None, p.variations, p.title) for p in parts]
         self.assertEqual(scoped, [
             (False, None, None),                    # variations
             (True, None, None),
@@ -194,18 +193,16 @@ class TestVariant(unittest.TestCase):
     def test_runs_only_for_its_variations(self):
         _, recorder = run(VARIANT_SCRIPT, variation="degraded")
         self.assertEqual(len(recorder.steps()), 2)
-        comments = [kw["text"] for kind, kw in recorder.events if kind == "comment"]
-        self.assertIn("Degraded runs at a lower limit.", comments)
 
         outcome, recorder = run(VARIANT_SCRIPT, variation="nominal")
         self.assertEqual((outcome, recorder.steps()), ("pass", []))
-        comments = [kw["text"] for kind, kw in recorder.events if kind == "comment"]
-        self.assertNotIn("Degraded runs at a lower limit.", comments)
+        # prose isn't reported, inside a variant or out
+        self.assertNotIn("comment", [kind for kind, _ in recorder.events])
 
     def test_blocks_may_narrow_it(self):
         script = doc(VARIATIONS, variant("degraded, nominal",
                                          rvt("(Wait 0)", variations="nominal")))
-        (part,) = [p for p in document.parse(script) if not p.prose][1:]
+        (part,) = source.statements(source.parse(script))[1:]
         self.assertEqual(part.variations, ["nominal"])
 
         outside = doc(VARIATIONS, variant("degraded",

@@ -48,9 +48,6 @@ class ReportObserver:
     def on_procedure_begin(self, **kw):
         self.send("procedure_begin", **kw)
 
-    def on_comment(self, **kw):
-        self.send("comment", **kw)
-
     def on_step_start(self, **kw):
         self.send("step_start", **kw)
 

@@ -1,5 +1,6 @@
 """Rendering a script's statements, including blocks that render themselves"""
 
+import re
 import unittest
 
 from automationv3.documents import core
@@ -10,7 +11,7 @@ from automationv3.framework.statements import get_statements
 from automationv3.services.database import connect, init_db
 from automationv3.services.requirements import models
 
-from .rvt import rvt
+from .rvt import doc, rvt
 
 SCRIPT = '''
 =========
@@ -116,6 +117,46 @@ class TestStatements(unittest.TestCase):
                 return "Later"
 
         self.assertIsNotNone(find_block(["Later", {}]))
+
+
+class Recorder:
+    """Every event the executor sends, as the worker would store it"""
+
+    def __init__(self):
+        self.events = []
+
+    def __getattr__(self, name):
+        if name.startswith("on_"):
+            return lambda **kw: self.events.append({"kind": name[3:], **kw})
+        raise AttributeError(name)
+
+
+class TestRunPage(unittest.TestCase):
+    def test_results_sit_by_their_steps_with_prose_between(self):
+        from types import SimpleNamespace
+
+        from automationv3.documents import script
+        from automationv3.framework.closure import Closure
+        from automationv3.framework.executor import execute_script
+        from automationv3.framework.plugins import load_plugins
+
+        load_plugins()
+        text = doc("Title\n=====", "Before.", rvt("(Wait 0)"), "Between.",
+                   rvt("(Verify 1 = 2)"))
+        recorder = Recorder()
+        self.assertEqual(execute_script(text, recorder), "fail")
+        data = SimpleNamespace(
+            events=lambda run: recorder.events,
+            closure=lambda run: Closure("s.rst", files={"s.rst": text}, load_order=["s.rst"]),
+            statements=lambda run: get_statements(text),
+            links=SimpleNamespace(file=lambda *args: ""))
+        run = {"id": "r1", "report_id": "x", "script": "s.rst", "outcome": "fail"}
+        tree = script.parsed(text, None, results=True, variations=False)
+        html = core.write(core.resolved(tree, core.Context(data=data, run=run)))["body"]
+        words = " ".join(re.sub(r"<[^>]+>", " ", html).split())
+        order = [words.index(t) for t in ("Before.", "Wait 0 seconds", "pass", "Between.",
+                                          "Verify 1 = 2", "fail")]
+        self.assertEqual(order, sorted(order))
 
 
 if __name__ == "__main__":

@@ -86,7 +86,7 @@ def headings(lines):
 
 def chunks(text):
     """[(kind, lines, first line)] of the text's prose and directives,
-    like document.split, but keeping every line, with its line end: a
+    as the old reader split a script, but keeping every line, with its line end: a
     directive takes the blank lines after it, and blank lines before
     the first chunk go to it"""
     found, current, start, kind = [], [], 1, "prose"

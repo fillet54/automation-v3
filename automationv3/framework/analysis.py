@@ -35,7 +35,7 @@ import difflib
 import inspect
 from dataclasses import dataclass, field
 
-from . import document, edn, lisp
+from . import edn, lisp, source
 from .block import all_blocks, block_names, candidates, documented
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_text, name_of,
@@ -130,14 +130,13 @@ class Analyzer:
         self.blocks = {name: documented(name) for name in block_names()}
         self.block_names = block_names()
         self.special = {name for name in lisp.special_forms if isinstance(name, str)}
-        self.parts = dict(parsed or {})
+        self.statements = dict(parsed or {})
         for path in closure.load_order:
-            if path in self.parts:
+            if path in self.statements:
                 continue
-            try:
-                self.parts[path] = document.parse(closure.files[path], path=path)
-            except Exception:
-                self.parts[path] = []  # closure.resolve reports it
+            tree = source.parse(closure.files[path], path)
+            # one that can't be read: closure.resolve reports it
+            self.statements[path] = [] if source.unreadable(tree) else source.statements(tree)
 
     # Reporting
 
@@ -161,13 +160,13 @@ class Analyzer:
 
     def definitions_of(self, path, variation):
         found = []
-        for index, part in enumerate(self.parts[path]):
-            if part.prose or not part.applies(variation):
+        for statement in self.statements[path]:
+            if not statement.applies(variation):
                 continue
-            form = part.form
+            form = statement.form
             if head(form) in DEFINITIONS and len(form) >= 2 and isinstance(form[1], edn.Symbol):
-                definition = Definition(str(form[1]), form, path, index,
-                                        "definitions" in part.options, part.variations)
+                definition = Definition(str(form[1]), form, path, statement.index,
+                                        statement.definitions, statement.variations)
                 if head(form) == "defn":
                     definition.arities = defn_arities(form)
                 elif head(form) == "def" and len(form) == 3 and head(form[2]) == "fn":
@@ -189,7 +188,7 @@ class Analyzer:
     def placeholders(self):
         """One warning for the steps of the script still to be written"""
         count = 0
-        stack = [part.form for part in self.parts[self.script] if not part.prose]
+        stack = [statement.form for statement in self.statements[self.script]]
         while stack:
             form = stack.pop()
             if isinstance(form, list):
@@ -255,19 +254,19 @@ class Analyzer:
 
         seen_section = {id(d.form) for d in section}
         table, row_symbols = None, set()
-        for index, part in enumerate(self.parts[self.script]):
-            if part.table != table:  # leaving a table block
+        for statement in self.statements[self.script]:
+            if statement.table != table:  # leaving a table block
                 names.available -= row_symbols
-                table, row_symbols = part.table, set()
-            if part.prose or not part.applies(variation):
+                table, row_symbols = statement.table, set()
+            if not statement.applies(variation):
                 continue
-            form = part.form
+            form = statement.form
             name = head(form)
-            if part.table_rows:
-                row_symbols = self.table_rows(part, names)
+            if statement.table_rows:
+                row_symbols = self.table_rows(statement, names)
                 names.available |= row_symbols
                 continue
-            if part.table is not None and (name in DEFINITIONS | DIRECTIVES
+            if statement.table is not None and (name in DEFINITIONS | DIRECTIVES
                                            or name == PRECONDITION):
                 self.error(f"{name} can't be in a :table: block: its steps run "
                            "once per row", form)
@@ -295,14 +294,14 @@ class Analyzer:
 
         self.report_core_free(core_defs, names)
 
-    def table_rows(self, part, names):
+    def table_rows(self, statement, names):
         """Check a table block's rows; returns the symbols they bind"""
         errors = []
-        rows = parse_table(self.script, part.form, errors)
+        rows = parse_table(self.script, statement.form, errors)
         for message in errors:
-            self.error(message.split(": ", 1)[-1], part.form)
-        if "definitions" in part.options:
-            self.error("a :table: block can't be in the definitions section", part.form)
+            self.error(message.split(": ", 1)[-1], statement.form)
+        if statement.definitions:
+            self.error("a :table: block can't be in the definitions section", statement.form)
         for row in rows:
             for value in row.forms:
                 self.expression(value, names, frozenset(), eager=True)
@@ -673,5 +672,5 @@ def merge(per_variation, variations):
 
 def analyze(closure, parsed=None):
     """The Diagnostics of a resolved closure (see the module docs).
-    `parsed` maps paths to their document parts, if already parsed."""
+    `parsed` maps paths to their statements, if already read."""
     return Analyzer(closure, parsed).run()

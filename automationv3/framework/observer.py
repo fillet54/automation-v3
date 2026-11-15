@@ -1,6 +1,6 @@
 """Observers: whatever wants to hear about a script as it runs
 
-The executor calls on_procedure_begin, on_comment, on_step_start and
+The executor calls on_procedure_begin, on_step_start and
 on_step_end, on_phase_start and on_phase_end (a precondition's check
 and heal), on_call_start and on_call_end (block calls within a step),
 and on_procedure_end; workers add on_job and on_error. Blocks attach

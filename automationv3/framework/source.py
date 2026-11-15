@@ -47,6 +47,7 @@ docutils knows where a directive is to the line; where a title or a
 """
 
 import functools
+from dataclasses import dataclass
 from typing import NamedTuple
 
 from docutils import frontend, nodes, utils
@@ -367,6 +368,84 @@ def walk(node):
             yield from walk(found)
 
 
+@dataclass
+class Statement:
+    """One form of an rvt block, as running and checking see it: its
+    place among the script's forms (`index`), and its block's fields"""
+
+    form: object
+    span: edn.Span
+    block: rvt_block
+    index: int
+    table_rows: bool = False  # the first form of a :table: block: its rows
+
+    @property
+    def options(self):
+        return self.block["options"]
+
+    @property
+    def variations(self):
+        """The variation names its block is limited to, else None (all)"""
+        return self.block["variations"]
+
+    @property
+    def title(self):
+        return self.block["title"]
+
+    @property
+    def line(self):
+        """Where its block starts"""
+        return self.block["line"]
+
+    @property
+    def table(self):
+        """Its block's line, if the block is a :table:, else None"""
+        return self.block["line"] if "table" in self.options else None
+
+    @property
+    def definitions(self):
+        """Whether its block is the definitions section"""
+        return "definitions" in self.options
+
+    def applies(self, variation):
+        """True if it runs for `variation` (None: no variation)"""
+        return variation is None or self.variations is None or variation in self.variations
+
+
+def statements(tree):
+    """Each form of each rvt block, in file order (see Statement).
+    Shared: kept on the tree, which parse caches."""
+    found = getattr(tree, "_statements", None)
+    if found is None:
+        found = []
+        for block in walk(tree):
+            if isinstance(block, rvt_block):
+                table = "table" in block["options"]
+                for n, (form, span) in enumerate(block["forms"]):
+                    found.append(Statement(form, span, block, len(found), table and n == 0))
+        tree._statements = found
+    return found
+
+
+def table_steps(found, index):
+    """The indexes of the steps of the table block whose rows are
+    statement `index` of `found`"""
+    rows = found[index]
+    return [s.index for s in found[index + 1:] if s.block is rows.block]
+
+
+def unreadable(tree):
+    """The Problems that stop the source being read as a script: those
+    of its blocks and variants, and code that doesn't read (not
+    docutils' own messages about its prose)"""
+    found = []
+    for node in walk(tree):
+        found += node["problems"]
+        if node.get("error"):
+            found.append(node["error"])
+    return found
+
+
 def title(tree):
     """The text of the document's first title, or None"""
     found = next(tree.findall(nodes.title), None)
@@ -377,11 +456,7 @@ def problems(tree):
     """Every Problem in the source, in file order: those on blocks and
     variants, code that doesn't read, and docutils' messages at error
     level and above"""
-    found = []
-    for node in walk(tree):
-        found += node["problems"]
-        if node.get("error"):
-            found.append(node["error"])
+    found = unreadable(tree)
     path = getattr(tree, "script_path", None)
     for level, line, text in tree.messages:
         if level >= 3 and not text.startswith(NOT_PROBLEMS):

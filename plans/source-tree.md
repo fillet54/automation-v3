@@ -137,7 +137,7 @@ changes how pages group blocks.
     `:variations:`; code that stops reading halfway; a file that is not
     a script (Sphinx directives are ignored, not problems).
 
-- [ ] **2. Statements from the tree.** `source.statements`, then move its
+- [x] **2. Statements from the tree.** `source.statements`, then move its
   users one at a time: `closure.py` (`read_parts`, the lints),
   `analysis.py`, `executor.py` (`_execute`, `load_definitions`,
   `load_script_definitions`, `find_variation`), `lsp/service.py`
@@ -153,9 +153,9 @@ changes how pages group blocks.
     this step (it turns `source.problems` into "could not be read").
     Better messages come in step 4.
   - Deleted: `document.split`, `document.parse`, `document.forms`,
-    `document.Part`, `parse_directive`, `content_position`, `limit`,
-    `RvtError`, `table_block` and `definitions_section` (moved to
-    `source.py`).
+    `document.Part`, `limit`, `table_block` and `definitions_section`
+    (moved to `source.py`). `parse_directive`, `content_position` and
+    `RvtError` stay until step 3: `cards.py` still uses them.
 
 - [ ] **3. Cards from the tree.** `cards.split` built on `source.blocks`
   and `source.locate`.
@@ -177,8 +177,9 @@ changes how pages group blocks.
     than the section around it (see the notes).
 
 - [ ] **4. Requirements, problems and names from the tree.**
-  - `source.requirement_refs` replaces `closure.requirement_refs`
-    (`REQUIREMENT_REF`), the language server's `REQ` regex and
+  - `source.requirement_refs` replaces the language server's `REQ`
+    regex and (`closure.requirement_refs` already answers from it, since
+    step 2)
     `Service.requirement_refs`. `services/requirements/links.py` calls
     the new one.
   - `rst.requirement_role` is gone; a transform in `documents/` turns
@@ -339,4 +340,44 @@ exactly its role.
   10 ms a closure (from 30). The old reader still parses each
   directive separately, but through the bare parser and with the
   repeated directive texts cached.
+
+**Step 2 (2026-11-15).** Suite: 790 passing. `test_baseline` now reads
+the parts from the tree (`source.statements`, with the prose from
+`statements.parts`) and still equals the snapshot for all 87 scripts,
+prose included.
+
+- `source.Statement` is the form, its span, its block node and its
+  index, with the block's fields as properties (`options`,
+  `variations`, `title`, `line`, `table`, `definitions`, `applies`).
+  `source.statements` keeps the list on the tree; `source.table_steps`
+  replaces `document.table_block`; `source.unreadable` is the problems
+  that make a file unreadable (blocks' and variants' problems, and code
+  that doesn't read), apart from docutils' messages about prose, which
+  never made a file unreadable before.
+- The executor runs on copies of the forms (`executor.read`): the
+  tree, and so its forms, is cached and shared.
+- `closure.read_parts` became `read_statements`, with the same "could
+  not be read (...)" message (the first problem's).
+- `closure.lint_variation_scopes` takes the file's text and walks the
+  tree, so an rvt-variant's names are checked even when it holds only
+  prose. With forms-only statements that check was lost (a test
+  caught it): before, the variant's prose parts carried its names.
+- `closure.requirement_refs` answers from `source.requirement_refs`
+  now, not in step 4: there was no other reason to keep the old reader
+  for it. The one change: `:req:` in ``literal`` text no longer counts.
+- Pages: `statements.parts(tree)` gives the rendered list (prose and
+  forms, as before) from the tree, until step 5; each rendered
+  statement carries its form `index` (None for prose).
+  `documents/script.py` numbers its items with it, and `documents/run.py`
+  and `reports/data.step_name` look results up among the forms only.
+- No test rendered a run page with its results, so nothing would have
+  caught results beside the wrong step. `test_statements.TestRunPage`
+  runs a script with prose between its steps and checks each result
+  sits by its step; shifting the indexes by one fails it.
+- The demo stores no runs (its database has no jobs, `reports/` is
+  empty), so there was nothing to generate again.
+- Benchmark after step 2: cold 1.8 to 1.9 s, warm about 1.5 s, about
+  5 ms a closure (from 30 before step 1). Cold is flattered: the
+  demo's four workspaces hold the same scripts at the same paths, so
+  three of four parses come from the cache.
 

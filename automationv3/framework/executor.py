@@ -1,11 +1,11 @@
 """Executes scripts, reporting progress to an observer
 
-A script is an rst document (see document.py). Its statements are its
-parts: prose chunks are reported as comments as the run reaches them,
-and each form of its rvt blocks is a statement. Directives (import, uut,
-environments, variations) are skipped; every other form is a step. Statement indexes
-match `statements.get_statements`, so a report can line results up with
-the rendered script.
+A script is an rst document (see source.py). Its statements are the
+forms of its rvt blocks, in order (source.statements); prose isn't
+run. Directives (import, uut, environments, variations) are skipped;
+every other form is a step. A statement's index is its place among the
+script's forms, which is how a report lines results up with the
+rendered script.
 
 Definitions (def, defn) are not steps. A script's definitions
 section is loaded before anything runs, along with its core.rst files;
@@ -17,7 +17,7 @@ is the step; anything else (a defn call, an if, ...) is evaluated as
 Lisp, with the blocks it calls reported as calls of that step. Only
 block calls fail a step; see steps.py for how they report and fail.
 
-Blocks limited to other variations (`:variations:`, see document.py)
+Blocks limited to other variations (`:variations:`, see source.py)
 are skipped without being reported: their steps don't run and their
 definitions aren't loaded.
 
@@ -52,11 +52,12 @@ ends the script before its steps. In "probe" mode the outcome is then
 isn't ready for it. In any other mode the outcome is "blocked".
 """
 
+import copy
 import time
 import traceback
 
 from . import clock as clocks
-from . import context, document, edn, lisp
+from . import context, edn, lisp, source
 from .block import BlockResult
 from .language import (
     DEFINITIONS,
@@ -125,17 +126,36 @@ def load_definitions(env, text, keep=frozenset(), path=None):
 
     Names in `keep` are already defined and are not overridden.
     """
-    for form in document.forms(text, path=path):
+    for statement in read(text, path):
+        form = statement.form
         if head(form) in DEFINITIONS and form[1] not in keep:
             lisp.eval(form, env)
 
 
-def load_script_definitions(env, parts, variation=None):
+def load_script_definitions(env, statements, variation=None):
     """Evaluate the script's definitions section into `env`, leaving out
     blocks limited to other variations"""
-    for index in document.definitions_section(parts):
-        if is_definition(parts[index].form) and parts[index].applies(variation):
-            lisp.eval(parts[index].form, env)
+    for statement in statements:
+        if statement.definitions and is_definition(statement.form) \
+                and statement.applies(variation):
+            lisp.eval(statement.form, env)
+
+
+def read(text, path=None):
+    """The statements of `text`, each with a copy of its form: the
+    parsed tree is cached and shared, and a run must not change it.
+    Raises ValueError if a block can't be read."""
+    tree = source.parse(text, path)
+    problems = source.unreadable(tree)
+    if problems:
+        raise ValueError(problems[0].message)
+    return [_copied(statement) for statement in source.statements(tree)]
+
+
+def _copied(statement):
+    found = copy.copy(statement)
+    found.form = copy.deepcopy(statement.form)
+    return found
 
 
 def execute_script(text, observer, script=None, env=None, mode="normal",
@@ -172,10 +192,10 @@ def run_cleanups(registered, observer):
 
 
 def _execute(text, observer, script, env, mode, variation, registered):
-    parts = document.parse(text, path=script)
+    statements = read(text, script)
     try:
-        outcome, placeholders = _run_parts(parts, observer, script, env, mode,
-                                           variation)
+        outcome, placeholders = _run_statements(statements, observer, script, env, mode,
+                                                variation)
     except BaseException:
         run_cleanups(registered, observer)
         raise
@@ -187,29 +207,26 @@ def _execute(text, observer, script, env, mode, variation, registered):
     return outcome
 
 
-def _run_parts(parts, observer, script, env, mode, variation):
-    observer.on_procedure_begin(script=script, statements=len(parts), mode=mode)
-    preloaded = set(document.definitions_section(parts))
+def _run_statements(statements, observer, script, env, mode, variation):
+    observer.on_procedure_begin(script=script, statements=len(statements), mode=mode)
 
     outcome = "pass"
     placeholders = 0
     in_table = set()
-    for index, part in enumerate(parts):
-        form = part.form
-        if not part.applies(variation) or index in in_table:
+    for statement in statements:
+        form, index = statement.form, statement.index
+        if not statement.applies(variation) or index in in_table:
             continue
-        if part.table_rows:
-            steps = document.table_block(parts, index)
+        if statement.table_rows:
+            steps = source.table_steps(statements, index)
             in_table.update(steps)
-            outcome, reached = _run_table(index, steps, parts, env, observer,
+            outcome, reached = _run_table(index, steps, statements, env, observer,
                                           variation, script)
             placeholders += reached
             if outcome != "pass":
                 break
-        elif part.prose:
-            observer.on_comment(index=index, text=form)
         elif is_definition(form):
-            if index in preloaded and dict.__contains__(env, form[1]):
+            if statement.definitions and dict.__contains__(env, form[1]):
                 continue  # loaded with the closure
             if not _define(form, env, observer, index):
                 outcome = "error"
@@ -252,13 +269,13 @@ def _define(form, env, observer, index):
         return False
 
 
-def _run_table(index, steps, parts, env, observer, variation, script):
+def _run_table(index, steps, statements, env, observer, variation, script):
     """Run a table block's steps once per row. Returns its outcome ("pass",
     "fail" or "error": the worst row's) and the TBD steps it reached."""
     errors = []
-    rows = parse_table(script or "", parts[index].form, errors)
+    rows = parse_table(script or "", statements[index].form, errors)
     if errors:
-        observer.on_step_start(form=edn.writes(parts[index].form), index=index)
+        observer.on_step_start(form=edn.writes(statements[index].form), index=index)
         observer.on_step_end(passed=False, error=True, stdout="", stderr="; ".join(errors),
                              message="; ".join(errors), trace=[], duration=0, index=index)
         return "error", 0
@@ -280,10 +297,10 @@ def _run_table(index, steps, parts, env, observer, variation, script):
         row_outcome = "pass"
         with context.running(row_env):
             for step in steps:
-                part = parts[step]
-                if not part.applies(variation) or not is_step(part.form):
+                statement = statements[step]
+                if not statement.applies(variation) or not is_step(statement.form):
                     continue
-                result = _run_step(part.form, row_env, observer, step, row=row.name)
+                result = _run_step(statement.form, row_env, observer, step, row=row.name)
                 placeholders += getattr(result, "placeholders", 0)
                 if not result:
                     row_outcome = "error" if result.error else "fail"
@@ -335,7 +352,7 @@ def build_env(files, load_order, imports=(), variation=None):
             load_definitions(env, files[path], path=path)
             chain_names = set(env)
     script = load_order[-1]
-    load_script_definitions(env, document.parse(files[script], path=script), variation)
+    load_script_definitions(env, read(files[script], script), variation)
     return env
 
 
@@ -348,7 +365,8 @@ def variation_values(env, variation):
 
 
 def find_variation(text, name):
-    for form in document.forms(text):
+    for statement in source.statements(source.parse(text)):
+        form = statement.form
         if head(form) == "variations":
             errors = []
             for variation in parse_variations("", form, errors):

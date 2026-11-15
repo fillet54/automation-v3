@@ -2,11 +2,12 @@
 
 Used only while plans/source-tree.md is carried out, and deleted at its
 end. `python -m test.baseline` writes test/baseline.json from the code
-as it is: for every .rst file git tracks, the cards `cards.split` cuts,
-and for every script (a file with an rvt block) the parts
-`document.parse` gives, each form with its options, title, table marks
-and every span inside it. test/test_baseline.py compares today's code
-with the file; steps 2 and 3 point it at the new code.
+as it was before step 2: for every .rst file git tracks, the cards
+`cards.split` cuts, and for every script (a file with an rvt block) the
+parts the old `document.parse` gave, each form with its options, title,
+table marks and every span inside it. test/test_baseline.py compares
+the code with the file: since step 2 the parts come from the tree (so
+don't write the file again), and from step 3 the cards will too.
 
 The demo's scripts are copies of test/data/rvts, so they add nothing.
 """
@@ -54,16 +55,21 @@ def options(values):
             for name, value in sorted(values.items())}
 
 
-def part(found):
-    """One part, as plain data"""
+def part(found, forms):
+    """One part, as plain data: prose (a statements.Statement with no
+    index), or the source.Statement among `forms` at its index"""
     from automationv3.framework import edn
 
-    if found.prose:
-        return {"prose": found.form, "line": found.line}
-    return {"form": edn.writes(found.form), "line": found.line, "title": found.title,
-            "options": options(found.options), "table": found.table,
-            "table_rows": found.table_rows, "span": span(found.span),
-            "spans": spans(found.form)}
+    if found.index is None:
+        return {"prose": found.statement, "line": found.line}
+    statement = forms[found.index]
+    values = dict(statement.options)
+    if statement.variations is not None:  # a variant's too, as the old reader gave them
+        values["variations"] = statement.variations
+    return {"form": edn.writes(statement.form), "line": statement.line,
+            "title": statement.title, "options": options(values), "table": statement.table,
+            "table_rows": statement.table_rows, "span": span(statement.span),
+            "spans": spans(statement.form)}
 
 
 def card(found):
@@ -80,15 +86,19 @@ def card(found):
 
 
 def record(path, text):
-    """What today's code makes of one file"""
-    from automationv3.framework import cards, document
+    """What the code makes of one file: since step 2, the parts come
+    from source.statements, through statements.parts for the prose"""
+    from automationv3.framework import cards, document, source, statements
 
     entry = {"cards": [card(c) for c in cards.split(text)]}
     if document.has_rvt(text):
-        try:
-            entry["parts"] = [part(p) for p in document.parse(text, path=path)]
-        except Exception as error:  # noqa: BLE001  what failed is the record
-            entry["error"] = f"{type(error).__name__}: {error}"
+        tree = source.parse(text, path)
+        problems = source.unreadable(tree)
+        if problems:
+            entry["error"] = problems[0].message
+        else:
+            forms = source.statements(tree)
+            entry["parts"] = [part(p, forms) for p in statements.parts(tree)]
     return entry
 
 

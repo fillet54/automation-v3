@@ -2,7 +2,7 @@
 
 import unittest
 
-from automationv3.framework import document, edn
+from automationv3.framework import edn, source
 
 SCRIPT = """\
 Title
@@ -52,16 +52,16 @@ class TestReader(unittest.TestCase):
         self.assertEqual(edn.read("(a [b])"), edn.read("(a   [b])"))
 
 
-class TestDocument(unittest.TestCase):
+class TestSource(unittest.TestCase):
     def test_spans_are_file_positions(self):
-        parts = [p for p in document.parse(SCRIPT, path="s.rst") if not p.prose]
+        parts = source.statements(source.parse(SCRIPT, "s.rst"))
         definition, verify = parts
         self.assertEqual(text_at(SCRIPT, definition.span), "(def limit 80)")
         self.assertEqual(definition.span.source, "s.rst")
         self.assertEqual(definition.span.line, 7)
 
     def test_spans_inside_variants_account_for_their_indent(self):
-        verify = [p for p in document.parse(SCRIPT, path="s.rst") if not p.prose][1]
+        verify = source.statements(source.parse(SCRIPT, "s.rst"))[1]
         self.assertEqual(verify.span.line, 16)
         self.assertEqual(text_at(SCRIPT, edn.span_of(verify.form[1])), "(reading :x)")
         limit = edn.span_of(verify.form[3])

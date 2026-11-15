@@ -198,7 +198,7 @@ class ReportData:
         statements = []
         if run["script"].endswith(".rst"):  # older runs were of .rvt scripts
             try:
-                statements = self.statements(run)
+                statements = [s for s in self.statements(run) if s.index is not None]
             except Exception:
                 pass
         name = f"step {index + 1}" if isinstance(index, int) else "a step"

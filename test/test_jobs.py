@@ -214,7 +214,7 @@ class TestExecutor(unittest.TestCase):
         recorder = Recorder()
         self.assertEqual(execute_script(PASSING, recorder), "pass")
         kinds = [kind for kind, _ in recorder.events]
-        self.assertEqual(kinds, ["procedure_begin", "comment",
+        self.assertEqual(kinds, ["procedure_begin",  # prose isn't reported
                                  "step_start", "step_end",
                                  "step_start", "step_end",
                                  "procedure_end"])
@@ -226,7 +226,7 @@ class TestExecutor(unittest.TestCase):
         self.assertEqual([(e["passed"], e["error"]) for e in ends],
                          [(True, False), (False, False)])
         self.assertEqual(ends[1]["stdout"], "1 = 2")
-        self.assertEqual([e["index"] for e in ends], [1, 2])
+        self.assertEqual([e["index"] for e in ends], [0, 1])  # among the forms
         self.assertEqual(recorder.events[-1], ("procedure_end", {"outcome": "fail"}))
 
     def test_a_step_that_raises_ends_the_script_in_error(self):

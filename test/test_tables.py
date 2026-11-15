@@ -2,7 +2,7 @@
 
 import unittest
 
-from automationv3.framework import document
+from automationv3.framework import source
 from automationv3.framework.executor import execute_closure
 from automationv3.framework.statements import get_statements
 
@@ -54,8 +54,8 @@ class TestRunning(unittest.TestCase):
 
 
 class TestReading(unittest.TestCase):
-    def test_parts_know_their_table(self):
-        parts = [p for p in document.parse(rvt(ROWS + "\n(Wait 1)", "table")) if not p.prose]
+    def test_statements_know_their_table(self):
+        parts = source.statements(source.parse(rvt(ROWS + "\n(Wait 1)", "table")))
         self.assertEqual([p.table_rows for p in parts], [True, False])
         self.assertEqual(parts[0].table, parts[1].table)
 

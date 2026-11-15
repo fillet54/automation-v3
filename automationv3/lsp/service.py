@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from ..framework import cards, closure as closures, document, edn, lisp, refs
+from ..framework import cards, closure as closures, edn, lisp, refs, source
 from ..framework.analysis import ERROR, KNOWN_FORMS, WARNING
 from ..framework.block import block_names, documented
 from ..framework.cards import RVT, SOURCE
@@ -433,13 +433,11 @@ class Service:
                     message = str(e).rsplit(" (line:", 1)[0]
                     found.append(Problem(ERROR, message, line, col, line, col + 1))
             elif card.kind == SOURCE:
-                try:
-                    document.parse(card.source)
-                except Exception as e:
+                problems = source.unreadable(source.parse(card.source.lstrip("\r\n")))
+                if problems:
                     lead = len(card.source) - len(card.source.lstrip("\r\n"))
                     line = card.line - 1 + card.source[:lead].count("\n")
-                    message = re.sub(r"\A<string>:\d+: \(\w+/\d\) ", "", str(e))
-                    message = message.rsplit(" (line:", 1)[0].split(" .. rvt", 1)[0]
+                    message = problems[0].message.rsplit(" (line:", 1)[0]
                     width = len(card.source.lstrip("\r\n").splitlines()[0])
                     found.append(Problem(ERROR, message, line, 0, line, max(width, 1)))
         return found
@@ -447,11 +445,11 @@ class Service:
     def core_errors(self, path, text):
         """What closure.resolve would say of a core.rst, as messages"""
         errors = []
-        parts = closures.read_parts(path, text, errors)
-        errors += closures.lint(path, [part.form for part in parts if not part.prose])
-        if any(part.table is not None for part in parts):
+        statements = closures.read_statements(path, text, errors)
+        errors += closures.lint(path, [statement.form for statement in statements])
+        if any(statement.table is not None for statement in statements):
             errors.append(f"{path}: core.rst blocks can't be tables")
-        errors += closures.lint_variation_scopes(path, parts, [])
+        errors += closures.lint_variation_scopes(path, text, [])
         return [e[len(path) + 2:] if e.startswith(f"{path}: ") else e for e in errors]
 
     # Completion

@@ -24,17 +24,18 @@ def is_step(statement):
 
 
 def items(statements, diagnostics=()):
-    """Statement items (see grouping.statement_item) with their index,
-    rst, and the diagnostics about lines they cover (each marked
+    """Statement items (see grouping.statement_item) with their index
+    (a form's place among the script's forms; None for prose), rst, and
+    the diagnostics about lines they cover (each marked
     "inline", as it shows by its statement)"""
     found = []
-    for index, statement in enumerate(statements):
+    for statement in statements:
         span = statement.span
         own = [d for d in diagnostics if span is not None and d.get("line") is not None
                and span.line <= d["line"] <= span.end_line]
         for d in own:
             d["inline"] = True
-        item = statement_item(statement, index=index, rst=statement.rst,
+        item = statement_item(statement, index=statement.index, rst=statement.rst,
                               step=is_step(statement), diagnostics=own,
                               source=statement)
         found.append(item)
@@ -60,7 +61,7 @@ def diagnostic(d):
 
 
 def indices(entries):
-    """The statement indices an entry list covers"""
+    """The statement indices an entry list covers (its forms')"""
     found = []
     for kind, entry in entries:
         if kind in ("statement", "definition"):
@@ -69,7 +70,7 @@ def indices(entries):
             found += [i["index"] for i in entry]
         else:
             found += indices(entry["entries"])
-    return found
+    return [index for index in found if index is not None]
 
 
 class Writer:

@@ -38,7 +38,7 @@ class ParseError(ValueError):
 class Span(NamedTuple):
     """Where a form was written: from (line, col) up to (end_line,
     end_col), exclusive. As read, lines and columns are 0-based within the
-    text read; `document.parse` moves them to 1-based lines (0-based
+    text read; source.parse moves them to 1-based lines (0-based
     columns) of the file named by `source`."""
 
     line: int
