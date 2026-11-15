@@ -65,7 +65,7 @@ see update the docs in the same commit.
   diagnostics and name completion in the cards.
 - [x] **4. More language features.** Hover and signature help, `:req:`
   ids, static values on hover.
-- [ ] **5. Ref paths.** The `children(path)` hook, completion, hover,
+- [x] **5. Ref paths.** The `children(path)` hook, completion, hover,
   "no such path".
 - [ ] **6. The rest of the editor.** Tab-wide undo, variants as container
   cards with drag in and out, card reordering by drag, the Problems panel,
@@ -166,3 +166,20 @@ see update the docs in the same commit.
 - **The editor's script addresses carry a version** (`editor.script_version`,
   the files' mtime), so a browser doesn't pair an old script with a new
   server.
+- **Step 5 (ref paths).** `Ref.children(path)` classmethod returning
+  `refs.Child(name, leaf, detail, doc)`s, `None` when it can't say. The
+  Vehicle Manager answers from its `CONNECTORS` table
+  (`sim.connector_children`). In `lsp/service.py`: `lookup` walks a path
+  from the top, one `children` call per level (cached per check), and
+  gives the `Child` or a `Missing`; `ref_paths` and `constructor_paths`
+  complete; `missing_paths` warns.
+- **Missing paths are warnings, not errors**, because the analyzer (and so
+  the script's page and queuing) doesn't know about them: an error only in
+  the editor would disagree with the page about whether the script can be
+  queued.
+- **A dotted name is only checked for what it adds** to its base; a bad
+  path in a constructor call is reported there, once. Names bound by
+  `fn`/`defn`/`let`, UUT handles and variation symbols are not followed.
+- **Path completion replaces the whole dotted word**: the LSP item has a
+  `textEdit` from the word's start; the web client's word already includes
+  the dots.

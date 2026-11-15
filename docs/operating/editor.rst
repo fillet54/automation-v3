@@ -114,6 +114,14 @@ While you type a call, the line under the editor shows how it is called,
 with the argument you are on marked: a block's forms, or the parameters of a
 function the script or a ``core.rst`` defines.
 
+Below a ref, completion offers the paths that exist when its kind of ref
+can say (see :doc:`../blocks/writing-blocks`): typing ``eps.`` after
+``(def eps (connector "vm.eps"))`` offers ``soc``, ``charge-current`` and the
+rest, and so does the path inside ``(connector "vm.``. A path that doesn't
+exist is marked with a warning, as it is wherever a ref is made with one.
+A warning, not an error: the script still queues, and fails when a run
+reaches the path.
+
 In prose, typing ``:req:`` and a backquote completes requirement ids, with
 each requirement's text; hovering an id shows its text, and an id that isn't
 in the requirements the workspace verifies is marked. Ids are only checked

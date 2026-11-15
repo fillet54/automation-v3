@@ -338,6 +338,30 @@ as above. A function that wraps the class says so:
    def make_connector(path):
        return Connector(path)
 
+A kind of ref can also say what is below a path, so the editor completes
+paths as they are typed (``nav.`` offers ``time``, ``mode`` ...) and warns
+about one that doesn't exist before anything runs. Give the class a
+``children`` classmethod that answers from whatever the plugin has offline,
+an ICD or a symbol table, never by reaching the system:
+
+.. code-block:: python
+
+   from automationv3.framework.refs import Child, Ref
+
+
+   class Connector(Ref):
+       @classmethod
+       def children(cls, path):
+           """The names directly below `path` ("" for the top)"""
+           return [Child(name, leaf=point.is_value, detail=point.type_name,
+                         doc=point.description)
+                   for name, point in my_icd().below(path)]
+
+``children`` returns ``None`` when it can't say (the default, so a kind of
+ref without it gets no completion and no warnings), and ``[]`` for a path
+that doesn't exist. ``detail`` is a word or two shown beside the name, and
+``doc`` a sentence shown when hovering it.
+
 edn values in Python
 --------------------
 

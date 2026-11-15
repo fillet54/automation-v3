@@ -21,10 +21,12 @@ from ..framework.language import DEFINITIONS, DIRECTIVES, PRECONDITION, head
 
 BLOCK, FUNCTION, VARIABLE, KEYWORD = "block", "function", "variable", "keyword"
 REQUIREMENT = "requirement"
+PATH = "path"
 REQ = re.compile(r":req:`([^`]+)`", re.IGNORECASE)
 REQ_OPEN = re.compile(r":req:`([^`]*)\Z", re.IGNORECASE)
 LITERALS = (str, int, float, bool, type(None))
 DELIMITERS = "()[]{}\"';,"
+CONSTRUCTOR_STRING = re.compile(r"\(\s*([^\s()\[\]{}\"';,]+)\s+\"([^\"\\\\]*)\Z")
 PREFIX = re.compile(r"[^\s()\[\]{}\"';,]*\Z")
 DEFINITION = re.compile(r"\(\s*(def|defn)\s+([^\s()\[\]{}\"';,]+)(?:\s+(\[[^\]]*\]))?")
 UUTS = re.compile(r"\(\s*uut\s+([^()]*)\)")
@@ -49,6 +51,7 @@ class Item:
     detail: str = ""
     doc: str = ""
     head: bool = False  # only makes sense first in a call
+    start: int = None  # the column the text it replaces starts at, when not the name's
 
 
 @dataclass
@@ -178,6 +181,50 @@ def is_literal(form):
     return isinstance(form, LITERALS)
 
 
+def ref_maker(name):
+    """The kind of ref the function `name` makes: it is the kind of ref
+    itself, or is marked with refs.constructs; else None"""
+    function = {str(k): v for k, v in lisp.global_env.items()}.get(name)
+    if isinstance(function, type) and issubclass(function, refs.Ref):
+        return function
+    return getattr(function, "ref_type", None)
+
+
+@dataclass
+class Missing:
+    """A path that doesn't exist: the first name of it that isn't below
+    what comes before it"""
+    parent: str
+    name: str
+    there: list  # the Childs that are below `parent`
+
+    def message(self, kind):
+        names = ", ".join(c.name for c in self.there[:12]) + (", ..." if len(self.there) > 12 else "")
+        where = f"{kind} {self.parent}" if self.parent else kind
+        return (f"no {self.name} below {where}" + (f" (there: {names})" if names else "")
+                + "; a run will fail when it reaches it")
+
+
+def lookup(ref_type, path, cache=None):
+    """The refs.Child at `path`, Missing, or None when its kind of ref
+    can't say"""
+    cache = {} if cache is None else cache
+    parts = path.split(".")
+    child = None
+    for n, part in enumerate(parts):
+        parent = ".".join(parts[:n])
+        key = (ref_type, parent)
+        if key not in cache:
+            cache[key] = ref_type.children(parent)
+        found = cache[key]
+        if found is None:
+            return None
+        child = next((c for c in found if c.name == part), None)
+        if child is None:
+            return Missing(parent, part, found)
+    return child
+
+
 def name_at(text, col):
     """(name, start, end) of the name around `col` of a line, or None"""
     start = end = col
@@ -226,7 +273,88 @@ class Service:
         text = self.texts[path]
         if PurePosixPath(path).suffix != ".rst":
             return []
-        return self.check_code(path, text) + [(path, p) for p in self.unknown_requirements(text)]
+        found = self.check_code(path, text)
+        return (found + [(path, p) for p in self.missing_paths(path, text)]
+                + [(path, p) for p in self.unknown_requirements(text)])
+
+    def missing_paths(self, path, text):
+        """Warnings for the ref paths a script names that its kind of ref
+        says don't exist: a dotted name below a ref or group, or the path
+        a ref is made with"""
+        definitions, cache, found = self.definitions(path), {}, []
+        closure = self.resolved.get(path)
+        shadowed = set(closure.uuts) if closure else set()
+        if closure is not None:
+            shadowed |= {str(s) for v in closure.variations for s in v.symbols}
+
+        def report(span, message):
+            end = span.end_col if span.end_line == span.line else span.col + 1
+            found.append(Problem(WARNING, message, line_of(span), col_of(span), line_of(span),
+                                 end + shift))
+
+        def walk(form, bound):
+            if isinstance(form, edn.Symbol) and not isinstance(form, edn.Keyword):
+                name = str(form)
+                base, dot, rest = name.partition(".")
+                span = edn.span_of(form)
+                if not dot or not base or base in bound or base in shadowed or span is None:
+                    return
+                value = self.static(name, definitions)
+                if value is None or value.kind == "literal":
+                    return
+                members = [("", value)] if value.kind == "ref" else value.members
+                base_value = self.static(base, definitions)
+                bases = [base_value] if base_value.kind == "ref" else [m for _, m in base_value.members]
+                for (label, member), start in zip(members, bases):
+                    missing = lookup(member.ref_type, member.path, cache)
+                    # only what this name adds: the base's own path is checked where it is made
+                    if isinstance(missing, Missing) and len(f"{missing.parent}.{missing.name}".strip(".")) \
+                            > len(start.path):
+                        report(span, (f"{label}: " if label else "")
+                               + missing.message(member.ref_type.__name__))
+                        return
+                return
+            if isinstance(form, dict):
+                for key, value in form.items():
+                    walk(key, bound)
+                    walk(value, bound)
+                return
+            if not isinstance(form, (list, edn.Vector, set, frozenset)):
+                return
+            items = list(form)
+            if isinstance(form, list) and items:
+                first = head(form)
+                ref_type = ref_maker(first) if first else None
+                if ref_type is not None and len(items) == 2 and isinstance(items[1], str):
+                    missing = lookup(ref_type, items[1], cache)
+                    span = edn.span_of(form)
+                    if isinstance(missing, Missing) and span is not None:
+                        report(span, missing.message(ref_type.__name__))
+                if first in BINDERS:
+                    vectors = [i for i in items[1:3] if isinstance(i, edn.Vector)]
+                    arities = [a[0] for a in items[1:] if isinstance(a, list) and a
+                               and isinstance(a[0], edn.Vector)]
+                    every = 2 if first == "let" else 1
+                    names = {str(n) for v in vectors + arities for n in list(v)[::every]
+                             if isinstance(n, edn.Symbol)}
+                    bound = bound | names
+            for item in items:
+                walk(item, bound)
+
+        for card in cards.split(text):
+            if card.kind != RVT:
+                continue
+            shift = card.code_indent
+
+            def line_of(span, first=card.code_line):
+                return first - 1 + span.line
+
+            def col_of(span, indent=card.code_indent):
+                return indent + span.col
+
+            for form, _ in edn.read_all_with_spans(card.code, readable=True):
+                walk(form, frozenset())
+        return found
 
     def requirement_refs(self, text):
         """[(id, line, col, end col)] of the :req: references in prose"""
@@ -343,14 +471,65 @@ class Service:
         code = self.code_before(text, lines, line, col)
         if code is None:
             return []
-        stack = scan(code[:PREFIX.search(code).start()])
+        typed = CONSTRUCTOR_STRING.search(code)
+        if typed is not None:  # the path of a ref being made: (connector "vm.e
+            return self.constructor_paths(typed.group(1), typed.group(2), col)
+        word = PREFIX.search(code)
+        stack = scan(code[:word.start()])
         if stack is None:
             return []
+        if "." in word.group() and not word.group().startswith("."):
+            found = self.ref_paths(path, word.group(), col, local_names(stack))
+            if found is not None:
+                return found
         at_head = bool(stack) and stack[-1].char == "(" and not stack[-1].items
         found = self.names(path, text)
         for name in local_names(stack):
             found[name] = Item(name, VARIABLE, "bound here")
         return [item for item in found.values() if at_head or not item.head]
+
+    def ref_paths(self, path, word, col, bound):
+        """The Items completing `word`, a dotted name being typed whose
+        base is a ref or group, or None when it isn't one"""
+        prefix, _, _ = word.rpartition(".")
+        if prefix.partition(".")[0] in bound:
+            return None
+        value = self.static(prefix, self.definitions(path))
+        if value is None or value.kind == "literal":
+            return None
+        found = self.children_of(value)
+        if found is None:
+            return None
+        start = col - len(word)
+        return [Item(f"{prefix}.{c.name}", PATH, c.detail, c.doc, start=start) for c in found]
+
+    def constructor_paths(self, function, typed, col):
+        """The Items completing the path in (constructor "typed"""
+        ref_type = ref_maker(function)
+        if ref_type is None:
+            return []
+        parent, _, _ = typed.rpartition(".")
+        found = ref_type.children(parent) or []
+        start = col - len(typed)
+        return [Item(f"{parent}.{c.name}" if parent else c.name, PATH, c.detail, c.doc,
+                     start=start) for c in found]
+
+    def children_of(self, value):
+        """The refs.Childs below a ref, or those every member of a group
+        has; None when its kind of ref can't say"""
+        if value.kind == "ref":
+            return value.ref_type.children(value.path)
+        shared = None
+        for _, member in value.members:
+            found = member.ref_type.children(member.path)
+            if found is None:
+                return None
+            if shared is None:
+                shared = list(found)
+            else:
+                names = {c.name for c in found}
+                shared = [c for c in shared if c.name in names]
+        return shared or []
 
     def code_before(self, text, lines, line, col):
         """The code of the block `line` is in, up to `col` of it, or None
@@ -460,11 +639,7 @@ class Service:
             return self.static(str(form), definitions, seen)
         if not isinstance(form, list) or not form or not isinstance(form[0], edn.Symbol):
             return None
-        function = {str(k): v for k, v in lisp.global_env.items()}.get(str(form[0]))
-        # A function that makes refs: the kind of ref itself, or one marked
-        # with refs.constructs
-        ref_type = function if isinstance(function, type) and issubclass(function, refs.Ref) \
-            else getattr(function, "ref_type", None)
+        ref_type = ref_maker(str(form[0]))
         if ref_type is not None and len(form) == 2 and isinstance(form[1], str):
             return Static("ref", ref_type=ref_type, path=form[1])
         if str(form[0]) == "group" and len(form) > 1:
@@ -530,7 +705,7 @@ class Service:
         if "." in name:
             value = self.static(name, definitions)
             if value is not None:
-                return f"`{name}` is a {value.describe()}."
+                return f"`{name}` is a {value.describe()}." + self.path_detail(value)
             name = name.partition(".")[0]  # say what it is a path of
             if name in definitions:
                 return self.describe(path, name, stack)
@@ -552,6 +727,20 @@ class Service:
             kind = "function" if callable(builtins[name]) else "value"
             return f"`{name}`: a builtin {kind}." + (f"\n\n{' '.join(doc.split())}" if doc else "")
         return None
+
+    def path_detail(self, value):
+        """What the plugin says of a ref's path, or that it doesn't exist"""
+        members = [("", value)] if value.kind == "ref" else value.members
+        said = []
+        for name, member in members:
+            found = lookup(member.ref_type, member.path)
+            if isinstance(found, Missing):
+                said.append(f"{name + ': ' if name else ''}{found.message(member.ref_type.__name__)}.")
+            elif found is not None:
+                words = ", ".join(w for w in (found.detail, found.doc) if w)
+                if words:
+                    said.append(f"{name + ': ' if name else ''}{words}.")
+        return "\n\n" + "\n".join(f"- {s}" if len(members) > 1 else s for s in said) if said else ""
 
     # Signatures
 

@@ -33,15 +33,36 @@ clear), as `ref` events.
 """
 
 import copy
+from dataclasses import dataclass
 
 from . import edn
 
 OPERATIONS = ("read", "set", "fix", "clear")
 
 
+@dataclass(frozen=True)
+class Child:
+    """A name directly below a path, as Ref.children gives it"""
+    name: str
+    leaf: bool = False  # a value, with nothing below it
+    detail: str = ""  # a word or two: its type, "read-only", ...
+    doc: str = ""  # what it is, in a sentence or so
+
+
 class Ref:
     """A reference to a value, by path. Plugins subclass it for the
     values their blocks reach."""
+
+    @classmethod
+    def children(cls, path):
+        """The names directly below `path` ("" for the top), as Childs;
+        None when this kind of ref can't say, which is the default.
+
+        Answered offline, from whatever the plugin has (an ICD, a
+        symbol table), never by reaching the system: the editor asks as
+        you type, to complete paths and to say which don't exist. A path
+        that doesn't exist answers [] or None."""
+        return None
 
     def __init__(self, path, name=None):
         if not isinstance(path, str) or not path or isinstance(path, edn.Symbol):

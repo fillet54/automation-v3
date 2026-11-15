@@ -6,6 +6,10 @@ import shutil
 import tempfile
 import unittest
 from contextlib import closing
+from unittest import mock
+
+from automationv3.framework import lisp, refs
+from automationv3.framework.refs import Ref
 from pathlib import Path
 
 from automationv3.lsp import stdio
@@ -150,8 +154,8 @@ See :req:`R-1` and :req:`R-9`.
 .. rvt::
    :definitions:
 
-   (def cpu1 (connector "sys.cpu1"))
-   (def cpu2 (connector "sys.cpu2"))
+   (def cpu1 (sys/connector "sys.cpu1"))
+   (def cpu2 (sys/connector "sys.cpu2"))
    (def nav cpu1.app.nav)
    (def cpus (group cpu1 cpu2))
    (def minimum 10)
@@ -179,9 +183,17 @@ class Listed:
         return next((r for r in self.found if r.id == id), None)
 
 
+class Connector(Ref):
+    """A kind of ref that can't say what is below a path"""
+
+
 class TestWhatNamesAre(Rooted):
     def setUp(self):
         super().setUp()
+        patcher = mock.patch.dict(lisp.global_env, {"sys/connector": refs.constructs(Connector)(
+            lambda path: Connector(path))})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         from automationv3.framework.requirement import Requirement
         self.service = Service(self.root, Listed(Requirement("R-1", "The brakes shall *hold*.", spec="SRS")))
         self.service.texts["BRA/tc.rst"] = REFS
@@ -252,6 +264,90 @@ class TestWhatNamesAre(Rooted):
         self.assertEqual(self.signatures(20, "   (within? 1 "), (["(within? v lo hi)", "(within? v more...)"], 0, 1))
         self.assertEqual(self.signatures(20, "   (within? 1 2 3 "), (["(within? v lo hi)", "(within? v more...)"], 1, 1))
         self.assertIsNone(self.signatures(2, "See "))
+
+
+PATHS = """\
+Paths
+=====
+
+.. rvt::
+   :definitions:
+
+   (def vm (connector "vm"))
+   (def eps vm.eps)
+   (def bad (connector "vm.epz"))
+   (def lines (group eps.line.bus-computer eps.line.receivers))
+
+.. rvt::
+
+   (Verify eps.soc > 0)
+   (Verify eps.sco > 0)
+   (Verify lines.on = true)
+   (Verify lines.of = true)
+   (defn f [eps] eps.whatever)
+   (Verify bad.soc > 0)
+"""
+
+
+class TestRefPaths(Rooted):
+    """With the Vehicle Manager's connectors, whose kind of ref says
+    what is below a path"""
+
+    def setUp(self):
+        super().setUp()
+        self.service = Service(self.root)
+        self.service.texts["BRA/tc.rst"] = PATHS
+        self.lines = PATHS.splitlines()
+
+    def test_the_hook(self):
+        from automationv3.framework.refs import Ref
+        from automationv3.plugins.vm.blocks import Connector
+        self.assertIsNone(Ref.children("a.b"))
+        self.assertEqual([c.name for c in Connector.children("")], ["vm"])
+        soc = next(c for c in Connector.children("vm.eps") if c.name == "soc")
+        self.assertEqual((soc.leaf, soc.detail), (True, "read-only"))
+        self.assertEqual(Connector.children("vm.nope"), [])
+
+    def test_paths_that_dont_exist(self):
+        found = [(p.line, p.col, p.end_col, p.message.split(";")[0])
+                 for p in self.service.problems()["BRA/tc.rst"]]
+        self.assertEqual(found, [
+            (8, 12, 32, "no epz below Connector vm (there: obc, mode, eps, tc, fdir, bench)"),
+            (14, 11, 18, "no sco below Connector vm.eps (there: soc, charge-current, "
+                         "max-charge-current, shed, line)"),
+            (16, 11, 19, "eps.line.bus-computer: no of below Connector vm.eps.line.bus-computer "
+                         "(there: on, tripped, switch-ms)"),
+        ])  # not eps.whatever (eps is a parameter there), nor bad.soc (bad is reported where it's made)
+        self.assertTrue(all(p.severity == "warning" for p in self.service.problems()["BRA/tc.rst"]))
+
+    def complete(self, line, before):
+        return [(i.label, i.detail, i.start) for i in self.service.complete("BRA/tc.rst", line, len(before))]
+
+    def test_completing_paths(self):
+        self.assertEqual(self.complete(13, "   (Verify eps.s")[:2],
+                         [("eps.soc", "read-only", 11), ("eps.charge-current", "read-only", 11)])
+        self.assertEqual(self.complete(15, "   (Verify lines.")[0], ("lines.on", "settable", 11))
+        self.assertNotIn("eps.whatever", [l for l, _, _ in self.complete(17, "   (defn f [eps] eps.")])
+        self.service.texts["BRA/tc.rst"] = PATHS + '   (def x (connector "vm.e'
+        self.assertEqual(self.complete(19, '   (def x (connector "vm.e')[2], ("vm.eps", "28 connectors below", 22))
+
+    def test_hovering_paths(self):
+        hover = self.service.hover("BRA/tc.rst", 13, 14)[0]
+        self.assertEqual(hover, "`eps.soc` is a Connector ref `vm.eps.soc`.\n\nread-only.")
+        self.assertIn("no sco below Connector vm.eps", self.service.hover("BRA/tc.rst", 14, 14)[0])
+        self.assertIn("- eps.line.receivers: settable.", self.service.hover("BRA/tc.rst", 15, 14)[0])
+
+    def test_paths_complete_over_the_protocol(self):
+        server = Server(self.root)
+        server.handle(request(1, "initialize"))
+        uri = (self.root / "BRA" / "tc.rst").as_uri()
+        server.handle(notify("textDocument/didOpen", textDocument={"uri": uri, "text": PATHS}))
+        (answer,) = server.handle(request(2, "textDocument/completion", textDocument={"uri": uri},
+                                          position={"line": 13, "character": 16}))
+        soc = next(i for i in answer["result"]["items"] if i["label"] == "eps.soc")
+        self.assertEqual(soc["textEdit"], {"newText": "eps.soc", "range": {
+            "start": {"line": 13, "character": 11}, "end": {"line": 13, "character": 16}}})
+        self.assertEqual(soc["kind"], 10)
 
 
 class TestServer(Rooted):

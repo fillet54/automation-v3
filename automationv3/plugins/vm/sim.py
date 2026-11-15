@@ -688,6 +688,31 @@ for _line_name in LINES:
         CONNECTORS[f"vm.eps.line.{_line_name}.{_field}"] = _line(_line_name, _key)
 
 
+def connector_children(path):
+    """The refs.Childs directly below a connector path ("" for the top)"""
+    from automationv3.framework.refs import Child
+    prefix = f"{path}." if path else ""
+    found = {}
+    for full, point in CONNECTORS.items():
+        if not full.startswith(prefix):
+            continue
+        name, _, rest = full[len(prefix):].partition(".")
+        if rest:
+            kind, count = found.get(name, ("branch", 0))
+            if kind == "branch":
+                found[name] = ("branch", count + 1)
+        else:
+            found[name] = ("leaf", point)
+    children = []
+    for name, (kind, what) in found.items():
+        if kind == "leaf":
+            children.append(Child(name, leaf=True,
+                                  detail="settable" if what.write_fn else "read-only"))
+        else:
+            children.append(Child(name, detail=f"{what} connector{'s' if what > 1 else ''} below"))
+    return children
+
+
 def resolve(path):
     """The Point at a connector path"""
     point = CONNECTORS.get(str(path))

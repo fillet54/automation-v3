@@ -9,8 +9,8 @@ writes a stream, so the same server sits behind stdin and stdout
 Supported: initialize, shutdown, exit; documents opened, changed (the
 whole text each time), saved and closed; diagnostics, published after
 each of those for every open document and the files it loads;
-completion (names in a block, requirement ids in :req:), hover and
-signature help.
+completion (names in a block, the paths below a ref, requirement ids in
+:req:), hover and signature help.
 
 Documents are named by URI. A file: URI is a path, which must be under
 the root; with any other scheme the URI's path is taken as relative to
@@ -20,15 +20,15 @@ the root (the web editor's "rvt:///BRA/script.rst").
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
 
-from .service import BLOCK, FUNCTION, KEYWORD, REQUIREMENT, VARIABLE, Service
+from .service import BLOCK, FUNCTION, KEYWORD, PATH, REQUIREMENT, VARIABLE, Service
 from ..framework.analysis import ERROR
 
 SERVER_NOT_INITIALIZED, METHOD_NOT_FOUND, INTERNAL_ERROR = -32002, -32601, -32603
 SEVERITY_ERROR, SEVERITY_WARNING = 1, 2
 # CompletionItemKind
-KINDS = {FUNCTION: 3, VARIABLE: 6, BLOCK: 7, KEYWORD: 14, REQUIREMENT: 18}
+KINDS = {FUNCTION: 3, VARIABLE: 6, BLOCK: 7, KEYWORD: 14, REQUIREMENT: 18, PATH: 10}
 # Blocks first where a call starts, then what scripts define
-ORDER = {BLOCK: "1", REQUIREMENT: "1", VARIABLE: "2", FUNCTION: "3", KEYWORD: "4"}
+ORDER = {BLOCK: "1", REQUIREMENT: "1", PATH: "1", VARIABLE: "2", FUNCTION: "3", KEYWORD: "4"}
 SCRIPTS_FOLDER = "rvts"  # a worktree's scripts (services/workspace.py)
 
 
@@ -97,7 +97,7 @@ class Server:
             "capabilities": {
                 "positionEncoding": "utf-16",
                 "textDocumentSync": {"openClose": True, "change": 1, "save": {"includeText": False}},
-                "completionProvider": {"triggerCharacters": ["(", "`"]},
+                "completionProvider": {"triggerCharacters": ["(", "`", ".", '"']},
                 "hoverProvider": True,
                 "signatureHelpProvider": {"triggerCharacters": ["(", " "]},
             },
@@ -217,6 +217,12 @@ class Server:
                 found["detail"] = item.detail
             if item.doc:
                 found["documentation"] = item.doc
+            if item.start is not None:  # it replaces more than the name being typed: a whole path
+                text = lines[line] if line < len(lines) else ""
+                found["filterText"] = item.label
+                found["textEdit"] = {"newText": item.label, "range": {
+                    "start": {"line": line, "character": utf16(text, item.start)},
+                    "end": {"line": line, "character": units}}}
             items.append(found)
         return {"isIncomplete": False, "items": items}, []
 

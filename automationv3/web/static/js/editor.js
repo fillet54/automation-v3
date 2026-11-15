@@ -306,7 +306,7 @@
   // diagnostics are drawn on the cards they fall in
 
   var lsp = { session: Math.random().toString(36).slice(2) + Date.now().toString(36), next: 1, started: false, sent: {}, queue: Promise.resolve() };
-  var TYPES = { 3: "function", 6: "variable", 7: "class", 14: "keyword", 18: "text" };
+  var TYPES = { 3: "function", 6: "variable", 7: "class", 10: "property", 14: "keyword", 18: "text" };
   var REQ_OPEN = /:req:`[^`]*$/i;
   var NAME = /[^\s()\[\]{}"';,]*/;
 
@@ -573,7 +573,7 @@
       } else {
         if (card._card.kind === "prose") return null;
         var before = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
-        if (!context.explicit && word.from === word.to && before !== "(") return null;
+        if (!context.explicit && word.from === word.to && before !== "(" && before !== '"') return null;
       }
       var path = pathOf(card);
       return lspSync(path).then(function () {

@@ -147,6 +147,11 @@ class Connector(Ref):
     """A point of the Vehicle Manager or its bench, by path
     (e.g. "vm.eps.soc"). Scripts make one with (connector "path")."""
 
+    @classmethod
+    def children(cls, path):
+        from .sim import connector_children
+        return connector_children(path)
+
 
 @refs.constructs(Connector)
 def make_connector(path):
