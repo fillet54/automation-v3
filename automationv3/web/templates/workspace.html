@@ -4,8 +4,8 @@
 {% block title %}{{ workspace.id }} · Workspace{% endblock %}
 
 {% block page_head %}
-<script src="{{ url_for('static', filename='js/codemirror.bundle.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/editor.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/codemirror.bundle.js', v=editor_version) }}" defer></script>
+<script src="{{ url_for('static', filename='js/editor.js', v=editor_version) }}" defer></script>
 {% endblock %}
 
 {% block side %}

@@ -103,6 +103,24 @@ the definitions of the script and of its ``core.rst`` files, UUT handles,
 variation values, and the parameters and ``let`` names around the cursor.
 Completion also opens by itself as you type a name.
 
+Hovering a name in a block says what it is: a block's calls and
+documentation, a definition's code and the file it is in, a UUT handle, a
+variation value with what each variation gives it. Where it can be told
+without running anything, it also says what the name's value is: a literal,
+or another name for one, and for a ref (or a path below one, such as
+``nav.time``) its kind and full path; for a group, each member's.
+
+While you type a call, the line under the editor shows how it is called,
+with the argument you are on marked: a block's forms, or the parameters of a
+function the script or a ``core.rst`` defines.
+
+In prose, typing ``:req:`` and a backquote completes requirement ids, with
+each requirement's text; hovering an id shows its text, and an id that isn't
+in the requirements the workspace verifies is marked. Ids are only checked
+when there are requirements to check against, and the local client, which
+asks the central server for one requirement at a time, shows a
+requirement's text on hover but can't list or check them.
+
 In another editor
 ~~~~~~~~~~~~~~~~~
 
@@ -110,7 +128,9 @@ The same server runs on its own as ``automation-v3 lsp``, speaking the
 Language Server Protocol on stdin and stdout, so an editor with an LSP
 client gets the same errors and completion. Start it for ``.rst`` files
 with the worktree as the root; it takes the worktree's ``rvts`` folder as
-the scripts root. In Neovim, for example:
+the scripts root, and reads requirements from the database at ``--dbpath``
+(``./automationv3.db`` unless you say) when it is there. In Neovim, for
+example:
 
 .. code-block:: lua
 

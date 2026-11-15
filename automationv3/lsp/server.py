@@ -9,7 +9,8 @@ writes a stream, so the same server sits behind stdin and stdout
 Supported: initialize, shutdown, exit; documents opened, changed (the
 whole text each time), saved and closed; diagnostics, published after
 each of those for every open document and the files it loads;
-completion.
+completion (names in a block, requirement ids in :req:), hover and
+signature help.
 
 Documents are named by URI. A file: URI is a path, which must be under
 the root; with any other scheme the URI's path is taken as relative to
@@ -19,15 +20,15 @@ the root (the web editor's "rvt:///BRA/script.rst").
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
 
-from .service import BLOCK, FUNCTION, KEYWORD, VARIABLE, Service
+from .service import BLOCK, FUNCTION, KEYWORD, REQUIREMENT, VARIABLE, Service
 from ..framework.analysis import ERROR
 
 SERVER_NOT_INITIALIZED, METHOD_NOT_FOUND, INTERNAL_ERROR = -32002, -32601, -32603
 SEVERITY_ERROR, SEVERITY_WARNING = 1, 2
 # CompletionItemKind
-KINDS = {FUNCTION: 3, VARIABLE: 6, BLOCK: 7, KEYWORD: 14}
+KINDS = {FUNCTION: 3, VARIABLE: 6, BLOCK: 7, KEYWORD: 14, REQUIREMENT: 18}
 # Blocks first where a call starts, then what scripts define
-ORDER = {BLOCK: "1", VARIABLE: "2", FUNCTION: "3", KEYWORD: "4"}
+ORDER = {BLOCK: "1", REQUIREMENT: "1", VARIABLE: "2", FUNCTION: "3", KEYWORD: "4"}
 SCRIPTS_FOLDER = "rvts"  # a worktree's scripts (services/workspace.py)
 
 
@@ -43,10 +44,13 @@ def characters(text, units):
 
 
 class Server:
-    def __init__(self, root=None):
+    def __init__(self, root=None, requirements=None):
         """`root`: the scripts root, when it is known before the client
-        says (the web app's workspaces); else initialize gives it"""
-        self.service = Service(root) if root is not None else None
+        says (the web app's workspaces); else initialize gives it.
+        `requirements(root)` gives what answers for requirements there
+        (see Service), or None."""
+        self.requirements = requirements or (lambda root: None)
+        self.service = Service(root, self.requirements(root)) if root is not None else None
         self.initialized = False
         self.exited = False
         self.uris = {}  # path -> the URI the client knows it by
@@ -87,13 +91,15 @@ class Server:
             root = Path(unquote(urlparse(uri).path)) if uri else Path(params.get("rootPath") or ".")
             if (root / SCRIPTS_FOLDER).is_dir():
                 root = root / SCRIPTS_FOLDER
-            self.service = Service(root)
+            self.service = Service(root, self.requirements(root))
         self.initialized = True
         return {
             "capabilities": {
                 "positionEncoding": "utf-16",
                 "textDocumentSync": {"openClose": True, "change": 1, "save": {"includeText": False}},
-                "completionProvider": {"triggerCharacters": ["("]},
+                "completionProvider": {"triggerCharacters": ["(", "`"]},
+                "hoverProvider": True,
+                "signatureHelpProvider": {"triggerCharacters": ["(", " "]},
             },
             "serverInfo": {"name": "automation-v3"},
         }, []
@@ -213,3 +219,37 @@ class Server:
                 found["documentation"] = item.doc
             items.append(found)
         return {"isIncomplete": False, "items": items}, []
+
+    # Hover and signature help
+
+    def place(self, params):
+        """(path, line, character column) of a request's position, or None"""
+        path = self.path(params["textDocument"]["uri"])
+        if path is None:
+            return None
+        line, units = params["position"]["line"], params["position"]["character"]
+        lines = (self.service.text(path) or "").splitlines()
+        text = lines[line] if line < len(lines) else ""
+        return path, line, characters(text, units), text
+
+    def on_textDocument_hover(self, params):
+        place = self.place(params)
+        found = self.service.hover(*place[:3]) if place else None
+        if found is None:
+            return None, []
+        markdown, start, end = found
+        line, text = place[1], place[3]
+        return {"contents": {"kind": "markdown", "value": markdown},
+                "range": {"start": {"line": line, "character": utf16(text, start)},
+                          "end": {"line": line, "character": utf16(text, end)}}}, []
+
+    def on_textDocument_signatureHelp(self, params):
+        place = self.place(params)
+        found = self.service.signatures(*place[:3]) if place else None
+        if found is None:
+            return None, []
+        signatures, which, parameter = found
+        return {"signatures": [{"label": s.label, "documentation": s.doc,
+                                "parameters": [{"label": p} for p in s.parameters]}
+                               for s in signatures],
+                "activeSignature": which, "activeParameter": parameter}, []

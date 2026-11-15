@@ -306,7 +306,8 @@
   // diagnostics are drawn on the cards they fall in
 
   var lsp = { session: Math.random().toString(36).slice(2) + Date.now().toString(36), next: 1, started: false, sent: {}, queue: Promise.resolve() };
-  var TYPES = { 3: "function", 6: "variable", 7: "class", 14: "keyword" };
+  var TYPES = { 3: "function", 6: "variable", 7: "class", 14: "keyword", 18: "text" };
+  var REQ_OPEN = /:req:`[^`]*$/i;
   var NAME = /[^\s()\[\]{}"';,]*/;
 
   function lspUri(path) { return "rvt:///" + path.split("/").map(encodeURIComponent).join("/"); }
@@ -360,17 +361,20 @@
   // codeStart, indented by codeIndent.
   function derive(doc, original) {
     var parts = cardsOf(doc).map(function (card) {
-      return { card: card, data: card._edit ? current(card) : card._card };
+      return { card: card, data: card._edit ? current(card, true) : card._card };
     }).filter(function (p) { return p.data.source != null || p.data.kind === "rvt" || (p.data.text || "").trim(); });
     var text = "", places = [];
     parts.forEach(function (part, n) {
       var data = part.data, fresh = data.source == null;
       var piece = fresh ? written(data) : data.source;
-      if (n === parts.length - 1) {
-        if (fresh || data.index !== original - 1) piece = withoutTail(piece) + "\n";
+      if (fresh) {
+        // as written, which ends with one line end; spaces being typed at its end stay
+        if (n < parts.length - 1) piece += "\n";
+      } else if (n === parts.length - 1) {
+        if (data.index !== original - 1) piece = withoutTail(piece) + "\n";
       } else {
         var after = parts[n + 1].data;
-        var follows = !fresh && after.source != null && data.index != null && after.index === data.index + 1;
+        var follows = after.source != null && data.index != null && after.index === data.index + 1;
         if (!follows) piece = withoutTail(piece) + "\n\n";
       }
       var start = count(text, "\n"), place = { card: part.card, start: start, codeStart: start, codeIndent: 0 };
@@ -471,12 +475,106 @@
     if (errors !== st.errors) { st.errors = errors; drawTabs(); }
   }
 
+  // Where an offset of a card's editor is in the tab's file
+  function positionOf(card, view, offset) {
+    var place = (states[pathOf(card)].places || []).filter(function (p) { return p.card === card; })[0];
+    if (!place) return null;
+    var line = view.state.doc.lineAt(offset);
+    return { line: place.codeStart + line.number - 1, character: place.codeIndent + offset - line.from };
+  }
+
+  // The little markdown the server writes, as elements: code fences,
+  // `code`, **bold**, lists and paragraphs
+  function prose(markdown) {
+    var box = el("div", "ed-hover");
+    function inline(parent, text) {
+      text.split(/(`[^`]+`|\*\*[^*]+\*\*)/).forEach(function (piece) {
+        if (/^`[^`]+`$/.test(piece)) parent.appendChild(el("code", null, piece.slice(1, -1)));
+        else if (/^\*\*[^*]+\*\*$/.test(piece)) parent.appendChild(el("strong", null, piece.slice(2, -2)));
+        else if (piece) parent.appendChild(document.createTextNode(piece));
+      });
+    }
+    markdown.split(/```[a-z]*\n([\s\S]*?)\n```/).forEach(function (part, n) {
+      if (n % 2) { box.appendChild(el("pre", "ui-pre", part)); return; }
+      part.split(/\n\n+/).forEach(function (block) {
+        if (!block.trim()) return;
+        if (/^- /.test(block)) {
+          var list = el("ul");
+          block.split("\n").forEach(function (row) { inline(list.appendChild(el("li")), row.replace(/^- /, "")); });
+          box.appendChild(list);
+        } else if (/^ {4}/.test(block) || /::$/.test(block)) {
+          box.appendChild(el("pre", "ui-pre", block.replace(/^ {4}/gm, "")));
+        } else {
+          inline(box.appendChild(el("p")), block.replace(/``/g, "`"));
+        }
+      });
+    });
+    return box;
+  }
+
+  // What the name under the pointer is
+  function hovers(card) {
+    return function (view, offset) {
+      var path = pathOf(card);
+      return lspSync(path).then(function () {
+        var position = positionOf(card, view, offset);
+        if (!position) return null;
+        return lspRequest("textDocument/hover", { textDocument: { uri: lspUri(path) }, position: position });
+      }).then(function (found) {
+        if (!found || !found.contents || !found.contents.value) return null;
+        var line = view.state.doc.lineAt(offset), place = positionOf(card, view, line.from);
+        var from = line.from + found.range.start.character - place.character;
+        var to = line.from + found.range.end.character - place.character;
+        return {
+          pos: Math.max(from, line.from), end: Math.min(to, line.to), above: true,
+          create: function () { return { dom: prose(found.contents.value) }; },
+        };
+      });
+    };
+  }
+
+  // How the call the cursor is in is called, under a block's editor,
+  // with the argument being typed marked
+  function sign(card, view, bar) {
+    if (!card._edit) return;
+    var path = pathOf(card);
+    lspSync(path).then(function () {
+      var position = positionOf(card, view, view.state.selection.main.head);
+      if (!position) return null;
+      return lspRequest("textDocument/signatureHelp", { textDocument: { uri: lspUri(path) }, position: position });
+    }).then(function (found) {
+      bar.textContent = "";
+      bar.hidden = !found || !found.signatures.length;
+      if (bar.hidden) return;
+      found.signatures.forEach(function (signature, n) {
+        var row = el("div", "ed-signature__row" + (n === found.activeSignature ? " is-active" : ""));
+        var rest = signature.label, at = 0;
+        signature.parameters.forEach(function (parameter, index) {
+          var start = rest.indexOf(parameter.label, at);
+          if (start < 0) return;
+          row.appendChild(document.createTextNode(rest.slice(at, start)));
+          row.appendChild(el(n === found.activeSignature && index === found.activeParameter ? "strong" : "span", null, parameter.label));
+          at = start + parameter.label.length;
+        });
+        row.appendChild(document.createTextNode(rest.slice(at)));
+        bar.appendChild(row);
+      });
+    });
+  }
+
   // The names that complete where the cursor is in a block's editor
   function completions(card) {
     return function (context) {
+      var req = context.matchBefore(REQ_OPEN), valid = /^[^\s()\[\]{}"';,]*$/;
       var word = context.matchBefore(NAME) || { from: context.pos, to: context.pos };
-      var before = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
-      if (!context.explicit && word.from === word.to && before !== "(") return null;
+      if (req) {  // a requirement id, in prose
+        word = { from: req.from + 6, to: context.pos };
+        valid = /^[^`]*$/;
+      } else {
+        if (card._card.kind === "prose") return null;
+        var before = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
+        if (!context.explicit && word.from === word.to && before !== "(") return null;
+      }
       var path = pathOf(card);
       return lspSync(path).then(function () {
         var place = (states[path].places || []).filter(function (p) { return p.card === card; })[0];
@@ -489,9 +587,9 @@
       }).then(function (found) {
         if (!found || !found.items.length) return null;
         return {
-          from: word.from, validFor: /^[^\s()\[\]{}"';,]*$/,
+          from: word.from, validFor: valid,
           options: found.items.map(function (item) {
-            return { label: item.label, type: TYPES[item.kind], detail: item.detail, info: item.documentation || null,
+            return { label: item.label, type: TYPES[item.kind], detail: item.detail, info: item.documentation ? function () { return prose(item.documentation); } : null,
                      boost: 5 - Number((item.sortText || "5")[0]) };
           }),
         };
@@ -550,13 +648,17 @@
     card.appendChild(edit);
     card.classList.add("is-editing");
     function done() { closeCard(card, true); return true; }
-    var path = pathOf(card), typing;
+    var path = pathOf(card), typing, signing;
+    var signature = el("div", "ed-signature");
+    signature.hidden = true;
+    edit.insertBefore(signature, foot);
     var view = window.CM.editor(holder, {
       text: rvt ? data.code || "" : data.text || "",
       language: rvt ? "rvt" : null,
       placeholder: rvt ? "(Verify ...)" : "Text, as reStructuredText",
       keys: [{ key: "Mod-Enter", run: done }, { key: "Escape", run: done }],
-      extensions: rvt ? [window.CM.autocompletion({ override: [completions(card)] })] : [],
+      extensions: [window.CM.autocompletion({ override: [completions(card)] }), window.CM.hoverTooltip(hovers(card))],
+      onMove: rvt ? function (moved) { clearTimeout(signing); signing = setTimeout(function () { sign(card, moved, signature); }, 150); } : null,
       onChange: function () {  // the language server checks what is typed, once typing pauses
         clearTimeout(typing);
         typing = setTimeout(function () { if (card._edit && states[path]) lspSync(path); }, 300);
@@ -572,18 +674,21 @@
 
   function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
-  // What a card being edited holds right now, as an edited card
-  function current(card) {
+  // What a card being edited holds right now, as an edited card. `typed`
+  // keeps the spaces at the end, so a place in the editor is the same
+  // place in the file the language server is sent.
+  function current(card, typed) {
     var data = card._card, text = card._edit.view.state.doc.toString();
+    if (typed) text = text.replace(/\n+$/, "") + " ";
     var next = { kind: data.kind, source: null, index: null, level: data.level || 0 };
     if (data.kind === "rvt") {
-      next.code = text.replace(/\s+$/, "");
+      next.code = typed ? text : text.replace(/\s+$/, "");
       next.title = field(card, "title").value.trim() || null;
       next.definitions = field(card, "definitions").checked;
       next.table = field(card, "table").checked;
       next.variations = field(card, "variations").value.split(",").map(function (v) { return v.trim(); }).filter(Boolean);
     } else {
-      next.text = text.replace(/\s+$/, "");
+      next.text = typed ? text : text.replace(/\s+$/, "");
     }
     return next;
   }

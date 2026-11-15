@@ -6,7 +6,7 @@ Read, SetValue, SetFixedValue and ClearFixedValue for them, and Verify
 and Wait read them through its Read.
 """
 
-from automationv3.framework import context, edn, markup, value_blocks
+from automationv3.framework import context, edn, markup, refs, value_blocks
 from automationv3.framework.block import ACTION, VALUE, BlockResult, BuildingBlock
 from automationv3.framework.refs import Ref
 from automationv3.framework.language import is_text
@@ -148,6 +148,7 @@ class Connector(Ref):
     (e.g. "vm.eps.soc"). Scripts make one with (connector "path")."""
 
 
+@refs.constructs(Connector)
 def make_connector(path):
     """(connector "vm.eps"): a connector of the Vehicle Manager"""
     return Connector(path)

@@ -13,13 +13,17 @@ import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from ..framework import cards, closure as closures, document, edn, lisp
+from ..framework import cards, closure as closures, document, edn, lisp, refs
 from ..framework.analysis import ERROR, KNOWN_FORMS, WARNING
 from ..framework.block import block_names, documented
 from ..framework.cards import RVT, SOURCE
-from ..framework.language import DIRECTIVES, PRECONDITION
+from ..framework.language import DEFINITIONS, DIRECTIVES, PRECONDITION, head
 
 BLOCK, FUNCTION, VARIABLE, KEYWORD = "block", "function", "variable", "keyword"
+REQUIREMENT = "requirement"
+REQ = re.compile(r":req:`([^`]+)`", re.IGNORECASE)
+REQ_OPEN = re.compile(r":req:`([^`]*)\Z", re.IGNORECASE)
+LITERALS = (str, int, float, bool, type(None))
 DELIMITERS = "()[]{}\"';,"
 PREFIX = re.compile(r"[^\s()\[\]{}\"';,]*\Z")
 DEFINITION = re.compile(r"\(\s*(def|defn)\s+([^\s()\[\]{}\"';,]+)(?:\s+(\[[^\]]*\]))?")
@@ -45,6 +49,49 @@ class Item:
     detail: str = ""
     doc: str = ""
     head: bool = False  # only makes sense first in a call
+
+
+@dataclass
+class Definition:
+    """A top-level def or defn, as written"""
+    name: str
+    form: list
+    path: str
+    line: int  # where it starts in its file
+    source: str  # its code
+
+
+@dataclass
+class Static:
+    """What a name is, as far as it can be told without running
+    anything: a literal, a ref, or a group of refs"""
+    kind: str  # "literal", "ref" or "group"
+    text: str = ""  # a literal, as written
+    ref_type: type = None
+    path: str = ""
+    members: list = None  # a group's: [(name, Static ref)]
+
+    def child(self, rest):
+        """What `name.rest` is, for a ref or a group"""
+        if self.kind == "ref":
+            return Static("ref", ref_type=self.ref_type, path=f"{self.path}.{rest}")
+        if self.kind == "group":
+            return Static("group", members=[(name, ref.child(rest)) for name, ref in self.members])
+        return None
+
+    def describe(self):
+        if self.kind == "literal":
+            return f"`{self.text}`"
+        if self.kind == "ref":
+            return f"{self.ref_type.__name__} ref `{self.path}`"
+        return "group of " + ", ".join(f"{name}: {ref.describe()}" for name, ref in self.members)
+
+
+@dataclass
+class Signature:
+    label: str
+    parameters: list  # their labels, as they appear in `label`
+    doc: str = ""
 
 
 class Frame:
@@ -117,9 +164,39 @@ def local_names(stack):
     return found
 
 
+def is_literal(form):
+    """A value that is what it says: a number, string, keyword, or a
+    collection of those"""
+    if isinstance(form, edn.Keyword):
+        return True
+    if isinstance(form, edn.Symbol):
+        return str(form) in ("true", "false", "nil")
+    if isinstance(form, (edn.Vector, dict, set, frozenset)):
+        items = list(form.items()) if isinstance(form, dict) else list(form)
+        return all(is_literal(i) for item in items
+                   for i in (item if isinstance(item, tuple) else (item,)))
+    return isinstance(form, LITERALS)
+
+
+def name_at(text, col):
+    """(name, start, end) of the name around `col` of a line, or None"""
+    start = end = col
+    while start > 0 and not text[start - 1].isspace() and text[start - 1] not in DELIMITERS:
+        start -= 1
+    while end < len(text) and not text[end].isspace() and text[end] not in DELIMITERS:
+        end += 1
+    return (text[start:end], start, end) if end > start else None
+
+
 class Service:
-    def __init__(self, root):
+    def __init__(self, root, requirements=None):
+        """`requirements` answers `find(id)` (a Requirement or None) and
+        `all()` (every Requirement of the context the root verifies; may
+        be empty when they can't be listed)"""
+        from ..framework.plugins import load_plugins
+        load_plugins()  # their blocks, functions and ref kinds
         self.root = Path(root).resolve()
+        self.requirements = requirements
         self.texts = {}  # the open documents: path -> text
         self.resolved = {}  # path -> the closure of its last check
 
@@ -149,6 +226,30 @@ class Service:
         text = self.texts[path]
         if PurePosixPath(path).suffix != ".rst":
             return []
+        return self.check_code(path, text) + [(path, p) for p in self.unknown_requirements(text)]
+
+    def requirement_refs(self, text):
+        """[(id, line, col, end col)] of the :req: references in prose"""
+        found = []
+        for card in cards.split(text):
+            if card.kind != cards.PROSE:
+                continue
+            for n, line in enumerate(card.source.splitlines()):
+                found += [(m.group(1).strip(), card.line - 1 + n, m.start(1), m.end(1))
+                          for m in REQ.finditer(line)]
+        return found
+
+    def unknown_requirements(self, text):
+        """Warnings for the :req: ids that aren't requirements, when the
+        requirements can be listed"""
+        known = {r.id for r in self.requirements.all()} if self.requirements else set()
+        if not known:
+            return []
+        return [Problem(WARNING, f"{id} isn't a requirement in the requirements this "
+                        "workspace verifies", line, col, line, end)
+                for id, line, col, end in self.requirement_refs(text) if id not in known]
+
+    def check_code(self, path, text):
         unread = self.unreadable(text)
         if unread:
             return [(path, problem) for problem in unread]
@@ -236,6 +337,9 @@ class Service:
         lines = text.splitlines()
         if line >= len(lines):
             return []
+        if REQ_OPEN.search(lines[line][:col]):
+            return [Item(r.id, REQUIREMENT, " ".join((r.text or "").split())[:90], r.text or "")
+                    for r in (self.requirements.all() if self.requirements else [])]
         code = self.code_before(text, lines, line, col)
         if code is None:
             return []
@@ -302,4 +406,207 @@ class Service:
                 add(Item(name, VARIABLE, "UUT handle"))
             for symbol in dict.fromkeys(s for v in closure.variations for s in v.symbols):
                 add(Item(str(symbol), VARIABLE, "variation value"))
+        return found
+
+    # What names are
+
+    def sources(self, path):
+        """The files whose definitions `path` sees, in load order"""
+        closure = self.resolved.get(path)
+        chain = [p for p in closures.ancestors(path) if p != path and self.text(p) is not None]
+        imports = [p for p in (closure.imports if closure else []) if p not in chain]
+        return chain + imports + [path]
+
+    def definitions(self, path):
+        """{name: Definition} for the top-level definitions `path` sees:
+        a later file's replaces an earlier one's. A block that can't
+        all be read gives what comes before the trouble."""
+        found = {}
+        for source in self.sources(path):
+            for card in cards.split(self.text(source) or ""):
+                if card.kind != RVT:
+                    continue
+                # what reads, of a block still being typed
+                forms = edn.read_all_with_spans(card.code, readable=True)
+                code = card.code.splitlines()
+                for form, span in forms:
+                    if (head(form) in DEFINITIONS and len(form) >= 2
+                            and isinstance(form[1], edn.Symbol) and span is not None):
+                        written = "\n".join(code[span.line:span.end_line + 1])
+                        found[str(form[1])] = Definition(
+                            str(form[1]), form, source, card.code_line - 1 + span.line, written)
+        return found
+
+    def static(self, name, definitions, seen=()):
+        """What `name` is, if a literal, an alias of one, a ref or a
+        group says so; None when only a run can tell"""
+        if name in seen:
+            return None
+        if name in definitions:
+            form = definitions[name].form
+            if head(form) != "def" or len(form) != 3:
+                return None
+            return self.static_value(form[2], definitions, seen + (name,))
+        base, _, rest = name.partition(".")
+        if rest and base in definitions:
+            found = self.static(base, definitions, seen)
+            return found.child(rest) if found is not None else None
+        return None
+
+    def static_value(self, form, definitions, seen):
+        if is_literal(form):
+            return Static("literal", edn.writes(form))
+        if isinstance(form, edn.Symbol):
+            return self.static(str(form), definitions, seen)
+        if not isinstance(form, list) or not form or not isinstance(form[0], edn.Symbol):
+            return None
+        function = {str(k): v for k, v in lisp.global_env.items()}.get(str(form[0]))
+        # A function that makes refs: the kind of ref itself, or one marked
+        # with refs.constructs
+        ref_type = function if isinstance(function, type) and issubclass(function, refs.Ref) \
+            else getattr(function, "ref_type", None)
+        if ref_type is not None and len(form) == 2 and isinstance(form[1], str):
+            return Static("ref", ref_type=ref_type, path=form[1])
+        if str(form[0]) == "group" and len(form) > 1:
+            members = []
+            for item in form[1:]:
+                found = self.static_value(item, definitions, seen)
+                if found is None or found.kind == "literal":
+                    return None
+                if found.kind == "group":
+                    members += found.members
+                else:
+                    members.append((str(item), found))
+            return Static("group", members=members)
+        return None
+
+    # Hover
+
+    def hover(self, path, line, col):
+        """(markdown, start col, end col) for what is at a place, or None"""
+        text = self.text(path)
+        if text is None or PurePosixPath(path).suffix != ".rst":
+            return None
+        lines = text.splitlines()
+        if line >= len(lines):
+            return None
+        for m in REQ.finditer(lines[line]):
+            if m.start() <= col <= m.end():
+                return self.requirement_hover(m.group(1).strip()), m.start(1), m.end(1)
+        at = name_at(lines[line], col)
+        if at is None:
+            return None
+        name, start, end = at
+        code = self.code_before(text, lines, line, end)  # the name included: it may bind itself
+        stack = scan(code) if code is not None else None
+        if stack is None or name.startswith(":"):
+            return None
+        found = self.describe(path, name, stack)
+        return (found, start, end) if found else None
+
+    def requirement_hover(self, id):
+        found = self.requirements.find(id) if self.requirements else None
+        if found is None or not found.text:
+            return f"**{id}** isn't a requirement in the requirements this workspace verifies." \
+                if self.requirements else None
+        where = f" ({found.spec})" if found.spec else ""
+        return f"**{id}**{where}\n\n{found.text.strip()}"
+
+    def describe(self, path, name, stack):
+        """Markdown saying what `name` is in a block of `path`"""
+        if name in local_names(stack):
+            return f"`{name}`: a parameter or a `let` name"
+        definitions = self.definitions(path)
+        if name in definitions:
+            d = definitions[name]
+            where = "this script" if d.path == path else d.path
+            parts = [f"```clojure\n{d.source}\n```", f"Defined in {where}."]
+            value = self.static(name, definitions)
+            if value is not None and value.kind != "literal":
+                parts.insert(1, f"`{name}` is a {value.describe()}.")
+            elif value is not None and not is_literal(d.form[2]):
+                parts.insert(1, f"`{name}` is {value.describe()}.")
+            return "\n\n".join(parts)
+        if "." in name:
+            value = self.static(name, definitions)
+            if value is not None:
+                return f"`{name}` is a {value.describe()}."
+            name = name.partition(".")[0]  # say what it is a path of
+            if name in definitions:
+                return self.describe(path, name, stack)
+        closure = self.resolved.get(path)
+        if closure is not None and name in closure.uuts:
+            return f"`{name}`: the handle of the UUT `{name}`, bound when the script runs."
+        if closure is not None and closure.variations and name in closure.variations[0].symbols:
+            at = closure.variations[0].symbols.index(name)
+            rows = "\n".join(f"- {v.name}: `{edn.writes(v.forms[at])}`" for v in closure.variations)
+            return f"`{name}`: a variation value.\n\n{rows}"
+        from ..framework.plugins import load_plugins
+        load_plugins()
+        if name in block_names():
+            block = documented(name)
+            return f"```clojure\n{block.usage()}\n```\n\n{block.doc()}".strip()
+        builtins = {str(k): v for k, v in lisp.global_env.items()}
+        if name in builtins:
+            doc = (getattr(builtins[name], "__doc__", None) or "").strip().split("\n\n")[0]
+            kind = "function" if callable(builtins[name]) else "value"
+            return f"`{name}`: a builtin {kind}." + (f"\n\n{' '.join(doc.split())}" if doc else "")
+        return None
+
+    # Signatures
+
+    def signatures(self, path, line, col):
+        """([Signature], which one, which parameter) for the call the
+        place is in, or None"""
+        text = self.text(path)
+        if text is None or PurePosixPath(path).suffix != ".rst":
+            return None
+        lines = text.splitlines()
+        if line >= len(lines):
+            return None
+        code = self.code_before(text, lines, line, col)
+        if code is None:
+            return None
+        stack = scan(code[:PREFIX.search(code).start()])
+        definitions = None
+        for frame in reversed(stack or []):
+            if frame.char != "(" or not frame.items or not isinstance(frame.items[0], str):
+                continue
+            name, given = frame.items[0], len(frame.items) - 1
+            found = self.signatures_of(path, name)
+            if not found:
+                continue
+            fits = [n for n, s in enumerate(found)
+                    if given < len(s.parameters) or (s.parameters and s.parameters[-1].endswith("..."))]
+            which = fits[0] if fits else 0
+            return found, which, max(min(given, len(found[which].parameters) - 1), 0)
+        return None
+
+    def signatures_of(self, path, name):
+        from ..framework.plugins import load_plugins
+        load_plugins()
+        if name in block_names():
+            block = documented(name)
+            doc = block.doc().split("\n\n")[0]
+            return [Signature(usage.strip(), usage.strip().strip("()").split()[1:], doc)
+                    for usage in block.usage().splitlines() if usage.strip()]
+        definition = self.definitions(path).get(name)
+        if definition is None:
+            return []
+        form = definition.form
+        function = form if head(form) == "defn" else form[2] if len(form) == 3 else None
+        if head(function) not in ("defn", "fn"):
+            return []
+        rest = [i for i in function[2 if head(function) == "defn" else 1:]]
+        arities = [rest[0]] if rest and isinstance(rest[0], edn.Vector) else \
+            [a[0] for a in rest if isinstance(a, list) and a and isinstance(a[0], edn.Vector)]
+        found = []
+        for params in arities:
+            labels, variadic = [], False
+            for param in params:
+                if str(param) == "&":
+                    variadic = True
+                else:
+                    labels.append(str(param) + ("..." if variadic else ""))
+            found.append(Signature(f"({' '.join([name] + labels)})", labels, f"Defined in {definition.path}."))
         return found

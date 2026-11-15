@@ -5,7 +5,7 @@
 // Rebuild after changing this file: npm install && npm run build
 import { EditorState, Compartment } from "@codemirror/state";
 import {
-  EditorView, keymap, drawSelection, highlightSpecialChars, placeholder, tooltips,
+  EditorView, keymap, drawSelection, highlightSpecialChars, placeholder, tooltips, hoverTooltip,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import {
@@ -48,8 +48,9 @@ const highlight = HighlightStyle.define([
 const languages = { rvt: () => StreamLanguage.define(clojure) };
 
 // An editor in `parent`. options: text; language ("rvt" for script code,
-// else plain text); onChange(text); keys ([{key, run}], tried first);
-// placeholder; extensions (more CodeMirror extensions)
+// else plain text); onChange(text); onMove(view), called when the text
+// or the cursor changes; keys ([{key, run}], tried first); placeholder;
+// extensions (more CodeMirror extensions)
 function editor(parent, options) {
   options = options || {};
   const extensions = [
@@ -60,6 +61,7 @@ function editor(parent, options) {
     EditorView.lineWrapping, theme, tooltips({ parent: document.body }),
     EditorView.updateListener.of((update) => {
       if (update.docChanged && options.onChange) options.onChange(update.state.doc.toString());
+      if ((update.docChanged || update.selectionSet) && options.onMove) options.onMove(update.view);
     }),
   ];
   if (options.language && languages[options.language]) {
@@ -75,4 +77,5 @@ function editor(parent, options) {
 
 export {
   editor, EditorState, EditorView, Compartment, keymap, autocompletion, linter, setDiagnostics,
+  hoverTooltip,
 };

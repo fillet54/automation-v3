@@ -37,12 +37,12 @@ def write_message(stream, message):
     stream.flush()
 
 
-def serve(root=None, stdin=None, stdout=None):
+def serve(root=None, stdin=None, stdout=None, requirements=None):
     """Answer messages until the client says exit, or hangs up. Returns
     the process's exit status."""
     stdin = stdin or sys.stdin.buffer
     stdout = stdout or sys.stdout.buffer
-    server = Server(root)
+    server = Server(root, requirements)
     shut_down = False
     while not server.exited:
         message = read_message(stdin)

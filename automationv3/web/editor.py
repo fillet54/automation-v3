@@ -39,6 +39,14 @@ FIELDS = ("kind", "source", "index", "text", "title", "definitions", "table",
 MAX_TABS = 40
 
 
+def script_version():
+    """A number that changes when the editor's scripts do, for their
+    addresses: a browser must not pair an old script with a new server"""
+    folder = Path(current_app.static_folder) / "js"
+    return max(int((folder / name).stat().st_mtime)
+               for name in ("editor.js", "codemirror.bundle.js"))
+
+
 def editable():
     """Files are edited where they are worktrees on this machine, and
     never on the central server"""
@@ -288,6 +296,32 @@ LSP_SESSIONS = 40
 _lsp_lock = threading.Lock()
 
 
+class PageRequirements:
+    """The requirements the language server answers from, for the
+    request being handled: those of the context its workspace verifies.
+    The local client asks the central server for one at a time, and
+    can't list them."""
+
+    def __init__(self):
+        self.key, self.listed = None, []
+
+    def find(self, id):
+        from .app import requirement_lookup
+        return requirement_lookup(id)
+
+    def all(self):
+        from flask import g
+        from ..services.requirements import models
+        from .app import requirement_key
+        if current_app.config.get("REMOTE_REQUIREMENTS") is not None:
+            return []
+        key = requirement_key()
+        if key != self.key:
+            self.key = key
+            self.listed = models.find_all(get_db(), context=g.get("requirement_context"))
+        return self.listed
+
+
 def lsp_session(ws, session):
     """(the Server of a page's session, its lock)"""
     from ..lsp.server import Server
@@ -300,7 +334,8 @@ def lsp_session(ws, session):
         if key not in sessions:
             while len(sessions) >= LSP_SESSIONS:  # the longest idle goes
                 del sessions[min(sessions, key=lambda k: sessions[k][2])]
-            sessions[key] = (Server(ws.root), threading.Lock(), now)
+            sessions[key] = (Server(ws.root, lambda root: PageRequirements()),
+                             threading.Lock(), now)
         server, lock, _ = sessions[key]
         sessions[key] = (server, lock, now)
     return server, lock

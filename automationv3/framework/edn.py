@@ -266,13 +266,20 @@ def read_all(text):
     return [form for form, _ in read_all_with_spans(text)]
 
 
-def read_all_with_spans(text):
+def read_all_with_spans(text, readable=False):
     """Every form in `text`, in order, each with its Span (a number or a
-    string can't carry its own)"""
+    string can't carry its own). With `readable`, text that can't all
+    be read gives the forms before the first that can't, instead of
+    raising."""
     reader = _Reader(text)
     found = []
     while True:
-        form, span = _read_spanned(reader)
+        try:
+            form, span = _read_spanned(reader)
+        except ParseError:
+            if readable:
+                return found
+            raise
         if form is _EOF:
             return found
         found.append((form, span))

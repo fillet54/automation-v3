@@ -323,6 +323,21 @@ when it ends. Verify, Wait and ``same?`` read refs through whichever Read
 accepts them, so a plugin never overrides those. The Vehicle Manager sample
 (``automationv3/plugins/vm/blocks.py``) is a worked example.
 
+The editor says what a ref is without running anything: hovering
+``nav.time`` after ``(def cpu1 (my-system/connector "sys.cpu1"))`` and
+``(def nav cpu1.app.nav)`` shows a Connector at ``sys.cpu1.app.nav.time``.
+It knows a function makes refs when the function is the kind of ref itself,
+as above. A function that wraps the class says so:
+
+.. code-block:: python
+
+   from automationv3.framework import refs
+
+
+   @refs.constructs(Connector)
+   def make_connector(path):
+       return Connector(path)
+
 edn values in Python
 --------------------
 

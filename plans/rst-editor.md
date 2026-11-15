@@ -63,7 +63,7 @@ see update the docs in the same commit.
 - [x] **3. Language server.** Transport-free core; `automation-v3 lsp`
   (stdio); the two web routes; document sync from the tab's derived text;
   diagnostics and name completion in the cards.
-- [ ] **4. More language features.** Hover and signature help, `:req:`
+- [x] **4. More language features.** Hover and signature help, `:req:`
   ids, static values on hover.
 - [ ] **5. Ref paths.** The `children(path)` hook, completion, hover,
   "no such path".
@@ -143,3 +143,26 @@ see update the docs in the same commit.
   was made are hidden once the server answers (`.ed-doc.is-live`).
 - **A collapsed block** (definitions, titled) toggles when clicked; use
   the card's Edit button, or expand it and click its code.
+- **Step 4 (hover, signatures, requirement ids, static values).** All in
+  `lsp/service.py` (`hover`, `signatures`, `static`, `unknown_requirements`)
+  and `lsp/server.py` (`textDocument/hover`, `textDocument/signatureHelp`).
+- **Static values** are a `Static`: a literal, a ref (kind and path) or a
+  group. A function makes refs when it is a Ref subclass or is marked with
+  `refs.constructs(RefType)`; nothing is called. Step 5 builds on
+  `Static.ref_type` and `Static.path`.
+- **Requirements reach the service through a provider** with `find(id)`
+  and `all()`: `PageRequirements` (web/editor.py) for the page's request,
+  `lsp/requirements.py` for stdio (the database at `--dbpath`, if there).
+  Unknown ids are only flagged when `all()` lists some, so not in the
+  local client, whose central server answers one id at a time.
+- **Definitions are read from what reads** of a block
+  (`edn.read_all_with_spans(readable=True)`), so names defined earlier in
+  a block still being typed hover and resolve.
+- **The text sent to the server keeps the spaces being typed** at the end
+  of an edited card (`current(card, true)`, and no `withoutTail` for fresh
+  cards in `derive`): otherwise the cursor is past the end of its line
+  there and the argument count is off.
+- **Signature help is a line under the block's editor**, not a tooltip.
+- **The editor's script addresses carry a version** (`editor.script_version`,
+  the files' mtime), so a browser doesn't pair an old script with a new
+  server.

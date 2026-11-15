@@ -142,6 +142,118 @@ class TestService(Rooted):
         self.assertEqual(local_names(scan("(fn [a] a) (b ")), [])
 
 
+REFS = """\
+Refs
+====
+See :req:`R-1` and :req:`R-9`.
+
+.. rvt::
+   :definitions:
+
+   (def cpu1 (connector "sys.cpu1"))
+   (def cpu2 (connector "sys.cpu2"))
+   (def nav cpu1.app.nav)
+   (def cpus (group cpu1 cpu2))
+   (def minimum 10)
+   (def low minimum)
+   (def twice (double minimum))
+   (defn within? ([v lo hi] (and (>= v lo) (<= v hi))) ([v & more] true))
+
+.. rvt::
+
+   (Verify nav.time within? low 20)
+   (Verify cpus.app.mode = :run)
+"""
+
+
+class Listed:
+    """Requirements, as the service asks for them"""
+
+    def __init__(self, *found):
+        self.found = found
+
+    def all(self):
+        return list(self.found)
+
+    def find(self, id):
+        return next((r for r in self.found if r.id == id), None)
+
+
+class TestWhatNamesAre(Rooted):
+    def setUp(self):
+        super().setUp()
+        from automationv3.framework.requirement import Requirement
+        self.service = Service(self.root, Listed(Requirement("R-1", "The brakes shall *hold*.", spec="SRS")))
+        self.service.texts["BRA/tc.rst"] = REFS
+        self.lines = REFS.splitlines()
+
+    def hover(self, needle, line=None, inside=1):
+        line = line if line is not None else max(n for n, l in enumerate(self.lines) if needle in l)
+        found = self.service.hover("BRA/tc.rst", line, self.lines[line].index(needle) + inside)
+        return found[0] if found else None
+
+    def test_literals_and_aliases(self):
+        self.assertIn("`low` is `10`.", self.hover("low"))
+        self.assertNotIn(" is ", self.hover("minimum", 11))  # the code says it already
+        self.assertNotIn(" is ", self.hover("twice", 13))  # only a run can tell
+
+    def test_refs_and_their_paths(self):
+        self.assertEqual(self.hover("nav.time"), "`nav.time` is a Connector ref `sys.cpu1.app.nav.time`.")
+        self.assertIn("`nav` is a Connector ref `sys.cpu1.app.nav`.", self.hover("nav ", 9))
+        self.assertEqual(self.hover("cpus.app.mode"),
+                         "`cpus.app.mode` is a group of cpu1: Connector ref `sys.cpu1.app.mode`, "
+                         "cpu2: Connector ref `sys.cpu2.app.mode`.")
+
+    def test_definitions_blocks_and_builtins(self):
+        self.assertIn("(defn within?", self.hover("within?"))
+        self.assertIn("Defined in this script.", self.hover("within?"))
+        self.assertIn("(defn double [x] (* 2 x))", self.hover("double", 13))
+        self.assertIn("Defined in core.rst.", self.hover("double", 13))
+        self.assertIn("(Verify actual predicate args...)", self.hover("Verify"))
+        self.assertIn("builtin function", self.hover(">=", 14))
+        self.assertIn("a parameter", self.hover("lo ", 14))
+        self.assertIsNone(self.hover(":run"))
+        self.assertIsNone(self.hover("Refs", 0))
+
+    def test_handles_and_variation_values(self):
+        text = REFS + "   (variations \"speed\" [\"slow\" [1] \"fast\" [9]])\n   (Verify speed > 0)\n   (.mode demo)\n"
+        self.service.texts["BRA/tc.rst"] = text
+        self.lines = text.splitlines()
+        self.service.problems()
+        self.assertIn("- slow: `1`\n- fast: `9`", self.hover("speed >"))
+        self.assertIn("handle of the UUT", self.hover("demo)"))
+
+    def test_requirements(self):
+        self.assertEqual(self.hover("R-1"), "**R-1** (SRS)\n\nThe brakes shall *hold*.")
+        self.assertIn("isn't a requirement", self.hover("R-9"))
+        (problem,) = self.service.problems()["BRA/tc.rst"]
+        self.assertEqual((problem.severity, problem.line, problem.col, problem.end_col), ("warning", 2, 25, 28))
+        self.assertIn("R-9 isn't a requirement", problem.message)
+        (item,) = self.service.complete("BRA/tc.rst", 2, 12)
+        self.assertEqual((item.label, item.detail), ("R-1", "The brakes shall *hold*."))
+
+    def test_requirements_are_not_checked_when_there_are_none(self):
+        self.service.requirements = Listed()
+        self.assertEqual(self.service.problems()["BRA/tc.rst"], [])
+        self.service.requirements = None
+        self.assertEqual(self.service.problems()["BRA/tc.rst"], [])
+        self.assertIsNone(self.hover("R-1"))
+
+    def signatures(self, line, before):
+        found = self.service.signatures("BRA/tc.rst", line, len(before))
+        return ([s.label for s in found[0]], found[1], found[2]) if found else None
+
+    def test_signatures(self):
+        self.assertEqual(self.signatures(18, "   (Verify nav.time within? "),
+                         (["(Verify actual predicate args...)", "(Verify value)"], 0, 2))
+        self.assertEqual(self.signatures(18, "   (Verify nav.time within? low 20"), 
+                         (["(Verify actual predicate args...)", "(Verify value)"], 0, 2))
+        self.service.texts["BRA/tc.rst"] = REFS + "   (within? 1 2 3 4"
+        self.assertEqual(self.signatures(20, "   (within? 1 "), (["(within? v lo hi)", "(within? v more...)"], 0, 1))
+        self.assertEqual(self.signatures(20, "   (within? 1 2 3 "), (["(within? v lo hi)", "(within? v more...)"], 1, 1))
+        self.assertIsNone(self.signatures(2, "See "))
+
+
 class TestServer(Rooted):
     def setUp(self):
         super().setUp()
@@ -201,6 +313,21 @@ class TestServer(Rooted):
         self.assertEqual(items["Verify"]["kind"], 7)
         self.assertTrue(items["Verify"]["sortText"] < items["double"]["sortText"])
 
+    def test_hover_and_signature_help(self):
+        self.open(SCRIPT)
+        (answer,) = self.server.handle(request(2, "textDocument/hover", textDocument={"uri": self.uri},
+                                               position={"line": 12, "character": 13}))
+        self.assertIn("(defn double [x] (* 2 x))", answer["result"]["contents"]["value"])
+        self.assertEqual(answer["result"]["range"], {"start": {"line": 12, "character": 12},
+                                                     "end": {"line": 12, "character": 18}})
+        (nothing,) = self.server.handle(request(3, "textDocument/hover", textDocument={"uri": self.uri},
+                                                position={"line": 2, "character": 3}))
+        self.assertIsNone(nothing["result"])
+        (answer,) = self.server.handle(request(4, "textDocument/signatureHelp", textDocument={"uri": self.uri},
+                                               position={"line": 12, "character": 19}))
+        self.assertEqual(answer["result"]["signatures"][0]["label"], "(double x)")
+        self.assertEqual(answer["result"]["activeParameter"], 0)
+
     def test_columns_are_utf16(self):
         self.assertEqual(utf16("a😀b", 2), 3)
         self.assertEqual(characters("a😀b", 3), 2)
@@ -209,7 +336,7 @@ class TestServer(Rooted):
         self.assertEqual(diagnostic["range"]["start"]["character"], 18)  # 17 characters in
 
     def test_unknown_methods(self):
-        (answer,) = self.server.handle(request(3, "textDocument/hover"))
+        (answer,) = self.server.handle(request(3, "textDocument/definition"))
         self.assertEqual(answer["error"]["code"], -32601)
         self.assertEqual(self.server.handle(notify("workspace/didChangeConfiguration")), [])
 

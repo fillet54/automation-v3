@@ -106,6 +106,23 @@ class RefGroup:
         return self.label
 
 
+def constructs(ref_type):
+    """Marks a function scripts call to make a ref, with the kind of ref
+    it makes::
+
+        @refs.constructs(Connector)
+        def make_connector(path):
+            return Connector(path)
+
+    The language server reads the mark to know that
+    `(def cpu1 (connector "sys.cpu1"))` binds a Connector at sys.cpu1,
+    without calling anything."""
+    def mark(function):
+        function.ref_type = ref_type
+        return function
+    return mark
+
+
 def is_ref(value):
     """A ref or a group of them"""
     return isinstance(value, (Ref, RefGroup))

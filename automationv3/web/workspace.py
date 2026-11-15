@@ -124,7 +124,7 @@ def index(id):
     return render_template(
         "workspace.html", workspaces=list(worktrees()), workspace=ws,
         report=target_report(), tabs=tabs, active_tab=active if active in tabs else None,
-        editable=editor.editable(),
+        editable=editor.editable(), editor_version=editor.script_version(),
     )
 
 

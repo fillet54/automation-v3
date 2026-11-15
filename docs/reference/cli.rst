@@ -44,7 +44,7 @@ Command line
        automation-v3 requirements history ID [--dbpath PATH]
        automation-v3 requirements diff FROM TO [--spec KEY]
                             [--subsystem NAME] [--dbpath PATH]
-       automation-v3 lsp [--scripts PATH]
+       automation-v3 lsp [--scripts PATH] [--dbpath PATH]
        automation-v3 (-h | --help)
 
    Commands:
@@ -91,9 +91,10 @@ Command line
                               (as of import N), set:NAME (a baseline set)
                               or SPEC@BASELINE
        lsp                    the language server for scripts, on stdin and
-                              stdout: errors as you type and completion, in
-                              any editor that speaks the Language Server
-                              Protocol
+                              stdout: errors as you type, completion, hover
+                              and signature help, in any editor that speaks
+                              the Language Server Protocol. Requirement ids
+                              are read from the database, if it is there
 
    Options:
        -h --help              show this help message and exit
@@ -251,7 +252,11 @@ Runs the language server for scripts on stdin and stdout, which is how
 editors start one. It reports the same errors and warnings a script's page
 shows, as you type, and completes the names a block can use: blocks,
 builtins, the definitions of the script and its ``core.rst`` files, UUT
-handles and variation values. The web app's editor uses the same server.
+handles and variation values. Hovering a name says what it is, and typing a
+call shows how it is called. In prose, ``:req:`` ids complete, show the
+requirement's text on hover, and are flagged when they aren't requirements:
+these come from the database at ``--dbpath``, when there is one. The web
+app's editor uses the same server.
 
 The scripts root is the ``rvts`` folder of the folder the editor has open,
 or that folder itself when it has none; ``--scripts`` names another. See
