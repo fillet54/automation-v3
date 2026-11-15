@@ -209,3 +209,11 @@ see update the docs in the same commit.
 - **Not done, on purpose:** problems on a closed card are a list under
   the card, not a marker on the step it is about; folders in the tree
   don't add up their files' counts.
+- **The card chrome was replaced (2026-11-14)**, after the plan was done:
+  no hover toolbar or add bars. Each card has a gutter to its left, hidden
+  until the card is pointed at: `..` opens its menu (`openMenu`, one
+  `.ed-pop` element on the body) and `::` drags it. Opening a card shows
+  only its text; a block's title, flags and variations are changed with
+  `change(card, patch)`, from the menu or, for titles and headings, in
+  place on a double click (`editTitle`). Variations are toggles (All, or
+  some) and only show when the script declares variations.

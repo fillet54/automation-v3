@@ -340,45 +340,54 @@
     return card;
   }
 
-  function adder() {
-    var bar = el("div", "ed-add");
-    bar.appendChild(button("+ Text", "add-prose", "ui-btn--ghost", "Add a section of text here"));
-    bar.appendChild(button("+ Block", "add-rvt", "ui-btn--ghost", "Add a block of steps here"));
-    return bar;
+  // The variations a script declares
+  function declared(doc) {
+    try { return JSON.parse(doc.dataset.variations || "[]"); } catch (e) { return []; }
   }
 
-  // Every card's tools, and a way to add cards at the top of the document
-  // and of each variant
+  // Every card's gutter, and a way to start in whatever holds no card
   function decorateAll(doc) {
     all(".ed-card", doc).forEach(decorate);
-    if (doc.dataset.plain !== "true" && !$(":scope > .ed-add", doc)) doc.insertBefore(adder(), doc.firstChild);
+    empties(doc);
   }
 
+  // A card's gutter, left of it and hidden until the card is pointed at:
+  // ".." opens its menu, "::" drags it
   function decorate(card) {
-    if ($(":scope > .ed-card__tools", card)) return card;
+    if ($(":scope > .ed-gutter", card)) return card;
     var doc = card.closest("[data-ed-doc]");
-    var plain = doc && doc.dataset.plain === "true";
-    var tools = el("div", "ed-card__tools");
-    if (!plain) {
-      var grip = el("button", "ui-btn ui-btn--sm ui-btn--ghost ed-grip", "⠿");
-      grip.type = "button";
-      grip.title = "Drag to move";
-      grip.setAttribute("aria-label", "Drag to move");
-      grip.dataset.edGrip = "";
-      tools.appendChild(grip);
-    }
-    tools.appendChild(button("Edit", "edit", "ui-btn--ghost", isVariant(card) ? "Change which variations it is for" : "Edit this part"));
-    if (!plain) {
-      tools.appendChild(button("↑", "up", "ui-btn--ghost", "Move up"));
-      tools.appendChild(button("↓", "down", "ui-btn--ghost", "Move down"));
-      if (!isVariant(card)) tools.appendChild(button("Variant", "wrap", "ui-btn--ghost", "Only for some variations: put it in a variant"));
-      else tools.appendChild(button("Unwrap", "unwrap", "ui-btn--ghost", "For every variation again: take out what it holds"));
-      tools.appendChild(button("Delete", "delete", "ui-btn--ghost", isVariant(card) ? "Delete it and what it holds" : "Delete this part"));
-      card.appendChild(adder());
-      if (isVariant(card) && !$(":scope > .ed-add", bodyOf(card))) bodyOf(card).insertBefore(adder(), bodyOf(card).firstChild);
-    }
-    card.insertBefore(tools, card.firstChild);
+    if (doc && doc.dataset.plain === "true") return card;
+    var gutter = el("div", "ed-gutter");
+    var menu = el("button", "ed-gutter__btn", "..");
+    menu.type = "button";
+    menu.dataset.edMenu = "";
+    menu.title = "Add, change or delete";
+    menu.setAttribute("aria-label", "Add, change or delete");
+    menu.setAttribute("aria-haspopup", "menu");
+    var grip = el("button", "ed-gutter__btn ed-grip", "::");
+    grip.type = "button";
+    grip.dataset.edGrip = "";
+    grip.title = "Drag to move";
+    grip.setAttribute("aria-label", "Drag to move");
+    gutter.appendChild(menu);
+    gutter.appendChild(grip);
+    card.insertBefore(gutter, card.firstChild);
     return card;
+  }
+
+  // A document or a variant that holds no card offers to start one
+  function empties(doc) {
+    if (!doc || doc.dataset.plain === "true" || doc.dataset.editable !== "true") return;
+    [doc].concat(all(".ed-variant__body", doc)).forEach(function (container) {
+      var holds = cardsOf(container).length, offer = $(":scope > .ed-empty", container);
+      if (holds && offer) offer.remove();
+      if (!holds && !offer) {
+        offer = el("div", "ed-empty");
+        offer.appendChild(button("Add text", "add-prose", "ui-btn--ghost"));
+        offer.appendChild(button("Add steps", "add-rvt", "ui-btn--ghost"));
+        container.appendChild(offer);
+      }
+    });
   }
 
   function dirty(path) {
@@ -387,6 +396,7 @@
     keepDraft(path);
     say("Unsaved edits");
     drawTabs();
+    empties(docOf(path));
     lspSync(path);
   }
 
@@ -406,7 +416,8 @@
   function rebuild(path, kept) {
     var st = states[path], doc = docOf(path);
     all(".ed-card", doc).forEach(function (card) { if (card._edit) card._edit.view.destroy(); });
-    all(":scope > .ed-card, :scope > .ed-add", doc).forEach(function (node) { node.remove(); });
+    closeMenu();
+    all(":scope > .ed-card, :scope > .ed-empty", doc).forEach(function (node) { node.remove(); });
     restore(JSON.parse(kept), doc);
     decorateAll(doc);
     st.dirty = st.isNew || kept !== st.saved;
@@ -656,8 +667,7 @@
         item.appendChild(document.createTextNode(" " + p.message));
         list.appendChild(item);
       });
-      var after = $(":scope > .ed-add", card);
-      card.insertBefore(list, after);
+      viewOf(card).after(list);
     });
     var errors = problems.filter(function (p) { return p.severity === 1; }).length;
     if (errors !== st.errors) { st.errors = errors; drawTabs(); }
@@ -853,56 +863,6 @@
 
   // Editing a card
 
-  function field(card, name) { return $(':scope > .ed-card__edit [data-f="' + name + '"]', card); }
-
-  // The variations a script declares, as buttons that add or take one
-  // out of a variations field
-  function chips(card, input) {
-    var doc = card.closest("[data-ed-doc]"), names = [];
-    try { names = JSON.parse(doc.dataset.variations || "[]"); } catch (e) { names = []; }
-    var box = el("span", "ed-chips");
-    if (!names.length) return box;
-    function chosen() { return input.value.split(",").map(function (v) { return v.trim(); }).filter(Boolean); }
-    function draw() {
-      all(".ed-chip", box).forEach(function (chip) {
-        chip.classList.toggle("is-on", chosen().indexOf(chip.dataset.name) >= 0);
-        chip.setAttribute("aria-pressed", chip.classList.contains("is-on") ? "true" : "false");
-      });
-    }
-    names.forEach(function (name) {
-      var chip = el("button", "ed-chip", name);
-      chip.type = "button";
-      chip.dataset.name = name;
-      chip.addEventListener("click", function () {
-        var now = chosen(), at = now.indexOf(name);
-        if (at >= 0) now.splice(at, 1); else now.push(name);
-        input.value = now.join(", ");
-        input.dispatchEvent(new Event("change"));
-        draw();
-      });
-      box.appendChild(chip);
-    });
-    input.addEventListener("input", draw);
-    draw();
-    return box;
-  }
-
-  function variationsInput(card, value, placeholder) {
-    var variations = el("input", "ui-input ui-input--mono ed-fields__variations");
-    variations.dataset.f = "variations";
-    variations.placeholder = placeholder;
-    variations.value = (value || []).join(", ");
-    variations.setAttribute("aria-label", "Only for these variations, separated by commas");
-    variations.title = "Only for these variations, separated by commas";
-    var only = el("label", "ed-fields__only");
-    only.appendChild(el("span", "ui-muted", "Only for"));
-    only.appendChild(variations);
-    var wrap = el("span", "ed-fields__variation-field");
-    wrap.appendChild(only);
-    wrap.appendChild(chips(card, variations));
-    return wrap;
-  }
-
   function foot(edit) {
     var row = el("div", "ed-card__foot");
     row.appendChild(button("Done", "done", "ui-btn--primary"));
@@ -912,53 +872,21 @@
     return row;
   }
 
-  function openCard(card, isNew, wrapping) {
+  // Open a card's text for editing: a block's code, a section's rst. What
+  // else a card has (a title, its variations) is changed where it shows,
+  // or from the card's menu.
+  function openCard(card, isNew) {
     if (card._edit) return;
-    editing(card.closest("[data-ed-doc]")).forEach(function (other) { if (other !== card && !other.contains(card)) closeCard(other, true); });
+    if (isVariant(card)) { openMenu(card); return; }
+    closeMenu();
+    editing(card.closest("[data-ed-doc]")).forEach(function (other) { if (other !== card) closeCard(other, true); });
     var data = card._card, rvt = data.kind === "rvt", path = pathOf(card);
     var edit = el("div", "ed-card__edit");
-    if (data.kind === "variant") {  // only which variations it is for
-      var row = el("div", "ed-fields");
-      row.appendChild(variationsInput(card, data.variations, "name the variations"));
-      edit.appendChild(row);
-      foot(edit);
-      card.insertBefore(edit, bodyOf(card));
-      card.classList.add("is-editing");
-      card._edit = { view: null, element: edit, isNew: !!isNew, wrapping: !!wrapping };
-      var input = field(card, "variations");
-      input.addEventListener("keydown", function (event) {
-        if (event.key === "Enter" || event.key === "Escape") { event.preventDefault(); closeCard(card, event.key === "Enter" || !wrapping); }
-      });
-      input.focus();
-      return;
-    }
-    if (rvt) {
-      var fields = el("div", "ed-fields");
-      var title = el("input", "ui-input ed-fields__title");
-      title.dataset.f = "title";
-      title.placeholder = "Title (optional): what these steps do";
-      title.value = data.title || "";
-      title.setAttribute("aria-label", "Block title");
-      fields.appendChild(title);
-      [["definitions", "Definitions", "Only defines things: shown collapsed, before the first step"],
-       ["table", "Table", "A table of rows, then the steps run for each row"]].forEach(function (f) {
-        var box = el("label", "ed-fields__flag");
-        var input = el("input");
-        input.type = "checkbox";
-        input.dataset.f = f[0];
-        input.checked = !!data[f[0]];
-        box.title = f[2];
-        box.appendChild(input);
-        box.appendChild(document.createTextNode(" " + f[1]));
-        fields.appendChild(box);
-      });
-      fields.appendChild(variationsInput(card, data.variations, "every variation"));
-      edit.appendChild(fields);
-    }
+    if (rvt && data.title) edit.appendChild(el("div", "ed-card__title", data.title));
     var holder = el("div", "ed-cm");
     edit.appendChild(holder);
     var bottom = foot(edit);
-    card.insertBefore(edit, $(":scope > .ed-add", card));
+    card.appendChild(edit);
     card.classList.add("is-editing");
     function done() { closeCard(card, true); return true; }
     var typing, signing;
@@ -978,33 +906,25 @@
       },
     });
     card._edit = { view: view, element: edit, isNew: !!isNew };
-    all("input", edit).forEach(function (input) {
-      input.addEventListener("change", function () { if (card._edit) lspSync(path); });
-    });
     view.focus();
     lspSync(path);
   }
 
   function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
-  function names(input) { return input.value.split(",").map(function (v) { return v.trim(); }).filter(Boolean); }
-
   // What a card being edited holds right now, as an edited card. `typed`
   // keeps the spaces at the end, so a place in the editor is the same
   // place in the file the language server is sent.
   function current(card, typed) {
     var data = card._card;
-    if (data.kind === "variant") {
-      return Object.assign({}, data, { source: null, variations: names(field(card, "variations")) });
-    }
     var text = card._edit.view.state.doc.toString();
     if (typed) text = text.replace(/\n+$/, "") + " ";
     var next = { kind: data.kind, source: null, index: null, level: data.level || 0 };
     if (data.kind === "rvt") {
       next.code = typed ? text : text.replace(/\s+$/, "");
-      next.title = field(card, "title").value.trim() || null;
-      next.definitions = field(card, "definitions").checked;
-      next.table = field(card, "table").checked;
-      next.variations = names(field(card, "variations"));
+      next.title = data.title || null;
+      next.definitions = !!data.definitions;
+      next.table = !!data.table;
+      next.variations = data.variations || [];
     } else {
       next.text = typed ? text : text.replace(/\s+$/, "");
     }
@@ -1016,45 +936,49 @@
       : data.kind === "variant" ? [data.variations || []] : [data.text || ""];
   }
 
+  // Draw a card again from what it is now
+  function redraw(card) {
+    var path = pathOf(card), doc = docOf(path), view = viewOf(card), data = card._card;
+    if (data.kind === "variant") { view.innerHTML = variantHead(data.variations || []); return Promise.resolve(); }
+    return post(base + "/editor/render", { card: data, plain: doc.dataset.plain === "true" })
+      .then(function (response) { return response.ok ? response.json() : Promise.reject(); })
+      .then(function (found) { view.innerHTML = found.html; })
+      .catch(function () {
+        view.textContent = "";
+        view.appendChild(el("pre", "ui-pre", data.kind === "rvt" ? data.code : data.text));
+      })
+      .then(function () { if (states[path]) keepDraft(path); });
+  }
+
+  // Change something of a card that isn't its text: a block's title, its
+  // variations, what kind of block it is
+  function change(card, patch) {
+    var path = pathOf(card);
+    remember(path);
+    card._card = Object.assign({}, card._card, patch, { source: null });
+    if (!isVariant(card)) card._card.index = null;
+    touch(card);
+    dirty(path);
+    return redraw(card);
+  }
+
   // Close a card's editor; with `commit`, keep what it holds
   function closeCard(card, commit) {
     var edit = card._edit, path = pathOf(card);
     if (!edit) return Promise.resolve();
     var data = card._card, next = current(card);
     var changed = !same(shownOf(data), shownOf(next));
-    var empty = data.kind === "prose" || data.kind === "source" ? !next.text.trim()
-      : data.kind === "variant" ? !next.variations.length : false;
-    setTimeout(function () { if (states[path]) lspSync(path); }, 0);
-    if (edit.wrapping && (!commit || empty)) {  // a new variant called off: as it was before
-      finish(card);
-      var st = states[path];
-      if (st.undo.length) rebuild(path, st.undo.pop());
-      return Promise.resolve();
-    }
+    var empty = data.kind !== "rvt" && !next.text.trim();
+    setTimeout(function () { if (states[path]) { lspSync(path); empties(docOf(path)); } }, 0);
     if ((!commit || empty) && edit.isNew) { finish(card); card.remove(); return Promise.resolve(); }
-    if (!commit || (!changed && !edit.wrapping)) { finish(card); return Promise.resolve(); }
-    if (!edit.wrapping) remember(path);  // a wrap remembered before it began
+    if (!commit || !changed) { finish(card); return Promise.resolve(); }
+    remember(path);
     finish(card);
-    if (empty && data.kind === "variant") { unwrap(card); dirty(path); return Promise.resolve(); }
     if (empty) { touch(card); card.remove(); dirty(path); return Promise.resolve(); }
     card._card = next;
     touch(card);
-    var view = viewOf(card);
-    if (data.kind === "variant") {
-      view.innerHTML = variantHead(next.variations);
-      dirty(path);
-      return Promise.resolve();
-    }
-    var doc = docOf(path);
     dirty(path);
-    return post(base + "/editor/render", { card: next, plain: doc.dataset.plain === "true" })
-      .then(function (response) { return response.ok ? response.json() : Promise.reject(); })
-      .then(function (found) { view.innerHTML = found.html; })
-      .catch(function () {
-        view.textContent = "";
-        view.appendChild(el("pre", "ui-pre", data.kind === "rvt" ? next.code : next.text));
-      })
-      .then(function () { if (states[path]) keepDraft(path); });
+    return redraw(card);
   }
 
   // Take a card's editor away
@@ -1066,31 +990,195 @@
     card.classList.remove("is-editing");
   }
 
-  function addCard(after, kind) {
+  // A new card in `container`, before `before` (null: at its end), open
+  function addCard(container, before, kind) {
     var data = kind === "rvt"
       ? { kind: "rvt", source: null, index: null, code: "", title: null, definitions: false, table: false, variations: [] }
       : { kind: "prose", source: null, index: null, text: "", level: 0 };
     var card = section(data, "");
-    after.parentNode.insertBefore(card, after.nextSibling);
+    container.insertBefore(card, before || $(":scope > .ed-empty", container));
     decorate(card);
     touch(card);
+    empties(card.closest("[data-ed-doc]"));
     openCard(card, true);
+  }
+
+  // A title changed where it shows: a block's, or a section's heading
+
+  var ADORNMENT = /^([=\-~`#"^+*:.'_])\1+\s*$/;
+
+  // A section's text under another heading
+  function retitle(text, title) {
+    var lines = text.replace(/^\n+/, "").split("\n");
+    var size = ADORNMENT.test(lines[0]) ? 3 : 2;
+    var bar = lines[size - 1][0].repeat(Math.max(title.length, 3));
+    return (size === 3 ? [bar, title, bar] : [title, bar]).concat(lines.slice(size)).join("\n");
+  }
+
+  function editTitle(card) {
+    var data = card._card, view = viewOf(card), rvt = data.kind === "rvt";
+    if (card._edit || $(".ed-inline", card)) return;
+    var shown = rvt ? $("details.titled > summary strong", view) : $(".ed-heading", view);
+    if (!rvt && !shown) return;
+    closeMenu();
+    var input = el("input", "ed-inline" + (rvt ? " ed-inline--block" : " ed-inline--h" + (data.level || 2)));
+    input.value = rvt ? data.title || "" : shown.textContent;
+    input.placeholder = rvt ? "What these steps do" : "Heading";
+    input.setAttribute("aria-label", rvt ? "Block title" : "Heading");
+    if (rvt) {
+      view.insertBefore(input, view.firstChild);
+      view.classList.add("is-titling");
+    } else {
+      shown.hidden = true;
+      shown.parentNode.insertBefore(input, shown);
+    }
+    var over = false;
+    function end(commit) {
+      if (over) return;
+      over = true;
+      var value = input.value.trim().split(/\s+/).filter(Boolean).join(" ");
+      input.remove();
+      view.classList.remove("is-titling");
+      if (shown) shown.hidden = false;
+      if (!commit) return;
+      if (rvt && value !== (data.title || "")) change(card, { title: value || null });
+      else if (!rvt && value && value !== shown.textContent) change(card, { text: retitle(data.text, value) });
+    }
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") { event.preventDefault(); end(true); }
+      else if (event.key === "Escape") { event.preventDefault(); end(false); }
+    });
+    input.addEventListener("blur", function () { end(true); });
+    input.focus();
+    input.select();
+  }
+
+  // A card's menu, from ".." in its gutter
+
+  var pop = null;
+
+  function closeMenu() {
+    if (!pop) return;
+    if (pop._card) pop._card.classList.remove("has-menu");
+    pop.remove();
+    pop = null;
+  }
+
+  // Which variations a card is only for: every one unless some are picked
+  function onlyFor(card, names) {
+    var box = el("div", "ed-only");
+    box.setAttribute("role", "group");
+    box.setAttribute("aria-label", "Only for these variations");
+    var variant = isVariant(card);
+    function chosen() { return (card._card.variations || []).filter(function (n) { return names.indexOf(n) >= 0; }); }
+    function draw() {
+      var now = chosen();
+      all("button", box).forEach(function (b) {
+        var on = b.dataset.name ? now.indexOf(b.dataset.name) >= 0 : !now.length;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+    function chip(label, name) {
+      var b = el("button", "ed-only__chip", label);
+      b.type = "button";
+      b.dataset.name = name;
+      b.addEventListener("click", function () {
+        var now = chosen(), at = now.indexOf(name);
+        if (!name) now = [];
+        else if (at >= 0) now.splice(at, 1);
+        else now.push(name);
+        if (variant && !now.length) return;  // a variant is for some
+        now = names.filter(function (n) { return now.indexOf(n) >= 0; });  // as the script declares them
+        change(card, { variations: now }).then(draw);
+        draw();
+      });
+      box.appendChild(b);
+    }
+    if (!variant) chip("All", "");
+    names.forEach(function (name) { chip(name, name); });
+    draw();
+    return box;
+  }
+
+  function openMenu(card) {
+    var again = pop && pop._card === card;
+    closeMenu();
+    if (again) return;
+    (card._edit ? closeCard(card, true) : Promise.resolve()).then(function () {
+      if (!card.isConnected) return;
+      var doc = card.closest("[data-ed-doc]"), data = card._card, names = declared(doc);
+      var rvt = data.kind === "rvt", variant = isVariant(card);
+      pop = el("div", "ed-pop");
+      pop._card = card;
+      pop.setAttribute("role", "menu");
+      function item(text, act, checked) {
+        var b = el("button", "ed-pop__item" + (act === "delete" ? " is-danger" : ""), text);
+        b.type = "button";
+        b.dataset.edAct = act;
+        b.setAttribute("role", checked == null ? "menuitem" : "menuitemcheckbox");
+        if (checked != null) b.setAttribute("aria-checked", checked ? "true" : "false");
+        pop.appendChild(b);
+      }
+      function rule() { pop.appendChild(el("div", "ed-pop__rule")); }
+      function heading(text) { pop.appendChild(el("div", "ed-pop__label", text)); }
+      heading("Add below");
+      var add = el("div", "ed-pop__row");
+      add.appendChild(button("Text", "add-prose", "ui-btn--secondary"));
+      add.appendChild(button("Steps", "add-rvt", "ui-btn--secondary"));
+      add.appendChild(el("span", "ui-spacer"));
+      add.appendChild(button("Text above", "add-prose-above", "ui-btn--ghost"));
+      add.appendChild(button("Steps above", "add-rvt-above", "ui-btn--ghost"));
+      pop.appendChild(add);
+      rule();
+      if (!variant) item(rvt ? "Edit the steps" : "Edit the text", "edit");
+      if (rvt) {
+        item(data.title ? "Rename" : "Give it a title", "title");
+        item("Only definitions", "toggle-definitions", !!data.definitions);
+        item("A table of rows", "toggle-table", !!data.table);
+      } else if (data.kind === "prose" && $(".ed-heading", viewOf(card))) {
+        item("Rename the heading", "title");
+      }
+      if (names.length && (rvt || variant)) {
+        heading("Only for");
+        pop.appendChild(onlyFor(card, names));
+      }
+      rule();
+      if (variant) item("Take out of the variant", "unwrap");
+      else if (names.length) item("Put in a variant", "wrap");
+      item("Move up", "up");
+      item("Move down", "down");
+      rule();
+      item(variant ? "Delete, with what it holds" : "Delete", "delete");
+      document.body.appendChild(pop);
+      card.classList.add("has-menu");
+      var anchor = $(":scope > .ed-gutter [data-ed-menu]", card) || viewOf(card);
+      var at = anchor.getBoundingClientRect();
+      var left = Math.min(at.left, window.innerWidth - pop.offsetWidth - 12);
+      var top = at.bottom + 4;
+      if (top + pop.offsetHeight > window.innerHeight - 8) top = Math.max(8, at.top - pop.offsetHeight - 4);
+      pop.style.left = (window.scrollX + Math.max(left, 8)) + "px";
+      pop.style.top = (window.scrollY + top) + "px";
+      var first = $("button", pop);
+      if (first) first.focus({ preventScroll: true });
+    });
   }
 
   // Variants, cards moved
 
-  // Put a card in a new variant, which asks which variations it is for
+  // Put a card in a new variant, then ask which variations it is for
   function wrap(card) {
-    var path = pathOf(card);
+    var path = pathOf(card), names = declared(card.closest("[data-ed-doc]"));
     remember(path);
-    var variant = section({ kind: "variant", source: null, index: null, variations: [], count: 0, indent: 0 }, variantHead([]));
+    var chosen = names.slice(0, 1);
+    var variant = section({ kind: "variant", source: null, index: null, variations: chosen, count: 0, indent: 0 }, variantHead(chosen));
     card.parentNode.insertBefore(variant, card);
     touch(variant);
     bodyOf(variant).appendChild(card);
     card._card = Object.assign({}, card._card, { index: null });
     decorate(variant);
     dirty(path);
-    openCard(variant, false, true);
+    openMenu(variant);
   }
 
   // Take what a variant holds out of it, where it was
@@ -1510,10 +1598,20 @@
   // Events
 
   function act(name, target) {
-    var card = target.closest(".ed-card"), path = pathOf(target);
+    var inMenu = pop && pop.contains(target);
+    var card = inMenu ? pop._card : target.closest(".ed-card"), path = pathOf(card || target);
+    var stays = name === "toggle-definitions" || name === "toggle-table";
+    if (inMenu && !stays) closeMenu();
     if (name === "edit") openCard(card);
     else if (name === "done") closeCard(card, true);
     else if (name === "cancel") closeCard(card, false);
+    else if (name === "title") editTitle(card);
+    else if (stays) {
+      var key = name.slice(7), on = !card._card[key], patch = {};
+      patch[key] = on;
+      target.setAttribute("aria-checked", on ? "true" : "false");
+      change(card, patch);
+    }
     else if (name === "delete") {
       if (card._edit) closeCard(card, false);
       remember(path);
@@ -1527,9 +1625,11 @@
     }
     else if (name === "wrap") wrap(card);
     else if (name === "unwrap") { remember(path); unwrap(card); dirty(path); }
-    else if (name === "add-prose" || name === "add-rvt") {
-      var bar = target.closest(".ed-add");
-      addCard(bar.parentNode.classList.contains("ed-card") ? card : bar, name === "add-rvt" ? "rvt" : "prose");
+    else if (name.indexOf("add-") === 0) {
+      var kind = name.indexOf("rvt") >= 0 ? "rvt" : "prose";
+      var offer = target.closest(".ed-empty");
+      if (offer) addCard(offer.parentNode, null, kind);
+      else addCard(card.parentNode, /-above$/.test(name) ? card : cardFrom(card.nextSibling), kind);
     }
     else if (name === "conflict-diff") showDifference(path);
     else if (name === "conflict-theirs") discard(path);
@@ -1538,6 +1638,14 @@
 
   function onClick(event) {
     var target = event.target;
+    if (pop && pop.contains(target)) {  // the card menu, which isn't in the editor's element
+      var chosen = target.closest("[data-ed-act]");
+      if (chosen) act(chosen.dataset.edAct, chosen);
+      return;
+    }
+    var opener = target.closest("[data-ed-menu]");
+    if (opener) { openMenu(opener.closest(".ed-card")); return; }
+    closeMenu();
     var row = target.closest(".ui-tree__row--file[data-open]");
     if (row) { open(row.dataset.open); return; }
     var menu = $(".ed-menu[open]");
@@ -1574,7 +1682,31 @@
     if (!doc || doc.dataset.editable !== "true") return;
     if (target.closest("a, button, summary, input, select, textarea, label")) return;
     if (String(window.getSelection())) return;
-    openCard(view.parentNode);
+    var card = view.parentNode;
+    if ($(".ed-inline", card)) return;
+    if (target.closest(".ed-heading")) {  // it may be the first click of two, to rename it
+      clearTimeout(opening);
+      opening = setTimeout(function () { if (card.isConnected && !$(".ed-inline", card)) openCard(card); }, 280);
+      return;
+    }
+    openCard(card);
+  }
+
+  var opening;  // a click on a heading, waiting to see if it is a double click
+
+  // Double click a title to change it in place
+  function onDoubleClick(event) {
+    var target = event.target;
+    if (!editable || !target.closest) return;
+    var title = target.closest(".ed-heading, details.titled > summary strong");
+    var view = title && title.closest(".ed-card__view");
+    var doc = view && view.closest("[data-ed-doc]");
+    if (!doc || doc.dataset.editable !== "true" || doc.dataset.plain === "true") return;
+    var card = view.parentNode;
+    if (title.closest(".ed-card") !== card) return;
+    event.preventDefault();
+    clearTimeout(opening);
+    editTitle(card);
   }
 
   function typingIn(target) {
@@ -1584,6 +1716,7 @@
   function onKey(event) {
     if (!active || !editable) return;
     var key = event.key.toLowerCase(), mod = event.ctrlKey || event.metaKey;
+    if (key === "escape" && pop) { closeMenu(); return; }
     if (mod && key === "s") { event.preventDefault(); save(active); return; }
     if (!mod || typingIn(event.target)) return;
     if (key === "z" && !event.shiftKey) { event.preventDefault(); undo(active); }
@@ -1604,6 +1737,7 @@
     if (editable) unsavedFiles().forEach(addTab);
     document.addEventListener("click", onClick);
     document.addEventListener("keydown", onKey);
+    document.addEventListener("dblclick", onDoubleClick);
     document.addEventListener("pointerdown", function (event) {
       var grip = event.target.closest && event.target.closest("[data-ed-grip]");
       if (grip && editable) dragStart(event, grip);

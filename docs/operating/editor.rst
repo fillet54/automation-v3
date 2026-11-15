@@ -34,35 +34,50 @@ Text
    It is edited as reStructuredText.
 
 Block
-   One ``rvt`` block. Its title, **Definitions**, **Table** and the
-   variations it is **only for** are fields; the body is only the code.
-   The ``.. rvt::`` line and the indentation are written for you.
+   One ``rvt`` block. Editing it shows only its code: the ``.. rvt::``
+   line, its options and the indentation are written for you.
 
 Variant
-   An ``rvt-variant``: a frame around text and blocks that are only for
-   some variations. Its variations are its one field; the cards inside it
-   are ordinary cards.
+   An ``rvt-variant``: text and blocks that are only for some variations,
+   marked by a rule down their left. The cards inside it are ordinary
+   cards.
 
 Source
    A block or variant that can't be read is edited as the
    reStructuredText it is.
 
-Click a card to edit it. **Esc** or **Ctrl+Enter** closes it and keeps what
-you typed; **Cancel** drops it. Where the script declares variations, the
-variations fields offer them as buttons to pick.
+The page shows the script and nothing else. Pointing at a card shows two
+marks to its left:
 
-Hovering a card shows its tools:
+``..``
+   The card's menu: add text or steps below (or above) it, edit it, move
+   it up or down, delete it. For a block, also give it a title, make it a
+   definitions block or a table, and say which variations it is for.
+``::``
+   Drag it: to another place, into a variant or out of one.
 
-- **⠿** drags it: to another place, into a variant or out of one;
-- **↑** and **↓** move it one place, stepping into a variant next to it,
-  or out of the one it is in at either end;
-- **Variant** puts it in a new variant, which asks which variations it is
-  for (**Unwrap** on a variant takes out what it holds);
-- **Delete**, and **+ Text** and **+ Block** to add a card after it.
+Click a card to edit its text. **Esc** or **Ctrl+Enter** closes it and keeps
+what you typed; **Cancel** drops it.
+
+**Double click a title** to change it where it is: a block's title, or a
+section's heading. Enter keeps it, Esc leaves it as it was.
+
+Variations
+~~~~~~~~~~
+
+Where a script declares variations, a block's menu has **Only for**: **All**,
+and each variation. Pick one or more to limit the block to them; **All**
+makes it for every variation again. Scripts that declare no variations
+don't show it.
+
+**Put in a variant**, in the menu, wraps a card in a variant, for text and
+blocks that belong to the same variations; the variant's own menu picks
+them, and **Take out of the variant** undoes it. Moving a card up or down
+steps it into a variant next to it, or out of the one it is in.
 
 **Undo** (Ctrl+Z) and **Redo** (Ctrl+Shift+Z) walk back and forth through
 everything done to a tab's cards, in order: an edit, a move, a delete, a new
-variant. While a card is open, Ctrl+Z undoes typing in it.
+title. While a card is open, Ctrl+Z undoes typing in it.
 
 Any other text file opens as one card of its text.
 
