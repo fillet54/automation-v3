@@ -24,9 +24,11 @@ docutils upgrade that changes one fails loudly.
 | A title's position | Not reliable. At the top level `title.line` is the underline's line, not the title's. Inside a directive's nested parse it is `None`. |
 | An inline node's position (a `:req:` role) | Line of the paragraph only. docutils gives no column. |
 | Sections | Nest. An `rvt` block under a heading is a child of that section, not a top-level node. |
-| A directive docutils rejects (unknown option) | Becomes a `system_message` whose node has no line; only the message text does. |
-| A directive whose option spec accepts any name | Works: the unknown option reaches `run()`. A typed converter (a flag given a value) still makes docutils reject the directive, so the converters have to accept anything too. |
+| A directive docutils rejects (unknown option) | Becomes a `system_message` whose `.line` is `None`; its `["line"]` attribute holds the directive's first line. |
+| A directive whose option spec accepts any name | Works: the unknown option reaches `run()`. The spec must be truthy (a `dict` subclass with `__bool__`), since docutils reads an empty spec as "no options". A typed converter (a flag given a value) still makes docutils reject the directive, so the converters have to accept anything too. |
 | A heading whose style skips a level (`===` then `~~~` under `---`) | An error in docutils. Today's cards accept it, because each prose card is rendered on its own. |
+| The first title (step 0) | With docutils' default `doctitle_xform` a lone top section's title is lifted onto the document, so the tree stops mirroring the file. `source.parse` sets `doctitle_xform: False`. |
+| A heading inside a nested parse (step 0) | Needs `nested_parse(..., match_titles=True)`, and then only a style deeper than the enclosing section's makes a title; one at that level or above is an error ("A level 2 section cannot be used here"). No `rvt-variant` in the repository holds a heading today. |
 | An underline shorter than its title | Under 4 characters: ordinary text. 4 or more: a heading, with a warning. Today's cards say it is never a heading, while the rendered page (docutils) already shows one. |
 
 Two consequences:
@@ -103,16 +105,20 @@ Each step is one commit or a few, with the full suite passing (745
 today). Steps 1 to 4 change no behaviour except where a step says so; step 5
 changes how pages group blocks.
 
-- [ ] **0. Pin the facts and the baseline.**
+- [x] **0. Pin the facts and the baseline.**
   - `test/test_docutils_facts.py`: the table above as tests (directive
     lines, nested lines, title lines, the permissive option spec, short
-    underlines, level skips).
-  - `test/baseline.py`, a helper used only during this plan: for every
-    script under `test/data` and `demo`, the forms and spans the old
-    `document.parse` gives, with their options and titles, and the old
-    cards. Steps 2 and 3 compare against it. It is deleted in step 7.
-  - A benchmark: resolve every closure in the demo, before and after.
-    Write the two numbers into the notes below.
+    underlines, level skips, the doctitle transform, headings in a
+    nested parse, every script parsing whole without messages).
+  - `test/baseline.py`, a helper used only during this plan, wrote
+    `test/baseline.json`: for every `.rst` git tracks (160 files), the
+    old cards, and for the 87 with an rvt block, the old
+    `document.parse` parts with their options, titles, table marks and
+    every span inside each form. `test/test_baseline.py` compares the
+    code with it; steps 2 and 3 point it at the new code. The demo's
+    scripts are copies of `test/data/rvts`, so they are left out.
+  - `test/bench_closures.py`: resolve every closure in the demo. The
+    "before" numbers are in the notes below.
 
 - [ ] **1. `framework/source.py`.** The node classes, the two directives,
   the `:req:` role as a recorder, `parse`, `locate`, `blocks`,
@@ -136,9 +142,9 @@ changes how pages group blocks.
   `analysis.py`, `executor.py` (`_execute`, `load_definitions`,
   `load_script_definitions`, `find_variation`), `lsp/service.py`
   (`core_errors`).
-  - Parity test: for all 410 files, the new statements equal the
-    baseline's forms in order, with the same spans, options, titles and
-    table marks.
+  - Parity test: `test_baseline.py` compares `source.statements` with
+    the baseline's parts, prose left out: the same forms in order, with
+    the same spans, options, titles and table marks.
   - The executor no longer reports prose (`on_comment`): nothing reads
     those events. `observer.py` and the worker lose it. Statement
     indexes in events count forms only.
@@ -161,12 +167,14 @@ changes how pages group blocks.
   - Tests: `test_cards.py` passes unchanged except
     `test_not_headings`, which gains the new short-underline rule. Every
     `.rst` in the repository, `docs/` included, still joins back to its
-    text and builds to itself. Cards equal the baseline cards for the
-    410 scripts.
+    text and builds to itself. `test_baseline.py`: cards equal the
+    baseline cards for all 160 files, except where the short-underline
+    rule changes one (listed in the notes).
   - `web/editor.py`: `heading_lines` and the re-split of an edited prose
     card in `card_html` use the tree.
-  - Behaviour change, if the headings decision stands: update
-    `docs/operating/editor.rst`.
+  - Behaviour change: update `docs/operating/editor.rst`. Also say
+    there that a heading inside an `rvt-variant` must use a style deeper
+    than the section around it (see the notes).
 
 - [ ] **4. Requirements, problems and names from the tree.**
   - `source.requirement_refs` replaces `closure.requirement_refs`
@@ -232,7 +240,8 @@ changes how pages group blocks.
 
 - [ ] **7. Finish.**
   - Delete `framework/document.py` (its module description moves to
-    `source.py`) and `test/baseline.py`.
+    `source.py`), `test/baseline.py`, `test/baseline.json`,
+    `test/test_baseline.py` and `test/bench_closures.py`.
   - Docs: `README.md` code map, `docs/scripts/` where it describes how a
     script is read, `docs/blocks/writing-blocks.rst` if it names
     `Statement`.
@@ -270,4 +279,26 @@ plugin API does not change.
 
 ## Notes as we go
 
-(empty)
+**Step 0 (2026-11-15).** Suite: 745 tests passing before, 769 after
+(22 facts tests, 2 parity tests).
+
+- The plan's "410 files" was 82 scripts in `test/data/rvts` plus four
+  copies of them in the demo. The baseline uses every tracked `.rst`
+  instead: 160 files, 87 with rvt blocks (the extra five are in
+  `docs/scripts/`), 612 parts. None fails to read today.
+- Benchmark before (`python -m test.bench_closures`, 312 closures over
+  the demo's four workspaces, x86_64, 12 cores): cold 8.9 to 11.2 s,
+  best warm 8.9 to 9.4 s, about 30 ms a closure. A profile puts 85% of
+  it in `document.parse`, two thirds of that in `parse_directive`
+  (3,180 `publish_doctree` calls, about 6 ms each). One whole-file
+  parse (about 3 ms) should cut it a lot. After: (step 2).
+- New fact: docutils' doctitle transform lifts the first title onto the
+  document, so `source.parse` turns it off to keep the tree shaped
+  like the file.
+- New fact, a decision that falls out of it: `rvt-variant` has to parse
+  its content with `match_titles=True` to allow headings at all, and
+  then a heading inside a variant must use a style deeper than the
+  section the variant sits in; one at that level or above becomes a
+  problem on the file. Today's cards accept any heading there. No file
+  in the repository has a heading inside a variant, so nothing breaks;
+  it goes in the editor docs with the other heading rules (step 3).
