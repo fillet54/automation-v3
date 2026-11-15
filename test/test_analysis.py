@@ -124,12 +124,6 @@ class TestShapes(unittest.TestCase):
         self.assertEqual(check(rvt("(Verify 1 <= 2) (Table-Driven [a b] [[1 2]])"))[0],
                          [])
 
-    def test_removed_forms(self):
-        (error,) = check(rvt("(passes? (Wait 1))"))[0]
-        self.assertIn("passes? was renamed try-ok?", error)
-        (error,) = check(rvt("(defblock f [] 1)"))[0]
-        self.assertIn("defblock was removed", error)
-
     def test_special_form_shapes(self):
         self.assertIn("step takes a title", check(rvt("(step (Wait 1))"))[0][0])
         self.assertIn("try takes a form and a default", check(rvt("(try (Wait 1))"))[0][0])

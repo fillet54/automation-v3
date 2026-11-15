@@ -22,7 +22,7 @@ def render(id, text):
     else blocks (lists, several paragraphs)"""
     try:
         html = docutils.core.publish_parts(
-            text, writer_name="html4css1",
+            text, writer="html4css1",
             settings_overrides={"report_level": 5, "halt_level": 5,
                                 "doctitle_xform": False, "initial_header_level": 4},
         )["fragment"]

@@ -4,7 +4,7 @@ import unittest
 
 from automationv3.framework import document
 from automationv3.framework.statements import get_statements
-from automationv3.web.grouping import block_duration, block_state, group, statement_item
+from automationv3.documents.grouping import block_duration, block_state, group, statement_item
 from automationv3.web.reports import duration
 
 from .rvt import doc, rvt

@@ -1,7 +1,7 @@
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ..framework.closure import Closure, resolve
 from ..framework.planning import build_plan
@@ -13,6 +13,11 @@ ALLOWED_STATUS = ["available", "busy", "missing"]
 # Keepalives are sent every 60 seconds; a worker silent for longer
 # than this is considered missing
 MISSING_AFTER = timedelta(minutes=5)
+
+
+def utcnow():
+    """Now, in UTC, as the queue keeps times: without a zone"""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @dataclass
@@ -427,7 +432,7 @@ def rerun(conn, root, report_id, run_id, force=False, owner=None):
 def live_fingerprints(conn, environment):
     """worker url -> current fingerprint, for live workers offering
     `environment`"""
-    since = datetime.utcnow() - MISSING_AFTER
+    since = utcnow() - MISSING_AFTER
     return {
         worker.url: worker.environments[environment]
         for worker in find_workers(conn, since=since)
@@ -577,7 +582,7 @@ def fail_worker_jobs(conn, root, worker_url, reason):
 
 def reap_lost_jobs(conn, root, now=None):
     """Error the jobs of workers that stopped sending keepalives"""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     alive = {w.url for w in find_workers(conn, since=now - MISSING_AFTER)}
     lost = {
         job.worker_url

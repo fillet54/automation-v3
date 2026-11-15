@@ -130,8 +130,10 @@ def seen(conn, user, now):
 
 
 def create_link(conn, email, minutes, device_code_hash=None, now=None):
-    """A new single-use link token for `email`"""
+    """A new single-use link token for `email`. Each one is also when
+    what has expired is forgotten (see forget_expired)."""
     now = now or utcnow()
+    forget_expired(conn, now)
     token = secrets.token_urlsafe(32)
     with conn:
         conn.execute(

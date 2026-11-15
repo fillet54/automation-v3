@@ -134,6 +134,8 @@ checks this):
 | Package | Holds | Must not use |
 | --- | --- | --- |
 | `automationv3/framework` | The script language and its execution: edn, lisp, closures, preconditions, variations, planning, UUT/environment interfaces | storage, HTTP, Flask |
+| `automationv3/documents` | Scripts, runs and reports as reStructuredText documents, rendered from data | storage, HTTP, Flask |
+| `automationv3/lsp` | The language server: errors, completion and hover for scripts, in any editor | Flask, the web layer |
 | `automationv3/services` | Concepts that need storage or processes: workspaces, requirements, reports, the job queue, workers | Flask, the web layer |
 | `automationv3/web` | Flask pages and the HTTP job API, templates and static files | |
 | `automationv3/cli.py` | `server`, `worker` and `run` | |

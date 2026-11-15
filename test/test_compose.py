@@ -207,15 +207,6 @@ class TestTryAndQuietly(unittest.TestCase):
         self.assertEqual(run("(quietly (Verify 1 = 2))")[0], "fail")
 
 
-class TestRemovedForms(unittest.TestCase):
-    def test_defblock_and_passes_say_what_replaced_them(self):
-        outcome, rec = run("(defblock x [] 1)", core="")
-        self.assertEqual(outcome, "error")
-        self.assertIn("defblock was removed", rec.of("step_end")[0]["stderr"])
-        outcome, rec = run("(passes? (Wait 1))", core="")
-        self.assertIn("passes? was renamed try-ok?", rec.of("step_end")[0]["stderr"])
-
-
 class TestVerify(unittest.TestCase):
     def test_operators(self):
         for script, outcome in [

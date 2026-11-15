@@ -19,8 +19,7 @@ and returns Diagnostics:
 - errors: an unknown name, a name used before it is defined, a
   definition anywhere but the top level, a call to a defn with a number
   of arguments none of its arities takes, a block call no form of the
-  block accepts, a malformed special form, a removed form (defblock,
-  passes?);
+  block accepts, a malformed special form;
 - warnings: a definition that shadows a block, a builtin or a core.rst
   definition, steps still to be written (TBD), and a step whose value is
   thrown away (a step only fails
@@ -50,12 +49,6 @@ WARNING = "warning"
 # calls are special forms too, handled on their own.
 KNOWN_FORMS = {"if", "do", "and", "or", "def", "defn", "let", "quote", "fn", "step", "try-ok?",
                "try", "quietly"}
-REMOVED = {
-    "defblock": "defblock was removed: use defn. A failing block stops wherever it "
-                'is called; group calls with (step "title" ...) and suppress '
-                "failures explicitly with try-ok? or try",
-    "passes?": "passes? was renamed try-ok?",
-}
 # Builtins with an effect: a step calling one isn't thrown away
 EFFECTFUL = {"print"}
 
@@ -456,9 +449,6 @@ class Analyzer:
 
         if name in locals_:
             each(rest)
-            return
-        if name in REMOVED:
-            self.error(REMOVED[name], first)
             return
         if name in ("def", "defn"):
             self.error(f"{name} is only allowed at the top level of a core.rst or a "

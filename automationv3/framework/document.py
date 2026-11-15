@@ -194,12 +194,6 @@ def parse_directive(source, node_class, name):
     return found[0]
 
 
-def parse_rvt(source):
-    """(options, content, title) of one rvt directive"""
-    block = parse_directive(source, rvt_block, "rvt")
-    return block["options"], block["content"], block["title"]
-
-
 def content_position(source, content, offset):
     """For a directive's `content` (as docutils gives it: dedented) that
     starts `offset` lines into its `source`: functions mapping a 0-based

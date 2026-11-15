@@ -247,7 +247,7 @@ class TestPages(ExportCase):
     def test_a_spec_as_a_page(self):
         page = self.get("/requirements/spec/set:R1/SRS/")
         self.assertIn("40%", page)
-        self.assertIn('href="/requirements/req/SYS-1?context=set%3AR1"', page)
+        self.assertIn('href="/requirements/req/SYS-1?context=set:R1"', page)
         response = self.http.get("/requirements/spec/trunk/SRS/?req=SW-3")
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/spec/trunk/SRS/#SW-3"))

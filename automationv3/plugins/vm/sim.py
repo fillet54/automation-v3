@@ -433,10 +433,6 @@ class VehicleManagerHandle:
         as the bench's pulse counter on its drive line sees it"""
         return sum(p["code"] == name(command) for p in self._read()["pulses"])
 
-    def had_event(self, kind, since):
-        return any(e["kind"] == name(kind) and e["time"] >= since
-                   for e in self._read()["events"])
-
     def safe_entry_delay(self):
         """Seconds from the SAFE request to the SAFE actions: the VM takes
         them in the frame it enters SAFE"""
@@ -542,12 +538,6 @@ class VehicleManagerHandle:
             platform.s["sun"] = False
             return True
         return self._run(discharge)
-
-    def set_sun(self, on):
-        def sun(platform):
-            platform.s["sun"] = bool(on)
-            return True
-        return self._run(sun)
 
     def overload(self, line, factor, duration_ms):
         """Draw `factor` times a line's trip limit for `duration_ms`"""

@@ -242,17 +242,6 @@ def parse_many(texts, document):
     return {t: (lambda found=_fragments[t]: [n.deepcopy() for n in found]) for t in wanted}
 
 
-def parse_fragment(rst, document):
-    """The nodes `rst` parses to, as body content of `document`, resolved"""
-    holder = nodes.container()
-    holder.extend(parse_many([str(rst)], document)[str(rst)]())
-    holder.document = document
-    wrapper = utils.new_document(document.get("source", "<data>"), document.settings)
-    wrapper += holder
-    resolve(wrapper, context_of(document) or Context())
-    return list(holder.children)
-
-
 def inline_of(found):
     if len(found) == 1 and isinstance(found[0], nodes.paragraph):
         return list(found[0].children)
@@ -303,7 +292,7 @@ def write(document, writer="html5", settings=None):
     name or a Writer"""
     output = io.StringIO()
     publisher = docutils.core.Publisher(
-        reader=doctree_reader.Reader(parser_name="null"),
+        reader=doctree_reader.Reader(parser="null"),
         source=docutils_io.DocTreeInput(document),
         destination_class=docutils_io.StringOutput)
     if isinstance(writer, str):

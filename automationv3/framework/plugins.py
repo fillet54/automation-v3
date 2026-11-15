@@ -55,8 +55,7 @@ _error = None  # the PluginLoadError of a failed load, raised again when asked
 _lock = threading.RLock()
 
 # Execution forms may register later, when steps.py is imported.
-RESERVED = {"step", "try", "try-ok?", "quietly", "defblock", "passes?",
-            PRECONDITION} | DIRECTIVES
+RESERVED = {"step", "try", "try-ok?", "quietly", PRECONDITION} | DIRECTIVES
 
 
 class PluginRegistry:

@@ -107,7 +107,7 @@ def list():
 def live_environments():
     """environment -> the live workers offering it: this server's, and on
     the local client the central server's too"""
-    since = datetime.utcnow() - models.MISSING_AFTER
+    since = models.utcnow() - models.MISSING_AFTER
     live = {}
     for worker in models.find_workers(get_db(), since=since):
         for name in worker.environments:
@@ -280,7 +280,7 @@ def list_workers():
     show_all = show and show == "all"
     hx_request = request.headers.get("HX-Request", False)
 
-    now = datetime.utcnow()
+    now = models.utcnow()
     missing_time = now - models.MISSING_AFTER
 
     workers = models.find_workers(get_db(), None if show_all else missing_time)
@@ -442,7 +442,7 @@ def humanize_ts(timestamp=False):
     pretty string like 'an hour ago', 'Yesterday', '3 months ago',
     'just now', etc
     """
-    now = datetime.utcnow()
+    now = models.utcnow()
     try:
         diff = now - timestamp
     except TypeError:

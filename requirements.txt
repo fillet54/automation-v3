@@ -5,8 +5,8 @@ jinja2
 waitress
 docutils
 docopt
-schema 
 requests
+pygments
+openpyxl
 
 Sphinx
-sphinx-tabs

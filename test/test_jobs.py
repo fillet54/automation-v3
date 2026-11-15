@@ -466,7 +466,7 @@ class TestJobModels(QueueTestCase):
         with self.conn:
             self.conn.execute(
                 "UPDATE workers SET last_keepalive = ? WHERE url = 'http://gone'",
-                ((datetime.utcnow() - timedelta(minutes=10)).isoformat(sep=" "),),
+                ((models.utcnow() - timedelta(minutes=10)).isoformat(sep=" "),),
             )
 
         self.assertEqual(models.reap_lost_jobs(self.conn, self.root), {"http://gone"})
@@ -1320,7 +1320,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def test_requirements_page_lists_linked_scripts(self):
         page = self.http.get(f"/requirements/?workspace={self.branch}")
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b"?path=BRA%2Fmodes.rst\">BRA/modes.rst</a>", page.data)
+        self.assertIn(b"?path=BRA/modes.rst\">BRA/modes.rst</a>", page.data)
         self.assertIn(b'value="R2"', page.data)
 
 

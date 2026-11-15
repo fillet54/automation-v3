@@ -10,34 +10,29 @@ The short version: there is very little dead code. The real problem is
 that a script's source text is cut up five different ways, none of them
 a docutils tree.
 
-## 1. Cleanup (small, safe, first)
+## 1. Cleanup (done 2026-11-14)
 
-- [ ] **Unused functions.** `document.parse_rvt`,
+- [x] **Unused functions** removed: `document.parse_rvt`,
   `documents/core.parse_fragment`, `steps.as_result`, `steps.usage_of`,
-  `Statement._repr_rst_`, `edn.Span.as_dict`: named nowhere else in the
-  app or its tests.
-- [ ] **Empty and shim files.** `plugins/core/cli.py` is empty.
-  `web/grouping.py` only re-exports `documents/grouping.py`, and only two
-  tests import it.
-- [ ] **Removed-form tombstones.** `defblock` and `passes?` still have
-  error stubs in both `analysis.py` and `steps.py`. Drop them once no
-  script uses those forms.
-- [ ] **Simulator methods no script calls.** `had_event` and `set_sun`
-  in `plugins/vm/sim.py`.
-- [ ] **Packaging drift.** `requirements.txt` lists `schema` and
-  `sphinx-tabs`, which nothing imports, and lacks `pygments` and
-  `openpyxl`, which `setup.py` has. One source of truth.
-- [ ] **Stale docs.** The README's code map omits `documents/` and
-  `lsp/`.
-- [ ] **Deprecations.** 18 `datetime.utcnow()` calls and one docutils
-  `parser_name`.
-- [ ] **Failing tests.** Two have failed since before the requirements
-  work (URL-encoding expectations):
-  `test_jobs...test_requirements_page_lists_linked_scripts` and
-  `test_requirement_features.TestPages.test_a_spec_as_a_page`.
-- [ ] **Test-only code that should be wired in.**
-  `accounts.forget_expired` is only called by tests, so expired sign-in
-  links and sessions are never purged on a real server.
+  `Statement._repr_rst_`, `edn.Span.as_dict`.
+- [x] **Empty and shim files** removed: `plugins/core/cli.py`, and
+  `web/grouping.py` (its two tests import `documents/grouping.py`).
+- [x] **Removed-form tombstones** gone: `defblock` and `passes?` are no
+  longer special. No script in the tests or the demo used them; one now
+  reads as an unknown name. Their two tests went with them.
+- [x] **Simulator methods no script called** removed: `had_event` and
+  `set_sun` in `plugins/vm/sim.py`.
+- [x] **Packaging.** `requirements.txt` no longer lists `schema` and
+  `sphinx-tabs`, and has `pygments` and `openpyxl`. It and `setup.py`
+  are still two lists: make one the source of the other.
+- [x] **README** code map has `documents/` and `lsp/`.
+- [x] **Deprecations.** The five `datetime.utcnow()` calls (the queue's;
+  the audit miscounted 18, the rest were `accounts.utcnow`, which is
+  fine) go through `jobs.utcnow`, and docutils' `parser_name` and `writer_name` are `parser` and `writer`.
+- [x] **Failing tests** fixed: both expected `/` and `:` percent-encoded
+  in a link's query, which newer Werkzeug leaves as they are.
+- [x] **Expired sign-ins are forgotten**: `accounts.create_link` calls
+  `forget_expired`, so each new sign-in link clears out what has expired.
 
 ## 2. Source text: one docutils tree (the main structural work)
 

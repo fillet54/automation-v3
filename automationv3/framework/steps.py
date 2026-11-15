@@ -57,10 +57,6 @@ class StepFailed(Exception):
         self.result = result
 
 
-class RemovedForm(Exception):
-    """A form the language no longer has"""
-
-
 @dataclass(frozen=True)
 class Frame:
     quiet: bool = False
@@ -178,7 +174,7 @@ def error_line(e):
     """A one-line description of an exception"""
     if isinstance(e, lisp.UnboundName):
         return f"unknown name {e.name}"
-    if isinstance(e, (RemovedForm, SyntaxError, NoBlock, AmbiguousBlock)):
+    if isinstance(e, (SyntaxError, NoBlock, AmbiguousBlock)):
         return str(e)
     return f"{type(e).__name__}: {e}"
 
@@ -215,13 +211,6 @@ def current_runtime():
     if runtime is None:
         raise RuntimeError("Blocks can only run as part of a script")
     return runtime
-
-
-def as_result(value):
-    """A value as a BlockResult: passing if truthy"""
-    if isinstance(value, BlockResult):
-        return value
-    return BlockResult(bool(value), value=value)
 
 
 def text(form):
@@ -286,14 +275,6 @@ def block_special_form(x, env):
 block_special_form.is_call = True  # traces keep block calls
 
 
-def usage_of(name):
-    from .block import all_blocks
-    for block in all_blocks():
-        if block.name() == name:
-            return " or ".join(block.usage().splitlines())
-    return name
-
-
 @lisp.special_form("step")
 def step_special_form(x, env):
     """(step "title" body...): the body's block calls reported under one
@@ -350,24 +331,6 @@ def quietly_special_form(x, env):
         for form in x[1:]:
             value = lisp.eval(form, env)
     return value
-
-
-REMOVED = {
-    "defblock": "defblock was removed: use defn. A failing block now stops "
-                "wherever it is called; group calls with (step \"title\" ...) "
-                "and suppress failures explicitly with try-ok? or try",
-    "passes?": "passes? was renamed try-ok?",
-}
-
-
-def removed_form(x, env):
-    raise RemovedForm(REMOVED[str(x[0])])
-
-
-for _name in REMOVED:
-    lisp.special_form(_name)(removed_form)
-
-
 # Statements
 
 

@@ -10,7 +10,7 @@ from automationv3.framework import document
 from automationv3.framework.closure import resolve
 from automationv3.framework.planning import build_plan
 from automationv3.framework.statements import get_statements
-from automationv3.web.grouping import group, statement_item
+from automationv3.documents.grouping import group, statement_item
 
 from .rvt import doc, rvt
 from .test_definitions import run

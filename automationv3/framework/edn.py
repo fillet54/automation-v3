@@ -54,10 +54,6 @@ class Span(NamedTuple):
                     line_of(self.end_line), self.end_col + col_shift(self.end_line),
                     source if source is not None else self.source)
 
-    def as_dict(self):
-        return self._asdict()
-
-
 def span_of(form):
     """Where `form` was written, or None (e.g. for a number, or a form
     built by code rather than read)"""

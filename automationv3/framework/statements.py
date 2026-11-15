@@ -52,10 +52,6 @@ class Statement:
     def __repr__(self):
         return str(self)
 
-    def _repr_rst_(self):
-        return self.rst
-
-
 def get_statements(text):
     """The script's statements, rendered"""
     return _statements(text, rst.requirement_key())
