@@ -130,6 +130,34 @@ class TestEditor(unittest.TestCase):
         self.assertIn("ed-unreadable", render({"kind": "rvt", "code": "(Verify 1 = 1"}))
         self.assertIn("<pre", render({"kind": "source", "text": "a < b"}, plain=True))
 
+    def test_a_variant_holds_its_cards(self):
+        text = SCRIPT + "\n.. rvt-variant::\n   :variations: fast\n\n   Only fast.\n\n   .. rvt::\n\n      (Verify 1 = 1)\n"
+        self.script.write_text(text)
+        html = self.view()
+        self.assertIn('<section class="ed-card ed-card--variant"', html)
+        self.assertIn('<div class="ed-variant__body">', html)
+        self.assertIn("Only for</span> <code>fast</code>", html)
+        found = page_cards(html)  # the variant, then what it holds
+        self.assertEqual([c["kind"] for c in found], ["prose", "rvt", "prose", "rvt", "variant", "prose", "rvt"])
+        variant, prose, block = found[4:]
+        self.assertEqual((variant["count"], prose["line_in"], prose["indent"]), (2, 3, 3))
+        self.assertEqual((block["line_in"], block["code_offset"], block["code_indent"]), (5, 2, 6))
+        # untouched, as it was
+        sent = found[:4] + [{**variant, "children": [prose, block]}]
+        self.assertEqual(self.save(sent, hash=editor.text_hash(text), count=5).status_code, 200)
+        self.assertEqual(self.script.read_text(), text)
+        # a child changed: the variant is written again
+        block = {**block, "source": None, "code": "(Verify 2 = 2)"}
+        sent = found[:4] + [{**variant, "source": None, "variations": ["fast", "slow"], "children": [prose, block]}]
+        self.assertEqual(self.save(sent, hash=editor.text_hash(text), count=5).status_code, 200)
+        self.assertEqual(self.script.read_text(), text.replace("fast\n", "fast, slow\n").replace("1 = 1", "2 = 2"))
+
+    def test_variants_dont_nest_without_end(self):
+        card = {"kind": "variant", "source": None, "variations": ["x"], "children": []}
+        for _ in range(20):
+            card = {"kind": "variant", "source": None, "variations": ["x"], "children": [card]}
+        self.assertEqual(self.save([card], force=True).status_code, 400)
+
     def test_a_plain_text_file_is_one_card(self):
         (card,) = page_cards(self.view("notes.txt"))
         self.assertEqual((card["kind"], card["text"]), ("source", "one\ntwo"))

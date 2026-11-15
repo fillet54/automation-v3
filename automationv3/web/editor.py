@@ -29,13 +29,15 @@ from pathlib import Path, PurePosixPath
 from flask import abort, current_app, jsonify, request
 
 from ..framework import cards as card_model
-from ..framework.cards import Card, PROSE, RVT, SOURCE
+from ..framework.cards import Card, PROSE, RVT, SOURCE, VARIANT
 from . import documents
 from .db import get_db
 from .jobs import workspaces
 
 FIELDS = ("kind", "source", "index", "text", "title", "definitions", "table",
           "variations", "code")
+KINDS = (PROSE, RVT, SOURCE, VARIANT)
+DEEPEST = 12  # variants inside variants
 MAX_TABS = 40
 
 
@@ -95,10 +97,20 @@ def failed(text, error):
             f'<pre class="ui-pre">{escape(text)}</pre>')
 
 
+def variant_head(variations):
+    """A variant card's own view: which variations it is for (its
+    children show below it)"""
+    names = " ".join(f"<code>{escape(name)}</code>" for name in variations) \
+        or '<span class="ed-unreadable">no variations: say which</span>'
+    return f'<p class="ed-variant__head"><span class="ed-variant__label">Only for</span> {names}</p>'
+
+
 def card_html(card, diagnostics=(), plain=False):
     """A card as the page shows it when it isn't being edited. An rvt
     card shows as its steps do on a script's page, with the `diagnostics`
     (see workspace.diagnostic_views) about its lines."""
+    if card.kind == VARIANT:
+        return variant_head(card.variations)
     text = card_model.written(card) if card.source is None else card.source
     if plain:
         return f'<pre class="ui-pre">{escape(text)}</pre>'
@@ -128,14 +140,29 @@ def card_html(card, diagnostics=(), plain=False):
         return failed(text, e)
 
 
-def payload(card):
-    """What the page keeps of a card, and sends back to save"""
+def payload(card, parent=None):
+    """What the page keeps of a card, and sends back to save (a
+    variant's children each keep their own)"""
     data = {name: getattr(card, name) for name in FIELDS}
     data["level"] = card.level
+    data["indent"] = card.indent
     if card.kind == RVT and card.line:  # where its code is in its source
         data["code_offset"] = card.code_line - card.line
         data["code_indent"] = card.code_indent
+    if card.kind == VARIANT:
+        data["count"] = card.count
+    if parent is not None and card.line:  # where it is in its variant's source
+        data["line_in"] = card.line - parent.line
     return data
+
+
+def views(found, plain=False, diagnostics=(), parent=None):
+    """[{kind, html, data, children}] for cards, a variant's children
+    with it"""
+    return [{"kind": card.kind, "html": card_html(card, diagnostics, plain),
+             "data": payload(card, parent),
+             "children": views(card.children, plain, diagnostics, card)}
+            for card in found]
 
 
 def drafted(path, relative, text):
@@ -144,36 +171,37 @@ def drafted(path, relative, text):
     plain = path.suffix != ".rst"
     found = file_cards(path, text)
     documents.ready()
-    return {"path": str(relative), "count": len(found),
-            "cards": [{"data": payload(card), "html": card_html(card, plain=plain)}
-                      for card in found]}
+    return {"path": str(relative), "count": len(found), "cards": views(found, plain)}
 
 
 def card_views(path, text, diagnostics=()):
-    """[{kind, html, data}] for the cards of a file's text"""
-    plain = path.suffix != ".rst"
-    return [{"kind": card.kind, "html": card_html(card, diagnostics, plain),
-             "data": json.dumps(payload(card))}
-            for card in file_cards(path, text)]
+    """views() of the cards of a file's text, each card's data as JSON"""
+    def as_json(found):
+        return [{**view, "data": json.dumps(view["data"]), "children": as_json(view["children"])}
+                for view in found]
+    return as_json(views(file_cards(path, text), path.suffix != ".rst", diagnostics))
 
 
-def as_card(data):
+def as_card(data, depth=0):
     """The Card of what the page sent, or abort(400)"""
-    if not isinstance(data, dict) or data.get("kind") not in (PROSE, RVT, SOURCE):
+    if not isinstance(data, dict) or data.get("kind") not in KINDS or depth > DEEPEST:
         abort(400)
     source, index = data.get("source"), data.get("index")
     variations = data.get("variations") or []
     if isinstance(variations, str):
         variations = variations.split(",")
+    children, count = data.get("children") or [], data.get("count") or 0
     try:
         ok = ((source is None or isinstance(source, str))
               and (index is None or isinstance(index, int))
-              and all(isinstance(v, str) for v in variations))
+              and all(isinstance(v, str) for v in variations)
+              and isinstance(children, list) and isinstance(count, int))
     except TypeError:
         ok = False
     if not ok:
         abort(400)
     return Card(data["kind"], source, index=index if source is not None else None,
+                children=[as_card(c, depth + 1) for c in children], count=count,
                 text=str(data.get("text") or ""), title=str(data.get("title") or "") or None,
                 level=int(data.get("level") or 0),
                 definitions=bool(data.get("definitions")), table=bool(data.get("table")),

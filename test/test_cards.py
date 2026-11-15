@@ -3,7 +3,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from automationv3.framework import cards
-from automationv3.framework.cards import Card, PROSE, RVT, SOURCE
+from automationv3.framework.cards import Card, PROSE, RVT, SOURCE, VARIANT
 
 SCRIPT = """\
 ================
@@ -73,7 +73,7 @@ class TestSplit(unittest.TestCase):
         found = cards.split(SCRIPT)
         self.assertEqual([(c.kind, c.heading, c.level) for c in found], [
             (PROSE, "Brake Monitoring", 1), (PROSE, "Requirements", 2), (RVT, None, 0),
-            (PROSE, "Steps", 2), (RVT, None, 0), (SOURCE, None, 0), (PROSE, "Notes", 3)])
+            (PROSE, "Steps", 2), (RVT, None, 0), (VARIANT, None, 0), (PROSE, "Notes", 3)])
         self.assertEqual([c.index for c in found], list(range(7)))
         self.assertEqual([c.line for c in found], [1, 6, 10, 15, 20, 28, 37])
 
@@ -92,6 +92,20 @@ class TestSplit(unittest.TestCase):
         self.assertEqual(steps.variations, ["degraded", "limp-home"])
         self.assertEqual(steps.code, "(set-reading :brake-pressure target)\n\n"
                                      "(Verify (reading :brake-pressure) <= max-pressure)")
+
+    def test_a_variant_holds_cards(self):
+        variant = cards.split(SCRIPT)[5]
+        self.assertEqual((variant.variations, variant.count), (["emergency"], 2))
+        prose, block = variant.children
+        self.assertEqual((prose.kind, prose.line, prose.indent, prose.text),
+                         (PROSE, 31, 3, "In emergency mode the pressure stays at the limit."))
+        self.assertEqual((block.kind, block.line, block.code_line, block.code_indent, block.code),
+                         (RVT, 33, 35, 6, "(Verify 1 = 1)"))
+        self.assertEqual([c.kind for c in cards.walk([variant])], [VARIANT, PROSE, RVT])
+
+    def test_an_unreadable_variant_is_a_source_card(self):
+        (card,) = cards.split(".. rvt-variant::\n\n   Words.\n")  # no :variations:
+        self.assertEqual(card.kind, SOURCE)
 
     def test_an_unreadable_rvt_is_a_source_card(self):
         (card,) = cards.split(".. rvt::\n   :nonsense: 1\n\n   (a)\n")
@@ -132,6 +146,26 @@ class TestBuild(unittest.TestCase):
             self.assertEqual((before.kind, before.title, before.definitions, before.variations,
                               before.code), (after.kind, after.title, after.definitions,
                                              after.variations, after.code))
+
+    def test_a_variant_with_a_changed_child_is_written_again(self):
+        found = cards.split(SCRIPT)
+        variant = found[5]
+        block = fresh(variant.children[1], code="(Verify 2 = 2)")
+        found[5] = fresh(variant, variations=["emergency", "limp-home"],
+                         children=[variant.children[0], block])
+        self.assertEqual(cards.build(found), SCRIPT.replace(
+            ":variations: emergency\n", ":variations: emergency, limp-home\n").replace(
+            "(Verify 1 = 1)", "(Verify 2 = 2)").replace(  # one blank line next to a rewritten card
+            "\n\n\n.. rvt-variant", "\n\n.. rvt-variant"))
+
+    def test_a_new_variant_around_a_card(self):
+        found = cards.split("Title\n=====\nBody.\n\n.. rvt::\n\n   (a)\n")
+        found[1:] = [Card(VARIANT, variations=["x"], children=[found[1]])]
+        text = cards.build(found)
+        self.assertEqual(text, "Title\n=====\nBody.\n\n.. rvt-variant::\n   :variations: x\n\n"
+                               "   .. rvt::\n\n      (a)\n")
+        (variant,) = cards.split(text)[1:]
+        self.assertEqual((variant.kind, variant.children[0].code), (VARIANT, "(a)"))
 
     def test_an_empty_rvt_card(self):
         self.assertEqual(cards.build([Card(RVT)]), ".. rvt::\n")

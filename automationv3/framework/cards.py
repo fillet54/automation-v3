@@ -6,15 +6,23 @@ A script's text is cut into cards, in order:
   prose) up to the next heading or directive;
 - "rvt": one rvt directive, which is edited as its fields (title,
   definitions, table, variations) and its code, never as a directive;
-- "source": an rvt-variant directive, or an rvt directive docutils
-  can't read: edited as the rst it is.
+- "variant": an rvt-variant directive, which holds cards of its own
+  (`children`), cut from its content; its `variations` is a field;
+- "source": an rvt or rvt-variant directive docutils can't read, edited
+  as the rst it is.
 
 Each card keeps its `source`, the exact text it was cut from, trailing
 blank lines included, so the cards' sources joined are the file, byte
 for byte. `build` makes a file's text from cards: a card that wasn't
 edited gives back its source untouched, an edited or new one is written
 fresh, and only the blank lines between a fresh card and its neighbours
-are adjusted.
+are adjusted. A variant is fresh when anything inside it changed: it is
+written again, its children built as a file of their own and indented.
+
+A card's `line`, `code_line` and `code_indent` are where it is in the
+file, also for the children of a variant; `indent` is how far the
+lines of its `source` are indented there (a variant's children are cut
+from its content, dedented).
 """
 
 import re
@@ -22,7 +30,7 @@ from dataclasses import dataclass, field
 
 from . import document
 
-PROSE, RVT, SOURCE = "prose", "rvt", "source"
+PROSE, RVT, SOURCE, VARIANT = "prose", "rvt", "source", "variant"
 INDENT = "   "
 BLANK_TAIL = re.compile(r"(?:[ \t]*\r?\n)*\Z")
 
@@ -45,6 +53,10 @@ class Card:
     code: str = ""
     code_line: int = 0  # the file line of the code's first line
     code_indent: int = 0  # how far the code is indented in the file
+    indent: int = 0  # how far the lines of `source` are indented in the file
+    # variant cards
+    children: list = field(default_factory=list)
+    count: int = 0  # how many children it had when it was cut
 
 
 def is_adornment(line):
@@ -147,17 +159,53 @@ def rvt_card(lines, start):
                 code_indent=col_shift(0))
 
 
-def split(text):
+def variant_card(lines, start, styles):
+    """The card of one rvt-variant directive, holding the cards of its
+    content; or a source card when docutils can't read it"""
+    source = "".join(lines)
+    lead = next(i for i, line in enumerate(lines) if line.strip())
+    directive = "".join(lines[lead:])
+    try:
+        node = document.parse_directive(directive, document.rvt_variant, "rvt-variant")
+    except document.RvtError:
+        return Card(SOURCE, source, start, text=without_tail(source))
+    _, col_shift = document.content_position(directive, node["content"], node["offset"])
+    indent = col_shift(0)
+    children = split(node["content"], styles)
+    moved(children, start + lead + node["offset"] - 1, indent)
+    return Card(VARIANT, source, start, variations=list(node["variations"]),
+                children=children, count=len(children))
+
+
+def moved(found, lines, cols):
+    """Move cards cut from a directive's content to where they are in the
+    file: `lines` down and `cols` right"""
+    for card in found:
+        card.line += lines
+        if card.code_line:
+            card.code_line += lines
+            card.code_indent += cols
+        card.indent += cols
+        moved(card.children, lines, cols)
+
+
+def walk(found):
+    """Every card, the children of variants after their variant"""
+    for card in found:
+        yield card
+        yield from walk(card.children)
+
+
+def split(text, styles=None):
     """The cards of a script's text. Their sources, joined, are `text`."""
-    cards, styles = [], []
+    cards, styles = [], [] if styles is None else styles
     for kind, lines, start in chunks(text):
         if kind == "prose":
             cards += prose_cards(lines, start, styles)
         elif kind == "rvt":
             cards.append(rvt_card(lines, start))
         else:
-            source = "".join(lines)
-            cards.append(Card(SOURCE, source, start, text=without_tail(source)))
+            cards.append(variant_card(lines, start, styles))
     for index, card in enumerate(cards):
         card.index = index
     return cards
@@ -181,10 +229,24 @@ def rvt_source(card):
     return "\n".join(lines) + "\n"
 
 
+def variant_source(card):
+    """The rvt-variant directive of a card's variations and children,
+    ending with one line end"""
+    names = [name.strip() for name in card.variations if name.strip()]
+    lines = [".. rvt-variant::", f"{INDENT}:variations: {', '.join(names)}".rstrip()]
+    body = build(card.children, card.count).rstrip("\n")
+    if body:
+        lines += [""] + [f"{INDENT}{line}" if line.strip() else ""
+                         for line in body.splitlines()]
+    return "\n".join(lines) + "\n"
+
+
 def written(card):
     """A fresh card's text in the file, ending with one line end"""
     if card.kind == RVT:
         return rvt_source(card)
+    if card.kind == VARIANT:
+        return variant_source(card)
     return card.text.strip("\n") + "\n"
 
 
@@ -194,7 +256,8 @@ def build(cards, original_count=None):
     fields. `original_count` is how many cards the file had when it was
     split (default: the highest index here, plus one), which says
     whether a kept card was the file's last."""
-    cards = [c for c in cards if c.source is not None or c.kind == RVT or c.text.strip()]
+    cards = [c for c in cards
+             if c.source is not None or c.kind in (RVT, VARIANT) or c.text.strip()]
     if original_count is None:
         original_count = max((c.index for c in cards if c.index is not None), default=-1) + 1
     pieces = []

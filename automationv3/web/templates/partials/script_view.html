@@ -46,7 +46,7 @@
       {%- endif %}
     </div>
     {%- if queueable %}
-    <form method="post" action="{{ url_for('scratch.run') }}" class="ui-toolbar">
+    <form method="post" action="{{ url_for('scratch.run') }}" class="ui-toolbar" data-ed-run data-closure="{{ closure.load_order | tojson | forceescape }}">
       <input type="hidden" name="workspace" value="{{ workspace.id }}">
       <input type="hidden" name="script" value="{{ path }}">
       <input type="hidden" name="files" value="{{ 'checked in' if files == 'checked in' else 'in work' }}">
@@ -152,9 +152,10 @@
   {#- The file as its cards (web/editor.py): static/js/editor.js makes them editable in a worktree #}
   <article class="ui-doc ui-document ed-doc" data-ed-doc data-path="{{ path }}" data-hash="{{ file_hash }}"
            data-count="{{ cards | length }}" data-plain="{{ 'false' if path.endswith('.rst') else 'true' }}"
-           data-editable="{{ 'true' if editable else 'false' }}">
-    {%- for card in cards %}
-    <section class="ed-card ed-card--{{ card.kind }}" data-card="{{ card.data }}"><div class="ed-card__view">{{ card.html | safe }}</div></section>
+           data-editable="{{ 'true' if editable else 'false' }}" data-variations="{{ (variation_names or []) | tojson | forceescape }}">
+    {%- for card in cards recursive %}
+    <section class="ed-card ed-card--{{ card.kind }}" data-card="{{ card.data }}"><div class="ed-card__view">{{ card.html | safe }}</div>
+    {%- if card.kind == "variant" %}<div class="ed-variant__body">{{ loop(card.children) }}</div>{% endif %}</section>
     {%- endfor %}
   </article>
   {% elif document is not none %}

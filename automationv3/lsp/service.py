@@ -341,7 +341,7 @@ class Service:
             for item in items:
                 walk(item, bound)
 
-        for card in cards.split(text):
+        for card in cards.walk(cards.split(text)):
             if card.kind != RVT:
                 continue
             shift = card.code_indent
@@ -359,12 +359,12 @@ class Service:
     def requirement_refs(self, text):
         """[(id, line, col, end col)] of the :req: references in prose"""
         found = []
-        for card in cards.split(text):
+        for card in cards.walk(cards.split(text)):
             if card.kind != cards.PROSE:
                 continue
             for n, line in enumerate(card.source.splitlines()):
-                found += [(m.group(1).strip(), card.line - 1 + n, m.start(1), m.end(1))
-                          for m in REQ.finditer(line)]
+                found += [(m.group(1).strip(), card.line - 1 + n, card.indent + m.start(1),
+                           card.indent + m.end(1)) for m in REQ.finditer(line)]
         return found
 
     def unknown_requirements(self, text):
@@ -424,7 +424,7 @@ class Service:
         """Problems for the blocks of `text` that can't be read at all,
         each where the reader stopped"""
         found = []
-        for card in cards.split(text):
+        for card in cards.walk(cards.split(text)):
             if card.kind == RVT:
                 try:
                     edn.read_all_with_spans(card.code)
@@ -534,11 +534,13 @@ class Service:
     def code_before(self, text, lines, line, col):
         """The code of the block `line` is in, up to `col` of it, or None
         if the place isn't in a block's code"""
-        for card in cards.split(text):
+        for card in cards.walk(cards.split(text)):
             first = card.line - 1
             last = first + len(card.source.splitlines())
             if not first <= line < last:
                 continue
+            if card.kind == cards.VARIANT:
+                continue  # its children say
             if card.kind == RVT and line >= card.code_line - 1:
                 first = card.code_line - 1
             elif card.kind != SOURCE:
@@ -602,7 +604,7 @@ class Service:
         all be read gives what comes before the trouble."""
         found = {}
         for source in self.sources(path):
-            for card in cards.split(self.text(source) or ""):
+            for card in cards.walk(cards.split(self.text(source) or "")):
                 if card.kind != RVT:
                     continue
                 # what reads, of a block still being typed

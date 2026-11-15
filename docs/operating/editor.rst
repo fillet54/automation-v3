@@ -38,13 +38,31 @@ Block
    variations it is **only for** are fields; the body is only the code.
    The ``.. rvt::`` line and the indentation are written for you.
 
+Variant
+   An ``rvt-variant``: a frame around text and blocks that are only for
+   some variations. Its variations are its one field; the cards inside it
+   are ordinary cards.
+
 Source
-   An ``rvt-variant``, or a block that can't be read, is edited as the
+   A block or variant that can't be read is edited as the
    reStructuredText it is.
 
 Click a card to edit it. **Esc** or **Ctrl+Enter** closes it and keeps what
-you typed; **Cancel** drops it. Hovering a card shows **↑** and **↓** to move
-it, **Delete**, and **+ Text** and **+ Block** to add a card after it.
+you typed; **Cancel** drops it. Where the script declares variations, the
+variations fields offer them as buttons to pick.
+
+Hovering a card shows its tools:
+
+- **⠿** drags it: to another place, into a variant or out of one;
+- **↑** and **↓** move it one place, stepping into a variant next to it,
+  or out of the one it is in at either end;
+- **Variant** puts it in a new variant, which asks which variations it is
+  for (**Unwrap** on a variant takes out what it holds);
+- **Delete**, and **+ Text** and **+ Block** to add a card after it.
+
+**Undo** (Ctrl+Z) and **Redo** (Ctrl+Shift+Z) walk back and forth through
+everything done to a tab's cards, in order: an edit, a move, a delete, a new
+variant. While a card is open, Ctrl+Z undoes typing in it.
 
 Any other text file opens as one card of its text.
 
@@ -77,7 +95,9 @@ scripts share if you ask for one.
 Saving
 ------
 
-**Save** (Ctrl+S) writes the tab's file. Only the cards you edited are
+**Save** (Ctrl+S) writes the tab's file. **Run in scratch** runs the files
+on disk, so it saves the script first; when files it loads have unsaved
+edits in other tabs, it offers to save them too. Only the cards you edited are
 rewritten: every other line of the file stays exactly as it was. **Discard
 edits** drops a tab's unsaved edits and shows the file again.
 
@@ -86,6 +106,10 @@ variation showing; pick a variation, or **Checked in**, to read it that way.
 
 Errors and completion as you type
 ---------------------------------
+
+**Problems**, above the tabs, lists every error and warning in the open
+files and the files they load; picking one shows the card it is in. The
+file tree counts the problems of each file too.
 
 While a script is open, a language server checks it as its cards make it,
 unsaved edits included, a moment after you stop typing. It reports what a

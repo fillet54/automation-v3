@@ -36,6 +36,9 @@
   <div class="ed-bar" hidden>
     <div class="ed-tabs" role="tablist" aria-label="Open files"></div>
     {% if editable %}<div class="ed-actions"><span class="ed-status ui-muted" aria-live="polite"></span>
+      <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost ed-problems-toggle" data-ed-problems aria-expanded="false" title="Errors and warnings in the open files">Problems</button>
+      <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-undo disabled title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+      <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-redo disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
       <details class="ed-menu" hidden><summary class="ui-btn ui-btn--secondary">File</summary>
         <div class="ed-menu__items">
           <button type="button" data-ed-file="clone">Clone…</button>
@@ -45,6 +48,7 @@
       {{ ui.button("Discard edits", variant="secondary", attrs={"data-ed-discard": "", "hidden": "", "title": "Drop this file's unsaved edits"}) }}
       {{ ui.button("Save", variant="primary", attrs={"data-ed-save": "", "disabled": "", "title": "Save this file (Ctrl+S)"}) }}</div>{% endif %}
   </div>
+  {% if editable %}<div class="ed-problems" hidden aria-label="Problems"></div>{% endif %}
   <div class="ed-panes">
     <div class="ed-pane ed-pane--home">
       <div id="content">

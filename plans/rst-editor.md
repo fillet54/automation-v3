@@ -67,7 +67,7 @@ see update the docs in the same commit.
   ids, static values on hover.
 - [x] **5. Ref paths.** The `children(path)` hook, completion, hover,
   "no such path".
-- [ ] **6. The rest of the editor.** Tab-wide undo, variants as container
+- [x] **6. The rest of the editor.** Tab-wide undo, variants as container
   cards with drag in and out, card reordering by drag, the Problems panel,
   counts on tabs and tree, Run saves first.
 
@@ -183,3 +183,29 @@ see update the docs in the same commit.
 - **Path completion replaces the whole dotted word**: the LSP item has a
   `textEdit` from the word's start; the web client's word already includes
   the dots.
+- **Step 6 (the rest).** Variants are `cards.VARIANT` cards with
+  `children` (cut from the directive's dedented content, moved to file
+  lines and columns by `cards.moved`) and `count`. A variant with anything
+  changed inside has no `source` and is written again by
+  `cards.variant_source`; on the page, `touch(card)` drops the source of
+  every variant around a change. A card moved to another container loses
+  its `index`, so the blank lines around it are rebuilt.
+- **The page's file text for variants** is `assemble` in editor.js
+  (cards.build again, with variants): a variant as cut keeps its source
+  and its children's places come from `line_in`, `code_offset` and
+  `code_indent` in their payloads; one written again places its children
+  3 lines down and 3 columns in.
+- **Undo is snapshots**: `serialize(doc)` (each card's data and HTML,
+  what drafts keep too) pushed before each change, restored by `rebuild`.
+  A tab is clean again when a snapshot equals the one taken when it was
+  loaded. Typing in an open card is CodeMirror's own history; the tab's
+  undo waits until no card is open.
+- **Dragging uses pointer events**, not HTML5 drag and drop, so a drop
+  line can be drawn inside variants and it works under the DevTools
+  protocol's mouse events.
+- **Run in scratch** saves through the `submit` listener on
+  `form[data-ed-run]`, then submits a copy of the form (the pane is
+  redrawn by the save). `data-closure` lists the files the script loads.
+- **Not done, on purpose:** problems on a closed card are a list under
+  the card, not a marker on the step it is about; folders in the tree
+  don't add up their files' counts.

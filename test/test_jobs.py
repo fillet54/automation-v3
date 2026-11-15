@@ -879,7 +879,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertIn("Only for", page)
         self.assertNotIn("Skipped for", page)
         self.assertIn("High only", page)
-        self.assertIn('<div class="scoped docutils container">\n<p><em>Only for</em>', page)
+        self.assertIn('<span class="ed-variant__label">Only for</span> <code>high</code>', page)  # a variant card
         page = self.http.get(view + "&variation=low").get_data(True)
         self.assertNotIn("High only", page)  # the variant's prose and block
         self.assertNotIn("Level is high", page)
