@@ -153,6 +153,8 @@ def setup(app):
         app.add_config_value(f"automation_{name}", "", "env")
     app.add_config_value("automation_latex", {}, "env")
     directives.register_directive("run-document", RunDocument)
+    from ...framework.rst import RequirementReferences
+    app.add_transform(RequirementReferences)
     app.connect("builder-inited", latex_values)
     app.connect("doctree-resolved", rewrite_links)
     app.connect("build-finished", copy_files)

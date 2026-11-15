@@ -2,14 +2,15 @@
 
 Every statement becomes rst: prose as written, forms through their
 BuildingBlock (see documents/script.py for a whole script as one
-document). Scripts may reference requirements with the :req:`ID` role.
+document). Scripts may reference requirements with the :req:`ID` role
+(source.py reads it; RequirementReferences here writes it).
 """
 
 import functools
 
 import docutils.core
-from docutils import nodes, utils
-from docutils.parsers.rst import roles
+from docutils import nodes
+from docutils.transforms import Transform
 
 from . import edn, markup
 from .block import code_block, find_block
@@ -18,6 +19,7 @@ from .language import (
     parse_variations,
 )
 from .requirement import SHALL, Requirement
+from .source import requirement_reference
 
 # How a :req:`ID` reference finds its requirement. Applications with a
 # requirements store install their own lookup; it may return None. Its
@@ -72,11 +74,17 @@ def requirement_nodes(req, rawtext=""):
     return node
 
 
-def requirement_role(role, rawtext, text, lineno, inliner, options=None, content=None):
-    return [requirement_nodes(find_requirement(utils.unescape(text)), rawtext)], []
+class RequirementReferences(Transform):
+    """Each :req: reference (a source.requirement_reference, which holds
+    only the id) as the requirement's text, looked up now: rendering
+    applies it, parsing never does (see documents/core.py and the
+    reports' Sphinx extension)"""
 
+    default_priority = 210
 
-roles.register_canonical_role("REQ", requirement_role)
+    def apply(self):
+        for node in list(self.document.findall(requirement_reference)):
+            node.replace_self(requirement_nodes(find_requirement(node["id"]), node.rawsource))
 
 
 def repr_rst(form):

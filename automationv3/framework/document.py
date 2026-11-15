@@ -50,8 +50,9 @@ the procedure; pages show a titled block collapsed to its title::
        (Verify (reading :brake-pressure) = max-pressure)
 
 The document is split at its rvt directives. The prose between them
-stays rst; each rvt directive is parsed by docutils (so its options are
-read properly) and its content read as edn. A document's parts are the
+stays rst; each rvt directive is read by source.parse (which defines
+the directives) and its content read as edn. This module is on its way
+out: see plans/source-tree.md. A document's parts are the
 prose chunks and the forms, in order: each prose chunk is a plain
 string, each form carries its block's options.
 """
@@ -59,28 +60,14 @@ string, each form carries its block's options.
 import re
 from dataclasses import dataclass, field
 
-import docutils.core
-from docutils import nodes
-from docutils.parsers.rst import Directive, directives
-
 from . import edn
+from . import source as source_tree
 from .language import is_text
+from .source import rvt_block, rvt_variant, variation_names  # noqa: F401  (old users)
 
 RVT_START = re.compile(r"^\.\. rvt::(\s.*)?$")
 VARIANT_START = re.compile(r"^\.\. rvt-variant::\s*$")
 ANY_RVT = re.compile(r"^\s*\.\. rvt::(\s.*)?$")
-
-
-def variation_names(argument):
-    """The names of a `:variations:` option, as a list"""
-    names = [name.strip() for name in (argument or "").split(",")]
-    if not all(names):
-        raise ValueError("expected variation names separated by commas")
-    return names
-
-
-RVT_OPTIONS = {"definitions": directives.flag, "variations": variation_names,
-               "table": directives.flag}
 
 
 @dataclass
@@ -135,63 +122,25 @@ def split(text):
     return [c for c in chunks if c[0] != "prose" or c[1].strip()]
 
 
-class rvt_block(nodes.Element):
-    """A parsed rvt directive: its options and edn content"""
-
-
-class RvtDirective(Directive):
-    has_content = True
-    optional_arguments = 1
-    final_argument_whitespace = True
-    option_spec = RVT_OPTIONS
-
-    def run(self):
-        block = rvt_block()
-        block["title"] = " ".join(self.arguments[0].split()) if self.arguments else None
-        block["options"] = {k: "" if v is None else v for k, v in self.options.items()}
-        block["content"] = "\n".join(self.content)
-        block["offset"] = self.content_offset  # lines before the content
-        return [block]
-
-
-directives.register_directive("rvt", RvtDirective)
-
-
-class rvt_variant(nodes.Element):
-    """A parsed rvt-variant directive: its variations and unparsed content"""
-
-
-class RvtVariantDirective(Directive):
-    has_content = True
-    option_spec = {"variations": variation_names}
-
-    def run(self):
-        if "variations" not in self.options:
-            raise self.error("rvt-variant needs a :variations: option")
-        node = rvt_variant()
-        node["variations"] = self.options["variations"]
-        node["content"] = "\n".join(self.content)
-        node["offset"] = self.content_offset  # lines before the content
-        return [node]
-
-
-directives.register_directive("rvt-variant", RvtVariantDirective)
-
-
 class RvtError(ValueError):
     pass
 
 
 def parse_directive(source, node_class, name):
-    """The one `node_class` node of a directive's source, parsed by docutils"""
-    stream = _Collect()
-    tree = docutils.core.publish_doctree(
-        source, settings_overrides={"warning_stream": stream, "report_level": 2,
-                                    "halt_level": 5})
-    found = list(tree.findall(node_class))
-    if stream.messages or len(found) != 1:
-        raise RvtError(" ".join(stream.messages) or f"not an {name} directive")
-    return found[0]
+    """The one `node_class` node of a directive's source, read by
+    source.parse: a copy, with the attributes this module reads
+    ("content", "offset": the lines before the content)"""
+    tree = source_tree.parse(source)
+    found = [n for n in tree.children if isinstance(n, node_class)]
+    messages = [" ".join(text.split()) for level, _, text in tree.messages if level >= 2]
+    problems = [p.message for n in found for p in n["problems"]]
+    if messages or problems or len(found) != 1:
+        raise RvtError(" ".join(messages + problems) or f"not an {name} directive")
+    node = found[0].copy()
+    node["offset"] = node["content_offset"]
+    if node_class is rvt_block:
+        node["content"] = node["code"]
+    return node
 
 
 def content_position(source, content, offset):
@@ -228,15 +177,6 @@ def limit(options, variations):
                            f"({', '.join(variations)})")
         return options
     return {**options, "variations": variations}
-
-
-class _Collect:
-    def __init__(self):
-        self.messages = []
-
-    def write(self, text):
-        if text.strip():
-            self.messages.append(" ".join(text.split()))
 
 
 def parse(text, first_line=1, path=None, first_col=0):

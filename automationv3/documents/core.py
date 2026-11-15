@@ -223,6 +223,7 @@ def parse_many(texts, document):
         batch = utils.new_document(document.get("source", "<data>"), document.settings)
         batch._data_transform = True  # resolved by the caller, not as a transform
         Parser().parse(FRAGMENT_END.join(missing) + FRAGMENT_END, batch)
+        requirement_references(batch)
         for message in list(batch.findall(nodes.system_message)):
             if message["level"] < 2:
                 message.parent.remove(message)
@@ -261,10 +262,20 @@ LATEX_DEFAULTS = {"legacy_column_widths": False, "use_latex_citations": True}
 
 
 def parse(source, settings=None, source_path="<document>"):
-    """The doctree of `source`, placeholders left in place"""
+    """The doctree of `source`, placeholders left in place and :req:
+    references written (see rst.RequirementReferences)"""
     overrides = {**SETTINGS, **(settings or {}), "automation": None}
-    return docutils.core.publish_doctree(source, source_path=source_path,
+    tree = docutils.core.publish_doctree(source, source_path=source_path,
                                          settings_overrides=overrides)
+    requirement_references(tree)
+    return tree
+
+
+def requirement_references(tree):
+    """Write the :req: references in `tree` (imported here: framework.rst
+    imports documents, through markup)"""
+    from ..framework.rst import RequirementReferences
+    RequirementReferences(tree).apply()
 
 
 def resolved(doctree, context):

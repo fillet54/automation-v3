@@ -120,7 +120,7 @@ changes how pages group blocks.
   - `test/bench_closures.py`: resolve every closure in the demo. The
     "before" numbers are in the notes below.
 
-- [ ] **1. `framework/source.py`.** The node classes, the two directives,
+- [x] **1. `framework/source.py`.** The node classes, the two directives,
   the `:req:` role as a recorder, `parse`, `locate`, `blocks`,
   `problems`, `title`. Old code is untouched and nothing calls the new
   module yet.
@@ -302,3 +302,41 @@ plugin API does not change.
   problem on the file. Today's cards accept any heading there. No file
   in the repository has a heading inside a variant, so nothing breaks;
   it goes in the editor docs with the other heading rules (step 3).
+
+**Step 1 (2026-11-15).** Suite: 789 passing (20 new in
+`test/test_source.py`). Parity with the baseline holds: the old reader
+and cards, now reading directives through `source.parse`, give exactly
+the snapshot for all 160 files. Checked by hand as well (not yet a
+test, steps 2 to 4 make it one): the new blocks' 452 forms equal the old
+parts, spans and nested spans included; the 511 titles `locate` finds
+are the old cards' headings, line for line; every `:req:` span covers
+exactly its role.
+
+- `source.parse` runs the parser alone, with no transforms (so no
+  doctitle lift, and no reference or substitution errors that only
+  Sphinx would resolve). Messages are collected by a reporter
+  observer into `tree.messages`; the file's lines are `tree.lines`.
+- A directive works out its own columns from `block_text` plus the
+  indent of the variant it is in, so it needs nothing from `parse` and
+  works under any publisher.
+- The reader's error is `node["error"]`, apart from `node["problems"]`
+  (options, title): the old cards treat a bad option as a source card
+  but unreadable code as an rvt card. `source.problems` returns both.
+- An unknown option keeps docutils' wording (`unknown option: "x"`);
+  two tests assert on it.
+- The `:req:` transform (`rst.RequirementReferences`) is applied by
+  `documents/core.parse`, by `core.parse_many` (fragments), and by the
+  reports' Sphinx extension (`app.add_transform`); checked with a small
+  Sphinx build, since the export tests skip without latexmk.
+  `documents/core.py` imports it inside a function: `framework/rst.py`
+  imports `documents` through `markup`.
+- `source.walk` and `source.requirement_refs` are in already (the
+  latter is step 4's; nothing calls it yet).
+- Found for step 4: the old `REQUIREMENT_REF` regex counts `:req:`
+  inside ``literal`` text (three files in `docs/`); the tree doesn't.
+- A level-skip message is placed on the offending title's line.
+- Benchmark after step 1: cold 3.2 to 3.4 s, warm about 3.0 s, about
+  10 ms a closure (from 30). The old reader still parses each
+  directive separately, but through the bare parser and with the
+  repeated directive texts cached.
+
