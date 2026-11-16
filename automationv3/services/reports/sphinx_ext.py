@@ -92,7 +92,7 @@ class RunDocument(Directive):
             raise self.error(f"no run {self.arguments[0]} in the report")
         document["automation_run"] = run["id"]
         variation = (run.get("variation") or {}).get("name")
-        rst = script.source(context.data.statements(run), variation, results=True,
+        rst = script.render(context.data.script_text(run), variation=variation, results=True,
                             variations=False)
         self.state_machine.insert_input(
             StringList(rst.splitlines(), f"{run['script']} (run {run['id']})"),

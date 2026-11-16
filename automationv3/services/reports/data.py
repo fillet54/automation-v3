@@ -13,7 +13,7 @@ URLs a document links to (see Links).
 import functools
 from datetime import datetime
 
-from ...framework.statements import get_statements
+from ...framework import source
 from . import rollup, store
 
 KINDS = ("applicable", "reference")
@@ -112,7 +112,8 @@ class ReportData:
         return store.file_path(self.root, self.folder, run["id"], name)
 
     def statements(self, run):
-        return get_statements(self.script_text(run))
+        """The forms the run's script ran (source.statements), by index"""
+        return source.statements(source.parse(self.script_text(run)))
 
     def state(self, run):
         return rollup.state_of(run, self.status, self.report)
@@ -198,7 +199,7 @@ class ReportData:
         statements = []
         if run["script"].endswith(".rst"):  # older runs were of .rvt scripts
             try:
-                statements = [s for s in self.statements(run) if s.index is not None]
+                statements = self.statements(run)
             except Exception:
                 pass
         name = f"step {index + 1}" if isinstance(index, int) else "a step"

@@ -8,7 +8,6 @@ from pathlib import Path
 from automationv3.framework.closure import resolve
 from automationv3.framework.executor import execute_closure
 from automationv3.framework.planning import build_plan
-from automationv3.framework.statements import get_statements
 
 from .rvt import doc, rvt
 
@@ -116,17 +115,17 @@ class TestLint(unittest.TestCase):
 
 class TestRendering(unittest.TestCase):
     def test_statements_know_their_section(self):
-        statements = get_statements(SCRIPT)
-        marked = [(s.in_definitions, s.definition, s.defines) for s in statements]
+        from automationv3.documents.script import defines
+        from automationv3.framework import source
+        statements = source.statements(source.parse(SCRIPT))
+        marked = [(s.definitions, defines(s.form)) for s in statements]
         self.assertEqual(marked, [
-            (False, False, None),       # title
-            (True, True, "target"),     # the definitions block
-            (True, True, "high?"),
-            (False, False, None),       # variations
-            (False, False, None),       # Steps heading
-            (False, False, None),
-            (False, True, "doubled"),   # a definition elsewhere
-            (False, False, None),
+            (True, "target"),     # the definitions block
+            (True, "high?"),
+            (False, None),        # variations
+            (False, None),
+            (False, "doubled"),   # a definition elsewhere
+            (False, None),
         ])
 
 

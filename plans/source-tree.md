@@ -455,3 +455,27 @@ read; a cached page showing a requirement's text as it is now).
   how the page looks, not what runs.
 - Benchmark: about 5.7 ms a closure, within the noise of step 2's.
 
+**Step 5, in progress (2026-11-15).** Committed, suite 798 passing:
+`documents/script.py` renders pages from the cards (`render(text,
+found=None, ...)`): each rvt block is its own `block` container (titled
+and definitions blocks collapsible, a block's own variations wrapped
+`scoped`), a variant a `scoped variant` container, prose top-level so
+its headings stay sections. `script.view(statement)` gives a
+statement's rst and precondition where pages and snippets use them.
+Cards keep their tree node (`Card.node`). `framework/statements.py` and
+`documents/grouping.py` are deleted (`block_state` and the durations
+too: only their own tests used them). `run.py`, `reports/data.py` and
+the Sphinx extension read `source.statements` and `script.render`; the
+editor and the workspace page reach `render` through
+`documents.script_document`. Tests are rewritten against the page
+(`test/rvt.page_entries`).
+
+Still to do in step 5:
+- CSS for the `block` container in `automation.css`: spacing like the
+  editor's cards.
+- Check a script page, a picked variation and a run page in headless
+  Chromium (`/usr/bin/chromium`). Start a throwaway demo with
+  `automation-v3 demo --path <tmp dir> --port 8097 --no-docs`, never
+  the repository's `./demo`.
+- Tick step 5.
+

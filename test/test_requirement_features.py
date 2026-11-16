@@ -103,14 +103,12 @@ class TestWorkspaceContext(ExportCase):
 class TestScriptPagesQuoteTheirContext(ExportCase):
     def test_rendering_is_cached_per_context(self):
         from automationv3.framework import rst
-        from automationv3.framework.statements import get_statements
         self.load([("SRS", "1", {"index.rst": SRS})], sets=[("R1", {"SRS": "1"})])
         self.trunk(srs=SRS.replace("below 40%", "below 45%"))
         context = ["trunk"]
         rst.set_requirement_lookup(lambda id: models.find_by_id(self.conn, id, context[0]),
                                    lambda: context[0])
         self.addCleanup(rst.set_requirement_lookup, None)
-        self.addCleanup(get_statements.cache_clear)
         script = "Title\n=====\n\nTests :req:`SW-1`.\n"
         def page():
             tree = document_script.parsed(script)

@@ -59,6 +59,9 @@ class Card:
     # variant cards
     children: list = field(default_factory=list)
     count: int = 0  # how many children it had when it was cut
+    # the rvt_block or rvt_variant it was cut from (source.py), for pages;
+    # None for a fresh card
+    node: object = field(default=None, compare=False, repr=False)
 
 
 def without_tail(source):
@@ -149,12 +152,12 @@ def _directive(block, text, line, cols, titles):
         children = _cut(block["content"], block, block["content_line"] or line, block["indent"],
                         titles)
         return Card(VARIANT, text, line, variations=list(block["variations"]),
-                    children=children, count=len(children), indent=cols)
+                    children=children, count=len(children), indent=cols, node=block)
     options = block["options"]
     return Card(RVT, text, line, title=block["title"], definitions="definitions" in options,
                 table="table" in options, variations=list(options.get("variations") or []),
                 code=block["code"], code_line=block["content_offset"] + 1,
-                code_indent=block["indent"], indent=cols)
+                code_indent=block["indent"], indent=cols, node=block)
 
 
 def rvt_source(card):

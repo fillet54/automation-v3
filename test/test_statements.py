@@ -7,11 +7,10 @@ from automationv3.documents import core
 from automationv3.framework import markup, rst
 from automationv3.framework.block import BlockResult, BuildingBlock, find_block
 from automationv3.framework.requirement import Requirement
-from automationv3.framework.statements import get_statements
 from automationv3.services.database import connect, init_db
 from automationv3.services.requirements import models
 
-from .rvt import doc, rvt
+from .rvt import doc, rvt, views
 
 SCRIPT = '''
 =========
@@ -50,25 +49,25 @@ def document_html(text):
 class TestStatements(unittest.TestCase):
     def tearDown(self):
         rst.set_requirement_lookup(None)
-        get_statements.cache_clear()
 
     def test_one_statement_per_form(self):
-        statements = get_statements(SCRIPT)
-        self.assertEqual(len(statements), 3)
-        self.assertIn("The Title", statements[0].rst)
-        self.assertEqual("**Wait** 1 seconds", statements[1].rst)
-        self.assertIn(".. code-block:: clojure", statements[2].rst)  # no block: code
+        from automationv3.documents import script
+        statements = views(SCRIPT)
+        self.assertEqual(len(statements), 2)  # prose isn't a statement
+        self.assertEqual("**Wait** 1 seconds", statements[0].rst)
+        self.assertIn(".. code-block:: clojure", statements[1].rst)  # no block: code
+        self.assertIn("The Title", script.render(SCRIPT))  # the prose is the page's
 
     def test_requirements_resolve_through_the_lookup(self):
-        self.assertIn("[R1]", document_html(get_statements(SCRIPT)[0].rst))
-        get_statements.cache_clear()
+        from automationv3.documents import script
+        self.assertIn("[R1]", document_html(script.render(SCRIPT)))
 
         # A requirements store, without any web app
         conn = connect(":memory:")
         init_db(conn)
         models.insert(conn, [Requirement("R1", "The system shall start", "SYS")])
         rst.set_requirement_lookup(lambda id: models.find_by_id(conn, id))
-        self.assertIn("shall [R1]", document_html(get_statements(SCRIPT)[0].rst))
+        self.assertIn("shall [R1]", document_html(script.render(SCRIPT)))
 
     def test_a_cached_page_shows_the_requirement_as_it_is_now(self):
         from automationv3.documents import script
@@ -83,13 +82,13 @@ class TestStatements(unittest.TestCase):
         self.assertIn("stop", second)
 
     def test_blocks_render_themselves(self):
-        (statement,) = get_statements(rvt('(StartWithConfig {:mode :normal :trim 3})'))
+        (statement,) = views(rvt('(StartWithConfig {:mode :normal :trim 3})'))
         self.assertIn(".. list-table:: Config", statement.rst)
         self.assertIn("``3``", statement.rst)
         self.assertNotIn("code-block", statement.rst)
 
     def test_variations_render_as_a_table(self):
-        (statement,) = get_statements(rvt(
+        (statement,) = views(rvt(
             '(variations "mode level" ["low" [:low 1] "high" [:high (+ 1 2)]])'))
         html = document_html(statement.rst)
         self.assertIn("Variations</caption>", html)
@@ -98,7 +97,7 @@ class TestStatements(unittest.TestCase):
         self.assertNotIn("code-block", statement.rst)
 
     def test_precondition_renders_check_and_heal_on_their_own(self):
-        (statement,) = get_statements(rvt(
+        (statement,) = views(rvt(
             '(Precondition "Ready" (ready?) :heal "Start <it>" '
             "(StartWithConfig {:mode :x}))"))
         p = statement.precondition
@@ -108,18 +107,18 @@ class TestStatements(unittest.TestCase):
         self.assertIn("**Precondition:** Ready", statement.rst)
 
     def test_precondition_without_heal(self):
-        (statement,) = get_statements(rvt('(Precondition "Ready" (ready?)) (Wait 1)'))[:1]
+        (statement,) = views(rvt('(Precondition "Ready" (ready?)) (Wait 1)'))[:1]
         self.assertIsNone(statement.precondition["heal_rst"])
         self.assertIsNone(statement.precondition["heal_name"])
 
     def test_other_statements_are_not_preconditions(self):
-        statements = get_statements(rvt('(Wait 1) (Precondition "R" (r?) :heal (h)) (Wait 2)'))
+        statements = views(rvt('(Wait 1) (Precondition "R" (r?) :heal (h)) (Wait 2)'))
         self.assertEqual([s.precondition is not None for s in statements],
                          [False, True, False])
         self.assertIn("Wait", statements[2].rst)
 
     def test_sample_start_demo_block(self):
-        (statement,) = get_statements(rvt(
+        (statement,) = views(rvt(
             "(StartDemo {:mode :emergency :readings {:brake-pressure 70}})"))
         self.assertIn(".. list-table:: Configuration", statement.rst)
         self.assertIn("brake-pressure", statement.rst)
@@ -150,6 +149,7 @@ class TestRunPage(unittest.TestCase):
 
         from automationv3.documents import script
         from automationv3.framework.closure import Closure
+        from automationv3.framework import source
         from automationv3.framework.executor import execute_script
         from automationv3.framework.plugins import load_plugins
 
@@ -161,7 +161,7 @@ class TestRunPage(unittest.TestCase):
         data = SimpleNamespace(
             events=lambda run: recorder.events,
             closure=lambda run: Closure("s.rst", files={"s.rst": text}, load_order=["s.rst"]),
-            statements=lambda run: get_statements(text),
+            statements=lambda run: source.statements(source.parse(text)),
             links=SimpleNamespace(file=lambda *args: ""))
         run = {"id": "r1", "report_id": "x", "script": "s.rst", "outcome": "fail"}
         tree = script.parsed(text, None, results=True, variations=False)

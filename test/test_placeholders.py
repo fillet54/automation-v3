@@ -2,10 +2,9 @@
 
 import unittest
 
-from automationv3.framework.statements import get_statements
 from automationv3.services.reports import rollup
 
-from .rvt import rvt
+from .rvt import rvt, views
 from .test_analysis import check
 from .test_compose import run
 
@@ -42,12 +41,12 @@ class TestRunning(unittest.TestCase):
 
 class TestReading(unittest.TestCase):
     def test_renders_as_a_step_to_be_written(self):
-        (statement,) = get_statements(rvt('(TBD "Engage the <autopilot>")'))
+        (statement,) = views(rvt('(TBD "Engage the <autopilot>")'))
         self.assertIn(".. container:: tbd", statement.rst)
         self.assertIn("**To be written** Engage the <autopilot>", statement.rst)
 
     def test_in_a_block_of_its_own_the_title_says_what(self):
-        (statement,) = get_statements(rvt("(TBD)"))
+        (statement,) = views(rvt("(TBD)"))
         self.assertIn("**To be written**\n", statement.rst)
         self.assertEqual(run('(TBD)')[0], "incomplete")
 

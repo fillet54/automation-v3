@@ -29,7 +29,9 @@ class Parity(unittest.TestCase):
             with self.subTest(path=path):
                 found = baseline.record(path, (baseline.ROOT / path).read_text())
                 self.assertEqual(found.get("error"), expected.get("error"))
-                self.assertEqual(found.get("parts"), expected.get("parts"))
+                forms = [p for p in expected["parts"] if "form" in p] \
+                    if "parts" in expected else None
+                self.assertEqual(found.get("parts"), forms)
                 self.assertEqual(found["cards"], expected["cards"])
 
 

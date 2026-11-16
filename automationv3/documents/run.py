@@ -20,9 +20,10 @@ from dataclasses import dataclass, field
 from docutils import nodes, utils
 from docutils.parsers.rst import directives, roles
 
+from ..framework import source
 from ..framework.block import BuildingBlock, all_blocks, find_block
 from ..framework.excerpt import failure_view
-from ..framework.language import DIRECTIVES, head
+from ..framework.language import DIRECTIVES, head, is_definition
 from .core import directive, role
 from .template import Rst, filter, literal, text
 
@@ -85,8 +86,9 @@ class RunResults:
         self.events = data.events(run)
         self.finished = run.get("outcome") is not None
         self.closure = data.closure(run)
-        # the forms, by index: what events count (prose has no index)
-        self.statements = [s for s in data.statements(run) if s.index is not None]
+        # the script's forms as pages show them, by index: what events count
+        from .script import view
+        self.statements = [view(s) for s in data.statements(run)]
         self.started = {key(e) for e in self.events if e["kind"] == "step_start"}
         self.ended = {key(e): e for e in self.events if e["kind"] == "step_end"}
         self.calls = call_trees(self.events)
@@ -139,14 +141,14 @@ class RunResults:
             ended=ended)
 
     def is_step(self, index):
-        form = self.statements[index].statement
+        form = self.statements[index].form
         return isinstance(form, list) and head(form) not in DIRECTIVES
 
     def span_state(self, first, last):
         """The state and duration of the steps from `first` to `last`"""
         results = [self.step(i) for i in range(first, last + 1)
                    if i < len(self.statements) and self.is_step(i)
-                   and not self.statements[i].definition]
+                   and not is_definition(self.statements[i].form)]
         states = [r.state for r in results]
         state = min(states, key=STATE_ORDER.index) if states else None
         return state, total_duration(r.duration for r in results)
@@ -154,17 +156,14 @@ class RunResults:
     def table(self, index):
         """A table block's rows: each with its values, state, message,
         duration and its steps' results"""
-        statement = self.statements[index]
-        steps = [i for i in range(index + 1, len(self.statements))
-                 if self.statements[i].table == statement.table]
-        steps = steps[:next((n for n, i in enumerate(steps) if i != index + 1 + n),
-                            len(steps))]
-        steps = [i for i in steps if not (self.variation and self.statements[i].variations
-                                          and self.variation not in self.statements[i].variations)]
+        statement = self.statements[index].statement
+        forms = [v.statement for v in self.statements]
+        steps = [i for i in source.table_steps(forms, index)
+                 if forms[i].applies(self.variation)]
         names = self.table_rows.get(index)
         if names is None:  # not reached: the rows as written
             from ..framework.language import parse_table
-            names = [row.name for row in parse_table("", statement.statement, [])]
+            names = [row.name for row in parse_table("", statement.form, [])]
         rows = []
         for name in names:
             event = self.rows.get((index, name), {})
@@ -308,10 +307,9 @@ def own_results():
 def result_rst(results, index, row=None):
     """A step's result: the block's own, if it writes one, else the
     run/step-result.rst snippet"""
-    statement = results.statements[index]
     result = results.step(index, row)
     own = None
-    form = statement.statement
+    form = results.statements[index].form
     if results.own_results is None:
         results.own_results = own_results()
     if isinstance(form, list) and result.ended is not None \

@@ -55,14 +55,10 @@ def options(values):
             for name, value in sorted(values.items())}
 
 
-def part(found, forms):
-    """One part, as plain data: prose (a statements.Statement with no
-    index), or the source.Statement among `forms` at its index"""
+def part(statement):
+    """One form (a source.Statement), as plain data"""
     from automationv3.framework import edn
 
-    if found.index is None:
-        return {"prose": found.statement, "line": found.line}
-    statement = forms[found.index]
     values = dict(statement.options)
     if statement.variations is not None:  # a variant's too, as the old reader gave them
         values["variations"] = statement.variations
@@ -87,8 +83,9 @@ def card(found):
 
 def record(path, text):
     """What the code makes of one file: since step 2, the parts come
-    from source.statements, through statements.parts for the prose"""
-    from automationv3.framework import cards, source, statements
+    from source.statements; since step 5, the forms only (the prose
+    matched in steps 2 to 4, and is the cards' text now)"""
+    from automationv3.framework import cards, source
 
     entry = {"cards": [card(c) for c in cards.split(text)]}
     if source.has_rvt(text):
@@ -97,8 +94,7 @@ def record(path, text):
         if problems:
             entry["error"] = problems[0].message
         else:
-            forms = source.statements(tree)
-            entry["parts"] = [part(p, forms) for p in statements.parts(tree)]
+            entry["parts"] = [part(s) for s in source.statements(tree)]
     return entry
 
 

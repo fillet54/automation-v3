@@ -4,9 +4,8 @@ import unittest
 
 from automationv3.framework import source
 from automationv3.framework.executor import execute_closure
-from automationv3.framework.statements import get_statements
 
-from .rvt import doc, rvt
+from .rvt import doc, rvt, views
 from .test_analysis import check
 from .test_compose import Recorder
 
@@ -60,7 +59,7 @@ class TestReading(unittest.TestCase):
         self.assertEqual(parts[0].table, parts[1].table)
 
     def test_rows_render_as_a_table(self):
-        rows, _ = get_statements(rvt(ROWS + "\n(Wait 1)", "table"))
+        rows, _ = views(rvt(ROWS + "\n(Wait 1)", "table"))
         self.assertIn(".. list-table:: For each row", rows.rst)
         self.assertIn("* - ``two``", rows.rst)
 

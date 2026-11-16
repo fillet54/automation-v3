@@ -6,13 +6,12 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from automationv3.framework import source, statements
+from automationv3.framework import cards, source
 from automationv3.framework.closure import resolve
 from automationv3.framework.planning import build_plan
-from automationv3.framework.statements import get_statements
-from automationv3.documents.grouping import group, statement_item
+from automationv3.documents import script as pages
 
-from .rvt import doc, rvt
+from .rvt import doc, page_entries, rvt
 from .test_definitions import run
 
 VARIATIONS = rvt('(variations "limit" ["nominal" [80] "degraded" [40]])')
@@ -109,24 +108,23 @@ class TestLint(unittest.TestCase):
 
 class TestRendering(unittest.TestCase):
     def test_statements_know_their_variations(self):
-        scoped = [s.variations for s in get_statements(SCRIPT)]
-        self.assertEqual(scoped, [None, ["degraded"], None, None, None,
+        scoped = [s.variations for s in source.statements(source.parse(SCRIPT))]
+        self.assertEqual(scoped, [None, ["degraded"], None, None,
                                   ["degraded"], ["degraded"], ["nominal"]])
 
-    def test_consecutive_scoped_statements_group_together(self):
-        entries = group([statement_item(s) for s in get_statements(SCRIPT)])
-        kinds = [(kind, entry["variations"] if kind == "scoped" else None)
-                 for kind, entry in entries]
-        self.assertEqual(kinds, [
-            ("definitions", None),
-            ("scoped", ["degraded"]),
-            ("statement", None),     # variations
-            ("statement", None),     # prose
-            ("statement", None),
-            ("scoped", ["degraded"]),
-            ("scoped", ["nominal"]),
+    def test_each_scoped_block_is_its_own_entry(self):
+        entries = page_entries(SCRIPT)
+        self.assertEqual([(c, summary) for c, summary, _ in entries], [
+            ("block definitions collapsible", "Definitions margin"),
+            ("scoped", "Only for degraded"),
+            ("block", ""),     # variations
+            ("block", ""),
+            ("scoped", "Only for degraded"),
+            ("scoped", "Only for nominal"),
         ])
-        self.assertEqual(len(entries[5][1]["entries"]), 2)
+        (inner,) = entries[4][2]
+        self.assertEqual(inner[0], "block")
+        self.assertEqual(len(inner[2]), 2)  # its two steps
 
 
 class TestRollUp(unittest.TestCase):
@@ -138,25 +136,23 @@ class TestRollUp(unittest.TestCase):
         rvt("(Verify limit > 0)"),
     )
 
-    def entries(self, variation=None):
-        return group([statement_item(s, rst=s.rst) for s in get_statements(self.SCRIPT)],
-                     variation)
-
     def test_all_variations_keep_each_block(self):
-        kinds = [kind for kind, _ in self.entries()]
-        self.assertEqual(kinds[:3], ["definitions", "scoped", "scoped"])
+        kinds = [(c, summary) for c, summary, _ in page_entries(self.SCRIPT)]
+        self.assertEqual(kinds[:3], [("block definitions collapsible", "Definitions margin, gain"),
+                                     ("scoped", "Only for degraded"),
+                                     ("scoped", "Only for nominal")])
 
     def test_one_variation_rolls_up_to_the_last_definitions(self):
         for variation, expected in [("degraded", [("gain", "1"), ("margin", "20")]),
                                     ("nominal", [("margin", "5"), ("gain", "3")])]:
-            (first, *rest) = self.entries(variation)
-            self.assertEqual(first[0], "definitions")
-            self.assertNotIn("definitions", [kind for kind, _ in rest])
-            self.assertNotIn("scoped", [kind for kind, _ in rest])
-            shown = [(item["defines"], item["rst"]) for item in first[1]]
-            self.assertEqual([name for name, _ in shown], [n for n, _ in expected])
-            for (name, rst), (_, value) in zip(shown, expected):
-                self.assertIn(f"(def {name} {value})", rst)
+            (first, *rest) = page_entries(self.SCRIPT, variation=variation)
+            names = ", ".join(n for n, _ in expected)
+            self.assertEqual(first[:2], ("block definitions collapsible", f"Definitions {names}"))
+            self.assertNotIn("scoped", [c for c, _, _ in rest])
+            self.assertFalse(any("definitions" in c for c, _, _ in rest))
+            written = pages.render(self.SCRIPT, variation=variation)
+            for name, value in expected:
+                self.assertIn(f"(def {name} {value})", written)
 
 
 def variant(variations, *chunks):
@@ -178,17 +174,16 @@ VARIANT_SCRIPT = doc(
 
 class TestVariant(unittest.TestCase):
     def test_content_is_limited_to_its_variations(self):
-        parts = statements.parts(source.parse(VARIANT_SCRIPT))
-        scoped = [(p.index is None, p.variations, p.title) for p in parts]
-        self.assertEqual(scoped, [
-            (False, None, None),                    # variations
-            (True, None, None),
-            (True, ["degraded"], None),             # the variant's prose
-            (False, ["degraded"], "Lower limit"),
-            (False, ["degraded"], None),
-            (True, None, None),
+        forms = source.statements(source.parse(VARIANT_SCRIPT))
+        self.assertEqual([(s.variations, s.title, s.line) for s in forms], [
+            (None, None, 1),                         # variations
+            (["degraded"], "Lower limit", 12),
+            (["degraded"], None, 16),
         ])
-        self.assertEqual([p.line for p in parts][2:5], [10, 12, 16])
+        (variant,) = [c for c in cards.split(VARIANT_SCRIPT) if c.kind == cards.VARIANT]
+        prose = variant.children[0]  # the variant's prose: its own card in it
+        self.assertEqual((prose.kind, prose.text, prose.line),
+                         (cards.PROSE, "Degraded runs at a lower limit.", 10))
 
     def test_runs_only_for_its_variations(self):
         _, recorder = run(VARIANT_SCRIPT, variation="degraded")
@@ -223,9 +218,12 @@ class TestVariant(unittest.TestCase):
         self.assertTrue(source.has_rvt(variant("a", rvt("(Wait 0)"))))
 
     def test_one_variation_leaves_it_out(self):
-        items = [statement_item(s) for s in get_statements(VARIANT_SCRIPT)]
-        all_kinds = [kind for kind, _ in group(items)]
-        self.assertIn("scoped", all_kinds)
-        (kind, scoped) = [e for e in group(items) if e[0] == "scoped"][0]
-        self.assertEqual([k for k, _ in scoped["entries"]],
-                         ["statement", "titled", "statement"])
+        entries = page_entries(VARIANT_SCRIPT)
+        (classes, summary, inner) = [e for e in entries if "variant" in e[0]][0]
+        self.assertEqual((classes, summary), ("scoped variant", "Only for degraded"))
+        self.assertEqual([(c, t) for c, t, _ in inner],
+                         [("block titled collapsible", "Lower limit"), ("block", "")])
+        self.assertIn("Degraded runs at a lower limit.", pages.render(VARIANT_SCRIPT))
+        self.assertFalse([e for e in page_entries(VARIANT_SCRIPT, variation="nominal")
+                          if "variant" in e[0]])
+        self.assertNotIn("Degraded runs", pages.render(VARIANT_SCRIPT, variation="nominal"))

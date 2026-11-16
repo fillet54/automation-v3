@@ -5,9 +5,8 @@ import unittest
 from automationv3.framework import context
 from automationv3.framework.block import ACTION, ASSERTION, VALUE, BlockResult, BuildingBlock
 from automationv3.framework.executor import execute_closure
-from automationv3.framework.statements import get_statements
 
-from .rvt import rvt
+from .rvt import rvt, views
 
 CORE = """
 (def limit 80)
@@ -222,7 +221,7 @@ class TestVerify(unittest.TestCase):
         self.assertEqual(rec.of("step_end")[0]["stdout"], "(< 2 limit) is true")
 
     def test_renders_as_written(self):
-        (statement,) = get_statements(rvt("(Verify (reading :x) <= max-pressure)"))
+        (statement,) = views(rvt("(Verify (reading :x) <= max-pressure)"))
         self.assertEqual(statement.rst, "**Verify** ``(reading :x) <= max-pressure``")
 
 

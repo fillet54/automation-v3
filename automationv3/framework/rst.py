@@ -131,5 +131,5 @@ def table_rst(form):
 
 def precondition_rst(form):
     """The precondition's name. Pages show its check and heal themselves,
-    like a titled block's steps (see statements.Statement.precondition)."""
+    like a titled block's steps (see documents/script.view)."""
     return f"**Precondition:** {parse_precondition(form).name}"

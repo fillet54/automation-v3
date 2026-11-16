@@ -3,11 +3,9 @@
 import unittest
 
 from automationv3.framework import source
-from automationv3.framework.statements import get_statements
-from automationv3.documents.grouping import block_duration, block_state, group, statement_item
 from automationv3.web.reports import duration
 
-from .rvt import doc, rvt
+from .rvt import doc, page_entries, rvt
 from .test_definitions import run
 
 SCRIPT = doc(
@@ -20,8 +18,7 @@ SCRIPT = doc(
 
 
 def kinds(entries):
-    return [(kind, entry["title"] if kind == "titled" else None)
-            for kind, entry in entries]
+    return [(classes, summary) for classes, summary, _ in entries]
 
 
 class TestParsing(unittest.TestCase):
@@ -43,34 +40,28 @@ class TestParsing(unittest.TestCase):
         self.assertEqual((part.title, part.variations), ("Pause", ["a"]))
 
 
-class TestGrouping(unittest.TestCase):
-    def test_a_titled_block_is_one_entry(self):
-        entries = group([statement_item(s) for s in get_statements(SCRIPT)])
+class TestPage(unittest.TestCase):
+    def test_each_block_is_its_own_entry(self):
+        entries = page_entries(SCRIPT)
         self.assertEqual(kinds(entries), [
-            ("definitions", None),
-            ("statement", None),        # prose
-            ("titled", "Check the limit"),
-            ("titled", "Check the limit"),  # the same title, another block
-            ("statement", None),        # untitled: shown as it is
+            ("block definitions collapsible", "Definitions limit"),
+            ("block titled collapsible", "Check the limit"),
+            ("block titled collapsible", "Check the limit"),  # the same title, another block
+            ("block", ""),                                    # untitled: its steps as they are
         ])
-        self.assertEqual(len(entries[2][1]["entries"]), 2)
+        self.assertEqual([c for c, _, _ in entries[1][2]], ["step", "step"])
 
     def test_titled_blocks_inside_a_scope(self):
         script = doc(rvt('(variations "x" ["a" [1] "b" [2]])'),
                      rvt("(Wait 0) (Wait 0)", title="Pause", variations="a"))
-        entries = group([statement_item(s) for s in get_statements(script)])
-        kind, scoped = entries[-1]
-        self.assertEqual(kind, "scoped")
-        self.assertEqual(kinds(scoped["entries"]), [("titled", "Pause")])
+        classes, summary, inner = page_entries(script)[-1]
+        self.assertEqual((classes, summary), ("scoped", "Only for a"))
+        self.assertEqual(kinds(inner), [("block titled collapsible", "Pause")])
 
-    def test_block_state(self):
-        def items(*states):
-            return [{"step": True, "state": s} for s in states] + [{"step": False}]
-        self.assertIsNone(block_state([{"step": False}]))
-        self.assertEqual(block_state(items("pass", "pass")), "pass")
-        self.assertEqual(block_state(items("pass", "fail", "not run")), "fail")
-        self.assertEqual(block_state(items("pass", "running", "pending")), "running")
-        self.assertEqual(block_state(items("not run", "not run")), "not run")
+    def test_a_tbd_step_marks_its_block(self):
+        script = doc(rvt('(Wait 0) (TBD "later")', title="Not yet"))
+        (classes, summary, _), = page_entries(script)
+        self.assertEqual(summary, "Not yet tbd")
 
 
 class TestDurations(unittest.TestCase):
@@ -81,12 +72,6 @@ class TestDurations(unittest.TestCase):
         for seconds, text in cases:
             self.assertEqual(duration(seconds), text, seconds)
 
-    def test_a_blocks_duration_sums_its_finished_steps(self):
-        items = [{"result": {"duration": 0.25}}, {"result": {"duration": 1.001}},
-                 {"step": True}, {}]
-        self.assertEqual(block_duration(items), 1.251)
-        self.assertIsNone(block_duration([{"step": True}]))
 
-    def test_a_table_in_a_block_counts_by_its_rows(self):
-        items = [{"result": {"duration": 0.5}}, {"result": None, "duration": 1.25}]
-        self.assertEqual(block_duration(items), 1.75)
+if __name__ == "__main__":
+    unittest.main()
