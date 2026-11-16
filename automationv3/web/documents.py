@@ -101,12 +101,8 @@ def rst_document(text):
 # A report's document
 
 @functools.lru_cache(maxsize=64)
-def _parsed_report(text, requirement_key):
-    return core.parse(text, source_path="report.rst")
-
-
 def parsed_report(text):
-    return _parsed_report(text, script_rst.requirement_key())
+    return core.parse(text, source_path="report.rst")
 
 
 def report_context(root, report_id, status, **extra):

@@ -223,7 +223,6 @@ def parse_many(texts, document):
         batch = utils.new_document(document.get("source", "<data>"), document.settings)
         batch._data_transform = True  # resolved by the caller, not as a transform
         Parser().parse(FRAGMENT_END.join(missing) + FRAGMENT_END, batch)
-        requirement_references(batch)
         for message in list(batch.findall(nodes.system_message)):
             if message["level"] < 2:
                 message.parent.remove(message)
@@ -262,20 +261,20 @@ LATEX_DEFAULTS = {"legacy_column_widths": False, "use_latex_citations": True}
 
 
 def parse(source, settings=None, source_path="<document>"):
-    """The doctree of `source`, placeholders left in place and :req:
-    references written (see rst.RequirementReferences)"""
+    """The doctree of `source`, placeholders and :req: references left in
+    place: nothing in it depends on data, so it can be cached"""
     overrides = {**SETTINGS, **(settings or {}), "automation": None}
-    tree = docutils.core.publish_doctree(source, source_path=source_path,
+    return docutils.core.publish_doctree(source, source_path=source_path,
                                          settings_overrides=overrides)
-    requirement_references(tree)
-    return tree
 
 
 def requirement_references(tree):
-    """Write the :req: references in `tree` (imported here: framework.rst
-    imports documents, through markup)"""
+    """Write the :req: references in `tree` with the requirements' text
+    as it is now (see rst.RequirementReferences; imported here because
+    framework.rst imports documents, through markup)"""
     from ..framework.rst import RequirementReferences
     RequirementReferences(tree).apply()
+    return tree
 
 
 def resolved(doctree, context):
@@ -283,7 +282,7 @@ def resolved(doctree, context):
     document = doctree.deepcopy()
     document.settings = copy.copy(doctree.settings)
     document.settings.automation = context
-    return resolve(document, context)
+    return requirement_references(resolve(document, context))
 
 
 def resolved_block(doctree, serial, context):
@@ -295,7 +294,7 @@ def resolved_block(doctree, serial, context):
     document = utils.new_document("<block>", copy.copy(doctree.settings))
     document.settings.automation = context
     document += node.deepcopy()
-    return resolve(document, context)
+    return requirement_references(resolve(document, context))
 
 
 def write(document, writer="html5", settings=None):

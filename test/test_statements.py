@@ -43,7 +43,8 @@ class StartWithConfig(BuildingBlock):
 
 
 def document_html(text):
-    return core.write(core.parse(text), "html5")["body"]
+    """As a page renders: parsed (cached), then resolved"""
+    return core.write(core.resolved(core.parse(text), core.Context()), "html5")["body"]
 
 
 class TestStatements(unittest.TestCase):
@@ -68,6 +69,18 @@ class TestStatements(unittest.TestCase):
         models.insert(conn, [Requirement("R1", "The system shall start", "SYS")])
         rst.set_requirement_lookup(lambda id: models.find_by_id(conn, id))
         self.assertIn("shall [R1]", document_html(get_statements(SCRIPT)[0].rst))
+
+    def test_a_cached_page_shows_the_requirement_as_it_is_now(self):
+        from automationv3.documents import script
+        tree = script.parsed(SCRIPT)
+        texts = {"R1": "The system shall start"}
+        rst.set_requirement_lookup(lambda id: Requirement(id, texts[id], "SYS"))
+        first = core.write(core.resolved(tree, core.Context()), "html5")["body"]
+        texts["R1"] = "The system shall stop"
+        self.assertIs(script.parsed(SCRIPT), tree)  # cached, by the text alone
+        second = core.write(core.resolved(tree, core.Context()), "html5")["body"]
+        self.assertIn("start", first)
+        self.assertIn("stop", second)
 
     def test_blocks_render_themselves(self):
         (statement,) = get_statements(rvt('(StartWithConfig {:mode :normal :trim 3})'))

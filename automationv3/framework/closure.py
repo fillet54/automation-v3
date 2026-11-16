@@ -91,15 +91,18 @@ class Closure:
         return hashlib.sha256(json.dumps(ordered).encode()).hexdigest()
 
 
-def read_statements(path, text, errors):
-    """The statements of `text` (see source.statements), or none and an
-    error if a block can't be read"""
+def read_statements(path, text, errors, diagnostics):
+    """The statements of `text` (see source.statements); or, if any block
+    can't be read, none, and an error for each such block, placed on it
+    (a Diagnostic in `diagnostics`, its text in `errors`)"""
+    from .analysis import ERROR, Diagnostic
     tree = source.parse(text, path)
     problems = source.unreadable(tree)
-    if problems:
-        errors.append(f"{path}: could not be read ({problems[0].message})")
-        return []
-    return source.statements(tree)
+    for problem in problems:
+        diagnostic = Diagnostic(ERROR, problem.message, problem.span, path)
+        diagnostics.append(diagnostic)
+        errors.append(str(diagnostic))
+    return [] if problems else source.statements(tree)
 
 
 def nested_imports(form):
@@ -221,7 +224,7 @@ def resolve(root, script, text=None, texts=None):
         errors.append(f"{script}: core.rst files are not scripts")
     if text is None:
         text = texts[script] if script in texts else (root / script).read_text()
-    script_statements = read_statements(script, text, errors)
+    script_statements = read_statements(script, text, errors, closure.diagnostics)
     script_forms = [statement.form for statement in script_statements]
 
     chain = [path for path in ancestors(script) if path in texts or (root / path).is_file()]
@@ -235,7 +238,8 @@ def resolve(root, script, text=None, texts=None):
     core_forms = {}
     parsed = {script: script_statements}
     for path in core_paths:
-        found = parsed[path] = read_statements(path, closure.files[path], errors)
+        found = parsed[path] = read_statements(path, closure.files[path], errors,
+                                               closure.diagnostics)
         core_forms[path] = [statement.form for statement in found]
         errors.extend(lint(path, core_forms[path]))
         if any(statement.table is not None for statement in found):

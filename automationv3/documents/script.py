@@ -156,7 +156,7 @@ def source(statements, variation=None, results=False, diagnostics=(), variations
 
 
 @functools.lru_cache(maxsize=64)
-def _parsed(text_, variation, results, variations, requirement_key):
+def _parsed(text_, variation, results, variations):
     return core.parse(source(get_statements(text_), variation, results, (), variations),
                       source_path="<script>")
 
@@ -164,8 +164,7 @@ def _parsed(text_, variation, results, variations, requirement_key):
 def parsed(text_, variation=None, results=False, diagnostics=(), variations=True):
     """The parsed (unresolved) document of a script's text: cached, unless
     it carries diagnostics"""
-    from ..framework import rst as script_rst
     if diagnostics:
         return core.parse(source(get_statements(text_), variation, results, diagnostics,
                                  variations), source_path="<script>")
-    return _parsed(text_, variation, results, variations, script_rst.requirement_key())
+    return _parsed(text_, variation, results, variations)

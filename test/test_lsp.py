@@ -91,13 +91,30 @@ class TestService(Rooted):
         self.service.texts["BRA/tc.rst"] = SCRIPT.replace(".. rvt::\n   :definitions:", ".. rvt::\n   :nonsense:")
         (problem,) = self.problems()
         self.assertIn('unknown option: "nonsense"', problem[1])
-        self.assertEqual(problem[2], 4)
+        self.assertEqual(problem[2], 5)  # on the option itself
 
     def test_a_heading_that_skips_a_level(self):
         self.service.texts["BRA/tc.rst"] = (SCRIPT + "\nSub\n---\n\nText.\n\nDeep\n~~~~\n\nText.\n"
                                          "\nTop\n===\n\nText.\n\nSkip\n~~~~\n\nText.\n")
         (problem,) = [p for p in self.problems() if "Inconsistent title style" in p[1]]
         self.assertEqual(problem[2], 29)  # the title "Skip", 0-based
+
+    def test_each_unreadable_block_is_placed_on_itself(self):
+        self.service.texts["BRA/tc.rst"] = (SCRIPT + "\n.. rvt::\n   :bogus:\n\n   (Wait 1)\n"
+                                            "\n.. rvt::\n\n   (Wait (double\n")
+        found = sorted((p[2], p[1]) for p in self.problems())
+        self.assertEqual(found, [(15, 'unknown option: "bogus"'), (21, "Missing closing ')'")])
+
+    def test_an_unreadable_core_block_is_placed_on_itself(self):
+        self.service.texts["core.rst"] = CORE + "\n.. rvt::\n   :bogus:\n"
+        (problem,) = self.problems("core.rst")
+        self.assertEqual((problem[1], problem[2]), ('unknown option: "bogus"', 11))
+
+    def test_completion_before_the_closure_is_read(self):
+        self.service.texts["BRA/tc.rst"] = SCRIPT + "   (Verify "
+        found = {i.label: i for i in self.service.complete("BRA/tc.rst", 13, 11)}
+        self.assertEqual(found["demo"].detail, "UUT handle")  # as core.rst declares it
+        self.assertEqual(found["target"].detail, "def in here")
 
     def test_an_open_core_stands_in_for_the_one_on_disk(self):
         self.service.texts["BRA/tc.rst"] = SCRIPT

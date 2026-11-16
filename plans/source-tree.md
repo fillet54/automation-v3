@@ -176,7 +176,7 @@ changes how pages group blocks.
     there that a heading inside an `rvt-variant` must use a style deeper
     than the section around it (see the notes).
 
-- [ ] **4. Requirements, problems and names from the tree.**
+- [x] **4. Requirements, problems and names from the tree.**
   - `source.requirement_refs` replaces the language server's `REQ`
     regex and (`closure.requirement_refs` already answers from it, since
     step 2)
@@ -419,4 +419,39 @@ file edited since (failing if ten or more are).
   the rest of the closure's messages.
 - `docs/operating/editor.rst` says how headings are found now, and that
   a directive needs a blank line before it.
+
+**Step 4 (2026-11-15).** Suite: 800 passing (four new tests: each
+unreadable block placed on itself, in a script and in a core.rst, as
+closure errors and in the editor; completion before the closure is
+read; a cached page showing a requirement's text as it is now).
+
+- `:req:` is looked up when a page is rendered: `core.resolved` and
+  `core.resolved_block` apply `rst.RequirementReferences` after
+  resolving, and `core.parse` no longer does. So `script._parsed`,
+  `statements.get_statements` (now cached directly) and
+  `web/documents.parsed_report` are cached by their text alone. The
+  finished run page's HTML cache keeps `requirement_key`: that HTML
+  holds the text. A test helper that wrote a parsed tree without
+  resolving it now resolves it, as every page does.
+- Closure errors for blocks that can't be read: one per block, as a
+  `Diagnostic` with its span (`closure.read_statements` takes the
+  closure's diagnostics), so the error reads `s.rst:2:4: unknown
+  option: "defs"` and the editor places it on the option; the reader's
+  error sits where reading stopped. The reader's message no longer
+  carries its own "(line: n, col: m)", relative to the block's code.
+  `Service.unreadable` and its message scrubbing are deleted; the
+  editor's problems for a core.rst come from `Service.core_problems`.
+- The language server's `REQ`, `DEFINITION` and `UUTS` regexes are
+  deleted. `requirement_refs` and hover read `source.requirement_refs`
+  (hover hits the role's own span); `names` reads `definitions`, and
+  the UUT handles of a script not yet resolved come from its `uut`
+  forms. `definitions`, `missing_paths` and `code_before` walk the
+  tree's blocks (`Service.blocks`: those without problems, at any
+  depth); `code_before` still counts the blank lines after a block as
+  the block's.
+- Decided here: docutils' own errors about prose (a level skip, a
+  heading inside a variant at its section's level) are shown in the
+  editor (step 3) but don't stop a script being queued. They change
+  how the page looks, not what runs.
+- Benchmark: about 5.7 ms a closure, within the noise of step 2's.
 

@@ -9,7 +9,7 @@ code.
 
 import functools
 
-from . import edn, rst, source
+from . import edn, source
 from .language import PRECONDITION, head, is_definition, is_text, parse_precondition
 from .rst import repr_rst
 
@@ -54,24 +54,17 @@ class Statement:
     def __repr__(self):
         return str(self)
 
+# Pages ask for the same script repeatedly, so cache by content. Its
+# :req: references stay references until a page is rendered.
+@functools.lru_cache(maxsize=128)
 def get_statements(text):
     """The script's statements, rendered"""
-    return _statements(text, rst.requirement_key())
-
-
-# Pages ask for the same script repeatedly, so cache by content. Its
-# :req: references read the requirements' text, so the cache is by what
-# that text comes from too.
-@functools.lru_cache(maxsize=128)
-def _statements(text, requirement_key):
     tree = source.parse(text)
     problems = source.unreadable(tree)
     if problems:
         raise ValueError(problems[0].message)
     return parts(tree)
 
-
-get_statements.cache_clear = _statements.cache_clear
 
 
 def parts(tree):

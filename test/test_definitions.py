@@ -107,6 +107,12 @@ class TestLint(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn('unknown option: "defs"', errors[0])
 
+    def test_each_unreadable_block_is_an_error_placed_on_it(self):
+        errors = self.errors(doc(rvt("(def a 1)", "defs"), rvt("(Wait (x")))
+        self.assertEqual(len(errors), 2)
+        self.assertTrue(errors[0].startswith("s.rst:2:4: "), errors[0])  # the option
+        self.assertTrue(errors[1].startswith("s.rst:8:"), errors[1])  # where reading stopped
+
 
 class TestRendering(unittest.TestCase):
     def test_statements_know_their_section(self):

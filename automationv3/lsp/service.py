@@ -13,23 +13,19 @@ import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from ..framework import cards, closure as closures, edn, lisp, refs, source
+from ..framework import closure as closures, edn, lisp, refs, source
 from ..framework.analysis import ERROR, KNOWN_FORMS, WARNING
 from ..framework.block import block_names, documented
-from ..framework.cards import RVT, SOURCE
-from ..framework.language import DEFINITIONS, DIRECTIVES, PRECONDITION, head
+from ..framework.language import DEFINITIONS, DIRECTIVES, PRECONDITION, head, name_of
 
 BLOCK, FUNCTION, VARIABLE, KEYWORD = "block", "function", "variable", "keyword"
 REQUIREMENT = "requirement"
 PATH = "path"
-REQ = re.compile(r":req:`([^`]+)`", re.IGNORECASE)
 REQ_OPEN = re.compile(r":req:`([^`]*)\Z", re.IGNORECASE)
 LITERALS = (str, int, float, bool, type(None))
 DELIMITERS = "()[]{}\"';,"
 CONSTRUCTOR_STRING = re.compile(r"\(\s*([^\s()\[\]{}\"';,]+)\s+\"([^\"\\\\]*)\Z")
 PREFIX = re.compile(r"[^\s()\[\]{}\"';,]*\Z")
-DEFINITION = re.compile(r"\(\s*(def|defn)\s+([^\s()\[\]{}\"';,]+)(?:\s+(\[[^\]]*\]))?")
-UUTS = re.compile(r"\(\s*uut\s+([^()]*)\)")
 BINDERS = {"fn", "defn", "let"}
 
 
@@ -302,8 +298,7 @@ class Service:
 
         def report(span, message):
             end = span.end_col if span.end_line == span.line else span.col + 1
-            found.append(Problem(WARNING, message, line_of(span), col_of(span), line_of(span),
-                                 end + shift))
+            found.append(Problem(WARNING, message, span.line - 1, span.col, span.line - 1, end))
 
         def walk(form, bound):
             if isinstance(form, edn.Symbol) and not isinstance(form, edn.Keyword):
@@ -354,30 +349,25 @@ class Service:
             for item in items:
                 walk(item, bound)
 
-        for card in cards.walk(cards.split(text)):
-            if card.kind != RVT:
-                continue
-            shift = card.code_indent
-
-            def line_of(span, first=card.code_line):
-                return first - 1 + span.line
-
-            def col_of(span, indent=card.code_indent):
-                return indent + span.col
-
-            for form, _ in edn.read_all_with_spans(card.code, readable=True):
+        for block in self.blocks(path, text):
+            for form, _ in block["forms"]:
                 walk(form, frozenset())
         return found
 
     def requirement_refs(self, text):
-        """[(id, line, col, end col)] of the :req: references in prose"""
+        """[(id, line, col, end col)] of the :req: references in prose,
+        0-based, the columns those of what is between the backquotes"""
+        return [(id, line, start, end) for id, line, _, start, end in self.requirement_roles(text)]
+
+    def requirement_roles(self, text):
+        """[(id, line, role's col, id's col, id's end col)], 0-based, of
+        the :req: references in prose (the role ends one past the id)"""
         found = []
-        for card in cards.walk(cards.split(text)):
-            if card.kind != cards.PROSE:
-                continue
-            for n, line in enumerate(card.source.splitlines()):
-                found += [(m.group(1).strip(), card.line - 1 + n, card.indent + m.start(1),
-                           card.indent + m.end(1)) for m in REQ.finditer(line)]
+        for id, span in source.requirement_refs(source.parse(text)):
+            if span is not None:
+                raw = text.splitlines()[span.line - 1][span.col:span.end_col]
+                found.append((id, span.line - 1, span.col, span.col + raw.index("`") + 1,
+                              span.end_col - 1))
         return found
 
     def unknown_requirements(self, text):
@@ -391,11 +381,8 @@ class Service:
                 for id, line, col, end in self.requirement_refs(text) if id not in known]
 
     def check_code(self, path, text):
-        unread = self.unreadable(text)
-        if unread:
-            return [(path, problem) for problem in unread]
         if PurePosixPath(path).name == closures.CORE:
-            return [(path, self.whole(text, message)) for message in self.core_errors(path, text)]
+            return [(path, problem) for problem in self.core_problems(path, text)]
         if not closures.is_script(path, text):
             return []
         try:
@@ -405,18 +392,8 @@ class Service:
         self.resolved[path] = closure
         found = []
         for d in closure.diagnostics:
-            scope = ""
-            if d.variations:
-                scope = f" (in variation{'s' if len(d.variations) > 1 else ''} {', '.join(d.variations)})"
             where = (d.span.source if d.span is not None else None) or d.path or path
-            if d.span is None:
-                problem = self.whole(self.text(where) or "", d.message + scope, d.severity)
-            else:
-                s = d.span
-                end_col = s.end_col if (s.end_line, s.end_col) > (s.line, s.col) else s.col + 1
-                problem = Problem(d.severity, d.message + scope, s.line - 1, s.col,
-                                  s.end_line - 1, end_col)
-            found.append((where, problem))
+            found.append((where, self.placed(d, where)))
         analysed = {str(d) for d in closure.diagnostics}
         for message in closure.errors:
             if message in analysed:
@@ -428,45 +405,37 @@ class Service:
             found.append((where, self.whole(self.text(where) or "", message)))
         return found
 
+    def placed(self, d, where):
+        """A Diagnostic as a Problem: on its span, or on the whole of the
+        file `where` if it has none"""
+        scope = ""
+        if d.variations:
+            scope = f" (in variation{'s' if len(d.variations) > 1 else ''} {', '.join(d.variations)})"
+        if d.span is None:
+            return self.whole(self.text(where) or "", d.message + scope, d.severity)
+        s = d.span
+        end_col = s.end_col if (s.end_line, s.end_col) > (s.line, s.col) else s.col + 1
+        return Problem(d.severity, d.message + scope, s.line - 1, s.col, s.end_line - 1, end_col)
+
     def whole(self, text, message, severity=ERROR):
         """A problem with the document as a whole: shown on its first line"""
         first = text.splitlines()[0] if text else ""
         return Problem(severity, message, 0, 0, 0, max(len(first), 1))
 
-    def unreadable(self, text):
-        """Problems for the blocks of `text` that can't be read at all,
-        each where the reader stopped"""
-        found = []
-        for card in cards.walk(cards.split(text)):
-            if card.kind == RVT:
-                try:
-                    edn.read_all_with_spans(card.code)
-                except edn.ParseError as e:
-                    line, col = card.code_line - 1 + e.line, card.code_indent + e.col
-                    message = str(e).rsplit(" (line:", 1)[0]
-                    found.append(Problem(ERROR, message, line, col, line, col + 1))
-            elif card.kind == SOURCE:
-                problems = source.unreadable(source.parse(card.source.lstrip("\r\n")))
-                if problems:
-                    lead = len(card.source) - len(card.source.lstrip("\r\n"))
-                    line = card.line - 1 + card.source[:lead].count("\n")
-                    message = problems[0].message.rsplit(" (line:", 1)[0]
-                    width = len(card.source.lstrip("\r\n").splitlines()[0])
-                    found.append(Problem(ERROR, message, line, 0, line, max(width, 1)))
-        for problem in source.swallowed(source.parse(text)):
-            s = problem.span
-            found.append(Problem(ERROR, problem.message, s.line - 1, s.col, s.line - 1, s.end_col))
-        return found
-
-    def core_errors(self, path, text):
-        """What closure.resolve would say of a core.rst, as messages"""
-        errors = []
-        statements = closures.read_statements(path, text, errors)
+    def core_problems(self, path, text):
+        """What closure.resolve would say of a core.rst: blocks that can't
+        be read on their lines, the rest on the whole file"""
+        errors, diagnostics = [], []
+        statements = closures.read_statements(path, text, errors, diagnostics)
+        placed = {str(d) for d in diagnostics}
         errors += closures.lint(path, [statement.form for statement in statements])
         if any(statement.table is not None for statement in statements):
             errors.append(f"{path}: core.rst blocks can't be tables")
         errors += closures.lint_variation_scopes(path, text, [])
-        return [e[len(path) + 2:] if e.startswith(f"{path}: ") else e for e in errors]
+        whole = [e[len(path) + 2:] if e.startswith(f"{path}: ") else e
+                 for e in errors if e not in placed]
+        return ([self.placed(d, path) for d in diagnostics]
+                + [self.whole(text, message) for message in whole])
 
     # Completion
 
@@ -548,16 +517,19 @@ class Service:
     def code_before(self, text, lines, line, col):
         """The code of the block `line` is in, up to `col` of it, or None
         if the place isn't in a block's code"""
-        for card in cards.walk(cards.split(text)):
-            first = card.line - 1
-            last = first + len(card.source.splitlines())
-            if not first <= line < last:
+        for block in source.walk(source.parse(text)):
+            first, last = block["line"] - 1, block["end"] - 1
+            while last + 1 < len(lines) and not lines[last + 1].strip():
+                last += 1  # the blank lines after it
+            if not first <= line <= last:
                 continue
-            if card.kind == cards.VARIANT:
-                continue  # its children say
-            if card.kind == RVT and line >= card.code_line - 1:
-                first = card.code_line - 1
-            elif card.kind != SOURCE:
+            if block["problems"]:
+                pass  # edited as the rst it is: all of it is code
+            elif isinstance(block, source.rvt_variant):
+                continue  # what is inside it says
+            elif block["content_line"] and line >= block["content_line"] - 1:
+                first = block["content_line"] - 1
+            else:
                 return None
             return "\n".join(lines[first:line] + [lines[line][:col]])
         return None
@@ -583,18 +555,21 @@ class Service:
         chain = [p for p in closures.ancestors(path)
                  if p != path and self.text(p) is not None]
         imports = [p for p in (closure.imports if closure else []) if p not in chain]
-        for source in chain + imports + [path]:
-            for kind, name, params in DEFINITION.findall(
-                    text if source == path else self.text(source) or ""):
-                where = "here" if source == path else source
-                if kind == "defn":
-                    add(Item(name, FUNCTION, f"{params or 'defn'} in {where}".strip()))
-                else:
-                    add(Item(name, VARIABLE, f"def in {where}"))
+        for name, definition in self.definitions(path).items():
+            where = "here" if definition.path == path else definition.path
+            form = definition.form
+            if head(form) == "defn":
+                params = edn.writes(form[2]) if len(form) > 2 and isinstance(form[2], edn.Vector) \
+                    else "defn"
+                add(Item(name, FUNCTION, f"{params} in {where}"))
+            else:
+                add(Item(name, VARIABLE, f"def in {where}"))
         if closure is None:  # not read cleanly yet: the handles as declared, last wins
-            declared = [found for source in chain + [path] for found in UUTS.findall(
-                text if source == path else self.text(source) or "")]
-            for name in (declared[-1].replace(":", " ").split() if declared else []):
+            declared = [form for where in chain + [path]
+                        for block in self.blocks(where, text if where == path
+                                                 else self.text(where) or "")
+                        for form, _ in block["forms"] if head(form) == "uut"]
+            for name in ([name_of(v) for v in declared[-1][1:]] if declared else []):
                 add(Item(name, VARIABLE, "UUT handle"))
         else:
             for name in closure.uuts:
@@ -617,20 +592,22 @@ class Service:
         a later file's replaces an earlier one's. A block that can't
         all be read gives what comes before the trouble."""
         found = {}
-        for source in self.sources(path):
-            for card in cards.walk(cards.split(self.text(source) or "")):
-                if card.kind != RVT:
-                    continue
-                # what reads, of a block still being typed
-                forms = edn.read_all_with_spans(card.code, readable=True)
-                code = card.code.splitlines()
-                for form, span in forms:
+        for where in self.sources(path):
+            for block in self.blocks(where, self.text(where) or ""):
+                code, first = block["code"].splitlines(), block["content_line"]
+                for form, span in block["forms"]:  # of one being typed, what reads
                     if (head(form) in DEFINITIONS and len(form) >= 2
                             and isinstance(form[1], edn.Symbol) and span is not None):
-                        written = "\n".join(code[span.line:span.end_line + 1])
-                        found[str(form[1])] = Definition(
-                            str(form[1]), form, source, card.code_line - 1 + span.line, written)
+                        written = "\n".join(code[span.line - first:span.end_line - first + 1])
+                        found[str(form[1])] = Definition(str(form[1]), form, where,
+                                                         span.line - 1, written)
         return found
+
+    def blocks(self, path, text):
+        """The rvt blocks of `text` that read as blocks (a block with a
+        wrong option is rst to edit, not code), at any depth"""
+        return [block for block in source.walk(source.parse(text, path))
+                if isinstance(block, source.rvt_block) and not block["problems"]]
 
     def static(self, name, definitions, seen=()):
         """What `name` is, if a literal, an alias of one, a ref or a
@@ -681,9 +658,9 @@ class Service:
         lines = text.splitlines()
         if line >= len(lines):
             return None
-        for m in REQ.finditer(lines[line]):
-            if m.start() <= col <= m.end():
-                return self.requirement_hover(m.group(1).strip()), m.start(1), m.end(1)
+        for id, at, role, start, end in self.requirement_roles(text):
+            if at == line and role <= col <= end + 1:
+                return self.requirement_hover(id), start, end
         at = name_at(lines[line], col)
         if at is None:
             return None

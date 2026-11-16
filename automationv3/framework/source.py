@@ -256,8 +256,9 @@ class RvtDirective(_Source):
             line = getattr(error, "line", 0)
             col = getattr(error, "col", 0)
             at = line_of(line)
+            message = str(error).rsplit(" (line:", 1)[0]  # the span says where
             node["error"] = Problem(
-                str(error), edn.Span(at, col + col_shift(line), at, col + col_shift(line) + 1,
+                message, edn.Span(at, col + col_shift(line), at, col + col_shift(line) + 1,
                                      path))
         forms = []
         for form, span in found:
