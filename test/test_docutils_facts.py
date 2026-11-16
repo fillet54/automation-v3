@@ -17,7 +17,7 @@ from docutils import nodes
 from docutils.core import publish_doctree
 from docutils.parsers.rst import Directive, directives, roles
 
-from automationv3.framework import document, rst  # noqa: F401  (registers rvt, rvt-variant, :req:)
+from automationv3.framework import rst, source  # noqa: F401  (registers rvt, rvt-variant, :req:)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -318,7 +318,7 @@ class Headings(unittest.TestCase):
 def scripts():
     """Every script and core.rst under test/data and demo"""
     return [path for top in ("test/data", "demo") for path in sorted((ROOT / top).rglob("*.rst"))
-            if document.has_rvt(path.read_text())]
+            if source.has_rvt(path.read_text())]
 
 
 class WholeFiles(unittest.TestCase):

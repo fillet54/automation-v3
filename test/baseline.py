@@ -88,10 +88,10 @@ def card(found):
 def record(path, text):
     """What the code makes of one file: since step 2, the parts come
     from source.statements, through statements.parts for the prose"""
-    from automationv3.framework import cards, document, source, statements
+    from automationv3.framework import cards, source, statements
 
     entry = {"cards": [card(c) for c in cards.split(text)]}
-    if document.has_rvt(text):
+    if source.has_rvt(text):
         tree = source.parse(text, path)
         problems = source.unreadable(tree)
         if problems:
@@ -108,6 +108,13 @@ def snapshot():
 
 def load():
     return json.loads(SNAPSHOT.read_text())
+
+
+def sha(path):
+    """The SHA-256 of a file as it is now; the snapshot holds each file's
+    as it was then, so a file edited since is left out of the checks"""
+    import hashlib
+    return hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
 
 
 def main():

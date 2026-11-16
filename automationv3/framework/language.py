@@ -1,6 +1,6 @@
 """The script language: the forms scripts are made of
 
-A script's rvt blocks hold edn forms (see document.py). Most are steps,
+A script's rvt blocks hold edn forms (see source.py). Most are steps,
 run in order. The others:
 
 - Definitions, `def` and `defn`, name values and functions. They live

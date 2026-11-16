@@ -272,6 +272,17 @@ See :doc:`intro` and :ref:`there`.
         self.assertEqual(source.problems(tree), [])
         self.assertEqual(source.blocks(tree), [])
 
+    def test_a_directive_swallowed_by_a_paragraph(self):
+        tree = source.parse("Title\n=====\nBody.\n.. rvt::\n\n   (Wait 1)\n")
+        self.assertEqual(source.statements(tree), [])
+        (problem,) = source.unreadable(tree)
+        self.assertIn("needs a blank line before it", problem.message)
+        self.assertEqual(problem.span[:4], (4, 0, 4, 8))
+
+    def test_a_directive_in_a_literal_block_is_text(self):
+        tree = source.parse("Doc\n===\n\n::\n\n   Body.\n   .. rvt::\n\n      (a)\n")
+        self.assertEqual(source.unreadable(tree), [])
+
     def test_docutils_errors_are_problems(self):
         text = "A\n===\n\nB\n---\n\nC\n~~~\n\nD\n===\n\nE\n~~~\n"
         (problem,) = source.problems(source.parse(text))

@@ -28,7 +28,9 @@ from its content, dedented).
 import re
 from dataclasses import dataclass, field
 
-from . import document
+from docutils import nodes
+
+from . import source
 
 PROSE, RVT, SOURCE, VARIANT = "prose", "rvt", "source", "variant"
 INDENT = "   "
@@ -59,134 +61,9 @@ class Card:
     count: int = 0  # how many children it had when it was cut
 
 
-def is_adornment(line):
-    return bool(document.HEADING_LINE.match(line))
-
-
-def headings(lines):
-    """[(index of a heading's first line, title, style)] for the section
-    headings in `lines` (prose, without line ends). A heading is a line
-    of text underlined with punctuation at least as long, after a blank
-    line, the start, or an overline of the same punctuation."""
-    found = []
-    i = 0
-    while i < len(lines) - 1:
-        title, under = lines[i], lines[i + 1].rstrip()
-        if (title.strip() and not title[0].isspace() and not is_adornment(title)
-                and is_adornment(under) and len(under) >= len(title.rstrip())):
-            before = lines[i - 1] if i else ""
-            over = bool(i) and is_adornment(before) and before.strip()[0] == under[0]
-            if over or not before.strip():
-                found.append((i - 1 if over else i, title.strip(), (under[0], over)))
-                i += 2
-                continue
-        i += 1
-    return found
-
-
-def chunks(text):
-    """[(kind, lines, first line)] of the text's prose and directives,
-    as the old reader split a script, but keeping every line, with its line end: a
-    directive takes the blank lines after it, and blank lines before
-    the first chunk go to it"""
-    found, current, start, kind = [], [], 1, "prose"
-    for line_no, line in enumerate(text.splitlines(keepends=True), start=1):
-        bare = line.rstrip("\r\n")
-        if kind != "prose" and bare.strip() and not bare[0].isspace():
-            found.append((kind, current, start))
-            current, start, kind = [], line_no, "prose"
-        if kind == "prose" and (document.RVT_START.match(bare)
-                                or document.VARIANT_START.match(bare)):
-            if "".join(current).strip():
-                found.append((kind, current, start))
-                current = []
-                start = line_no
-            # blank lines before the file's first chunk stay with it
-            kind = "rvt" if document.RVT_START.match(bare) else "variant"
-        current.append(line)
-    if current:
-        found.append((kind, current, start))
-    return found
-
-
 def without_tail(source):
     """`source` without its trailing blank lines"""
     return source[:BLANK_TAIL.search(source).start()]
-
-
-def prose_cards(lines, start, styles):
-    """The prose `lines` (with line ends) as cards, one per heading.
-    `styles` is the heading styles met so far in the document, in order:
-    a style's place is its section's depth."""
-    bare = [line.rstrip("\r\n") for line in lines]
-    found = headings(bare)
-    cuts = [at for at, _, _ in found]
-    if not cuts or "".join(lines[:cuts[0]]).strip():
-        cuts.insert(0, 0)
-        found.insert(0, (0, None, None))
-    else:  # blank lines before the first heading stay with it
-        cuts[0] = 0
-    cards = []
-    for n, (_, title, style) in enumerate(found):
-        end = cuts[n + 1] if n + 1 < len(cuts) else len(lines)
-        source = "".join(lines[cuts[n]:end])
-        level = 0
-        if style is not None:
-            if style not in styles:
-                styles.append(style)
-            level = styles.index(style) + 1
-        cards.append(Card(PROSE, source, start + cuts[n], text=without_tail(source),
-                          heading=title, level=level))
-    return cards
-
-
-def rvt_card(lines, start):
-    """The card of one rvt directive: its fields, or a source card when
-    docutils can't read it"""
-    source = "".join(lines)
-    lead = next(i for i, line in enumerate(lines) if line.strip())
-    directive = "".join(lines[lead:])
-    try:
-        block = document.parse_directive(directive, document.rvt_block, "rvt")
-    except document.RvtError:
-        return Card(SOURCE, source, start, text=without_tail(source))
-    options = block["options"]
-    _, col_shift = document.content_position(directive, block["content"], block["offset"])
-    return Card(RVT, source, start, title=block["title"],
-                definitions="definitions" in options, table="table" in options,
-                variations=list(options.get("variations") or []),
-                code=block["content"], code_line=start + lead + block["offset"],
-                code_indent=col_shift(0))
-
-
-def variant_card(lines, start, styles):
-    """The card of one rvt-variant directive, holding the cards of its
-    content; or a source card when docutils can't read it"""
-    source = "".join(lines)
-    lead = next(i for i, line in enumerate(lines) if line.strip())
-    directive = "".join(lines[lead:])
-    try:
-        node = document.parse_directive(directive, document.rvt_variant, "rvt-variant")
-    except document.RvtError:
-        return Card(SOURCE, source, start, text=without_tail(source))
-    _, col_shift = document.content_position(directive, node["content"], node["offset"])
-    indent = col_shift(0)
-    children = split(node["content"], styles)
-    moved(children, start + lead + node["offset"] - 1, indent)
-    return Card(VARIANT, source, start, variations=list(node["variations"]),
-                children=children, count=len(children))
-
-
-def moved(found, lines, cols):
-    """Move cards cut from a directive's content to where they are in the
-    file: `lines` down and `cols` right"""
-    for card in found:
-        card.line += lines
-        if card.code_line:
-            card.code_line += lines
-            card.code_indent += cols
-        card.indent += cols
-        moved(card.children, lines, cols)
 
 
 def walk(found):
@@ -196,19 +73,88 @@ def walk(found):
         yield from walk(card.children)
 
 
-def split(text, styles=None):
+def split(text):
     """The cards of a script's text. Their sources, joined, are `text`."""
-    cards, styles = [], [] if styles is None else styles
-    for kind, lines, start in chunks(text):
-        if kind == "prose":
-            cards += prose_cards(lines, start, styles)
-        elif kind == "rvt":
-            cards.append(rvt_card(lines, start))
-        else:
-            cards.append(variant_card(lines, start, styles))
-    for index, card in enumerate(cards):
+    tree = source.parse(text)
+    titles = sorted((span.line, node) for node in tree.findall(nodes.title)
+                    if (span := source.locate(tree, node)) is not None)
+    return _cut(text, tree, 1, 0, titles)
+
+
+def _cut(text, container, first, cols, titles):
+    """The cards of `text`, the content of `container` (the tree, or an
+    rvt-variant), whose first line is file line `first`, indented `cols`
+    in the file. A directive runs from its first line through the blank
+    lines after it; prose is cut again at each title."""
+    lines = text.splitlines(keepends=True)
+    found, at = [], 0
+    for block in source.blocks(container):
+        start = block["line"] - first
+        end = block["end"] - first + 1
+        while end < len(lines) and not lines[end].strip():
+            end += 1
+        if "".join(lines[at:start]).strip():
+            found += _prose(lines[at:start], first + at, cols, titles)
+            at = start
+        # else: blank lines before the file's first directive stay with it
+        found.append(_directive(block, "".join(lines[at:end]), first + at, cols, titles))
+        at = end
+    if at < len(lines):
+        found += _prose(lines[at:], first + at, cols, titles)
+    for index, card in enumerate(found):
         card.index = index
-    return cards
+    return found
+
+
+def _prose(lines, start, cols, titles):
+    """Prose `lines` (with line ends), from file line `start`, as cards:
+    one from each title (its overline, if it has one) to the next"""
+    cuts = []
+    for line, title in titles:
+        i = line - start
+        if 0 <= i < len(lines) - 1:
+            under = lines[i + 1].strip()
+            if i > 0 and lines[i - 1].strip() == under:  # an overline
+                i -= 1
+            cuts.append((i, lines[line - start].strip(), _level(title)))
+    if not cuts or "".join(lines[:cuts[0][0]]).strip():
+        cuts.insert(0, (0, None, 0))
+    else:  # blank lines before the first heading stay with it
+        cuts[0] = (0,) + cuts[0][1:]
+    found = []
+    for n, (at, heading, level) in enumerate(cuts):
+        end = cuts[n + 1][0] if n + 1 < len(cuts) else len(lines)
+        text = "".join(lines[at:end])
+        found.append(Card(PROSE, text, start + at, text=without_tail(text), heading=heading,
+                          level=level, indent=cols))
+    return found
+
+
+def _level(title):
+    """A title's depth, from the sections around it: 1 for the
+    document's title"""
+    depth, node = 0, title.parent
+    while node is not None:
+        depth += isinstance(node, nodes.section)
+        node = node.parent
+    return depth
+
+
+def _directive(block, text, line, cols, titles):
+    """The card of one rvt or rvt-variant directive: its fields, or a
+    source card when it has problems"""
+    if block["problems"]:
+        return Card(SOURCE, text, line, text=without_tail(text), indent=cols)
+    if isinstance(block, source.rvt_variant):
+        children = _cut(block["content"], block, block["content_line"] or line, block["indent"],
+                        titles)
+        return Card(VARIANT, text, line, variations=list(block["variations"]),
+                    children=children, count=len(children), indent=cols)
+    options = block["options"]
+    return Card(RVT, text, line, title=block["title"], definitions="definitions" in options,
+                table="table" in options, variations=list(options.get("variations") or []),
+                code=block["code"], code_line=block["content_offset"] + 1,
+                code_indent=block["indent"], indent=cols)
 
 
 def rvt_source(card):

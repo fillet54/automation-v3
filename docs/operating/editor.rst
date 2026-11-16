@@ -46,6 +46,19 @@ Source
    A block or variant that can't be read is edited as the
    reStructuredText it is.
 
+A heading is what the page shows as one: the cards are cut the way
+docutils reads the file. So:
+
+- an underline of four characters or more makes a heading even when it is
+  shorter than its title (docutils warns); a shorter one is ordinary text;
+- a heading inside a variant must use a style deeper than the section the
+  variant is in; one at that level or above is reported as a problem;
+- headings go one level at a time: a style that skips a level (``===``,
+  then ``~~~`` under a ``---`` heading) is reported as a problem;
+- a ``.. rvt::`` line needs a blank line before it. Straight after a line
+  of text it is part of that paragraph, not a block: it would never run,
+  so it is reported as a problem.
+
 The page shows the script and nothing else. Pointing at a card shows two
 marks to its left:
 

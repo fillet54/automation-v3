@@ -122,6 +122,17 @@ class TestSplit(unittest.TestCase):
                 "Short\n--\n")  # underline too short
         self.assertEqual(len(cards.split(text)), 1)
 
+    def test_a_short_underline_of_four_or_more_is_a_heading(self):
+        # as docutils, and so the page, reads it (with a warning)
+        found = cards.split("Intro.\n\nHello there\n----\n\nText.\n")
+        self.assertEqual([c.heading for c in found], [None, "Hello there"])
+
+    def test_a_directive_without_a_blank_line_before_it_is_prose(self):
+        # docutils reads it as the paragraph's text; source.unreadable
+        # reports it, so it can't silently not run
+        (card,) = cards.split("Title\n=====\nBody.\n.. rvt::\n\n   (a)\n")
+        self.assertEqual(card.kind, PROSE)
+
 
 class TestBuild(unittest.TestCase):
     def test_untouched_cards_build_the_same_file(self):
@@ -172,7 +183,7 @@ class TestBuild(unittest.TestCase):
         self.assertEqual(cards.split(".. rvt::\n")[0].kind, RVT)
 
     def test_a_new_card_gets_a_blank_line_either_side(self):
-        found = cards.split("Title\n=====\nBody.\n.. rvt::\n\n   (a)\n")
+        found = cards.split("Title\n=====\nBody.\n\n.. rvt::\n\n   (a)\n")
         found.insert(1, Card(PROSE, text="New words."))
         self.assertEqual(cards.build(found),
                          "Title\n=====\nBody.\n\nNew words.\n\n.. rvt::\n\n   (a)\n")

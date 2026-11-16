@@ -93,6 +93,12 @@ class TestService(Rooted):
         self.assertIn('unknown option: "nonsense"', problem[1])
         self.assertEqual(problem[2], 4)
 
+    def test_a_heading_that_skips_a_level(self):
+        self.service.texts["BRA/tc.rst"] = (SCRIPT + "\nSub\n---\n\nText.\n\nDeep\n~~~~\n\nText.\n"
+                                         "\nTop\n===\n\nText.\n\nSkip\n~~~~\n\nText.\n")
+        (problem,) = [p for p in self.problems() if "Inconsistent title style" in p[1]]
+        self.assertEqual(problem[2], 29)  # the title "Skip", 0-based
+
     def test_an_open_core_stands_in_for_the_one_on_disk(self):
         self.service.texts["BRA/tc.rst"] = SCRIPT
         self.service.texts["core.rst"] = CORE.replace("(def limit 80)", "(def ceiling 80)")

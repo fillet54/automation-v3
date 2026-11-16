@@ -26,9 +26,11 @@ import time
 from html import escape
 from pathlib import Path, PurePosixPath
 
+from docutils import nodes
 from flask import abort, current_app, jsonify, request
 
 from ..framework import cards as card_model
+from ..framework import source
 from ..framework.cards import Card, PROSE, RVT, SOURCE, VARIANT
 from . import documents
 from .db import get_db
@@ -87,9 +89,12 @@ def file_cards(path, text):
 
 
 def heading_lines(text):
-    """How many lines of a prose card's text are its heading"""
-    lines = text.lstrip("\n").splitlines()
-    return 3 if lines and card_model.is_adornment(lines[0]) else 2
+    """How many lines of a prose card's text are its heading: through
+    the underline of its first title (2, or 3 with an overline)"""
+    tree = source.parse(text.lstrip("\n"))
+    title = next(tree.findall(nodes.title), None)
+    span = source.locate(tree, title) if title is not None else None
+    return span.line + 1 if span is not None else 0
 
 
 def failed(text, error):

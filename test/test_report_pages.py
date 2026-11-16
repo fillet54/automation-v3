@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from automationv3.framework.document import document_title
+from automationv3.framework import source
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import export, store
 from automationv3.services.worker import Host
@@ -21,6 +21,9 @@ RVTS = Path(__file__).resolve().parent / "data" / "rvts"
 
 class TestDocumentTitle(unittest.TestCase):
     def test_the_first_heading_overlined_or_not(self):
+        def document_title(text):
+            return source.title(source.parse(text))
+
         self.assertEqual(document_title("=====\nBrake\n=====\nText"), "Brake")
         self.assertEqual(document_title("Intro\n\nBrakes\n------\n"), "Brakes")
         self.assertIsNone(document_title("Too long\n---\n"))

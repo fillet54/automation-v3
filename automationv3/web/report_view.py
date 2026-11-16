@@ -13,7 +13,7 @@ requirement no script references yet is "untested": it has no scripts.
 
 import re
 
-from ..framework.document import document_title
+from ..framework import source
 from ..services.reports import rollup, store
 from ..services.reports.data import ReportData, duration
 
@@ -164,7 +164,7 @@ def script_title(root, report_id, row, titles):
         text = None
         if row["latest"]:
             text = store.read_closure_file(root, report_id, row["latest"]["id"], script)
-        titles[script] = (text and document_title(text)) or None
+        titles[script] = (text and source.title(source.parse(text))) or None
     return titles[script] or script.rsplit("/", 1)[-1]
 
 

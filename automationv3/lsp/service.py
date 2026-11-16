@@ -274,8 +274,21 @@ class Service:
         if PurePosixPath(path).suffix != ".rst":
             return []
         found = self.check_code(path, text)
-        return (found + [(path, p) for p in self.missing_paths(path, text)]
+        return (found + [(path, p) for p in self.prose_problems(path, text)]
+                + [(path, p) for p in self.missing_paths(path, text)]
                 + [(path, p) for p in self.unknown_requirements(text)])
+
+    def prose_problems(self, path, text):
+        """What docutils finds wrong in a script's rst, at error level (a
+        heading that skips a level, or one inside a variant at its
+        section's level): what the page would show as an error"""
+        if not source.has_rvt(text):
+            return []
+        tree = source.parse(text, path)
+        blocks = source.unreadable(tree)
+        return [Problem(ERROR, p.message, p.span.line - 1, p.span.col, p.span.end_line - 1,
+                        max(p.span.end_col, p.span.col + 1))
+                for p in source.problems(tree) if p not in blocks]
 
     def missing_paths(self, path, text):
         """Warnings for the ref paths a script names that its kind of ref
@@ -440,6 +453,9 @@ class Service:
                     message = problems[0].message.rsplit(" (line:", 1)[0]
                     width = len(card.source.lstrip("\r\n").splitlines()[0])
                     found.append(Problem(ERROR, message, line, 0, line, max(width, 1)))
+        for problem in source.swallowed(source.parse(text)):
+            s = problem.span
+            found.append(Problem(ERROR, problem.message, s.line - 1, s.col, s.line - 1, s.end_col))
         return found
 
     def core_errors(self, path, text):

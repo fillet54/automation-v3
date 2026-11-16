@@ -157,7 +157,7 @@ changes how pages group blocks.
     (moved to `source.py`). `parse_directive`, `content_position` and
     `RvtError` stay until step 3: `cards.py` still uses them.
 
-- [ ] **3. Cards from the tree.** `cards.split` built on `source.blocks`
+- [x] **3. Cards from the tree.** `cards.split` built on `source.blocks`
   and `source.locate`.
   - Deleted from `cards.py`: `chunks`, `headings`, `is_adornment`,
     `prose_cards`, `rvt_card`, `variant_card`, `moved`. `Card`,
@@ -240,9 +240,9 @@ changes how pages group blocks.
     in a block inside a variant, before and after an edit above it.
 
 - [ ] **7. Finish.**
-  - Delete `framework/document.py` (its module description moves to
-    `source.py`), `test/baseline.py`, `test/baseline.json`,
+  - Delete `test/baseline.py`, `test/baseline.json`,
     `test/test_baseline.py` and `test/bench_closures.py`.
+    (`framework/document.py` went in step 3.)
   - Docs: `README.md` code map, `docs/scripts/` where it describes how a
     script is read, `docs/blocks/writing-blocks.rst` if it names
     `Statement`.
@@ -380,4 +380,43 @@ prose included.
   5 ms a closure (from 30 before step 1). Cold is flattered: the
   demo's four workspaces hold the same scripts at the same paths, so
   three of four parses come from the cache.
+
+**Step 3 (2026-11-15).** Suite: 795 passing. Cards from the tree equal
+the baseline cards for every tracked `.rst` not edited since (all but
+`docs/operating/editor.rst`, edited in this step). The snapshot now
+holds each file's SHA-256 as it was, and `test_baseline` leaves out a
+file edited since (failing if ten or more are).
+
+- `cards.split` cuts the text at `source.blocks` (each directive runs
+  through the blank lines after it, as before) and cuts prose again at
+  each title `source.locate` finds, from its overline if it has one. A
+  card's `level` is the number of sections around its title. A block
+  or variant with problems is a source card; one whose code doesn't
+  read is still an rvt card, as before.
+- `framework/document.py` is deleted, not in step 7: all that was left
+  was `has_rvt`, now `source.has_rvt`. Report titles use
+  `source.title` (the title's text, inline markup read, where the old
+  `document_title` gave the line as written).
+- `web/editor.heading_lines` reads the card's first title from the
+  tree; it agrees with the old rule on all 511 headings in the
+  repository. The re-split of an edited prose card in `card_html`
+  goes through the new `cards.split` unchanged.
+- Found while doing this, a behaviour change step 2 had brought in
+  silently: a `.. rvt::` line straight after a line of text, with no
+  blank line, is part of that paragraph to docutils, so since step 2 it
+  wasn't a block and never ran (the old regex splitter ran it).
+  `source.swallowed` now reports each such line, as part of
+  `source.unreadable`: the script can't be read until the blank line
+  is added, and the editor shows it on the line. `.. rvt::` inside a
+  literal block is still just text. `test_cards` had used such a line
+  as a fixture; it now has the blank line, and two new tests pin the
+  rule and the short-underline heading. `test_not_headings` passes
+  unchanged (its short underline is under four characters).
+- docutils' own errors about a script's rst (a level skip, a heading
+  inside a variant at its section's level) were not shown anywhere.
+  `Service.prose_problems` shows them in the editor, as errors on their
+  line. They don't stop a script being queued; step 4 decides that with
+  the rest of the closure's messages.
+- `docs/operating/editor.rst` says how headings are found now, and that
+  a directive needs a blank line before it.
 

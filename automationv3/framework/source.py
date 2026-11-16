@@ -47,6 +47,7 @@ docutils knows where a directive is to the line; where a title or a
 """
 
 import functools
+import re
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -436,13 +437,44 @@ def table_steps(found, index):
 
 def unreadable(tree):
     """The Problems that stop the source being read as a script: those
-    of its blocks and variants, and code that doesn't read (not
-    docutils' own messages about its prose)"""
+    of its blocks and variants, code that doesn't read, and directives
+    docutils read as a paragraph's text (not its own messages about
+    prose)"""
     found = []
     for node in walk(tree):
         found += node["problems"]
         if node.get("error"):
             found.append(node["error"])
+    return found + swallowed(tree)
+
+
+ANY_RVT = re.compile(r"^\s*\.\. rvt::(\s.*)?$")
+
+
+def has_rvt(text):
+    """True if the document has any rvt block (i.e. it's a script): a
+    cheap line test, without parsing (when listing a folder, say)"""
+    return any(ANY_RVT.match(line) for line in text.splitlines())
+
+
+DIRECTIVE_LINE = re.compile(r"^\s*\.\. (rvt|rvt-variant)::")
+
+
+def swallowed(tree):
+    """Problems for each `.. rvt::` (or `.. rvt-variant::`) line that is
+    part of a paragraph, because no blank line comes before it: docutils
+    reads it as text, so it would never run"""
+    paragraphs = {line.strip() for node in tree.findall(nodes.paragraph)
+                  for line in node.rawsource.splitlines()[1:]}
+    found = []
+    for i, line in enumerate(tree.lines):
+        if DIRECTIVE_LINE.match(line) and i and tree.lines[i - 1].strip() \
+                and line.strip() in paragraphs:
+            col = _indent(line)
+            found.append(Problem(f"{line.strip()} needs a blank line before it: without one "
+                                 "it is read as part of the paragraph above",
+                                 edn.Span(i + 1, col, i + 1, len(line.rstrip()),
+                                          tree.script_path)))
     return found
 
 

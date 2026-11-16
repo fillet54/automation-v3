@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-from automationv3.framework import closure, document
+from automationv3.framework import closure, source
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMO = ROOT / "demo" / "workspace"
@@ -28,7 +28,7 @@ def scripts():
     for workspace in sorted(DEMO.iterdir()):
         root = workspace / "rvts"
         for path in sorted(root.rglob("*.rst")):
-            if path.name != "core.rst" and document.has_rvt(path.read_text()):
+            if path.name != "core.rst" and source.has_rvt(path.read_text()):
                 found.append((root, str(path.relative_to(root))))
     return found
 

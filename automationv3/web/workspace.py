@@ -11,7 +11,7 @@ from flask import Blueprint, current_app, g, render_template, request, abort
 
 from ..framework import edn
 from ..framework.closure import is_script, resolve
-from ..framework.document import has_rvt
+from ..framework.source import has_rvt
 from ..framework.excerpt import excerpt
 from ..services import jobs
 from ..services.reports import store

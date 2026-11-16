@@ -6,7 +6,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from automationv3.framework import document, source, statements
+from automationv3.framework import source, statements
 from automationv3.framework.closure import resolve
 from automationv3.framework.planning import build_plan
 from automationv3.framework.statements import get_statements
@@ -220,7 +220,7 @@ class TestVariant(unittest.TestCase):
             "s.rst: no variation named typo (the script declares degraded, nominal)"])
 
     def test_a_script_with_rvt_blocks_only_in_variants(self):
-        self.assertTrue(document.has_rvt(variant("a", rvt("(Wait 0)"))))
+        self.assertTrue(source.has_rvt(variant("a", rvt("(Wait 0)"))))
 
     def test_one_variation_leaves_it_out(self):
         items = [statement_item(s) for s in get_statements(VARIANT_SCRIPT)]

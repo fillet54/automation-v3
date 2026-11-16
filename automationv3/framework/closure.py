@@ -32,7 +32,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from . import document, edn, source
+from . import edn, source
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_definition, is_step,
     name_of, parse_precondition, parse_variations,
@@ -69,7 +69,7 @@ def requirement_refs(text):
 def is_script(path, text):
     """An .rst document with rvt blocks, other than a core.rst"""
     path = PurePosixPath(path)
-    return path.suffix == ".rst" and path.name != CORE and document.has_rvt(text)
+    return path.suffix == ".rst" and path.name != CORE and source.has_rvt(text)
 
 
 @dataclass
