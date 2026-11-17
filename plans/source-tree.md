@@ -198,7 +198,7 @@ changes how pages group blocks.
   - `Service.code_before`, `missing_paths` and `definitions` take blocks
     from `source.blocks` instead of calling `cards.split`.
 
-- [ ] **5. One renderer.** `documents/script.py` takes tree nodes.
+- [x] **5. One renderer.** `documents/script.py` takes tree nodes.
   - `render(nodes, variation=None, results=False, diagnostics=())`
     writes the page rst for any run of blocks and prose. The whole
     script is all of them; a card is one.
@@ -455,7 +455,7 @@ read; a cached page showing a requirement's text as it is now).
   how the page looks, not what runs.
 - Benchmark: about 5.7 ms a closure, within the noise of step 2's.
 
-**Step 5, in progress (2026-11-15).** Committed, suite 798 passing:
+**Step 5 (2026-11-15, finished 2026-11-16).** Suite: 798 passing.
 `documents/script.py` renders pages from the cards (`render(text,
 found=None, ...)`): each rvt block is its own `block` container (titled
 and definitions blocks collapsible, a block's own variations wrapped
@@ -470,12 +470,15 @@ editor and the workspace page reach `render` through
 `documents.script_document`. Tests are rewritten against the page
 (`test/rvt.page_entries`).
 
-Still to do in step 5:
-- CSS for the `block` container in `automation.css`: spacing like the
-  editor's cards.
-- Check a script page, a picked variation and a run page in headless
-  Chromium (`/usr/bin/chromium`). Start a throwaway demo with
-  `automation-v3 demo --path <tmp dir> --port 8097 --no-docs`, never
-  the repository's `./demo`.
-- Tick step 5.
+- `automation.css`: a `block` outside the editor has 20px above and
+  below, about what two editor cards give, and the rule that joins
+  neighbouring collapsibles into one bordered run no longer joins two
+  blocks. Inside the editor the card does the spacing, so a block there
+  is left alone.
+- Checked in headless Chromium against a throwaway demo
+  (tc_bra_00004.rst): the script page (editor) looks as before; with
+  `emergency` picked, the limp-home definitions roll up into the one
+  `headroom` section, the normal/limp-home variant is left out and the
+  emergency variant shows; a scratch run of `emergency` shows each
+  result inside its block, the variant's step inside the variant.
 
