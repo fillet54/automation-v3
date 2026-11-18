@@ -64,10 +64,11 @@ _cleanups = contextvars.ContextVar("cleanups", default=None)
 
 
 @contextmanager
-def cleanups():
+def cleanups(registered=None):
     """Collect the cleanups registered for the duration: yields them, as
-    key -> (description, fn), in the order registered"""
-    registered = {}
+    key -> (description, fn), in the order registered. Given a dict,
+    collect into it (the console keeps one across commands)."""
+    registered = {} if registered is None else registered
     token = _cleanups.set(registered)
     try:
         yield registered
@@ -89,3 +90,32 @@ def drop_cleanup(key):
     registered = _cleanups.get()
     if registered is not None:
         registered.pop(key, None)
+
+
+class Stopped(Exception):
+    """The script was asked to stop"""
+
+    def __init__(self):
+        super().__init__("stopped")
+
+
+_stop = contextvars.ContextVar("stop", default=None)
+
+
+@contextmanager
+def stopping(event):
+    """Run the duration so that setting `event` (a threading.Event) stops
+    it, at the next check_stopped()"""
+    token = _stop.set(event)
+    try:
+        yield
+    finally:
+        _stop.reset(token)
+
+
+def check_stopped():
+    """Raise Stopped if whatever runs this script asked it to stop.
+    Blocks that loop for a long time call this in their loop."""
+    event = _stop.get()
+    if event is not None and event.is_set():
+        raise Stopped()

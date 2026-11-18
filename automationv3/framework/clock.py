@@ -9,6 +9,11 @@ import contextvars
 import time
 from contextlib import contextmanager
 
+from . import context
+
+# The longest a clock sleeps before checking whether the run was stopped
+SLICE = 0.1
+
 
 class Clock:
     def now(self):
@@ -27,7 +32,11 @@ class WallClock(Clock):
         return time.monotonic()
 
     def sleep(self, seconds):
-        time.sleep(seconds)
+        until = time.monotonic() + seconds
+        while (left := until - time.monotonic()) > 0:
+            context.check_stopped()
+            time.sleep(min(left, SLICE))
+        context.check_stopped()
 
 
 class SimClock(Clock):
@@ -43,11 +52,13 @@ class SimClock(Clock):
         return float(refs.read(self.time_ref, record_it=False))
 
     def sleep(self, seconds):
+        context.check_stopped()
         if self.step is not None:
             self.step(seconds)
             return
         until = self.now() + seconds
         while self.now() < until:
+            context.check_stopped()
             time.sleep(self.poll)
 
 

@@ -8,7 +8,7 @@ Actions return true, so a call can be a step.
 
 import time
 
-from automationv3.framework import edn
+from automationv3.framework import context, edn
 from automationv3.framework.clock import SimClock
 
 from . import connectors as C
@@ -139,6 +139,7 @@ class LunarModuleHandle:
         if self.pace:
             until = self.read_point("lm.time.sim") + float(seconds)
             while self.read_point("lm.time.sim") < until:
+                context.check_stopped()
                 self.sleep(min(0.05, float(seconds) / self.pace))
             return self.read_point("lm.time.sim")
         return self._run(lambda s: sim.advance(s, float(seconds)))
@@ -157,6 +158,7 @@ class LunarModuleHandle:
         if self.pace:
             end = self.read_point("lm.time.sim") + float(limit)
             while not self._read(reached) and self.read_point("lm.time.sim") < end:
+                context.check_stopped()
                 self.sleep(0.05)
             return self._read(reached)
         return self._run(lambda s: sim.run_until(s, reached, float(limit)))

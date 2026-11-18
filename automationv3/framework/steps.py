@@ -367,7 +367,7 @@ def failure(message, stderr=None, error=True, stdout="", trace=()):
 
 
 def _run_statement(form, env, runtime):
-    name = form[0] if form else None
+    name = form[0] if isinstance(form, list) and form else None
     try:
         if is_block_name(name) and name not in env:
             block, result = run_call(form, env)

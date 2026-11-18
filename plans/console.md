@@ -281,4 +281,26 @@ and the gutter button appear with a local worker and not without.
 
 ## Notes as we go
 
-(Filled in per step.)
+### Step 1 (the kernel)
+
+- The transcript is made in the kernel as events come (step 4's lines
+  land here), so the kernel and its transcript are one module,
+  `services/worker/kernel.py`.
+- A step's line is written when the step ends, with its calls under
+  it, so no line ever changes once written. What runs now is the
+  kernel's state (`running`), for the panel's header.
+- The transcript is one stream for the kernel, not per command: every
+  line has `n` and its command's id, and a page asks for lines after
+  the last `n` it has. Two tabs then see the same transcript.
+- `executor.run_statements` is the statement loop that both scripts and
+  the kernel run; `redefine=True` (the kernel) evaluates a definitions
+  card again even though its names exist. `_run_step` and `_define`
+  are now `run_step` and `define`.
+- A form typed at the prompt can be anything, including a plain symbol
+  or number (`mission`, `42`). `steps._run_statement` no longer assumes
+  a list.
+- Restart's abandon waits up to 2 s for the command to finish after
+  Stop. The thread itself is always alive (it waits on its queue), so
+  that is the test, not `thread.is_alive()`.
+- Stop checks are in `WallClock.sleep` (0.1 s slices), `SimClock.sleep`
+  and the lms handle's `run_for`/`fly_to` loops.

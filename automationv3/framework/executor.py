@@ -209,7 +209,17 @@ def _execute(text, observer, script, env, mode, variation, registered):
 
 def _run_statements(statements, observer, script, env, mode, variation):
     observer.on_procedure_begin(script=script, statements=len(statements), mode=mode)
+    return run_statements(statements, observer, script, env, mode, variation)
 
+
+def run_statements(statements, observer, script, env, mode="normal", variation=None,
+                   redefine=False):
+    """Run statements in order, as a script runs them: definitions,
+    steps, preconditions and tables. Stops at the first that fails.
+    Returns (outcome, TBD steps reached), the outcome as execute_script's
+    before cleanups. A definitions section already loaded (with the
+    closure) is skipped, unless `redefine` (the console, where running a
+    definitions card again is how an edit takes effect)."""
     outcome = "pass"
     placeholders = 0
     in_table = set()
@@ -226,13 +236,13 @@ def _run_statements(statements, observer, script, env, mode, variation):
             if outcome != "pass":
                 break
         elif is_definition(form):
-            if statement.definitions and dict.__contains__(env, form[1]):
+            if statement.definitions and not redefine and dict.__contains__(env, form[1]):
                 continue  # loaded with the closure
-            if not _define(form, env, observer, index):
+            if not define(form, env, observer, index):
                 outcome = "error"
                 break
         elif is_step(form):
-            result = _run_step(form, env, observer, index)
+            result = run_step(form, env, observer, index)
             placeholders += getattr(result, "placeholders", 0)
             if not result:
                 if head(form) == PRECONDITION:
@@ -251,7 +261,7 @@ def failure_details(result):
             "trace": getattr(result, "trace", None) or []}
 
 
-def _define(form, env, observer, index):
+def define(form, env, observer, index):
     """Evaluate a definition where it is in the script; only a failure is
     reported (as a step). Returns whether it succeeded."""
     try:
@@ -300,7 +310,7 @@ def _run_table(index, steps, statements, env, observer, variation, script):
                 statement = statements[step]
                 if not statement.applies(variation) or not is_step(statement.form):
                     continue
-                result = _run_step(statement.form, row_env, observer, step, row=row.name)
+                result = run_step(statement.form, row_env, observer, step, row=row.name)
                 placeholders += getattr(result, "placeholders", 0)
                 if not result:
                     row_outcome = "error" if result.error else "fail"
@@ -311,7 +321,7 @@ def _run_table(index, steps, statements, env, observer, variation, script):
     return outcome, placeholders
 
 
-def _run_step(form, env, observer, index, row=None):
+def run_step(form, env, observer, index, row=None):
     """Run and report one step (or Precondition). Returns its BlockResult."""
     precondition = head(form) == PRECONDITION
     details = dict(index=index, precondition=precondition)
