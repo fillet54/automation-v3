@@ -1,0 +1,181 @@
+{
+  "about": "The sample DOORS history of the Apollo example: each run is one export, made from specs/ with every earlier run's edits applied. demo.write_sample_exports writes them out. Release 1 covers standard (H) missions; Release 2 adds extended (J) missions.",
+  "specs": {
+    "MSN": {
+      "title": "Lunar Landing Mission Requirements",
+      "level": "system",
+      "parents": []
+    },
+    "LM": {
+      "title": "Lunar Module Specification",
+      "level": "segment",
+      "parents": [
+        "MSN"
+      ]
+    },
+    "LGC": {
+      "title": "Guidance Computer Software Requirements (Luminary)",
+      "level": "software",
+      "parents": [
+        "LM"
+      ]
+    }
+  },
+  "attributes": {
+    "subsystem": {
+      "type": "string"
+    },
+    "verification": {
+      "type": "enum",
+      "values": [
+        "Test",
+        "Analysis",
+        "Inspection",
+        "Demonstration"
+      ]
+    },
+    "last-modified-by": {
+      "type": "string",
+      "hashed": false
+    }
+  },
+  "runs": [
+    {
+      "name": "2026-09-01",
+      "about": "Release 1: standard missions",
+      "baselines": {
+        "MSN": "1.0",
+        "LM": "1.0",
+        "LGC": "1.0"
+      },
+      "sets": {
+        "Release 1": {
+          "MSN": "1.0",
+          "LM": "1.0",
+          "LGC": "1.0"
+        }
+      }
+    },
+    {
+      "name": "2026-09-02",
+      "about": "Nothing changed in DOORS: the import logs nothing"
+    },
+    {
+      "name": "2026-09-15",
+      "about": "A reworded requirement (its scripts become suspect), an attribute change, a change of formatting only, a new requirement, and one removed",
+      "edits": [
+        {
+          "spec": "LGC",
+          "file": "programs.rst",
+          "old": "each further click shall change the commanded rate of descent by 1 ft/s, and",
+          "new": "each further click shall change the commanded rate of descent by one foot per second (0.3048 m/s), and"
+        },
+        {
+          "spec": "LGC",
+          "file": "dsky.rst",
+          "old": ":verification: Test\n   :last-modified-by: doors-import\n\n   When a program wants the display",
+          "new": ":verification: Demonstration\n   :last-modified-by: jdoe\n\n   When a program wants the display"
+        },
+        {
+          "spec": "LGC",
+          "file": "programs.rst",
+          "old": "   :last-modified-by: doors-import\n\n   ABORT shall, at any time before landing, select P70: full thrust, upright, climbing.",
+          "new": "   :last-modified-by: jdoe\n\n   ABORT shall, at *any* time before landing, select P70: full thrust,\n   upright, climbing."
+        },
+        {
+          "spec": "LM",
+          "file": "caution.rst",
+          "append": ".. requirement:: LM-CWS-002\n   :satisfies: MSN-004\n   :subsystem: CWS\n   :verification: Demonstration\n   :last-modified-by: jdoe\n\n   The master alarm shall sound a tone in both crew headsets while it is lit.\n"
+        },
+        {
+          "spec": "LGC",
+          "remove": "LGC-DSK-005"
+        }
+      ]
+    },
+    {
+      "name": "2026-10-01",
+      "baselines": {
+        "LGC": "1.1"
+      },
+      "sets": {
+        "Release 1.1": {
+          "MSN": "1.0",
+          "LM": "1.0",
+          "LGC": "1.1"
+        }
+      }
+    },
+    {
+      "name": "2026-10-15",
+      "about": "Text outside the requirements, a link to a requirement that doesn't exist, and a requirement moved between files",
+      "edits": [
+        {
+          "spec": "LM",
+          "file": "index.rst",
+          "old": "its ascent stage holds the crew",
+          "new": "its ascent stage carries the crew"
+        },
+        {
+          "spec": "LGC",
+          "file": "navigation.rst",
+          "old": ":satisfies: LM-LDG-003, MSN-001\n   :subsystem: NAV\n   :verification: Test\n   :last-modified-by: doors-import\n\n   Navigation shall take in",
+          "new": ":satisfies: LM-LDG-003, MSN-001, LM-NAV-099\n   :subsystem: NAV\n   :verification: Test\n   :last-modified-by: jdoe\n\n   Navigation shall take in"
+        },
+        {
+          "spec": "LGC",
+          "move": "LGC-NAV-002",
+          "to": "dsky.rst"
+        }
+      ]
+    },
+    {
+      "name": "2026-11-01",
+      "about": "Release 2: extended missions, with more propellant, batteries, oxygen and water, and a longer stay",
+      "edits": [
+        {
+          "spec": "MSN",
+          "file": "surface.rst",
+          "append": ".. requirement:: MSN-012\n   :verification: Analysis\n\n   The mission system shall fly extended missions, with a planned surface stay of 75 hours.\n"
+        },
+        {
+          "spec": "LM",
+          "file": "propulsion.rst",
+          "append": ".. requirement:: LM-PRP-004\n   :satisfies: MSN-012\n   :subsystem: PRP\n   :verification: Inspection\n   :last-modified-by: jdoe\n\n   The extended lunar module shall carry 9,000 kg of descent propellant.\n"
+        },
+        {
+          "spec": "LM",
+          "file": "power.rst",
+          "append": ".. requirement:: LM-EPS-003\n   :satisfies: MSN-012\n   :subsystem: EPS\n   :verification: Inspection\n   :last-modified-by: jdoe\n\n   The extended lunar module shall carry five descent batteries of 415 Ah each.\n"
+        },
+        {
+          "spec": "LM",
+          "file": "environment.rst",
+          "append": ".. requirement:: LM-ECS-003\n   :satisfies: MSN-012\n   :subsystem: ECS\n   :verification: Inspection\n   :last-modified-by: jdoe\n\n   The extended lunar module shall carry 44 kg of oxygen and 300 kg of water in its descent stage.\n"
+        },
+        {
+          "spec": "LGC",
+          "file": "configuration.rst",
+          "append": ".. requirement:: LGC-CFG-002\n   :satisfies: MSN-012\n   :subsystem: CFG\n   :verification: Test\n   :last-modified-by: jdoe\n\n   The LGC shall accept an erasable load for an extended mission, and fly the descent with that mission's numbers.\n"
+        },
+        {
+          "spec": "LGC",
+          "file": "propellant.rst",
+          "append": ".. requirement:: LGC-PRP-002\n   :satisfies: MSN-003, LM-PRP-004\n   :subsystem: PRP\n   :verification: Test\n   :last-modified-by: jdoe\n\n   N93 shall show the descent propellant remaining as a percentage of the propellant the erasable load says was loaded.\n"
+        }
+      ],
+      "baselines": {
+        "MSN": "2.0",
+        "LM": "2.0",
+        "LGC": "2.0"
+      },
+      "sets": {
+        "Release 2": {
+          "MSN": "2.0",
+          "LM": "2.0",
+          "LGC": "2.0"
+        }
+      }
+    }
+  ]
+}
