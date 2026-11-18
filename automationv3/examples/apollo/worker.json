@@ -1,0 +1,6 @@
+{
+  "environments": {
+    "sim": {},
+    "lms": {"pace": 20}
+  }
+}

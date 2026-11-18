@@ -203,9 +203,17 @@ class LunarModuleHandle:
     def trajectory_rows(self):
         return self._read(lambda s: [list(row) for row in s["trajectory"]])
 
-    def throttles(self):
-        """Every throttle setting the trajectory recorded, percent"""
-        return edn.Vector(row[5] for row in self._read(lambda s: s["trajectory"]))
+    def throttles(self, since=None):
+        """Every throttle setting the trajectory recorded, percent; with
+        `since` (an event, e.g. :throttle-down), only those after it"""
+        def look(s):
+            start = None
+            if since is not None:
+                start = next((e["t"] for e in s["events"] if e["kind"] == name(since)), None)
+                if start is None:
+                    return []
+            return [row[5] for row in s["trajectory"] if start is None or row[0] > start]
+        return edn.Vector(self._read(look))
 
     def events(self, kind=None):
         def look(s):

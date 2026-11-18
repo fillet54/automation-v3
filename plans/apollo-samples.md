@@ -693,3 +693,24 @@ plugin is seen everywhere it is needed.
   Fixed inputs are applied after the crew acts, so they hold.
 - Handle extras that scripts will use: `ready`, `booted`,
   `supports_extended`, `throttles`, `events`, `touchdown`.
+
+### Step 4 and 5: requirements and scripts (2026-11-17)
+
+- 40 requirements in Release 1 (MSN, LM, LGC), 6 more appended in
+  Release 2. The history keeps every edit kind the old one had: text,
+  attribute, formatting only, append, remove, move, a `:satisfies:` to a
+  requirement that doesn't exist (`LM-NAV-099`), text outside the
+  requirements, baselines and sets (Release 1, 1.1, 2).
+- 28 scripts. Differences from the plan: no hover-margin script (it
+  tested nothing the requirements say); `tc_lnd_002` is the dispersed
+  landings; `CFG/tc_cfg_002` asks for an extended load and fails on
+  LUM099 (a version-aware expectation would have hidden the gap in the
+  rollup); `tc_alm_003` also covers the DES QTY sensor (`LM-PRP-003`).
+- Low gate comes at about 8.5 m/s and 200 m rather than the 5 m/s and
+  150 m targeted: the gate-to-gate law arrives fast. The nominal crew
+  copes; `tc_gdn_004` clicks in fives.
+- `test_example_set`: the whole set on LUM210 by requirement in sim
+  (15 s), then LUM131 and LUM099 on the scripts where they differ. The
+  queue form, once `configured`, needs every variation ticked.
+- `lm.lgc.rate-command` connector added; `.throttles` takes the event
+  to start from.

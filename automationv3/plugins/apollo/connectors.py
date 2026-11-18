@@ -95,6 +95,9 @@ CONNECTORS = {
                                  doc="Descent propellant remaining, as the LGC computes it (N93)"),
     "lm.lgc.lr-enabled": Point(lambda s: s["lgc"]["lr_incorporate"],
                                doc="Whether the crew has enabled the landing radar (V57)"),
+    "lm.lgc.rate-command": Point(
+        lambda s: None if s["lgc"]["vz_cmd"] is None else round(s["lgc"]["vz_cmd"], 4),
+        doc="The rate of descent P65 or P66 holds, m/s (negative down)"),
     "lm.lgc.config.mission": Point(lambda s: keyword(s["lgc"]["load"]),
                                    doc="The mission the erasable load is for"),
     "lm.lgc.config.vehicle": Point(lambda s: keyword(s["vehicle"]),
