@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>automation-v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/monokai.min.css">
+  <style>
+    /* The app's own look: paper-ui's dark palette and IBM Plex */
+    :root {
+      --ink: #e6e9e4;
+      --muted: #9aa39c;
+      --paper: #151917;
+      --soft: #1f2521;
+      --rule: #333b36;
+      --accent: #8fd1bd;
+      --pass: #7fc48f;
+      --fail: #e58a7f;
+      --warn: #e2c26f;
+      --r-background-color: var(--paper);
+      --r-main-font: "IBM Plex Sans", system-ui, sans-serif;
+      --r-main-font-size: 30px;
+      --r-main-color: var(--ink);
+      --r-heading-font: "IBM Plex Serif", Georgia, serif;
+      --r-heading-color: var(--ink);
+      --r-heading-text-transform: none;
+      --r-heading-font-weight: 500;
+      --r-heading-letter-spacing: 0;
+      --r-heading1-size: 2.4em;
+      --r-heading2-size: 1.55em;
+      --r-heading3-size: 1.1em;
+      --r-code-font: "IBM Plex Mono", ui-monospace, monospace;
+      --r-link-color: var(--accent);
+      --r-link-color-hover: #b9e6d8;
+      --r-selection-background-color: rgba(143, 209, 189, 0.35);
+    }
+    .reveal .slides { text-align: left; }
+    .reveal h1, .reveal h2, .reveal h3 { line-height: 1.15; }
+    .reveal h2 { margin-bottom: 0.5em; }
+    .reveal p, .reveal li { line-height: 1.4; }
+    .reveal ul, .reveal ol { display: block; margin-left: 1.1em; }
+    .reveal li + li { margin-top: 0.3em; }
+    .reveal strong { color: #fff; font-weight: 600; }
+    .reveal code { font-family: var(--r-code-font); color: var(--accent); font-size: 0.9em; }
+    .reveal pre { width: 100%; margin: 0.4em 0; box-shadow: none; font-size: 0.6em; }
+    .reveal pre code { max-height: 560px; padding: 16px 20px; border-radius: 6px; border: 1px solid var(--rule); background: #0f1210; color: var(--ink); line-height: 1.45; }
+    .reveal section img { margin: 0; }
+    .muted { color: var(--muted); }
+    .lead { font-size: 0.85em; color: var(--muted); margin-top: -0.3em; }
+    .small { font-size: 0.72em; }
+    .tiny { font-size: 0.6em; }
+    .eyebrow { font-family: var(--r-code-font); font-size: 0.5em; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.4em; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: start; }
+    .cols.wide-left { grid-template-columns: 1.35fr 1fr; }
+    .cols.wide-right { grid-template-columns: 1fr 1.5fr; }
+    .shot { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); }
+    .shot-full { max-height: 540px; width: auto; max-width: 100%; margin: 0 auto !important; }
+    .caption { font-size: 0.55em; color: var(--muted); margin-top: 0.6em; text-align: center; }
+    .card { border: 1px solid var(--rule); background: var(--soft); border-radius: 8px; padding: 14px 18px; }
+    .card h3 { margin: 0 0 0.3em; font-size: 0.85em; font-family: var(--r-main-font); font-weight: 600; color: var(--accent); }
+    .card p { margin: 0; font-size: 0.7em; color: var(--ink); }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .pill { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 0.75em; font-weight: 500; border: 1px solid currentColor; }
+    .pass { color: var(--pass); } .fail { color: var(--fail); } .warn { color: var(--warn); } .acc { color: var(--accent); }
+    table.plain { font-size: 0.6em; border-collapse: collapse; width: 100%; }
+    table.plain th { color: var(--muted); font-weight: 500; text-align: left; border-bottom: 1px solid var(--rule); padding: 6px 10px; }
+    table.plain td { border-bottom: 1px solid var(--rule); padding: 7px 10px; vertical-align: top; }
+    table.plain td code { font-size: 0.95em; }
+    /* Flow diagrams, drawn with boxes */
+    .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .node { border: 1px solid var(--rule); background: var(--soft); border-radius: 8px; padding: 12px 18px; font-size: 0.68em; text-align: center; min-width: 140px; }
+    .node b { display: block; font-size: 1.15em; color: #fff; font-weight: 600; }
+    .node span { color: var(--muted); }
+    .node.accent { border-color: var(--accent); }
+    .node.accent b { color: var(--accent); }
+    .arrow { color: var(--muted); font-size: 0.75em; }
+    .arrow small { display: block; font-size: 0.65em; text-align: center; }
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+    .title-slide h1 { font-size: 2.8em; margin-bottom: 0.2em; }
+    .title-slide .sub { font-size: 1.05em; color: var(--muted); }
+    .section-slide h2 { font-size: 2.2em; }
+    .section-slide p { color: var(--muted); }
+    .kbd { font-family: var(--r-code-font); font-size: 0.8em; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; color: #fff; }
+    .reveal .progress { color: var(--accent); }
+    .reveal .slide-number { background: transparent; color: var(--muted); font-family: var(--r-code-font); font-size: 14px; }
+    .reveal .controls { color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================================================ Title -->
+<section class="title-slide" data-background-gradient="radial-gradient(circle at 20% 20%, #1d2a25, #151917 60%)">
+  <div class="eyebrow">automation-v3</div>
+  <h1>Test scripts as documents,<br>runs as evidence</h1>
+  <p class="sub">A test automation framework for embedded units: how it fits together, and how it's used</p>
+  <p class="small muted" style="margin-top:2em">Examples throughout: the Apollo lunar module's powered descent, the demo that ships with the package</p>
+  <aside class="notes">Two halves: the concepts (scripts, blocks, UUTs, environments, workers, reports) and then the UI workflows. Every example is from the Apollo example that ships with the package, so anything shown can be tried with `automation-v3 demo`.</aside>
+</section>
+
+<!-- ============================================================ Why -->
+<section>
+  <h2>The problem</h2>
+  <p>Verifying a vehicle controller produces two things: <strong>evidence</strong> that each requirement holds, and the <strong>scripts</strong> that produced it. Both rot.</p>
+  <ul>
+    <li class="fragment">Scripts become code only their author can review</li>
+    <li class="fragment">Results live in spreadsheets, detached from the software, test code and bench that produced them</li>
+    <li class="fragment">Rerunning a test "the same way" is a matter of hope</li>
+    <li class="fragment">Hardware time is scarce, and every test boots the rig from scratch</li>
+  </ul>
+  <aside class="notes">This is the motivation page of the docs in four bullets. Every feature that follows is an answer to one of these.</aside>
+</section>
+
+<section>
+  <h2>Four commitments</h2>
+  <div class="grid2">
+    <div class="card"><h3>Scripts are documents</h3><p>A script is reStructuredText. Prose says what is tested and why; <code>rvt</code> blocks hold the steps. It renders as a readable procedure a reviewer can sign off.</p></div>
+    <div class="card"><h3>Requirements are the unit of progress</h3><p>Scripts cite the requirements they verify. Reports roll every run up to them: green, red, partial or untested.</p></div>
+    <div class="card"><h3>Every run is reproducible</h3><p>A run records its closure, variation, UUT versions and the environment's fingerprint. Its identity is their hash; a rerun matches it or says it didn't.</p></div>
+    <div class="card"><h3>Hardware stays warm</h3><p>Scripts say what state they need, and how to get there. Workers run the job that fits the bench as it is, before reinstalling anything.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ Big picture -->
+<section>
+  <h2>The big picture</h2>
+  <div class="stack" style="margin-top:0.6em">
+    <div class="flow">
+      <div class="node accent"><b>Requirement</b><span>MSN, LM, LGC specs</span></div>
+      <div class="arrow">◀ cites</div>
+      <div class="node"><b>Script</b><span>.rst + rvt blocks</span></div>
+      <div class="arrow">loads ▶</div>
+      <div class="node"><b>Closure</b><span>core.rst chain + imports</span></div>
+    </div>
+    <div class="flow"><div class="arrow">▼ queued as one job per</div></div>
+    <div class="flow">
+      <div class="node"><b>environment</b><span>sim, lms</span></div>
+      <div class="arrow">×</div>
+      <div class="node"><b>variation</b><span>standard, extended…</span></div>
+      <div class="arrow">×</div>
+      <div class="node"><b>UUT version</b><span>LUM131, LUM210…</span></div>
+    </div>
+    <div class="flow"><div class="arrow">▼ pulled by</div></div>
+    <div class="flow">
+      <div class="node"><b>Worker</b><span>next to the hardware</span></div>
+      <div class="arrow">hosts ▶</div>
+      <div class="node"><b>Environment</b><span>a sim, a bench, a rig</span></div>
+      <div class="arrow">runs ▶</div>
+      <div class="node"><b>UUT</b><span>the unit under test</span></div>
+    </div>
+    <div class="flow"><div class="arrow">▼ recorded as</div></div>
+    <div class="flow">
+      <div class="node"><b>Run</b><span>steps, files, closure</span></div>
+      <div class="arrow">collected in ▶</div>
+      <div class="node"><b>Report</b><span>versions under test</span></div>
+      <div class="arrow">rolls up to ▶</div>
+      <div class="node accent"><b>Requirement</b><span>green / red / partial</span></div>
+    </div>
+  </div>
+  <aside class="notes">The concepts page's diagram. Walk it top to bottom: a script cites requirements and loads its closure; queuing multiplies it out into jobs; a worker that hosts the environment pulls a job, installs and runs the UUT; the run lands in a report, which rolls up to the requirements it started from.</aside>
+</section>
+
+<section>
+  <h2>Who does what</h2>
+  <div class="grid3">
+    <div class="card"><h3>Script writer</h3><p>Writes scripts in rst and a small Lisp (edn), using definitions and blocks. Reads results against requirements.</p></div>
+    <div class="card"><h3>Block developer</h3><p>Writes BuildingBlocks, UUT and environment plugins in Python: the vocabulary scripts speak.</p></div>
+    <div class="card"><h3>Operator</h3><p>Runs the server and workers, imports requirements, queues reports and reads their rollups.</p></div>
+  </div>
+  <p class="small muted" style="margin-top:1em">The split matters: script writers never touch Python, and blocks decide how they read on the page.</p>
+</section>
+
+<!-- ============================================================ Concepts -->
+<section class="section-slide" data-background-color="#101412">
+  <div class="eyebrow">Part one</div>
+  <h2>Concepts</h2>
+  <p>Scripts, blocks, refs, UUTs, environments, variations, preconditions, outcomes</p>
+</section>
+
+<section>
+  <h2>A script is a document</h2>
+  <div class="cols wide-left">
+    <pre><code class="language-plaintext" data-trim data-noescape>
+================================
+Landing Within The Gear's Limits
+================================
+Flies each mission down from powered descent initiation,
+and from high gate, and checks the touchdown.
+
+Requirements
+------------
+1. :req:`MSN-001`
+2. :req:`LM-LDG-001`
+
+Steps
+-----
+
+.. rvt:: Down to the surface
+
+   (FlyTo :contact)
+   (Verify contact-light = true)
+   (land-and-keep "descent")
+
+.. rvt:: The touchdown
+
+   (Verify (abs (Read touchdown.vz)) &lt;= touchdown-vz-limit)
+   (Verify cwea.caution = false)
+    </code></pre>
+    <div>
+      <ul class="small">
+        <li><strong>Prose</strong> is reStructuredText: what is tested, and why</li>
+        <li><code>:req:</code> cites a requirement; reports roll up to it</li>
+        <li>Each <code>.. rvt::</code> block holds steps; a title makes it a named step on the page</li>
+        <li>Every form in a block is a <strong>step</strong>, a <strong>definition</strong> or a <strong>directive</strong></li>
+        <li>Unwritten steps are <code>(TBD "…")</code>: a script can be planned before it runs</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">LND/tc_lnd_001.rst, trimmed. The point: a reviewer who doesn't know the language can still read this and agree it tests what the requirement says.</aside>
+</section>
+
+<section>
+  <h2>…and it renders as one</h2>
+  <img class="shot shot-full" src="img/script-steps.jpg" alt="The script page: titled step blocks, each block rendered as a readable line">
+  <p class="caption">Blocks render themselves: <code>(FlyTo :contact)</code> becomes <strong>Fly to</strong> <code>:contact</code>; <code>rvt-variant</code> prose shows only for its variations</p>
+</section>
+
+<section>
+  <h2>The language</h2>
+  <div class="cols">
+    <div>
+      <p class="small">A small Lisp over edn. Definitions live in <code>core.rst</code>: a script loads every <code>core.rst</code> from the root down to its folder, then any it <code>(import …)</code>s.</p>
+      <pre><code class="language-clojure" data-trim data-noescape>
+;; rvts/core.rst
+(uut :lm)
+(environments :sim :lms)
+
+(def eps (connector "lm.eps"))
+(def touchdown (connector "lm.touchdown"))
+(def touchdown-vz-limit 3.05)
+
+(defn boot [mission start]
+  (StartLM {:mission mission :start start}))
+
+(defn landed-within-limits? []
+  (and (Read landed)
+       (&lt;= (abs (Read touchdown.vz)) touchdown-vz-limit)))
+      </code></pre>
+    </div>
+    <div>
+      <ul class="small">
+        <li><code>def</code>, <code>defn</code>, <code>let</code>, <code>if</code>, maps, vectors, keywords</li>
+        <li>Times are values: <code>500ms</code>, <code>5s</code>, <code>2min</code></li>
+        <li><code>(uut …)</code> and <code>(environments …)</code> declare what a script tests and where it can run</li>
+        <li>The closure (script + every file it loaded) is <strong>resolved statically</strong> and checked before anything runs: unknown names, wrong calls, bad block syntax</li>
+        <li>The same checks power the editor's errors, hover and completion</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Steps and blocks</h2>
+  <div class="cols">
+    <div>
+      <p class="small">A <strong>BuildingBlock</strong> is a Python class scripts call by name. Blocks are what pass or fail.</p>
+      <table class="plain">
+        <tr><th>Kind</th><th>Examples</th></tr>
+        <tr><td>Assertion</td><td><code>Verify</code>, <code>Wait</code>, <code>VerifyAny</code></td></tr>
+        <tr><td>Value</td><td><code>Read</code>, <code>SetValue</code>, <code>SetFixedValue</code></td></tr>
+        <tr><td>Action</td><td><code>StartLM</code>, <code>FlyTo</code>, <code>Keys</code>, <code>ClickROD</code></td></tr>
+        <tr><td>Placeholder</td><td><code>TBD</code></td></tr>
+      </table>
+      <ul class="small" style="margin-top:0.8em">
+        <li>The first failing block stops its step, and the step stops the script</li>
+        <li>A <code>defn</code> is transparent: its block calls report under the step that called it</li>
+        <li><code>try-ok?</code>, <code>try</code>, <code>quietly</code>, <code>step</code> shape what is reported</li>
+      </ul>
+    </div>
+    <div>
+      <pre><code class="language-clojure" data-trim data-noescape>
+(Verify nav.mode = :run)
+(Verify (abs (Read touchdown.vx)) &lt;= 1.22)
+(Verify nav.time within? 10 20)   ; your own predicate
+
+(Wait landed = true :within 15min)
+(Wait eps.soc >= 80.0 :within 3h :every 1min)
+(Wait 2s)
+      </code></pre>
+      <p class="small muted">Each check shows the values it read:<br><code>touchdown.vx (0.0) &lt;= 1.22</code></p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Writing a block</h2>
+  <div class="cols wide-left">
+    <pre><code class="language-python" data-trim data-noescape>
+class FlyTo(BuildingBlock):
+    """Let the flight run until it reaches a phase.
+
+    Examples::
+
+        (FlyTo :high-gate)
+        (FlyTo :touchdown :within 900)
+    """
+    kind = ACTION
+
+    def check_syntax(self, *args):
+        return len(args) in (1, 3) and isinstance(args[0], edn.Keyword)
+
+    def execute(self, phase, _within=None, limit=1500):
+        if not lm().fly_to(phase, limit):
+            return BlockResult(False, stderr=f"didn't reach {phase} within {limit} s")
+        now = lm().read_point("lm.time.sim")
+        return BlockResult(True, stdout=f"reached {phase} at {now:g} s")
+
+    def as_rst(self, phase, *rest):
+        return markup.line(markup.strong("Fly to"), markup.code(phase))
+    </code></pre>
+    <ul class="small">
+      <li>The <strong>docstring</strong> is the documentation script writers see, on hover and in the generated reference</li>
+      <li><code>check_syntax</code> runs statically: a bad call can't be queued</li>
+      <li><code>execute</code> returns a <code>BlockResult</code>: passed, stdout, data, files</li>
+      <li><code>as_rst</code> is how the call reads on the page</li>
+      <li>Blocks reach the UUT through its <strong>handle</strong>, bound to the UUT's name</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>Refs: the values of the system</h2>
+  <div class="cols">
+    <div>
+      <pre><code class="language-clojure" data-trim data-noescape>
+(def eps (connector "lm.eps"))
+(def bench (connector "lm.bench"))
+
+(Read eps.bus-volts)                    ; a number
+(SetValue panel.engine-stop true)       ; once
+(SetFixedValue bench.bus-load-amps 200) ; held…
+(ClearFixedValue bench.bus-load-amps)   ; …until released
+
+(def cpu (group cpu1 cpu2))
+(Verify cpu.app.nav.mode = :run)        ; every member
+(VerifyAny cpu.role = :primary)
+      </code></pre>
+    </div>
+    <ul class="small">
+      <li>A <strong>ref</strong> names a value somewhere else: a point of the UUT, an input of the bench</li>
+      <li>Scripts declare a few roots and reach everything with <strong>dotted names</strong>; the editor completes the paths</li>
+      <li>Each plugin brings its own kind of ref (the lunar module's are connectors) and implements <code>Read</code> and the value blocks for it</li>
+      <li>Whatever a script leaves fixed is <strong>released when it ends</strong>, however it ends</li>
+      <li><strong>Groups</strong> test redundant units together, and say which member disagreed</li>
+      <li>Every run lists the values it touched, and which steps touched them</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>UUTs: what is tested</h2>
+  <div class="cols wide-left">
+    <pre><code class="language-python" data-trim data-noescape>
+class LunarModule(UUT):
+    name = "lm"
+
+    def list_versions(self):
+        # LUM099, LUM131, LUM210: each digested from its rope
+        return [Version(id, digest(rope)) for id, rope in RELEASES.items()]
+
+    def installed_version(self, env): ...
+    def install(self, version, env): ...
+    def start(self, version, env): ...
+
+    def handle(self, version, env):
+        return LunarModuleHandle(self, env)
+    </code></pre>
+    <ul class="small">
+      <li>A <strong>UUT plugin</strong> lists versions, installs one into an environment, starts it, and hands scripts a <strong>handle</strong></li>
+      <li>A <code>Version</code> has an id people pick and a <strong>digest</strong> of the exact bits</li>
+      <li>Optional: find a developer's <strong>local build</strong> and upload it, for scratch runs</li>
+      <li>UUTs are left as the last job left them: that's what makes warm scheduling possible</li>
+    </ul>
+  </div>
+  <aside class="notes">Scripts declare (uut :lm). The handle is any Python object; scripts call its methods with the dot form, e.g. (.ready lm :standard :pdi).</aside>
+</section>
+
+<section>
+  <h2>Environments: where it runs</h2>
+  <div class="cols">
+    <div>
+      <pre><code class="language-python" data-trim data-noescape>
+class Sim(Environment):
+    """The lunar module in software, stepped"""
+    name = "sim"
+
+    def fingerprint(self):
+        return {"environment": self.name,
+                "python": platform.python_version(),
+                "lm-model": MODEL_VERSION}
+
+class Lms(Sim):
+    """The mission simulator: real time × pace"""
+    name = "lms"
+      </code></pre>
+      <pre><code class="language-json" data-trim>
+{"environments": {
+   "sim": {"workdir": "/var/lib/automation/sim"},
+   "lms": {"workdir": "/var/lib/automation/lms", "pace": 20}}}
+      </code></pre>
+    </div>
+    <ul class="small">
+      <li>A simulator, a bench, a rig. A <strong>worker</strong> hosts one or more, from its config</li>
+      <li>The <strong>fingerprint</strong>: tool versions, serial numbers, calibration. Hashed into every run's identity</li>
+      <li>Each environment gives the run its <strong>clock</strong>:
+        <ul>
+          <li><code>sim</code> steps the simulation, so a 12-minute descent waits for nothing</li>
+          <li><code>lms</code> runs on its own, 20× real time</li>
+          <li>hardware keeps the wall clock</li>
+        </ul>
+      </li>
+      <li>Scripts say where they can run: <code>(environments :sim :lms)</code></li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>Versions and variations</h2>
+  <div class="cols">
+    <div>
+      <p class="small"><strong>Version</strong>: what <code>install</code> puts in the environment. For the LM, the Luminary rope.</p>
+      <p class="small"><strong>Variation</strong>: how a run sets the UUT up, chosen by the script: the mission, the start point, the crew.</p>
+      <pre><code class="language-clojure" data-trim data-noescape>
+(variations "mission start"
+  ["standard from PDI"       [:standard :pdi]
+   "standard from high gate" [:standard :high-gate]
+   "extended from PDI"       [:extended :pdi]
+   "extended from high gate" [:extended :high-gate]])
+      </code></pre>
+      <p class="tiny muted">4 variations × 2 environments = 8 runs, against the versions a report picks</p>
+    </div>
+    <ul class="small">
+      <li>Variation symbols are bound for the whole script: steps, preconditions, definitions</li>
+      <li><code>rvt-variant</code> sections and <code>:variations:</code> blocks hold what only some variations need</li>
+      <li><strong>Table blocks</strong> are the other axis: cases that run one after another on the same flight are rows, all in one run</li>
+      <li>The queue can filter with an edn predicate: <code>(= mission :extended)</code></li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>Preconditions and warm scheduling</h2>
+  <div class="cols">
+    <div>
+      <pre><code class="language-clojure" data-trim data-noescape>
+(Precondition "LM booted for the variation's mission"
+  (lm-ready? mission start)
+  :heal "Boot the variation's mission at its start point"
+  (boot mission start))
+      </code></pre>
+      <ul class="small">
+        <li>A <strong>check</strong>, and an optional <strong>heal</strong> that establishes it</li>
+        <li>If the heal can't (LUM099 rejects an extended load), the run is <span class="warn">blocked</span>, not failed: the test never ran</li>
+      </ul>
+    </div>
+    <div class="stack">
+      <div class="node"><b>1 · Probe</b><span>every pending job against the bench as it is: check, heal, check again. No reinstall.</span></div>
+      <div class="flow"><div class="arrow">▼ the first that holds runs</div></div>
+      <div class="node"><b>2 · Force</b><span>only if none fits: install the oldest job's versions, start the UUT fresh, then its preconditions</span></div>
+      <p class="tiny muted" style="margin-top:0.6em">Jobs that need the same state run back to back on a warm bench.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Outcomes</h2>
+  <table class="plain">
+    <tr><th>Outcome</th><th>Means</th><th>In the example</th></tr>
+    <tr><td><span class="pill pass">pass</span></td><td>every step passed</td><td>most of the set on <code>LUM210</code></td></tr>
+    <tr><td><span class="pill fail">fail</span></td><td>an assertion came out false</td><td><code>ALM/tc_alm_003</code> extended, on <code>LUM131</code>: its invented defect</td></tr>
+    <tr><td><span class="pill fail">error</span></td><td>something raised: a block, or the script's own code</td><td>a block that raised: a connector the UUT doesn't have</td></tr>
+    <tr><td><span class="pill warn">blocked</span></td><td>a precondition couldn't be established</td><td>extended missions on <code>LUM099</code></td></tr>
+    <tr><td><span class="pill warn">incomplete</span></td><td>passed as far as it is written; reached a <code>(TBD)</code></td><td><code>GDN/tc_gdn_007</code>, the ECS flows</td></tr>
+    <tr><td><span class="pill acc">refuses to queue</span></td><td>static checks failed: it can't run at all</td><td><code>DSKY/tc_dsky_005</code>: a precondition after a step</td></tr>
+  </table>
+  <p class="small muted" style="margin-top:0.8em">A requirement is green only when every combination linked to it passed.</p>
+</section>
+
+<section>
+  <h2>Every run is evidence</h2>
+  <div class="cols">
+    <ul class="small">
+      <li><strong>The closure</strong>: the script and every file it loaded, as checked in, copied into the run and hashed</li>
+      <li><strong>The variation</strong>: its name and the values it bound</li>
+      <li><strong>UUT versions</strong>: id and digest, installed or found installed</li>
+      <li><strong>The environment fingerprint</strong>, plus the framework's own version and commit</li>
+    </ul>
+    <div class="stack">
+      <div class="node accent"><b>Identity</b><span>hash(closure, variation, versions, fingerprint)</span></div>
+      <ul class="small">
+        <li>Two runs with the same identity ran the same test on the same configuration</li>
+        <li>A <strong>rerun</strong> is refused if no live environment matches the original fingerprint</li>
+        <li><strong>Freezing</strong> a report builds it as a document, from the report's own rst: a PDF and a static site</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>The example: Apollo's powered descent</h2>
+  <div class="cols">
+    <div>
+      <p class="small">The only demo code shipped: a small simulation of the lunar module and its guidance computer, the <code>lm</code> UUT. It really flies. A standard descent lands at 12:10, 2.4 m/s, 24 m from the site.</p>
+      <table class="plain">
+        <tr><th>Version</th><th>What it is for</th></tr>
+        <tr><td><code>LUM099</code></td><td>no extended missions: those runs are <span class="warn">blocked</span></td></tr>
+        <tr><td><code>LUM131</code></td><td>an invented defect that one check <span class="fail">catches</span></td></tr>
+        <tr><td><code>LUM210</code></td><td>the fix; the default</td></tr>
+      </table>
+      <p class="tiny muted">28 scripts and 50 requirements in three specs (mission, lunar module, guidance software), with a DOORS history from Release 1 to Release 2</p>
+    </div>
+    <div>
+      <img class="shot" src="img/descent.svg" alt="A descent trajectory: altitude against distance to the landing site">
+      <p class="caption">A run's attachment: the descent, plotted by <code>AttachTrajectory</code></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ UI -->
+<section class="section-slide" data-background-color="#101412">
+  <div class="eyebrow">Part two</div>
+  <h2>Workflows in the app</h2>
+  <p>Write a script, try it, queue it, read the evidence, follow the requirements</p>
+</section>
+
+<section>
+  <h2>The workspace</h2>
+  <img class="shot shot-full" src="img/script-page.jpg" alt="The workspace page: the script tree, a script open in a tab, its variations and requirements">
+  <p class="caption">A git worktree's scripts, open in tabs. The variation picker switches the page between variations; <strong>Run in scratch</strong> and <strong>Queue…</strong> sit beside it</p>
+</section>
+
+<section>
+  <h2>Editing, a card at a time</h2>
+  <div class="cols wide-right">
+    <ul class="small">
+      <li>A script is cut into <strong>cards</strong>: prose sections, blocks, variants. Click one to edit it; only edited cards are rewritten on save</li>
+      <li>A language server checks as you type, unsaved edits included: errors underlined, a <strong>Problems</strong> panel, counts in the tree</li>
+      <li><span class="kbd">Ctrl+Space</span> completes blocks, definitions, handles, variation values, and <strong>the paths below a ref</strong></li>
+      <li>Hover says what a name is; the line below shows how the call is made</li>
+      <li>The same server speaks LSP: <code>automation-v3 lsp</code> in any editor</li>
+    </ul>
+    <img class="shot" src="img/editor-completion.jpg" alt="A block being edited: completion offers eps.ah, eps.amps, eps.battery, with a hover and an error">
+  </div>
+</section>
+
+<section>
+  <h2>The console: try it as you write it</h2>
+  <img class="shot shot-full" src="img/console.jpg" alt="The workbench: the script's blocks above, the console's transcript below, history on the right">
+  <p class="caption"><strong>▶</strong> runs a block; <span class="kbd">Shift+Enter</span> runs the form at the cursor; the prompt runs anything. Against the real UUT on this machine, kept between commands, recorded nowhere.</p>
+  <aside class="notes">The console borrows the in-process worker: while it is open the worker takes no jobs. Reset reloads definitions; Restart starts the UUT fresh; Stop interrupts a long Wait.</aside>
+</section>
+
+<section>
+  <h2>History and names</h2>
+  <div class="cols wide-right">
+    <ul class="small">
+      <li>The page becomes a <strong>workbench</strong>: full width, cards above, console below, resizable</li>
+      <li><strong>History</strong>: everything run, with its outcome; run it again as it was, or edit it in the prompt</li>
+      <li><strong>Names</strong>: what the scope holds, by where it came from: UUT handles, the variation, the console, each <code>core.rst</code></li>
+      <li>A failure links to the line of the block it came from</li>
+      <li><strong>Reset</strong> reloads definitions; <strong>Restart</strong> starts the UUT fresh; <strong>Stop</strong> ends a long <code>Wait</code></li>
+    </ul>
+    <img class="shot" src="img/console-names.jpg" alt="The console with the Names tab: lm, the variation's mission and start, and core.rst's refs and functions">
+  </div>
+</section>
+
+<section>
+  <h2>Scratch runs</h2>
+  <div class="cols">
+    <ul class="small">
+      <li><strong>Run in scratch</strong> runs a script as it is on disk, edits included, outside any report</li>
+      <li>The workspace marks scripts with uncommitted edits: <strong>In work</strong>, <strong>Checked in</strong>, <strong>Changes</strong></li>
+      <li>Reports only ever run what is <strong>checked in</strong>; scratch is where work in progress runs</li>
+      <li>From the <strong>local client</strong>, a scratch run goes to the central server's benches, or to <strong>this machine</strong></li>
+      <li>A developer's <strong>local build</strong> is found, offered for upload, and runs in scratch, never in a report</li>
+    </ul>
+    <div class="stack" style="margin-top:0.4em">
+      <pre><code class="language-bash" data-trim>
+# no server at all: run, print, exit non-zero on failure
+automation-v3 run ALM/tc_alm_003.rst \
+  --root automationv3/examples/apollo/rvts \
+  --config demo/worker.json \
+  --env sim --variation extended --uut lm=LUM131
+      </code></pre>
+      <p class="tiny muted">That one fails on purpose: LUM131's defect.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Requirements</h2>
+  <img class="shot shot-full" src="img/requirements.jpg" alt="The requirements page: requirements by spec and subsystem, with the scripts that test them">
+  <p class="caption">Imported from DOORS exports (or a CSV, a spreadsheet, a list), by spec and subsystem, each with the scripts that cite it. Pick some and <strong>Queue selected…</strong></p>
+</section>
+
+<section>
+  <h2>Queuing a report</h2>
+  <img class="shot shot-full" src="img/queue.jpg" alt="The queue page: environments, UUT versions, a variation filter, and each script's variations">
+  <p class="caption">Environments, the version of each UUT, a variation filter, and every script × variation it will run. Requirements without tests yet are tracked as <em>no tests</em>.</p>
+</section>
+
+<section>
+  <h2>Reports roll up to requirements</h2>
+  <img class="shot shot-full" src="img/report.jpg" alt="A report: the requirement tree by subsystem, identification, and a summary of green and red requirements">
+  <p class="caption">Subsystem → requirement → script, each with its state. The whole set on <code>LUM131</code>: 28 green, 3 red. <strong>Add requirements</strong>, <strong>Update tests</strong>, <strong>Freeze</strong>, edit the report's own document.</p>
+</section>
+
+<section>
+  <h2>A run says why</h2>
+  <img class="shot shot-full" src="img/run-failure.jpg" alt="A failed run: each block call with its values, the failed Verify, and the source line it came from">
+  <p class="caption">Each step and the calls it made, with the values read; the failure, the code it happened at, marked, and the steps it never reached. Files blocks attached are listed with the step.</p>
+</section>
+
+<section>
+  <h2>Requirements change: changes and suspects</h2>
+  <div class="cols">
+    <div>
+      <img class="shot" src="img/changes.jpg" alt="Changes between Release 1 and Release 2: added, removed and changed requirements">
+      <p class="caption">Any two points (baseline sets, a spec's baselines, trunk) compared: added, removed, reworded, moved</p>
+    </div>
+    <div>
+      <img class="shot" src="img/suspects.png" alt="A suspect link: a script whose requirement changed since it was reviewed">
+      <p class="caption">A script whose requirement changed since the link was reviewed is <strong>suspect</strong>, until someone looks and marks it reviewed</p>
+    </div>
+  </div>
+  <aside class="notes">Changes are decided by hashing content: text with markup ignored, attributes, links and section. Improving the RTF conversion doesn't make everything look changed; rewording does.</aside>
+</section>
+
+<section>
+  <h2>Deployment</h2>
+  <div class="flow" style="margin-top:0.6em; flex-wrap: nowrap">
+    <div class="stack">
+      <div class="node"><b>Local client</b><span>your worktrees, on 127.0.0.1</span></div>
+      <div class="node"><b>Editor + console</b><span>with <code>--config</code>, a worker of its own</span></div>
+    </div>
+    <div class="arrow">scratch runs, <br>requirements, sign-in ▶</div>
+    <div class="node accent" style="min-width:0"><b>Central server</b><span>accounts, git mirror, requirements, queue, reports</span></div>
+    <div class="arrow">◀ pull jobs, <br>stream results</div>
+    <div class="stack">
+      <div class="node"><b>Worker</b><span>sim</span></div>
+      <div class="node"><b>Worker</b><span>bench 1: lms</span></div>
+      <div class="node"><b>Worker</b><span>rig</span></div>
+    </div>
+  </div>
+  <ul class="small" style="margin-top:1em">
+    <li>Workers sit next to the hardware and <strong>pull</strong>; the server never calls them</li>
+    <li>The server mirrors the team's git remote; reports run what was pushed</li>
+    <li>One process can be all of it: <code>automation-v3 server --local-worker</code>, or the demo</li>
+  </ul>
+</section>
+
+<!-- ============================================================ Wrap -->
+<section>
+  <h2>Try it</h2>
+  <pre><code class="language-bash" data-trim>
+python -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -e ".[docs]"
+automation-v3 demo          # http://localhost:8080
+  </code></pre>
+  <ol class="small">
+    <li><strong>Workspace</strong>: open <code>LND/tc_lnd_001.rst</code>; switch variations; open the console and ▶ a block</li>
+    <li><strong>Queue…</strong> it: each run attaches the flight's trajectory</li>
+    <li><strong>Requirements</strong>: queue <em>Release 2</em> on <code>LUM131</code> and watch the rollup go red; queue it again on <code>LUM210</code></li>
+    <li><strong>Requirements → Changes</strong>: Release 1 against Release 2</li>
+  </ol>
+  <p class="small muted">The docs: <code>docs/</code>, served at <code>/docs</code> by the demo</p>
+</section>
+
+<section class="title-slide" data-background-gradient="radial-gradient(circle at 80% 80%, #1d2a25, #151917 60%)">
+  <h2>In one breath</h2>
+  <p>Scripts are <strong>documents</strong> that cite <strong>requirements</strong>. Python <strong>blocks</strong> give them a vocabulary; <strong>UUT</strong> and <strong>environment</strong> plugins say what is tested and where. <strong>Workers</strong> run each combination warm-first, every run records exactly what produced it, and <strong>reports</strong> roll the evidence up to the requirements.</p>
+  <p class="muted" style="margin-top:1.5em">Questions?</p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/notes/notes.min.js"></script>
+<script>
+  Reveal.initialize({
+    width: 1280,
+    height: 760,
+    margin: 0.05,
+    hash: true,
+    slideNumber: "c/t",
+    transition: "fade",
+    transitionSpeed: "fast",
+    center: true,
+    plugins: [RevealHighlight, RevealNotes],
+  });
+</script>
+</body>
+</html>

@@ -51,6 +51,9 @@ another port, and `--no-docs` to skip building the documentation. The
 documentation is built only from a source checkout; without the `[docs]`
 extra the demo runs without it.
 
+For an overview to present, `presentation/index.html` is a reveal.js deck
+of the framework's concepts and its main workflows in the app.
+
 ## Running it yourself
 
 1. Install as above and make a demo folder once (`automation-v3 demo`, then
