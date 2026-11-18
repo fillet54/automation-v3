@@ -66,9 +66,9 @@ headers:
 
 .. code-block:: bash
 
-   automation-v3 requirements import srs.csv --spec SRS --title "VM SRS" --parents SYS
+   automation-v3 requirements import srs.csv --spec SRS --title "Guidance SRS" --parents LM
    automation-v3 requirements import srs.csv --spec SRS --baseline 1.0
-   automation-v3 requirements import vm.xlsx --spec SRS-VM --sheet Requirements
+   automation-v3 requirements import lgc.xlsx --spec LGC --sheet Requirements
 
 Import the file again whenever it changes: what changed shows as it would
 from DOORS, and scripts referencing a changed requirement become suspect.

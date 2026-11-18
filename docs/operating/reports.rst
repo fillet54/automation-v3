@@ -11,7 +11,7 @@ Creating a report
 
 **Reports → New report** asks for:
 
-- a **name**, e.g. "Brakes, release 1.1 candidate";
+- a **name**, e.g. "Luminary 210, Release 2 candidate";
 - the **workspace** its scripts come from.
 
 The report starts empty. Its UUT versions come from the first tests added
@@ -78,10 +78,10 @@ are the only ones that count:
   nothing. It waits while runs are in progress, and a frozen report keeps
   its versions.
 - A combination whose latest run used another version is **outdated**:
-  amber, e.g. *Passed on vm 3.1.0*, never green. Its requirement can't be
+  amber, e.g. *Passed on lm LUM131*, never green. Its requirement can't be
   green until it is brought up to date. The header counts them.
 - To bring them up to date, use **Update tests…** (it offers everything that
-  hasn't passed on the report's versions) or a run's **Rerun on vm 3.2.0**,
+  hasn't passed on the report's versions) or a run's **Rerun on lm LUM210**,
   which runs the same script again on the report's versions.
 
 The header lists only the UUTs the report's runs use.
@@ -188,12 +188,12 @@ A report's pages share a navigation column on the left:
 
    Clicking a subsystem shows only its requirements; a requirement also
    scrolls to it, and a test to its rows. The address follows, e.g.
-   ``/reports/<id>/runs?subsystem=EPS#req-VM-EPS-002``, so it can be shared,
+   ``/reports/<id>/runs?subsystem=EPS#req-LM-EPS-002``, so it can be shared,
    and back and forward work.
 
 **Values touched**
    The values the latest runs read, set or fixed through connectors, grouped
-   by connector (e.g. ``vm.eps``), with every fixed value listed first.
+   by connector (e.g. ``lm.eps``), with every fixed value listed first.
 
 **History**
    What was added to the report, every combination's latest and earlier
@@ -287,7 +287,7 @@ The same works without the server, on a report folder:
 
 .. code-block:: console
 
-   $ automation-v3 report edit reports/<id> --title "Brakes qualification" \
+   $ automation-v3 report edit reports/<id> --title "Luminary 210 qualification" \
          --number TR-0042 --revision A --author "J. Smith" \
          --sign "Approved by=J. Doe" --applicable "SRS-1 | C | Requirements"
    $ automation-v3 report export reports/<id> --out issued/

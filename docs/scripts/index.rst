@@ -52,8 +52,9 @@ In this section
 A complete example
 ------------------
 
-This is ``BRA/tc_bra_00004.rst`` from the sample set. Every piece of it is
+This is ``LND/tc_lnd_001.rst`` from the Apollo example: it lands the lunar
+module in each mission, from two start points. Every piece of it is
 explained in the pages that follow.
 
-.. literalinclude:: ../../test/data/rvts/BRA/tc_bra_00004.rst
+.. literalinclude:: ../../automationv3/examples/apollo/rvts/LND/tc_lnd_001.rst
    :language: rst

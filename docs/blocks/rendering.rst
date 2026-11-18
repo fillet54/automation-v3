@@ -14,11 +14,13 @@ written as code:
 
 .. code-block:: clojure
 
-   (StartDemo {:mode :emergency
-               :readings {:brake-pressure 70}})
+   (StartLM {:mission :extended
+             :start :high-gate
+             :crew :manual})
 
-with the same step as ``StartDemo`` renders it: "**Start the demo UUT**"
-followed by a two-column *Configuration* table of mode and readings. Both say
+with the same step as ``StartLM`` renders it: "**Boot the lunar module**"
+followed by a two-column *Configuration* table of mission, start point and
+crew. Both say
 the same thing; one is much easier to check against a requirement.
 
 ``as_rst``
@@ -35,7 +37,7 @@ Return reStructuredText for the step, given the arguments **as written**
        return markup.line(markup.strong("Verify"), markup.code(*forms))
 
 The arguments are unevaluated because the page renders the script, not a run:
-``max-pressure`` should read as ``max-pressure``, whatever its value.
+``full-throttle`` should read as ``full-throttle``, whatever its value.
 
 A block writes reStructuredText, never HTML, because the same step is shown on
 live pages, in an exported report's site and in its PDF. Each output renders
@@ -72,7 +74,7 @@ turns into markup, and writes the constructs blocks use most:
 .. code-block:: python
 
    def as_rst(self, config):
-       return (markup.strong("Start the demo UUT") + "\n\n"
+       return (markup.strong("Boot the lunar module") + "\n\n"
                + markup.mapping(config, caption="Configuration"))
 
 Results
@@ -99,7 +101,7 @@ or a captured trace as a figure:
 Guidelines
 ----------
 
-- Lead with what the step does, in words, in bold: "**Start the demo UUT**".
+- Lead with what the step does, in words, in bold: "**Boot the lunar module**".
 - Show identifiers and values as code (``markup.code``).
 - Escape everything that comes from the script (use ``markup.text``).
 - Prefer tables for structured arguments; keep a short call on one line.

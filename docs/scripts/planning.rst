@@ -58,14 +58,14 @@ Check what you can now
 ----------------------
 
 Even before the system under test can be driven, a test's own data can be
-checked. The Vehicle Manager examples in the sample set state the expected
-result of each variation in a table, and their first step checks that table
-against the requirement, written once as a function in the folder's
-``core.rst``:
+checked. The DSKY's program change test in the Apollo example states, for
+each row of its table, whether the change is allowed, and its first step
+checks that against the requirement, written once as a function in the
+script's definitions:
 
 .. code-block:: clojure
 
-   (Verify (transition-allowed? from to) = allowed)
+   (Verify (program-change-allowed? program false) = false)
 
 That step is real from the start: a mistake in the table fails the run long
 before anyone flies it.
@@ -73,15 +73,11 @@ before anyone flies it.
 Examples
 --------
 
-The ``VM`` folder of the sample set holds tests written this way, for the
-Vehicle Manager of a satellite platform: 66 scripts across ten subsystems
-(executive, telecommand, telemetry, modes, FDIR, attitude control, power,
-thermal, time and storage), testing the 64 requirements of
-the ``SRS-VM`` spec in ``test/data/doors/specs``. The mode, power and
-telecommand tests have since been written in full, against a simulated
-Vehicle Manager; the others are still flows and come out incomplete. Compare
-the two kinds side by side: the flow below, and ``VM/EPS/tc_eps_002.rst``
-written out.
+In the Apollo example, the landing point redesignation test and the
+environmental control tests are still flows: the model can't fly them yet,
+so they come out incomplete, and the requirements they cover roll up
+partial. The redesignation flow, below, already flies the part it can
+(``FlyTo``) around the steps still to be written:
 
-.. literalinclude:: ../../test/data/rvts/VM/FDIR/tc_fdir_003.rst
+.. literalinclude:: ../../automationv3/examples/apollo/rvts/GDN/tc_gdn_007.rst
    :language: rst

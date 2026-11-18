@@ -27,8 +27,8 @@ The smallest block
            time.sleep(seconds)
 
 Scripts call it as ``(Wait 5)``. The class name is the name scripts use;
-override ``name()`` to choose another (``TableDriven`` is called as
-``Table-Driven``).
+override ``name()`` to choose another, e.g. one that isn't a Python
+identifier (a ``TableDriven`` class called as ``Table-Driven``).
 
 The docstring and ``usage()`` are the block's documentation for script
 writers; see :ref:`documenting-blocks`.
@@ -103,8 +103,8 @@ The parts of a block
 
 ``execute_forms(*forms)``
    Implement this instead of ``execute`` when every form carries meaning as
-   written, for example bare symbols used as names (``Table-Driven``'s
-   column headers). It gets the arguments exactly as written and **never
+   written, for example bare symbols used as names (a table block's column
+   headers). It gets the arguments exactly as written and **never
    evaluates them**; a block that needs some arguments evaluated quotes the
    others instead, or evaluates them itself with ``context.evaluate`` (as
    Wait does, again on every check). The static check doesn't look inside its
@@ -152,7 +152,7 @@ every block the plugins define. Two things go into its entry:
 
    Write parameters as names, ``name?`` for an optional one, and ``name ...``
    for repeats, with the brackets and braces of the shape the block expects
-   (``"(StartDemo {:mode mode :readings {name value ...}})"``). By default it
+   (``"(StartLM {:mission m :start s :crew c :seed n})"``). By default it
    is the block's name followed by the parameters of ``execute`` (or
    ``execute_forms``), so ``def execute(self, seconds)`` gives
    ``(Wait seconds)``; override it whenever that doesn't show the shape.
@@ -164,15 +164,14 @@ The class docstring
 
    .. code-block:: python
 
-      class SnapshotDemo(BuildingBlock):
-          """Attach the demo UUT's state to the run as ``<label>.json``.
-
-          The file holds the installed version, mode, readings and faults, and
-          is listed with the step on the run page.
+      class AttachTrajectory(BuildingBlock):
+          """Attach the flight so far to the run: ``<label>.csv`` (one row a
+          second: time, downrange, altitude, velocities, throttle, program,
+          propellant) and ``<label>.svg``, a plot of the descent.
 
           Example::
 
-              (SnapshotDemo "after-braking")
+              (AttachTrajectory "descent")
           """
 
    Literal blocks (``::``) are highlighted as script code. A block with no
@@ -183,7 +182,7 @@ any page can use; give it a plugin package to list just that plugin's blocks:
 
 .. code-block:: rst
 
-   .. building-blocks:: automationv3.plugins.sample
+   .. building-blocks:: automationv3.plugins.apollo
 
 Results
 -------
@@ -204,8 +203,8 @@ Return a :class:`~automationv3.framework.block.BlockResult`:
 
 ``stdout``
    What the run page shows under the step: say what was checked or done,
-   with the values, e.g. ``60 <= 80`` or ``started in :normal with 1
-   reading(s)``. A good ``stdout`` makes a failure diagnosable from the
+   with the values, e.g. ``deca.throttle (92.5) = 92.5`` or ``reached
+   :high-gate at 562 s``. A good ``stdout`` makes a failure diagnosable from the
    report alone.
 
 ``stderr``
@@ -229,7 +228,7 @@ Reaching the running script
 :mod:`automationv3.framework.context` gives a running block the script's
 bindings:
 
-``context.lookup("demo")``
+``context.lookup("lm")``
    The value bound to a name: a UUT handle, a variation symbol, a
    definition.
 
@@ -237,29 +236,26 @@ bindings:
    The arguments of the running call, as written, e.g. to describe them in
    ``stdout``. ``Verify`` shows ``(< 2 limit) is true`` this way.
 
-``StartDemo`` uses both: its configuration arrives evaluated, and it finds the
-UUT through its handle.
+``StartLM`` uses the first: its configuration arrives evaluated (variation
+symbols and definitions already replaced by their values), and it finds the
+lunar module through its handle.
 
 .. code-block:: python
 
-   class StartDemo(BuildingBlock):
-       """Restart the demo UUT from a configuration map::
+   class StartLM(BuildingBlock):
+       """Boot the lunar module from a configuration map::
 
-           (StartDemo {:mode :emergency
-                       :readings {:brake-pressure 70}})
+           (StartLM {:mission :extended :start :high-gate})
        """
 
        def check_syntax(self, *values):
-           return len(values) == 1 and isinstance(values[0], dict) and MODE in values[0]
+           return len(values) == 1 and isinstance(values[0], dict)
 
        def execute(self, config):
-           demo = context.lookup("demo")
-           demo.start(config[MODE])
-           readings = config.get(READINGS, {})
-           for name, value in readings.items():
-               demo.set(name, value)
-           return BlockResult(True, stdout=f"started in {edn.writes(config[MODE])} "
-                                           f"with {len(readings)} reading(s)")
+           lm = context.lookup("lm")
+           if lm.boot(config) == edn.Keyword("rejected-load"):
+               return BlockResult(False, stdout=f"{lm.version()} rejected the erasable load")
+           return BlockResult(True, stdout=f"booted: {edn.writes(lm.config())}")
 
 .. _implementing-value-blocks:
 
@@ -320,8 +316,8 @@ requires a unique match, so plugins with kinds of refs of their own load side
 by side. The base classes do the rest: a group's members one by one, the
 record of what a run touched, and releasing whatever a script leaves fixed
 when it ends. Verify, Wait and ``same?`` read refs through whichever Read
-accepts them, so a plugin never overrides those. The Vehicle Manager sample
-(``automationv3/plugins/vm/blocks.py``) is a worked example.
+accepts them, so a plugin never overrides those. The lunar module's connectors
+(``automationv3/plugins/apollo/blocks.py``) are a worked example.
 
 The editor says what a ref is without running anything: hovering
 ``nav.time`` after ``(def cpu1 (my-system/connector "sys.cpu1"))`` and
@@ -373,9 +369,9 @@ Arguments arrive as edn values from :mod:`automationv3.framework.edn`:
 
    * - edn
      - Python
-   * - ``:mode``
-     - ``edn.Keyword`` (a ``str`` subclass; compare with ``edn.Keyword("mode")``)
-   * - ``demo``
+   * - ``:mission``
+     - ``edn.Keyword`` (a ``str`` subclass; compare with ``edn.Keyword("mission")``)
+   * - ``lm``
      - ``edn.Symbol`` (a ``str`` subclass)
    * - ``"text"``
      - ``str``

@@ -70,7 +70,7 @@ credentials:
 
 .. code-block:: json
 
-   {"builds": {"demo": "~/work/demo/build/out"}}
+   {"builds": {"lm": "~/work/luminary/build"}}
 
 For each UUT a script uses, **Run in scratch** then offers a version:
 
@@ -90,7 +90,7 @@ accept only the versions the UUT's plugin releases (its ``report_versions``,
 see :doc:`../blocks/uuts-and-environments`).
 
 From the command line, ``automation-v3 builds`` lists your local builds and
-whether each is uploaded, and ``automation-v3 scratch SCRIPT --uut demo=local``
+whether each is uploaded, and ``automation-v3 scratch SCRIPT --uut lm=local``
 uses yours, uploading it first if needed.
 
 Trying a script from the command line
@@ -99,14 +99,14 @@ Trying a script from the command line
 .. code-block:: console
 
    $ cd ~/work/scripts/rvts
-   $ automation-v3 scratch BRA/tc_bra_00004.rst
-   Queued BRA/tc_bra_00004.rst (sim): https://automation.example.com/reports/scratch/runs/0193...
+   $ automation-v3 scratch ALM/tc_alm_003.rst --env sim --variation extended --uut lm=LUM131
+   Queued ALM/tc_alm_003.rst (sim, extended): https://automation.example.com/reports/scratch/runs/0193...
 
-   BRA/tc_bra_00004.rst (sim), scratch mode
-     ok   step 1
-     FAIL step 2
+   ALM/tc_alm_003.rst (sim, extended), scratch mode
+     ok   step 1: (lm-ready-for? mission :low-gate :manual)
+     FAIL step 2: N93 against the loaded propellant
      ...
-     fail     BRA/tc_bra_00004.rst (sim)
+     fail     ALM/tc_alm_003.rst (sim, extended)
 
 ``scratch`` reads the script, and every ``core.rst`` and import it loads, from
 your worktree as they are on disk, uncommitted edits included. It checks them

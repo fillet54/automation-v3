@@ -11,10 +11,10 @@ Writing a precondition
 
 .. code-block:: clojure
 
-   (Precondition "Demo running in normal mode"
-     (demo-in-mode? :normal)
-     :heal "Start the demo in normal mode"
-     (start-demo :normal))
+   (Precondition "LM at high gate"
+     (lm-ready? :standard :high-gate)
+     :heal "Boot a standard mission at high gate"
+     (boot :standard :high-gate))
 
 The parts, in order:
 
@@ -30,8 +30,8 @@ The heal is optional; without it, a failing check can't be fixed:
 
 .. code-block:: clojure
 
-   (Precondition "Demo version at least 1.1.0"
-     (demo-version-at-least? "1.1.0"))
+   (Precondition "The installed software flies extended missions"
+     (.supports_extended lm))
 
 Preconditions go before the first regular step (after definitions and
 directives). A script may have several; they are checked in order.
@@ -88,8 +88,12 @@ needs:
 
 .. code-block:: clojure
 
-   (Precondition "Demo running in the variation's mode"
-     (in-variation-mode?)
-     :heal "Start the demo in the variation's mode and pressure"
-     (StartDemo {:mode mode
-                 :readings {:brake-pressure pressure}}))
+   (Precondition "LM booted for the variation's mission, at its start point"
+     (lm-ready? mission start)
+     :heal "Boot the variation's mission at its start point"
+     (boot mission start))
+
+Runs of the same variation then reuse a booted lunar module, while runs of
+another variation boot it again. When the heal can't establish the state
+(LUM099 rejects an extended mission's load), the run is blocked, not
+failed: the test never ran.

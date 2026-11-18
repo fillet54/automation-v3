@@ -12,7 +12,7 @@ Declaring refs
 --------------
 
 Each plugin has its own kind of ref, and a function to make one; the
-Vehicle Manager's are connectors. Declare the roots a system's tests use in
+lunar module's are connectors. Declare the roots a system's tests use in
 its top-level ``core.rst`` (or a script's definitions section):
 
 .. code-block:: clojure
@@ -70,11 +70,12 @@ Reading and writing
    The value a ref points at. For a group, a map of member name to value:
    ``{:cpu1 :run, :cpu2 :run}``.
 
-``(SetValue bench.sun false)``
-   Writes a value, once. The system may change it afterwards.
+``(SetValue panel.engine-stop true)``
+   Writes a value, once. The system may change it afterwards (the lunar
+   module's crew may let go of the switch).
 
-``(SetFixedValue bench.attitude-error 15.0)``
-   Holds a value until ``(ClearFixedValue bench.attitude-error)``. Whatever a
+``(SetFixedValue bench.bus-load-amps 200)``
+   Holds a value until ``(ClearFixedValue bench.bus-load-amps)``. Whatever a
    script leaves fixed is released when it ends, however it ends, and the run
    lists each release under *Cleanup*. A release that fails makes the run an
    error.

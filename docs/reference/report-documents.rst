@@ -46,7 +46,7 @@ name (below):
    The latest run of each combination, its outcome and duration.
 
    ``:script:``
-      Only scripts matching this pattern, e.g. ``BRA/*``.
+      Only scripts matching this pattern, e.g. ``LND/*``.
    ``:state:``
       Only combinations in this state, e.g. ``fail``.
 
@@ -90,7 +90,7 @@ Values in prose
 
 For example::
 
-   This report verifies the brake controller, version :report:`uut.brakes`,
+   This report verifies the lunar module, Luminary :report:`uut.lm`,
    against :report:`context`: :report:`requirements.green` of its
    :report:`requirements` requirements passed.
 

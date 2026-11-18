@@ -168,8 +168,8 @@ function the script or a ``core.rst`` defines.
 
 Below a ref, completion offers the paths that exist when its kind of ref
 can say (see :doc:`../blocks/writing-blocks`): typing ``eps.`` after
-``(def eps (connector "vm.eps"))`` offers ``soc``, ``charge-current`` and the
-rest, and so does the path inside ``(connector "vm.``. A path that doesn't
+``(def eps (connector "lm.eps"))`` offers ``bus-volts``, ``amps`` and the
+rest, and so does the path inside ``(connector "lm.``. A path that doesn't
 exist is marked with a warning, as it is wherever a ref is made with one.
 A warning, not an error: the script still queues, and fails when a run
 reaches the path.

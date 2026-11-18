@@ -24,11 +24,11 @@ written yet (see :doc:`planning`):
 
 .. code-block:: rst
 
-   .. rvt:: Apply the variation's brake pressure
+   .. rvt:: Redesignate past the boulders
 
       (TBD)
 
-   .. rvt:: Verify the brake pressure stays within the safe limit
+   .. rvt:: Verify the touchdown is within the landing gear's limits
 
       (TBD)
 
@@ -45,10 +45,10 @@ words:
 
 .. code-block:: clojure
 
-   (Precondition "Demo running in normal mode"
-     (demo-in-mode? :normal)
-     :heal "Start the demo in normal mode"
-     (start-demo :normal))
+   (Precondition "LM at low gate, flown by the script"
+     (lm-ready-for? :standard :low-gate :manual)
+     :heal "Boot a standard mission at low gate with a manual crew"
+     (boot-for :standard :low-gate :manual))
 
 Keep variation-specific prose with its code
 -------------------------------------------
@@ -60,8 +60,8 @@ hidden along with the check when another variation is selected. See
 Let blocks render themselves
 ----------------------------
 
-Blocks can render their arguments readably: ``StartDemo`` shows its
-configuration as a table, ``Verify`` as a sentence. Prefer a block with a good
+Blocks can render their arguments readably: ``StartLM`` shows its
+configuration as a table, ``Keys`` the DSKY's keys as they are labelled, ``Verify`` as a sentence. Prefer a block with a good
 rendering over a ``defn`` that hides the same logic. If a block shows as raw
 code and could read better, ask its developer to give it an ``as_rst``
 (:doc:`../blocks/rendering`).

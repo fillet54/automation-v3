@@ -753,3 +753,20 @@ plugin is seen everywhere it is needed.
   on LUM131 gives 39 pass, 4 incomplete, 1 fail (`ALM/tc_alm_003`,
   extended); the same script on LUM210 passes. The local-build upload is
   covered by `test_builds` and `test_demo`.
+
+### Step 8: documentation (2026-11-17)
+
+- README, getting started (with a new section on the example), concepts,
+  every scripts page, the blocks pages and the operating and reference
+  pages now use the Apollo example. `uuts-and-environments.rst` uses `lm`
+  as its worked example and has a new section, "Versions and variations".
+- `scripts/index.rst` and `scripts/planning.rst` include real files from
+  `automationv3/examples/apollo` (`LND/tc_lnd_001`, `GDN/tc_gdn_007`).
+- Generic examples stay generic: the redundant `cpu1`/`cpu2` refs in
+  `refs.rst`, inline `SYS-1`/`SW-1` requirement ids, "bench" meaning
+  hardware.
+- The Sphinx build passes; its two highlighting warnings predate this work.
+
+## Done (2026-11-17)
+
+Branch `apollo-samples`, 10 commits on master. 853 tests pass (about 90 s).

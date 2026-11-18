@@ -7,6 +7,10 @@ UUTs and environments
    gives scripts a handle to it. An environment plugin describes where it
    runs.
 
+The examples on this page come from the Apollo lunar module plugin,
+``automationv3/plugins/apollo``: the ``lm`` UUT, and the ``sim`` and ``lms``
+environments it runs in.
+
 Environments
 ------------
 
@@ -15,7 +19,7 @@ Subclass :class:`~automationv3.framework.uut.Environment` and set ``name``:
 .. code-block:: python
 
    class Sim(Environment):
-       """A simulated environment rooted in a work directory"""
+       """The lunar module in software, stepped"""
 
        name = "sim"
 
@@ -28,9 +32,23 @@ Subclass :class:`~automationv3.framework.uut.Environment` and set ``name``:
                "environment": self.name,
                "platform": platform.platform(),
                "python": platform.python_version(),
+               "lm-model": MODEL_VERSION,
            }
 
-Scripts declare where they can run with ``(environments :sim :bench)``.
+
+   class Lms(Sim):
+       """The Lunar Module Mission Simulator: real time, sped up by `pace`"""
+
+       name = "lms"
+
+       def __init__(self, workdir=None, pace=20, **params):
+           super().__init__(workdir=workdir, pace=pace, **params)
+           self.pace = float(pace)
+
+       def fingerprint(self):
+           return {**super().fingerprint(), "pace": self.pace, "terrain-model": TERRAIN_MODEL}
+
+Scripts declare where they can run with ``(environments :sim :lms)``.
 
 A worker creates one instance per environment it hosts, passing the
 parameters from its config file:
@@ -40,7 +58,7 @@ parameters from its config file:
    {
      "environments": {
        "sim": {"workdir": "/var/lib/automation/sim"},
-       "bench": {}
+       "lms": {"workdir": "/var/lib/automation/lms", "pace": 20}
      }
    }
 
@@ -51,7 +69,8 @@ parameters from its config file:
    commit. The fingerprint is hashed into every run's identity, and a rerun is
    refused if no live environment's fingerprint matches the original
    (:doc:`../operating/configuration-management`). Include everything that
-   matters and nothing that changes on its own (no timestamps).
+   matters and nothing that changes on its own (no timestamps). ``lms``
+   names its pace and its terrain model: both change what a flight does.
 
 UUTs
 ----
@@ -60,11 +79,11 @@ Subclass :class:`~automationv3.framework.uut.UUT` and set ``name``:
 
 .. code-block:: python
 
-   class Demo(UUT):
-       name = "demo"
+   class LunarModule(UUT):
+       name = "lm"
 
        def list_versions(self):
-           return [Version(id, digest_of(id)) for id in self.VERSIONS]
+           return [Version(id, digest(rope)) for id, rope in RELEASES.items()]
 
        def installed_version(self, env):
            ...
@@ -76,15 +95,17 @@ Subclass :class:`~automationv3.framework.uut.UUT` and set ``name``:
            ...
 
        def handle(self, version, env):
-           return DemoHandle(self, env)
+           return LunarModuleHandle(self, env)
 
-Scripts declare what they test with ``(uut :demo)``.
+Scripts declare what they test with ``(uut :lm)``.
 
 ``list_versions()``
    Every installable :class:`~automationv3.framework.uut.Version`, oldest
    first. The server calls it to offer versions when queuing; the newest is
    the default. A ``Version`` has an ``id`` (what people pick) and a
    ``digest`` that identifies the exact bits, e.g. a SHA-256 of the image.
+   The lunar module's are its guidance computer's software: ``LUM099``,
+   ``LUM131`` and ``LUM210``, each digested from its rope.
 
 ``installed_version(env)``
    The version installed in ``env`` now, or ``None``. Workers use it to
@@ -96,11 +117,40 @@ Scripts declare what they test with ``(uut :demo)``.
    fails the job if the install didn't take.
 
 ``start(version, env)``
-   Start the UUT fresh. Called in force mode, after install.
+   Start the UUT fresh. Called in force mode, after install. The lunar module
+   boots its default: a standard mission at powered descent initiation.
 
 ``handle(version, env)``
    The object scripts use to reach the UUT, bound to the UUT's name. Return
    ``None`` if scripts don't talk to it directly.
+
+Versions and variations
+-----------------------
+
+A version is what ``install`` puts in the environment; everything else
+about how a run sets the UUT up belongs to the script, as variations and
+preconditions. The lunar module draws the line where Apollo did: the
+Luminary rope (the software, woven into the computer's fixed memory) is the
+version, and each mission's erasable load (its propellant, its approach,
+its surface stay), the vehicle it flies, and where the flight starts are
+chosen at boot. So a script that needs both missions has a variation for
+each, with a precondition that boots the lunar module the variation's way:
+
+.. code-block:: clojure
+
+   (variations "mission"
+     ["standard" [:standard]
+      "extended" [:extended]])
+
+   (Precondition "LM booted for the variation's mission, at PDI"
+     (lm-ready? mission :pdi)
+     :heal "Boot the variation's mission at PDI"
+     (boot mission :pdi))
+
+Runs of one variation can then reuse a booted lunar module, and every
+version is tried against every mission. When a version can't take a
+variation's setup (LUM099 has no extended missions), the heal fails and
+the run is blocked rather than failed.
 
 Handles
 -------
@@ -110,9 +160,9 @@ design it as the vocabulary scripts speak:
 
 .. code-block:: clojure
 
-   (.mode demo)                     ; -> :normal
-   (.set demo :brake-pressure 60)
-   (.has_fault demo :overheat)
+   (.mission lm)                    ; -> :extended
+   (.ready lm :standard :pdi)       ; -> true
+   (.boot lm {:mission :extended})  ; -> :accepted, or :rejected-load
 
 Guidelines for handles:
 
@@ -120,8 +170,8 @@ Guidelines for handles:
   scripts can compare them directly.
 - Make actions return ``True``, so a call can be used directly as a step.
 - Keep them small and well named. Wrap them in ``core.rst`` functions
-  (``reading``, ``set-reading``) to give scripts a readable vocabulary, and
-  put anything substantial into blocks.
+  (``lm-ready?``, ``boot``) to give scripts a readable vocabulary, and put
+  anything substantial into blocks (``StartLM``, ``FlyTo``).
 
 Keeping time
 ------------
@@ -141,9 +191,12 @@ clock, on real hardware, or a :class:`~automationv3.framework.clock.Clock`:
    simulation that only moves when stepped, pass ``step(seconds)`` to run it
    forward instead.
 
-The sample ``sim`` environment gives the simulated Vehicle Manager's clock
-when ``vm`` is under test: ``SimClock`` on ``vm.obc.sim-time``, stepping the
-platform frame by frame.
+The lunar module's two environments use one each. In ``sim``,
+``SimClock`` reads ``lm.time.sim`` and steps the flight forward, so a
+twelve-minute descent waits for nothing. In ``lms``, it has no step: the
+flight runs on its own, twenty times faster than the wall clock, and every
+look at the lunar module first catches the simulation up, so no process has
+to run in the background.
 
 The lifecycle of a job
 ----------------------
@@ -179,21 +232,23 @@ the local client finds a build they've just made and offers to upload it
 
 .. code-block:: python
 
-   class Demo(UUT):
-       name = "demo"
+   class LunarModule(UUT):
+       name = "lm"
 
        def find_local_build(self, path):
            """The newest build in `path`, where builds land on this machine"""
-           build = Path(path) / "demo.bin"
+           build = Path(path) / "luminary.json"
            if not build.is_file():
                return None
-           digest = sha256_of(build)
-           return LocalBuild(self.name, build, f"local-{digest[:12]}", digest,
+           found = digest(parse(build.read_text()))
+           return LocalBuild(self.name, build, f"local-{found[:12]}", found,
                              build.stat().st_mtime)
 
        def upload_build(self, build):
-           """Push it to the build repository; return its Version"""
-           push_to_build_repository(build.path, build.id)   # your credentials
+           """Put it in the build repository; return its Version"""
+           repo = Path(os.environ["AUTOMATION_LM_BUILDS"])
+           (repo / build.id).mkdir(parents=True, exist_ok=True)
+           shutil.copy2(build.path, repo / build.id / "luminary.json")
            return Version(build.id, build.digest)
 
 ``find_local_build(path)``
@@ -218,6 +273,6 @@ the local client finds a build they've just made and offers to upload it
    scratch runs may use any listed version.
 
 None of these is required. A UUT without them simply has no local builds to
-offer.
-The sample ``demo`` UUT implements both, against the folder named by
-``AUTOMATION_DEMO_BUILDS``.
+offer. The lunar module implements all three, against the folder named by
+``AUTOMATION_LM_BUILDS``; ``automation-v3 demo`` sets it up, with a build of
+LUM131 with its defect fixed waiting in ``demo/local-build``.

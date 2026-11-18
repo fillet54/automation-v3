@@ -14,14 +14,15 @@ per variation: a display name and the values.
 
 .. code-block:: clojure
 
-   (variations "mode pressure"
-     ["normal"    [:normal 60]
-      "limp-home" [:limp-home 75]
-      "emergency" [:emergency max-pressure]])
+   (variations "mission start"
+     ["standard from PDI"       [:standard :pdi]
+      "standard from high gate" [:standard :high-gate]
+      "extended from PDI"       [:extended :pdi]
+      "extended from high gate" [:extended :high-gate]])
 
-Here every run binds ``mode`` and ``pressure``. The ``emergency`` variation
-uses ``max-pressure`` from the ``core.rst`` chain: values are kept as forms
-and evaluated when the script runs, so they can use definitions.
+Here every run binds ``mission`` and ``start``. Values are kept as forms
+and evaluated when the script runs, so they can use definitions from the
+``core.rst`` chain too.
 
 Each variation runs as its own job, so a script with three variations in two
 environments queues six runs, and the report rolls them up together.
@@ -30,9 +31,17 @@ Variation or table?
 -------------------
 
 A variation is a separate run. Use one when a case needs the unit restarted or
-set up differently: a hardware configuration, a software load, or a one-time
-event such as separation that can't be undone within a run. Each variation is
-queued, run, reported and rolled up on its own.
+set up differently: a hardware configuration (an extended lunar module's
+bigger tanks), a different load (its mission's erasable memory), a different
+starting point, or an event that can't be undone within a run (an abort
+ends the flight). Each variation is queued, run, reported and rolled up on
+its own.
+
+A variation is not a version. The version is what is installed, the UUT's
+software (here, a Luminary rope); a variation is how one run sets it up. A
+precondition checks the unit is set up the variation's way, and its heal
+boots it so, which lets runs of the same variation reuse a unit already set
+up (see :doc:`preconditions`).
 
 When the cases can run one after the other on the unit as it is, use a
 **table** instead: an ``rvt`` block with the ``:table:`` option runs its steps
@@ -44,13 +53,16 @@ rows, shaped like variations:
    .. rvt:: Each commanded transition
       :table:
 
-      ("from to allowed"
-        ["STANDBY to NOMINAL"  [:standby :nominal true]
-         "NOMINAL to MANEUVER" [:nominal :maneuver false]])
+      ("extra-amps caution warning"
+        ["normal"   [0   false false]
+         "heavy"    [200 true  false]
+         "overload" [300 true  true]])
 
-      (BringToMode from)
-      (Verify (SendTC :set-mode :mode to)
-              = (if allowed :executed :rejected-transition))
+      (SetFixedValue bench.bus-load-amps extra-amps)
+      (RunFor 60)
+      (Verify cwea.light.battery = caution)
+      (Verify cwea.warning = warning)
+      (ClearFixedValue bench.bus-load-amps)
 
 The script page shows the rows as a table above the steps. The run page shows
 each row with its steps' results. A failing row stops only itself: the other
@@ -70,7 +82,7 @@ filter them with an edn predicate over the variation symbols plus ``name`` and
 
 .. code-block:: clojure
 
-   (not= mode :emergency)
+   (= mission :extended)
 
 From the command line use ``--variation NAME`` (repeatable) or
 ``--filter EXPR``.
@@ -84,9 +96,9 @@ names, by display name, comma-separated. Other variations skip it entirely.
 .. code-block:: rst
 
    .. rvt::
-      :variations: emergency
+      :variations: extended from PDI, extended from high gate
 
-      (Verify (reading :brake-pressure) = max-pressure)
+      (Verify truth.downrange > -6000)
 
 .. _scoped-definitions:
 
@@ -102,15 +114,15 @@ override reads naturally:
    .. rvt::
       :definitions:
 
-      (def headroom 15)
+      (def approach-deg 16)
 
    .. rvt::
       :definitions:
-      :variations: limp-home
+      :variations: extended
 
-      (def headroom 5)
+      (def approach-deg 25)
 
-``limp-home`` runs with a headroom of 5; the others with 15. When a single
+``extended`` checks for a 25° approach; the others for 16°. When a single
 variation is selected in the script view, the definitions are rolled up into
 the values that variation actually uses.
 
@@ -123,14 +135,14 @@ in ``.. rvt-variant::``:
 .. code-block:: rst
 
    .. rvt-variant::
-      :variations: emergency
+      :variations: extended
 
-      In emergency mode the pressure runs right at the limit, and must stay
-      there.
+      The extended approach comes in steeper, so from high gate the landing
+      site is closer as well as lower.
 
-      .. rvt:: Pressure holds at the limit
+      .. rvt:: Closer at high gate
 
-         (Verify (reading :brake-pressure) = max-pressure)
+         (Verify truth.downrange > -6000)
 
 Every ``rvt`` block inside applies to the variant's variations. An inner block
 may narrow that further with its own ``:variations:``, but may not name a
@@ -141,7 +153,7 @@ How the script view shows variations
 
 The selector under the breadcrumbs defaults to **All**. With **All**, the page
 shows everything, and blocks limited to some variations say so ("Only for
-emergency"). Selecting one variation hides everything that doesn't apply to it
+extended"). Selecting one variation hides everything that doesn't apply to it
 and rolls definitions up, so the page reads as exactly the test that variation
 runs. The selection is kept in the URL, so you can link to it.
 

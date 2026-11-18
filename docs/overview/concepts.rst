@@ -56,19 +56,22 @@ What a script runs against
 --------------------------
 
 UUT
-   A unit under test, e.g. a controller's software. A UUT type is a Python
-   plugin that lists its versions, installs one into an environment, starts
-   it, and gives scripts a **handle** to talk to it. Scripts declare what
-   they test with ``(uut :demo)``.
+   A unit under test, e.g. a lunar module and its guidance computer's
+   software. A UUT type is a Python plugin that lists its versions,
+   installs one into an environment, starts it, and gives scripts a
+   **handle** to talk to it. Scripts declare what they test with
+   ``(uut :lm)``.
 
 Environment
    Where a script runs: a simulator, a bench, a rig. Hosted by workers.
-   Scripts declare where they can run with ``(environments :sim :bench)``.
+   Scripts declare where they can run with ``(environments :sim :lms)``.
 
 Variation
    One way of running a script, binding the same symbols to different values,
-   e.g. ``normal`` and ``limp-home`` braking modes. A script with three
-   variations that runs in two environments has six **combinations**.
+   e.g. a standard and an extended mission. A version is what is installed
+   (the software); a variation is how it is set up or started for one run.
+   A script with three variations that runs in two environments has six
+   **combinations**.
 
 Precondition
    The state a script needs before its steps, with an optional **heal** that

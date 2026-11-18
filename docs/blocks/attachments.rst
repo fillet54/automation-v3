@@ -10,17 +10,20 @@ Attaching files
 
    from automationv3.framework.steps import attach
 
-   class SnapshotDemo(BuildingBlock):
-       """Attach the demo UUT's state to the run as <label>.json::
+   class AttachTrajectory(BuildingBlock):
+       """Attach the flight so far to the run: <label>.csv and <label>.svg::
 
-           (SnapshotDemo "after-braking")
+           (AttachTrajectory "descent")
        """
 
        def execute(self, label):
-           demo = context.lookup("demo")
-           name = f"{label}.json"
-           attach(name, json.dumps(demo.uut.state(demo.env), indent=2, sort_keys=True))
-           return BlockResult(True, stdout=f"attached {name}")
+           rows = context.lookup("lm").trajectory_rows()
+           attach(f"{label}.csv", as_csv(rows))
+           attach(f"{label}.svg", trajectory_svg(rows, title=label))
+           return BlockResult(True, stdout=f"attached {label}.csv and {label}.svg")
+
+This is the lunar module's own block (``plugins/apollo/blocks.py``): each
+landing in the Apollo example attaches its descent as a table and a plot.
 
 ``attach(name, data)`` takes ``bytes`` or text (encoded as UTF-8). It can only
 be called while a script is running.

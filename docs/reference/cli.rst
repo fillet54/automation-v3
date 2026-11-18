@@ -168,8 +168,8 @@ Command line
 ``demo``
 --------
 
-Sets up a fresh demo folder (sample scripts, requirements and these docs)
-and serves it with a worker in-process. See :doc:`../overview/getting-started`.
+Sets up a fresh demo folder (the Apollo lunar module example's scripts and
+requirements, and these docs) and serves it with a worker in-process. See :doc:`../overview/getting-started`.
 
 ``server``
 ----------
@@ -205,7 +205,7 @@ included, to run in the central server's scratch space, printing each step.
 
    automation-v3 login --server https://automation.example.com
    automation-v3 client --workspace-path ~/work/scripts
-   automation-v3 scratch BRA/tc_bra_00004.rst --env sim --uut demo=local
+   automation-v3 scratch ALM/tc_alm_003.rst --env sim --uut lm=local
 
 ``run``
 -------
@@ -216,7 +216,7 @@ folder under ``--reports-path`` and exits non-zero unless every run passed.
 
 .. code-block:: bash
 
-   automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/worker.json --variation limp-home --uut demo=1.0.0
+   automation-v3 run ALM/tc_alm_003.rst --root automationv3/examples/apollo/rvts --config demo/worker.json --env sim --variation extended --uut lm=LUM131
 
 ``requirements``
 ----------------
@@ -242,9 +242,9 @@ requirement and what changed: ``added``, ``removed``, or its ``text``,
 .. code-block:: bash
 
    automation-v3 requirements import exports/2026-10-15
-   automation-v3 requirements import srs.csv --spec SRS --parents SYS
-   automation-v3 requirements diff "set:Release 1" trunk --spec SRS-VM
-   automation-v3 requirements history VM-EPS-002
+   automation-v3 requirements import srs.csv --spec SRS --parents LM
+   automation-v3 requirements diff "set:Release 1" "set:Release 2" --spec LGC
+   automation-v3 requirements history LGC-GDN-004
 
 ``lsp``
 -------

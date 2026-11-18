@@ -15,21 +15,21 @@ imports it with ``automation-v3 requirements import FOLDER``.
 
    export-2026-10-17/
      manifest.json
-     SYS/                  one folder per spec in the manifest
+     MSN/                  one folder per spec in the manifest
        index.rst
-       scope.rst
+       landing.rst
        images/fig-1.png
-     SEG-SPACE/
+     LM/
        index.rst
-     SRS-VM/
+     LGC/
        index.rst
-       executive.rst
-       power.rst
+       programs.rst
+       propellant.rst
 
 An export may hold any number of specs, and the same spec more than once (its
 trunk and a new baseline, say), or only baseline sets over baselines imported
 before. Specs not in the manifest are not touched by
-the import: a folder exporting only ``SRS-VM`` says nothing about ``SYS``.
+the import: a folder exporting only ``LGC`` says nothing about ``MSN``.
 
 The manifest
 ------------
@@ -44,12 +44,12 @@ The manifest
      "exported_at": "2026-10-17T02:00:00Z",
      "specs": [
        {
-         "key": "SRS-VM",
-         "title": "Vehicle Manager Software Requirements",
+         "key": "LGC",
+         "title": "Guidance Computer Software Requirements (Luminary)",
          "level": "software",
-         "parents": ["SEG-SPACE"],
-         "root": "SRS-VM",
-         "doors": {"module": "/Platform/Software/SRS VM",
+         "parents": ["LM"],
+         "root": "LGC",
+         "doors": {"module": "/Lunar Module/Software/LGC",
                    "id_source": "Absolute Number"},
          "attributes": {
            "subsystem": {"type": "string"},
@@ -61,15 +61,15 @@ The manifest
          }
        },
        {
-         "key": "SRS-VM",
+         "key": "LGC",
          "baseline": "2.1",
-         "root": "SRS-VM@2.1",
+         "root": "LGC@2.1",
          "...": "the same fields as above"
        }
      ],
      "baseline_sets": [
        {"name": "Release 2",
-        "specs": {"SYS": "1.0", "SEG-SPACE": "1.2", "SRS-VM": "2.1"}}
+        "specs": {"MSN": "1.0", "LM": "1.2", "LGC": "2.1"}}
      ]
    }
 
@@ -91,7 +91,7 @@ The manifest
    One entry per spec in the export:
 
    ``key``
-      The spec's short, stable name (``SYS``, ``SEG-SPACE``, ``SRS-VM``).
+      The spec's short, stable name (``MSN``, ``LM``, ``LGC``).
       Letters, digits, ``-``, ``_`` and ``.``.
    ``title``
       Its name for people.
@@ -134,19 +134,18 @@ Each requirement is a ``requirement`` directive:
 
 .. code-block:: rst
 
-   .. requirement:: VM-EPS-002
-      :satisfies: SEG-PWR-004, SEG-PWR-007
+   .. requirement:: LM-EPS-002
+      :satisfies: MSN-004
       :subsystem: EPS
       :verification: Test
-      :allocation: VM, PCDU
+      :allocation: EPS, CWEA
       :last-modified-by: jdoe
 
-      The VM shall shed loads in the order of the load shedding table when
-      the battery state of charge falls below each of the following
-      thresholds:
+      The electrical power system shall light the caution and warning
+      lights for the bus:
 
-      - 60%: the payload;
-      - 40%: everything except the essential loads.
+      - the BATTERY caution on a battery fault or a bus below 26.5 V;
+      - the WARNING light on a bus below 24 V.
 
 The argument
    The requirement's id. The spec's ``doors.id_source`` says where the
@@ -238,9 +237,9 @@ default the first with anything on it. Reading workbooks needs ``openpyxl``
 .. code-block:: text
 
    id,text,satisfies,section,subsystem,verification
-   SRS-001,The VM shall shed loads below 40%.,SYS-12,Power,EPS,Test
-   SRS-002,The VM shall report the state of charge.,,Power,EPS,Test
-   SRS-003,The VM shall keep time.,SYS-3,Time,TIM,Analysis
+   SRS-001,The LGC shall light PRPLNT LOW below 6% of the load.,LM-PRP-003,Propellant,PRP,Test
+   SRS-002,The LGC shall show the propellant remaining on N93.,,Propellant,PRP,Test
+   SRS-003,The LGC shall keep mission elapsed time.,LM-GNC-001,Time,TIM,Analysis
 
 ``id`` and ``text``
    Needed. Guessed from headers like *ID*, *Req ID*, *Object Identifier*,
@@ -267,9 +266,9 @@ is fine), then spaces or a tab, then its text. Blank lines, and lines starting w
 
 .. code-block:: text
 
-   # The VM SRS, until DOORS
-   SRS-001  The VM shall shed loads below 40%.
-   SRS-002: The VM shall report the state of charge.
+   # The guidance SRS, until DOORS
+   SRS-001  The LGC shall light PRPLNT LOW below 6% of the load.
+   SRS-002: The LGC shall show the propellant remaining on N93.
 
 The text is plain: characters reStructuredText would read as markup, like
 ``*`` or a leading ``-``, are kept as written. Save files as UTF-8 (Excel's
@@ -288,7 +287,7 @@ Checklist for the exporter
   and ``exported_at`` the time DOORS was read, in UTC.
 - One entry per spec and version: trunk with no ``baseline``, each DOORS
   baseline with its name. A baseline, once imported, can't change: exporting
-  ``SRS-VM 2.1`` again with different content is an error.
+  ``LGC 2.1`` again with different content is an error.
 - Every spec a Sphinx tree under its ``root``, ``index.rst`` at the top, no
   ``conf.py``.
 - Headings without their DOORS numbers.

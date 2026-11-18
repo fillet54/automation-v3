@@ -26,9 +26,11 @@ Lisp functions use the registration hook below.
      core/          Verify, Wait: available to every script
        verify.py
        wait.py
-     sample/        the demo UUT, the sim and bench environments, StartDemo
-       demo.py
+     apollo/        the lunar module: the lm UUT, the sim and lms environments,
+       uut.py       its blocks (StartLM, Keys, FlyTo...) and connectors
+       environments.py
        blocks.py
+       model/       the simulation itself, plain Python
 
 Add your own as a new package beside them, with an ``__init__.py`` that
 imports its modules.
@@ -123,7 +125,7 @@ is now), a frozen report's site and its PDF (Sphinx), so write only what plain
 docutils knows, with classes for what each output should style its own way.
 Names are claimed once: a directive, role, filter or snippet another plugin
 or the framework already has is a load error. A frozen report's build records
-which plugins, at which versions, built it. ``plugins/sample/documents.py``
+which plugins, at which versions, built it. ``plugins/apollo/documents.py``
 is a complete example: ``.. attached-files::`` lists the files a report's runs
 attached.
 

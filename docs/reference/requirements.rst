@@ -12,17 +12,15 @@ Specs and traces
 ----------------
 
 A spec is a document: requirements, and the headings, prose, tables and
-figures around them. Each has a key (``SRS-VM``), a level and the specs above
+figures around them. Each has a key (``LGC``), a level and the specs above
 it:
 
 .. mermaid::
    :caption: The demo's specs, and the way their requirements trace
 
    flowchart BT
-     vm["SRS-VM<br/>Vehicle Manager SRS"] -- satisfies --> space["SEG-SPACE<br/>Space segment spec"]
-     vmc["SRS-VMC<br/>Vehicle Management<br/>Computer SRS"] -- satisfies --> ground["SEG-GROUND<br/>Ground segment spec"]
-     space -- satisfies --> sys["SYS<br/>System spec"]:::accent
-     ground -- satisfies --> sys
+     lgc["LGC<br/>Guidance computer software<br/>(Luminary)"] -- satisfies --> lm["LM<br/>Lunar module spec"]
+     lm -- satisfies --> msn["MSN<br/>Lunar landing mission"]:::accent
 
 A requirement traces up with ``:satisfies:``, naming the requirements above
 it that it helps meet. The link is written on the child; automation works out

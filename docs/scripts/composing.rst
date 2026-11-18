@@ -16,13 +16,14 @@ blocks it calls report as calls of the step that called it.
 
 .. code-block:: clojure
 
-   (defn start-and-check [pressure]
-     (StartDemo {:mode :normal :readings {:brake-pressure pressure}})
-     (Verify (reading :brake-pressure) <= max-pressure))
+   (defn boot-and-check [mission]
+     (StartLM {:mission mission :start :high-gate})
+     (Verify lgc.program = 64))
 
-   (start-and-check 60)
+   (boot-and-check :extended)
 
-If ``StartDemo`` fails, ``Verify`` never runs.
+If ``StartLM`` fails (LUM099 rejects an extended mission's load),
+``Verify`` never runs.
 
 ``(step "title" body...)``
 --------------------------
@@ -33,11 +34,10 @@ around it. It gives the body's value.
 
 .. code-block:: clojure
 
-   (defn brakes-hold [pressure]
-     (step "Brakes hold the pressure"
-       (StartDemo {:mode :normal
-                   :readings {:brake-pressure pressure}})
-       (Verify (reading :brake-pressure) <= max-pressure)))
+   (defn land-and-keep [label]
+     (step "Fly to touchdown and attach the trajectory"
+       (FlyTo :touchdown)
+       (AttachTrajectory label)))
 
 Use it for a procedure that should read as one step in a report.
 
@@ -50,9 +50,9 @@ works:
 
 .. code-block:: clojure
 
-   (if (try-ok? (Verify (reading :brake-pressure) <= 50))
-     (set-reading :brake-pressure 70)
-     (clear-faults))
+   (if (try-ok? (Verify lgc.program = 64))
+     (ClickROD 1)                 ; still in the approach: take P66
+     (Verify lgc.program = 65))   ; P65 has taken over
 
 The calls inside are still reported, marked as suppressed (shown as true or
 false rather than passed or failed).
@@ -65,7 +65,7 @@ block call in it failed:
 
 .. code-block:: clojure
 
-   (def version (try (InstalledVersion :demo) "unknown"))
+   (def touchdown-at (try (Read touchdown.vz) nil))
 
 ``try-ok?`` and ``try`` only catch block failures. A mistake in the script's
 own code, such as an unknown name, still stops the step.
@@ -78,10 +78,10 @@ explicitly:
 
 .. code-block:: clojure
 
-   (step "Settles within limits"
-     (try-ok? (Verify (reading :brake-pressure) <= 60))   ; may overshoot
-     (Wait 2)
-     (Verify (reading :brake-pressure) <= 60))
+   (step "Settles on the commanded rate"
+     (try-ok? (Verify nav.altitude-rate within? -1.2 -0.8))   ; may overshoot
+     (RunFor 5)
+     (Verify nav.altitude-rate within? -1.2 -0.8))
 
 ``(quietly forms...)``
 ----------------------
@@ -92,7 +92,7 @@ and fail as usual. Use it for housekeeping that would clutter the report.
 .. code-block:: clojure
 
    (quietly
-     (StartDemo {:mode :normal}))
+     (RunFor 3))
 
 Summary
 -------

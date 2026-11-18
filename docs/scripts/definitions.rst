@@ -13,27 +13,28 @@ The two definitions
 
    .. code-block:: clojure
 
-      (def max-pressure 100)
+      (def touchdown-vz-limit 3.05)
 
 ``(defn name [params] body...)``
    Names a function. Called as a step, it passes unless a block it calls
-   fails; to check what it returns, assert it: ``(Verify (demo-in-mode?
-   :normal))``.
+   fails; to check what it returns, assert it: ``(Verify
+   (landed-within-limits?))``.
 
    .. code-block:: clojure
 
-      (defn demo-in-mode? [m]
-        (and (.running demo) (= (.mode demo) m)))
+      (defn landed-within-limits? []
+        (and (Read landed)
+             (<= (abs (Read touchdown.vz)) touchdown-vz-limit)
+             (<= (abs (Read touchdown.vx)) touchdown-vx-limit)))
 
    A function that calls blocks can group them in the report with ``step``:
 
    .. code-block:: clojure
 
-      (defn brakes-hold [pressure]
-        (step "Brakes hold the pressure"
-          (StartDemo {:mode :normal
-                      :readings {:brake-pressure pressure}})
-          (Verify (reading :brake-pressure) <= max-pressure)))
+      (defn land-and-keep [label]
+        (step "Fly to touchdown and attach the trajectory"
+          (FlyTo :touchdown)
+          (AttachTrajectory label)))
 
 Definitions are never reported as steps, and only appear at the top level of
 a ``core.rst`` or a script, never inside another form (a ``defn``, a
@@ -52,7 +53,7 @@ page leads with the test itself:
    .. rvt::
       :definitions:
 
-      (def stop-pressure 70)
+      (def program-change-allowed? ...)
 
 A definitions block can be limited to some variations, to override a value for
 those variations only; see :ref:`scoped-definitions`.
@@ -70,18 +71,20 @@ from the root down to its own:
    :caption: Each script loads the chain from the root to its folder; an import only adds names
 
    flowchart TB
-     root["core.rst<br/>(environments :sim) (uut :demo)<br/>(def max-pressure 100)"]
-     bra["BRA/core.rst<br/>(def max-pressure 80)<br/>(defn brakes-hold …)"]
-     brakes["BRA/tc_bra_00001.rst<br/>max-pressure is 80"]:::accent
-     fuel["FUEL/tc_fuel_00001.rst<br/>(import BRA)<br/>max-pressure is 100, and brakes-hold"]:::accent
-     root -- shadowed by --> bra
-     bra -- loaded by --> brakes
-     root -- loaded by --> fuel
-     bra -. "import: adds brakes-hold,<br/>keeps max-pressure" .-> fuel
+     root["core.rst<br/>(uut :lm) (environments :sim :lms)<br/>(def site-radius-m 200)"]
+     gdn["GDN/core.rst<br/>(def site-radius-m 100)<br/>(defn climbing? …)"]
+     guidance["GDN/tc_gdn_005.rst<br/>site-radius-m is 100"]:::accent
+     abort["ABT/tc_abt_001.rst<br/>(import GDN)<br/>site-radius-m is 200, and climbing?"]:::accent
+     root -- shadowed by --> gdn
+     gdn -- loaded by --> guidance
+     root -- loaded by --> abort
+     gdn -. "import: adds climbing?,<br/>keeps site-radius-m" .-> abort
 
-Inner definitions shadow outer ones, so ``BRA/`` tightens the limit for every
-brake script. A ``core.rst`` is a document too: explain what each definition
-is for, and the workspace renders it like any other page.
+Inner definitions shadow outer ones: if ``GDN/`` defined a tighter
+``site-radius-m``, every guidance script would use it. (In the Apollo
+example it doesn't; the figure shows what would happen.) A ``core.rst`` is a
+document too: explain what each definition is for, and the workspace renders
+it like any other page.
 
 A ``core.rst`` may only contain documentation, ``def``, ``defn``, ``uut``
 and ``environments``.
@@ -93,11 +96,11 @@ Imports
 
 .. code-block:: clojure
 
-   (import BRA)
+   (import GDN)
 
 Imports only add definitions. They never override a name the script's own
-``core.rst`` chain defines, so importing ``BRA`` into a fuel script gets
-``brakes-hold`` without changing the fuel folder's ``max-pressure``. Imports
+``core.rst`` chain defines, so importing ``GDN`` into an abort script gets
+``climbing?`` without changing anything the abort folder's chain defines. Imports
 must be at the top level of an ``rvt`` block.
 
 Scripts and definitions together
@@ -121,8 +124,8 @@ in scope. A name that is none of these is an error before the script can be
 queued, shown by the statement it is in, with a suggestion when one is
 close. A ``core.rst`` function's names are checked when a script can call
 it, since a ``core.rst`` may serve scripts that bind more than this one
-(``in-variation-mode?`` uses ``mode``, which only scripts with variations
-bind).
+(a function using ``mission`` works only in scripts whose variations bind
+it).
 
 A script's own definition of a name shadows any block of the same name, so a
 script can stand in for a block while it is being developed.

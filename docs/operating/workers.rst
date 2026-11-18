@@ -28,7 +28,7 @@ parameters:
    {
      "environments": {
        "sim": {"workdir": "/var/lib/automation/sim"},
-       "bench": {}
+       "lms": {"workdir": "/var/lib/automation/lms", "pace": 20}
      }
    }
 

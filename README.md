@@ -17,39 +17,53 @@ automation-v3 demo
 
 Then open http://localhost:8080.
 
+The demo tests the **Apollo lunar module**: a small simulation of its
+powered descent and its guidance computer's software (Luminary), the `lm`
+UUT in `automationv3/plugins/apollo`. Its example scripts and requirements
+ship with the package, in `automationv3/examples/apollo`. Three versions of
+the software are installed: `LUM099` (it has no extended missions, so
+those runs are blocked), `LUM131` (with a defect invented for the example,
+which one check catches on extended missions) and `LUM210` (fixed). The
+mission (standard or extended) and where the flight starts (powered descent
+initiation, high gate, low gate, the surface) are chosen at boot, so they
+are variations: see `automationv3/examples/apollo/rvts/README.rst` for
+what each script shows.
+
 `demo` sets up everything in a fresh `./demo` folder and serves it, with a
 worker in the same process:
 
-- a workspace: a git repository of the sample scripts (`test/data/rvts`)
-  on `master`, with three more branches as worktrees;
-- the sample requirements, loaded into the demo's database;
-- the `sim` and `bench` environments, working under `demo/environments`;
+- a workspace: a git repository of the example scripts on `master`, with
+  three more branches as worktrees (`branch1` verifies Release 1);
+- the example's requirements and their DOORS history (Release 1 for
+  standard missions, Release 2 adding extended ones), loaded into the
+  demo's database;
+- the `sim` (stepped) and `lms` (the mission simulator, paced real time)
+  environments, working under `demo/environments`;
+- the lunar module's build repository (`demo/builds`), and in
+  `demo/local-build` a build of LUM131 with its defect fixed, for the local
+  client to find and upload;
 - this project's documentation, built and linked as **Docs** in the
   app's navigation.
 
 Each run deletes the earlier demo and starts again; it won't delete a
 folder it didn't make. Use `--path` for another folder, `--port` for
 another port, and `--no-docs` to skip building the documentation. The
-install must be editable (`-e`): the demo reads the sample scripts and
-documentation sources from the checkout. Without the `[docs]` extra the
-demo runs without documentation.
+documentation is built only from a source checkout; without the `[docs]`
+extra the demo runs without it.
 
 ## Running it yourself
 
-1. Install as above, then make the sample database and workspace:
+1. Install as above and make a demo folder once (`automation-v3 demo`, then
+   stop it): it holds a workspace, a database of requirements and a worker
+   config.
+2. Run the server on them:
 ```
-python test/data/load_sample.py
-python test/data/make_workspaces.py
-```
-2. Run!
-```
-automation-v3 server --workspace-path ./test/data/git_repos/master
+automation-v3 server --workspace-path demo/workspace/master --dbpath demo/automationv3.db
 ```
 3. Start a worker (in another terminal) to execute queued scripts. The
-   config names the environments it hosts; this one hosts the sample `sim`
-   and `bench`.
+   config names the environments it hosts; this one hosts `sim` and `lms`.
 ```
-automation-v3 worker --port 8081 --central-server localhost:8080 --config test/data/worker.json
+automation-v3 worker --port 8081 --central-server localhost:8080 --config demo/worker.json
 ```
 Pick requirements on the **Requirements** page (or open a script and press
 **Queue…**), choose environments, UUT versions and variations, and queue.
@@ -62,14 +76,14 @@ To run everything in one process instead, start the server with its own
 worker; it takes jobs straight from the server's database. Separate workers
 can still connect as well:
 ```
-automation-v3 server --workspace-path ./test/data/git_repos/master --local-worker --config test/data/worker.json
+automation-v3 server --workspace-path demo/workspace/master --dbpath demo/automationv3.db --local-worker --config demo/worker.json
 ```
 
 To serve the documentation at `/docs` (with a **Docs** link in the
 navigation), build it and pass `--docs-path`:
 ```
 make -C docs html
-automation-v3 server --workspace-path ./test/data/git_repos/master --docs-path docs/_build/html
+automation-v3 server --workspace-path demo/workspace/master --docs-path docs/_build/html
 ```
 
 The docs' paragraphs use TeX line breaks, worked out in the reader's browser
@@ -82,9 +96,11 @@ same worker config. It prints each step, writes a normal report folder and
 exits non-zero unless every run passed:
 
 ```
-automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/worker.json
-automation-v3 run BRA/tc_bra_00004.rst --root test/data/rvts --config test/data/worker.json --variation limp-home --uut demo=1.0.0
+automation-v3 run LND/tc_lnd_001.rst --root automationv3/examples/apollo/rvts --config demo/worker.json --env sim
+automation-v3 run ALM/tc_alm_003.rst --root automationv3/examples/apollo/rvts --config demo/worker.json --env sim --variation extended --uut lm=LUM131
 ```
+
+The second fails on purpose: LUM131's defect.
 
 ## A central server and the local client
 
@@ -120,7 +136,7 @@ sends scratch runs (edits included) and local builds to the central server:
 ```
 automation-v3 login --server https://automation.example.com
 automation-v3 client --workspace-path ~/work/scripts       # http://localhost:8080
-automation-v3 scratch BRA/tc_bra_00004.rst --uut demo=local
+automation-v3 scratch ALM/tc_alm_003.rst --uut lm=local
 ```
 Reports run only what's pushed. Reports, Queue and Scratch show your own by
 default, with an Everyone tab. See `docs/operating/deployment.rst`,
@@ -162,27 +178,36 @@ directives; each form in an `rvt` block is a step, and the prose between
 them is the script's documentation:
 
 ```rst
-================
-Brake Monitoring
-================
-Checks the brake pressure stays under the limit.
+===========================
+Ignition Waits For The Crew
+===========================
+At powered descent initiation the computer asks for the crew's consent.
 
 Requirements
 ------------
-1. :req:`VMCBRA00001`
+1. :req:`LGC-GDN-001`
 
 .. rvt::
-   :definitions:
 
-   (def target 60)
+   (Precondition "LM at PDI, the crew's part left to the script"
+     (lm-ready-for? :standard :pdi :manual)
+     :heal "Boot a standard mission at PDI with a manual crew"
+     (boot-for :standard :pdi :manual))
 
 Steps
 -----
 
-.. rvt::
+.. rvt:: Nothing happens without PRO
 
-   (set-reading :brake-pressure target)
-   (Verify (reading :brake-pressure) <= max-pressure)
+   (Verify dsky.flashing = true)
+   (RunFor 30)
+   (Verify engine.descent.on = false)
+
+.. rvt:: PRO lights the engine
+
+   (Proceed)
+   (RunFor 1)
+   (Verify deca.throttle = full-throttle)
 ```
 
 Any `.rst` with an `rvt` block is a script (plain documents like a
@@ -197,7 +222,7 @@ BuildingBlocks are actions (do something), assertions (check something) or
 values (read something), and only blocks fail steps: a step passes unless a
 block it called failed, or something raised (an error). Its value is shown,
 never judged, so checks are written as assertions:
-`(Verify (brake-pressure-ok? 40))`. A block's `execute` gets its arguments
+`(Verify (landed-within-limits?))`. A block's `execute` gets its arguments
 evaluated, except parameters it lists in `quoted` (Verify's operator); a
 block that wants every form as written implements `execute_forms` instead.
 
@@ -211,32 +236,33 @@ A script may declare variations, each binding the same symbols to
 different values for its own run:
 
 ```clojure
-(variations "mode pressure"
-  ["nominal"  [:normal 60]
-   "degraded" [:limp-home 75]])
+(variations "mission start"
+  ["standard from PDI"       [:standard :pdi]
+   "extended from high gate" [:extended :high-gate]])
 ```
 
 The queue dialog can untick variations or filter them with an EDN
 predicate over those symbols plus `name` and `index`, e.g.
-`(not= mode :degraded)`.
+`(= mission :extended)`.
 
 Preconditions state what must hold before the steps run, and may heal it:
 
 ```clojure
-(Precondition "Demo running in normal mode"
-  (demo-in-mode? :normal)
-  :heal (start-demo :normal))
+(Precondition "LM booted for the variation's mission, at its start point"
+  (lm-ready? mission start)
+  :heal "Boot the variation's mission at its start point"
+  (boot mission start))
 ```
 
 Workers run the job whose preconditions already hold (or heal) first,
 leaving UUTs as they are between jobs. Only when no queued job is ready do
 they start the UUTs fresh for the oldest one; a precondition that still
 fails then makes the run **blocked**. Scripts reach a UUT through a handle
-bound to its name, e.g. `(.mode demo)`.
+bound to its name, e.g. `(.mission lm)`.
 
-`test/data/rvts` is an example set that tests every BRA and FUE
-requirement; its `README.rst` lists what each script shows and which ones
-fail on purpose.
+`automationv3/examples/apollo/rvts` is the example set: it tests the lunar
+module's requirements, and its `README.rst` lists what each script shows
+and which ones fail on purpose.
 
 A script can define things too. Definitions are never reported as steps;
 a script's definitions section (an `rvt` block with the `:definitions:`
@@ -247,7 +273,7 @@ collapsed:
 .. rvt::
    :definitions:
 
-   (def stop-pressure 70)
+   (def approach-deg 25)
 ```
 
 Blocks compose in scripts. Wherever a block is called (top level, a `defn`,
@@ -257,20 +283,20 @@ and `(try form default)` suppress failures explicitly, and `(quietly ...)`
 leaves calls out of the output:
 
 ```clojure
-(defn brakes-hold [pressure]
-  (step "Brakes hold the pressure"
-    (StartDemo {:mode :normal :readings {:brake-pressure pressure}})
-    (Verify (reading :brake-pressure) <= max-pressure)))
+(defn land-and-keep [label]
+  (step "Fly to touchdown and attach the trajectory"
+    (FlyTo :touchdown)
+    (AttachTrajectory label)))
 ```
 
 Steps render through their BuildingBlock: a block can override `as_html`
 (or `as_rst`) to show its arguments readably, e.g. a configuration as a
 table; otherwise the step shows as code.
 
-`(environments :sim ...)` and `(uut :demo ...)` declare where a script can
+`(environments :sim ...)` and `(uut :lm ...)` declare where a script can
 run and what it tests. They are inherited from the `core.rst` chain and the
 script can override them. UUTs and environments are plugins in
-`automationv3/plugins` (see `plugins/sample`).
+`automationv3/plugins` (see `plugins/apollo`).
 
 
 ## Database
@@ -278,8 +304,8 @@ script can override them. UUTs and environments are plugins in
 The app uses plain `sqlite3`. All tables are defined in
 `automationv3/services/schema.sql`, which is applied (with `CREATE ... IF NOT
 EXISTS`) every time the server starts. There are no migrations: to
-change a table, edit `schema.sql`, delete the database file and reload the
-sample data.
+change a table, edit `schema.sql`, delete the database file and make the
+demo again.
 
 The database holds the job queue and in-progress state, the requirements,
 and on a central server the accounts (only hashes of sign-in links, sessions

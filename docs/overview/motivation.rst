@@ -34,7 +34,7 @@ rendered document read well, not just to make the script run.
 Requirements are the unit of progress
 -------------------------------------
 
-Scripts reference the requirements they verify (``:req:`VMCBRA00001```).
+Scripts reference the requirements they verify (``:req:`LGC-GDN-001```).
 A report rolls every run up to those requirements: a requirement is
 :status:`passed` (green) only when every linked script passed in every
 environment and variation it should run in, :status:`failed` (red) if any

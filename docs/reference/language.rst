@@ -138,7 +138,7 @@ Strings and output
 
 Refs
    ``group``, ``same?``, ``ref?``; plugins add their own, such as the
-   Vehicle Manager's ``connector``. See :doc:`../scripts/refs`.
+   lunar module's ``connector``. See :doc:`../scripts/refs`.
 
 Collection helpers
 ------------------
@@ -200,7 +200,7 @@ Bound names
 While a script runs, these are bound in addition to definitions:
 
 - each variation symbol, to the running variation's value;
-- each UUT's name (e.g. ``demo``), to its handle, if it offers one.
+- each UUT's name (e.g. ``lm``), to its handle, if it offers one.
 
 ``wait-timeout`` and ``wait-every``, if a script or its ``core.rst`` defines
 them, are Wait's defaults.

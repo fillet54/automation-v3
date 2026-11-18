@@ -20,17 +20,17 @@ Lisp, close to Clojure:
      - Meaning
    * - ``60``, ``"text"``, ``true``, ``nil``
      - Literals evaluate to themselves.
-   * - ``:brake-pressure``
+   * - ``:extended``
      - Keywords evaluate to themselves; use them as names and map keys.
-   * - ``max-pressure``
+   * - ``full-throttle``
      - Symbols are looked up: definitions, variation symbols, UUT handles.
    * - ``(f a b)``
      - A call: ``f`` is a function, a block or a special form.
-   * - ``[1 2 3]``, ``{:mode :normal}``
+   * - ``[1 2 3]``, ``{:mission :extended}``
      - Vectors and maps; their items are evaluated, so ``[limit (+ 1 2)]``
        is ``[80 3]``. Write ``'[a b]`` for data exactly as written.
-   * - ``(.mode demo)``
-     - Calls the ``mode`` method on the ``demo`` handle; ``(.-attr obj)``
+   * - ``(.mission lm)``
+     - Calls the ``mission`` method on the ``lm`` handle; ``(.-attr obj)``
        reads an attribute.
 
 Special forms: ``if``, ``do``, ``let``, ``fn``, ``quote``, ``def``,
@@ -46,12 +46,12 @@ Actions, assertions and values
 Every block is one of three kinds:
 
 Actions
-   do something to the system: ``(StartDemo {:mode :normal})``,
-   ``(SetValue bench.sun false)``. An action fails if it can't do it.
+   do something to the system: ``(StartLM {:mission :extended})``,
+   ``(SetValue panel.abort true)``. An action fails if it can't do it.
 
 Assertions
-   check something: ``(Verify (reading :brake-pressure) <= max-pressure)``,
-   ``(Wait nav.mode = :run :within 5s)``. An assertion fails when its check
+   check something: ``(Verify (Read touchdown.vz) >= -3.05)``,
+   ``(Wait lgc.program = 65 :within 30s)``. An assertion fails when its check
    comes out false.
 
 Values
@@ -69,16 +69,16 @@ or something raised. Its value is shown on the run page, but never judged:
 
 .. code-block:: clojure
 
-   (brake-pressure-ok? 40)            ; passes whatever it returns
-   (Verify (brake-pressure-ok? 40))   ; fails if it returns false
+   (landed-within-limits?)            ; passes whatever it returns
+   (Verify (landed-within-limits?))   ; fails if it returns false
 
 To check a value, assert it. The static check warns about a step whose value
 is all it does, like ``(- 10 10)`` or ``(= a b)``: it can never fail.
 
 A block call
-   ``(Verify (reading :brake-pressure) <= max-pressure)`` runs the
-   ``Verify`` BuildingBlock, which decides whether it passed and what it
-   prints (here ``60 <= 80``).
+   ``(Verify deca.throttle = full-throttle)`` runs the ``Verify``
+   BuildingBlock, which decides whether it passed and what it prints (here
+   ``deca.throttle (92.5) = 92.5``).
 
 Blocks called inside other code
    If a step calls blocks, for example inside a ``defn``, the first failing

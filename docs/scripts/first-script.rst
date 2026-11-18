@@ -8,27 +8,30 @@ Your first script
 
 .. code-block:: rst
 
-   ================
-   Brake Monitoring
-   ================
-   Checks the brake pressure stays under the limit.
+   ========================
+   The Engine Lights On PRO
+   ========================
+   Checks the descent engine lights at full throttle once the crew presses
+   PRO at powered descent initiation.
 
    Requirements
    ------------
-   1. :req:`VMCBRA00001`
+   1. :req:`LGC-GDN-001`
 
    .. rvt::
       :definitions:
 
-      (def target 60)
+      (def settle-s 1)
 
    Steps
    -----
 
    .. rvt::
 
-      (set-reading :brake-pressure target)
-      (Verify (reading :brake-pressure) <= max-pressure)
+      (boot-for :standard :pdi :manual)
+      (Proceed)
+      (RunFor settle-s)
+      (Verify deca.throttle = full-throttle)
 
 The parts
 ---------
@@ -57,24 +60,26 @@ The title
    and it may only appear before the first step. See :doc:`definitions`.
 
 Steps
-   ``(set-reading :brake-pressure target)`` calls a function defined in a
-   ``core.rst``; ``(Verify ...)`` calls the ``Verify`` BuildingBlock. Each
-   is reported as a step with its own pass/fail badge and duration. See
-   :doc:`steps`.
+   ``(boot-for :standard :pdi :manual)`` calls a function defined in a
+   ``core.rst``: it boots the lunar module for a standard mission at
+   powered descent initiation, with the script as its crew.
+   ``(Proceed)`` and ``(RunFor ...)`` are the lunar module plugin's
+   BuildingBlocks, and ``(Verify ...)`` is the core one. Each is reported as
+   a step with its own pass/fail badge and duration. See :doc:`steps`.
 
 Where things come from
 ----------------------
 
-``set-reading``, ``reading`` and ``max-pressure`` aren't defined in this
-script. They come from the ``core.rst`` files in the script's folder and every
-folder above it (see :ref:`core-chain`). ``Verify`` is a BuildingBlock in the
-``core`` plugin. ``demo``, the handle used inside ``reading``, is bound to the
-UUT the script tests, declared in the root ``core.rst``:
+``boot-for``, ``deca`` (the descent engine's control, a connector) and
+``full-throttle`` aren't defined in this script. They come from the
+``core.rst`` files in the script's folder and every folder above it (see
+:ref:`core-chain`). ``lm``, the handle the root ``core.rst``'s functions
+use, is bound to the UUT the script tests, declared there:
 
 .. code-block:: clojure
 
-   (environments :sim)
-   (uut :demo)
+   (uut :lm)
+   (environments :sim :lms)
 
 A script can override those declarations with its own ``(environments ...)``
 or ``(uut ...)``.
