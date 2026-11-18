@@ -134,7 +134,11 @@ Predicates
    ``procedure?``, ``eq?``.
 
 Strings and output
-   ``str``, ``print``.
+   ``str``, ``print``, ``println``. What a step prints is its output: the
+   run page shows it with the step, and the editor's console under it.
+   ``print`` writes its values separated by spaces, strings as they are
+   and anything else as edn; ``println`` ends with a new line. A Wait's
+   repeated checks print nothing.
 
 Refs
    ``group``, ``same?``, ``ref?``; plugins add their own, such as the

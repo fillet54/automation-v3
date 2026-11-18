@@ -467,6 +467,7 @@ div.tbd strong:first-child { flex: none; font-size: var(--ui-text-xs); font-weig
 .ed-cl--command:first-child { margin-top: 0; }
 .ed-cl--step, .ed-cl--call, .ed-cl--row, .ed-cl--phase, .ed-cl--ref, .ed-cl--out, .ed-cl--file, .ed-cl--fail, .ed-cl--result, .ed-cl--note, .ed-cl--error { padding-left: 26px; }
 .ed-cl--out, .ed-cl--ref, .ed-cl--phase, .ed-cl--note { color: var(--ui-muted); }
+.ed-cl--printed { padding-left: 26px; color: var(--ui-ink); min-height: 1.45em; }
 .ed-cl--ref::before { content: "↳ "; }
 .ed-cl--fail { color: var(--ui-danger); }
 .ed-cl--result { color: var(--ui-accent); }

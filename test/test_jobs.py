@@ -220,6 +220,29 @@ class TestExecutor(unittest.TestCase):
                                  "step_start", "step_end",
                                  "procedure_end"])
 
+    def test_what_a_step_prints_is_its_output(self):
+        recorder = Recorder()
+        text = rvt('''
+            (print "ABC" 1 :k)
+            (do (println "one") (println "two") (Verify 1 = 1))
+        ''')
+        self.assertEqual(execute_script(text, recorder), "pass")
+        ends = [kw for kind, kw in recorder.events if kind == "step_end"]
+        self.assertEqual(ends[0]["printed"], "ABC 1 :k")
+        self.assertEqual(ends[0]["stdout"], "ABC 1 :k")
+        self.assertEqual(ends[1]["printed"], "one\ntwo")
+        self.assertTrue(ends[1]["stdout"].startswith("one\ntwo"))
+
+    def test_a_waits_polls_print_nothing(self):
+        recorder = Recorder()
+        text = rvt('''
+            (Wait (do (print "poll") false) :every 10ms :within 50ms)
+        ''')
+        self.assertEqual(execute_script(text, recorder), "fail")
+        ends = [kw for kind, kw in recorder.events if kind == "step_end"]
+        self.assertFalse(ends[-1]["error"])
+        self.assertNotIn("printed", ends[-1])
+
     def test_failing_step_stops_script(self):
         recorder = Recorder()
         self.assertEqual(execute_script(FAILING, recorder), "fail")

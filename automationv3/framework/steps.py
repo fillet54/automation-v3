@@ -27,6 +27,11 @@ unknown name, a bad call) still stop the step.
 
 (quietly forms...) runs forms with their calls left out of the output.
 
+(print x ...) and (println x ...) write to the step's output: what a
+step printed is reported with it (`printed` on step_end, and at the
+start of its stdout). Strings are written as they are, other values as
+edn. Outside a step (or in a Wait's silent polls) nothing is kept.
+
 Every reported block call gets an id within its statement, its parent
 (an enclosing step form) if any, a depth, its block_kind, and its quiet /
 suppressed flags; in a precondition, also the phase (check or heal) it
@@ -78,6 +83,7 @@ class Runtime:
         self.phase = None  # the precondition phase running, numbered from 1
         self.placeholders = 0  # TBD steps reached
         self.touched = set()  # (type, path, operation) of refs
+        self.printed = []  # what the statement printed, in pieces
 
     def touch(self, ref, operation):
         """Report a ref touched (once per path and operation)"""
@@ -331,6 +337,37 @@ def quietly_special_form(x, env):
         for form in x[1:]:
             value = lisp.eval(form, env)
     return value
+# Printing
+
+
+def shown(value):
+    """A value as print writes it: a string as it is, anything else as edn"""
+    if isinstance(value, str) and not isinstance(value, edn.Symbol):
+        return value
+    return edn.writes(value)
+
+
+def _printer(end):
+    def printer(*values):
+        runtime = _runtime.get()
+        text = " ".join(shown(v) for v in values) + end
+        if runtime is None:
+            print(text, end="")  # outside a step: the process's own output
+        elif not runtime.frame.silent:
+            runtime.printed.append(text)
+        return None
+    return printer
+
+
+lisp.global_env["print"] = _printer("")
+lisp.global_env["println"] = _printer("\n")
+
+
+def printed(runtime):
+    """What a statement printed, as one text without its last line end"""
+    return "".join(runtime.printed).rstrip("\n")
+
+
 # Statements
 
 

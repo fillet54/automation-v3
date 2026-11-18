@@ -144,6 +144,12 @@ class KernelTest(unittest.TestCase):
         fail = [line for line in lines if line["kind"] == "fail"][0]
         self.assertEqual(fail["at"], {"line": 3, "character": 4})
 
+    def test_printing(self):
+        kernel = self.kernel()
+        command, lines = self.run_forms(kernel, '(print "ABC")')
+        self.assertEqual([(l["kind"], l["text"]) for l in lines[1:]],
+                         [("step", '✓ (print "ABC")'), ("printed", "ABC"), ("result", "=> nil")])
+
     def test_a_definition_typed_is_kept(self):
         kernel = self.kernel()
         self.run_forms(kernel, "(def answer 42)")

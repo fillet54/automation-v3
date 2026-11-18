@@ -154,7 +154,7 @@ class Transcript:
 
     def on_step_end(self, passed, stdout="", stderr="", duration=0,
                     message="", trace=(), placeholders=0, definition=False,
-                    precondition=False, error=False, **kw):
+                    precondition=False, error=False, printed="", **kw):
         self.kernel.running = None
         if definition:  # only a definition that failed is reported
             self.add("fail", message or "the definition failed", **self.where(trace))
@@ -162,6 +162,9 @@ class Transcript:
         mark = "…" if passed and placeholders else ("✓" if passed else "✗")
         self.add("step", f"{mark} {short(self.form or '', SHORT)}",
                  passed=bool(passed), duration=duration, tbd=bool(placeholders))
+        if printed:  # what it printed comes first in its stdout too
+            stdout = stdout[len(printed):].lstrip("\n") if stdout.startswith(printed) else stdout
+            self.output(printed, 0, kind="printed")
         if self.phases:
             self.add("phase", ", ".join(self.phases))
         for depth, form, ok, out, took in self.calls:
@@ -199,15 +202,20 @@ class Transcript:
                 return {"at_text": f"{span['source']}:{span['line']}"}
         return {}
 
-    def output(self, text, depth):
-        lines = [line for line in (text or "").splitlines() if line.strip()]
+    def output(self, text, depth, kind="out"):
+        """Output, a line each; printed output keeps its blank lines and
+        is folded later than a block's"""
+        if kind == "printed":
+            lines, fold = (text or "").split("\n"), 50
+        else:
+            lines, fold = [line for line in (text or "").splitlines() if line.strip()], FOLD
         if not lines:
             return
-        shown = lines if len(lines) <= FOLD + 1 else lines[:FOLD]
+        shown = lines if len(lines) <= fold + 1 else lines[:fold]
         for line in shown:
-            self.add("out", line, depth=depth)
+            self.add(kind, line, depth=depth)
         if len(shown) < len(lines):
-            self.add("out", f"… {len(lines) - len(shown)} more lines", depth=depth,
+            self.add(kind, f"… {len(lines) - len(shown)} more lines", depth=depth,
                      more="\n".join(lines[len(shown):]))
 
 

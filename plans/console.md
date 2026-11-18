@@ -387,3 +387,14 @@ and the gutter button appear with a local worker and not without.
 - `docs/operating/local-client.rst`: `--config` gives the client a
   console, which borrows its worker.
 - `docs/blocks/writing-blocks.rst`: `context.check_stopped()`.
+
+### After: print
+
+- `print` was Python's own `print`, so its output went to the server's
+  terminal, in runs as much as in the console. `print` and `println`
+  (new) now write to the running step (`steps._printer`). What a step
+  printed is `printed` on its `step_end`, and the start of its stdout,
+  so run pages show it as the step's output. The console shows it as
+  `printed` lines under the step, before its calls.
+- Prints in a Wait's silent polls are dropped. Outside a step (a `def`
+  evaluated at load), `print` still writes to the process's output.
