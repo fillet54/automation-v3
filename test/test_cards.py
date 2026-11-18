@@ -206,5 +206,98 @@ class TestBuild(unittest.TestCase):
         self.assertEqual(cards.build([found[0], fresh(found[1], text=" \n")], 2), "AA\n==\na\n")
 
 
+NESTED = """\
+Title
+=====
+
+.. rvt-variant::
+   :variations: a, b
+
+   Outer words.
+
+   .. rvt-variant::
+      :variations: a
+
+      Inner words.
+
+      .. rvt:: Inner
+         :definitions:
+
+         (def x 1)
+
+   .. rvt::
+
+      (Verify 1 = 1)
+
+Tail.
+"""
+
+
+def where(text):
+    """(start, code start, code indent) of each card of `text`, in walk
+    order, from split's own positions (lines from 0)"""
+    return [(c.line - 1, c.code_line - 1, c.code_indent) if c.kind == RVT
+            else (c.line - 1, c.line - 1, c.indent)
+            for c in cards.walk(cards.split(text))]
+
+
+def freshened(found, deep=True, kinds=(PROSE, RVT, SOURCE, VARIANT)):
+    """`found` as edited: every card of `kinds` fresh, inside variants too
+    when `deep`"""
+    return [fresh(c, children=freshened(c.children, deep, kinds) if deep else c.children)
+            if c.kind in kinds else
+            replace(c, children=freshened(c.children, deep, kinds) if deep else c.children)
+            for c in found]
+
+
+class TestPlaced(unittest.TestCase):
+    def check(self, sent, count=None):
+        text, places = cards.placed(sent, count)
+        self.assertEqual(text, cards.build(sent, count))
+        self.assertEqual([(p.start, p.code_start, p.code_indent) for p in places], where(text))
+        for place in places:
+            self.assertLessEqual(place.start, place.code_start)
+            self.assertLess(place.code_start, max(place.end, place.start + 1))
+        return text, places
+
+    def test_kept_cards_are_where_split_found_them(self):
+        for text in (SCRIPT, NESTED):
+            found = cards.split(text)
+            self.assertEqual(self.check(found)[0], text)
+
+    def test_fresh_cards(self):
+        for text in (SCRIPT, NESTED):
+            self.check(freshened(cards.split(text)))
+
+    def test_a_fresh_variant_around_kept_cards(self):
+        for text in (SCRIPT, NESTED):
+            self.check(freshened(cards.split(text), deep=False, kinds=(VARIANT,)))
+
+    def test_a_kept_variant_inside_a_fresh_one(self):
+        outer = cards.split(NESTED)[1]
+        inner = outer.children[1]
+        edited = fresh(outer, children=[outer.children[0], inner, fresh(outer.children[2])])
+        found = cards.split(NESTED)
+        self.check([found[0], edited, found[2]], len(found))
+
+    def test_only_blocks_edited(self):
+        for text in (SCRIPT, NESTED):
+            self.check(freshened(cards.split(text), kinds=(RVT,)), len(cards.split(text)))
+
+    def test_the_leading_blank_lines_of_a_fresh_card_are_before_it(self):
+        found = cards.split(SCRIPT)
+        sent = [found[0], fresh(found[1], text="\n\nRequirements\n------------\nNone.")]
+        text, places = cards.placed(sent + found[2:], len(found))
+        self.assertEqual(places[1].code_start, places[1].start - 2)
+        self.assertEqual(text.splitlines()[places[1].start], "Requirements")
+        sent = [fresh(found[2], code="\n(def target 60)")]
+        text, places = cards.placed(sent)
+        self.assertEqual(text.splitlines()[places[0].code_start + 1], "   (def target 60)")
+
+    def test_a_dropped_card_has_no_place(self):
+        found = cards.split("AA\n==\na\n\nBB\n==\nb\n")
+        self.assertEqual(cards.placed([found[0], fresh(found[1], text=" ")], 2)[1][1], None)
+
+
 if __name__ == "__main__":
     unittest.main()

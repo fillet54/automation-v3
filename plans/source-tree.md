@@ -226,7 +226,7 @@ changes how pages group blocks.
     they assert on merged entries or statement indexes. Check a script
     page, a picked variation and a run page in headless Chromium.
 
-- [ ] **6. The browser stops building text.**
+- [x] **6. The browser stops building text.**
   - `cards.build` also returns places: for each card its first and last
     line and where its code starts. Tested against the positions
     `cards.split` gives for the same text.
@@ -482,3 +482,40 @@ editor and the workspace page reach `render` through
   emergency variant shows; a scratch run of `emergency` shows each
   result inside its block, the variant's step inside the variant.
 
+**Step 6 (2026-11-17).** Suite: 808 passing (10 new).
+
+- `cards.placed(cards, count)` gives `build`'s text and a `Place` for
+  each card in walk order (a variant before what it holds): its lines,
+  and the line and column where what its editor holds starts. A fresh
+  card's place comes from how it is written; a kept card's from cutting
+  its own source again, so a kept variant's children are placed without
+  the page saying where they were (`code_offset`, `line_in`,
+  `code_indent` and `indent` are gone from the card payload). `build` is
+  `placed` without the places. `test_cards.TestPlaced` checks the
+  places against `split`'s positions of the built text: kept, fresh,
+  only blocks fresh, a fresh variant around kept cards, a kept variant
+  inside a fresh one.
+- The `/lsp` route speaks cards, not JSON-RPC: `{session, start, sync:
+  [{path, cards, count}], close, request: {method, path, card, line,
+  character}}`, answered with `problems` per path (each with its card,
+  `from`/`to` in that card's editor, and its `line` in the file for the
+  Problems panel) and the request's `result` in card coordinates.
+  `web/editor.PageSession` wraps the `Server` and does the
+  translation; the `Server` and the stdio server are unchanged. A
+  session the server forgot answers `reset`, as before.
+- `editor.js` keeps, per tab, `order`: the card elements of the cards
+  the server has, set when that sync's answer arrives (posts are
+  queued, so answers and orders line up). An unchanged sync (undo
+  draws the same cards again) only updates `order`, after whatever is
+  on its way. Gone: `assemble`, `derive`, `written`, `variantWritten`,
+  `unchangedPlaces`, `placeOf`, `VARIANT_HEAD`, the text helpers and
+  the didSave message (about 125 lines).
+- A fix on the way: a prose card inside a variant is now placed at its
+  indent (the old browser code used column 0), so a docutils problem
+  in it would land 3 columns off.
+- Checked in headless Chromium (driven over the DevTools protocol from
+  Node, a throwaway demo): `max-pressure` misspelt in the block inside
+  the `emergency` variant of tc_bra_00004.rst is underlined on exactly
+  `max-presure`; after three lines are added to the first section, the
+  block (and so its variant) written again, it still is, the Problems
+  panel says line 59 (56 + 3), and clicking it reveals the block.

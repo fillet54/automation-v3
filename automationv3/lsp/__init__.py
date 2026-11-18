@@ -8,5 +8,6 @@
 - stdio.py: the server on stdin and stdout (`automation-v3 lsp`), for
   editors.
 
-The web app's editor talks to the same server through web/editor.py.
+The web app's editor talks to the same server in cards, through
+web/editor.py (PageSession), which builds the text from them.
 """

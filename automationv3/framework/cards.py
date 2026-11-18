@@ -181,13 +181,23 @@ def rvt_source(card):
 def variant_source(card):
     """The rvt-variant directive of a card's variations and children,
     ending with one line end"""
+    return _variant(card)[0]
+
+
+VARIANT_HEAD = 3  # lines before a variant written again starts its children
+
+
+def _variant(card):
+    """(variant_source, the places of what it holds: see _placed)"""
     names = [name.strip() for name in card.variations if name.strip()]
     lines = [".. rvt-variant::", f"{INDENT}:variations: {', '.join(names)}".rstrip()]
-    body = build(card.children, card.count).rstrip("\n")
+    body, inner = _placed(card.children, card.count)
+    body = body.rstrip("\n")
     if body:
         lines += [""] + [f"{INDENT}{line}" if line.strip() else ""
                          for line in body.splitlines()]
-    return "\n".join(lines) + "\n"
+    moved = {key: place.moved(VARIANT_HEAD, len(INDENT)) for key, place in inner.items()}
+    return "\n".join(lines) + "\n", moved
 
 
 def written(card):
@@ -199,20 +209,60 @@ def written(card):
     return card.text.strip("\n") + "\n"
 
 
+@dataclass(frozen=True)
+class Place:
+    """Where a card is in the text `build` makes, lines counted from 0:
+    it covers lines `start` to `end` (not included), and the first line
+    of what its editor holds (a block's code, a section's text) is line
+    `code_start`, indented `code_indent` columns. `code_start` can be
+    before `start`: a fresh card's leading blank lines aren't written."""
+
+    start: int
+    end: int
+    code_start: int
+    code_indent: int
+
+    def moved(self, lines, cols):
+        return Place(self.start + lines, self.end + lines, self.code_start + lines,
+                     self.code_indent + cols)
+
+
 def build(cards, original_count=None):
     """The file text of `cards`. A card with a `source` goes in as it
     is; a card without one (fresh: edited or new) is written from its
     fields. `original_count` is how many cards the file had when it was
     split (default: the highest index here, plus one), which says
     whether a kept card was the file's last."""
+    return _placed(cards, original_count)[0]
+
+
+def placed(cards, original_count=None):
+    """(build's text, the Place of each card in it), the places in the
+    order of walk(cards); None for a card that isn't in the text (a
+    fresh section with no text)"""
+    text, found = _placed(cards, original_count)
+    return text, [found.get(id(card)) for card in walk(cards)]
+
+
+def _leading(text):
+    return len(text) - len(text.lstrip("\n"))
+
+
+def _placed(cards, original_count=None):
+    """(build's text, {id(card): Place} for the cards in it and the
+    cards inside them)"""
     cards = [c for c in cards
              if c.source is not None or c.kind in (RVT, VARIANT) or c.text.strip()]
     if original_count is None:
         original_count = max((c.index for c in cards if c.index is not None), default=-1) + 1
-    pieces = []
+    pieces, found, at = [], {}, 0
     for n, card in enumerate(cards):
         fresh = card.source is None
-        piece = written(card) if fresh else card.source
+        inner = {}
+        if fresh and card.kind == VARIANT:
+            piece, inner = _variant(card)
+        else:
+            piece = written(card) if fresh else card.source
         last = n == len(cards) - 1
         if last:
             was_last = not fresh and card.index == original_count - 1
@@ -225,4 +275,49 @@ def build(cards, original_count=None):
             if not follows:  # a new neighbour: exactly one blank line between
                 piece = without_tail(piece) + "\n\n"
         pieces.append(piece)
-    return "".join(pieces)
+        end = at + piece.count("\n") + (0 if piece.endswith("\n") else 1)
+        if fresh:
+            found[id(card)] = _fresh_place(card, at, end)
+            found.update({key: place.moved(at, 0) for key, place in inner.items()})
+        else:
+            found.update(_kept_places(card, at, end))
+        at += piece.count("\n")
+    return "".join(pieces), found
+
+
+def _fresh_place(card, start, end):
+    if card.kind == RVT:
+        options = sum((card.definitions, card.table,
+                       any(name.strip() for name in card.variations)))
+        return Place(start, end, start + 2 + options - _leading(card.code), len(INDENT))
+    if card.kind == VARIANT:
+        return Place(start, end, start, 0)
+    return Place(start, end, start - _leading(card.text), 0)
+
+
+def _kept_places(card, start, end, cols=0):
+    """{id: Place} for a card kept as it was cut, at line `start` and
+    column `cols`, and for the cards inside it: where they are in its
+    source, which is cut again on its own"""
+    again = split(card.source)
+    top = again[0] if again else None
+    if top is None or top.kind != card.kind:
+        return {id(card): Place(start, end, start, cols)}
+    return _places_of(card, top, start, end, cols)
+
+
+def _places_of(sent, cut, start, end, cols, origin=None):
+    """{id: Place} for `sent` (what the page sent) and the cards inside
+    it, from `cut` (the same card cut from its source, whose line 1 is
+    line `origin` here, `start` by default)"""
+    origin = start if origin is None else origin
+    if cut.kind == RVT:
+        found = {id(sent): Place(start, end, origin + cut.code_line - 1, cols + cut.code_indent)}
+    else:
+        found = {id(sent): Place(start, end, start, cols + cut.indent)}
+    if cut.kind == VARIANT and len(sent.children) == len(cut.children):
+        for child, again in zip(sent.children, cut.children):
+            first = origin + again.line - 1
+            found.update(_places_of(child, again, first,
+                                    first + len(again.source.splitlines()), cols, origin))
+    return found

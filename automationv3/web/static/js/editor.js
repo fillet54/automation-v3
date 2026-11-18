@@ -325,7 +325,6 @@
       decorateAll(doc);
       if (doc.dataset.plain === "true" && !cardsOf(doc).length) doc.appendChild(decorate(section({ kind: "source", source: null, index: null, text: "" }, "")));
     }
-    st.problems = st.problems || [];
     lspSync(path);
     drawTabs();
   }
@@ -436,224 +435,129 @@
     rebuild(path, from.pop());
   }
 
-  // The language server (lsp/server.py, behind /lsp): it is sent each
-  // tab's file as the cards make it, edits in progress included, and its
-  // diagnostics are drawn on the cards they fall in
+  // The language server (lsp/server.py), behind /lsp (web/editor.py:
+  // PageSession), spoken to in cards: it is sent each tab's cards, edits
+  // in progress included, builds the file from them as a save would, and
+  // answers with each problem's card (its place in walk order: a variant
+  // before what it holds) and where it is in that card's editor. A tab
+  // keeps, in `order`, the card elements of the cards the server has.
 
-  var lsp = { session: Math.random().toString(36).slice(2) + Date.now().toString(36), next: 1, started: false, sent: {}, queue: Promise.resolve(), problems: {} };
+  var lsp = { session: Math.random().toString(36).slice(2) + Date.now().toString(36), started: false, sent: {}, queue: Promise.resolve(), problems: {} };
   var TYPES = { 3: "function", 6: "variable", 7: "class", 10: "property", 14: "keyword", 18: "text" };
   var REQ_OPEN = /:req:`[^`]*$/i;
   var NAME = /[^\s()\[\]{}"';,]*/;
 
-  function lspUri(path) { return "rvt:///" + path.split("/").map(encodeURIComponent).join("/"); }
-  function uriPath(uri) { return decodeURIComponent(uri.replace(/^rvt:\/\/\//, "")); }
+  // A container's card elements in walk order: each variant before its own
+  function walkCards(container) {
+    var found = [];
+    cardsOf(container).forEach(function (card) {
+      found.push(card);
+      if (isVariant(card)) found = found.concat(walkCards(bodyOf(card)));
+    });
+    return found;
+  }
 
-  // Send messages, in order with every other send; gives the answers
-  function lspPost(messages) {
+  // Send `body`, in order with every other send; gives the answer.
+  // `orders`: {path: card elements} for the cards it syncs.
+  function lspPost(body, orders) {
     lsp.queue = lsp.queue.then(function () {
-      return post(base + "/lsp", { session: lsp.session, messages: messages })
-        .then(function (response) { return response.ok ? response.json() : { messages: [] }; })
+      if (!lsp.started) { lsp.started = true; body.start = true; }
+      return post(base + "/lsp", Object.assign({ session: lsp.session }, body))
+        .then(function (response) { return response.ok ? response.json() : { problems: {} }; })
         .then(function (found) {
-          if (found.reset) { lspReset(); return []; }
-          var published = false;
-          found.messages.forEach(function (message) {
-            if (message.method !== "textDocument/publishDiagnostics") return;
-            var path = uriPath(message.params.uri);
-            published = true;
-            if (message.params.diagnostics.length) lsp.problems[path] = message.params.diagnostics;
+          if (found.reset) { lspReset(); return found; }
+          Object.keys(orders || {}).forEach(function (path) { if (states[path]) states[path].order = orders[path]; });
+          var paths = Object.keys(found.problems || {});
+          paths.forEach(function (path) {
+            if (found.problems[path].length) lsp.problems[path] = found.problems[path];
             else delete lsp.problems[path];
-            if (!states[path]) return;
-            states[path].problems = message.params.diagnostics;
             showProblems(path);
           });
-          if (published) { drawProblems(); drawTreeCounts(); }
-          return found.messages;
+          if (paths.length) { drawProblems(); drawTreeCounts(); }
+          return found;
         });
-    }).catch(function () { return []; });
+    }).catch(function () { return {}; });
     return lsp.queue;
   }
 
-  // The server forgot this page: start over, opening every document again
+  // The server forgot this page: start over, sending every tab again
   function lspReset() {
     lsp.started = false;
     lsp.sent = {};
     setTimeout(function () { tabs.forEach(function (path) { lspSync(path); }); }, 0);
   }
 
-  function withoutTail(text) { return text.replace(/(?:[ \t]*\r?\n)*$/, ""); }
-  function count(text, what) { return text.split(what).length - 1; }
-  function lineCount(text) { return count(text, "\n") + (/\n$/.test(text) || !text ? 0 : 1); }
-
-  // An edited card as it is written in the file (framework/cards.py: written)
-  function written(data) {
-    if (data.kind !== "rvt") return (data.text || "").replace(/^\n+|\n+$/g, "") + "\n";
-    var title = (data.title || "").split(/\s+/).filter(Boolean).join(" ");
-    var lines = [title ? ".. rvt:: " + title : ".. rvt::"];
-    if (data.definitions) lines.push("   :definitions:");
-    if (data.table) lines.push("   :table:");
-    if ((data.variations || []).length) lines.push("   :variations: " + data.variations.join(", "));
-    var code = (data.code || "").replace(/^\n+|\n+$/g, "");
-    if (code) lines = lines.concat([""], code.split("\n").map(function (line) { return line.trim() ? "   " + line : ""; }));
-    return lines.join("\n") + "\n";
-  }
-
-  // A variant written again, around its children's text (cards.py: variant_source)
-  function variantWritten(data, body) {
-    var lines = [".. rvt-variant::", ("   :variations: " + (data.variations || []).join(", ")).replace(/\s+$/, "")];
-    body = body.replace(/\n+$/, "");
-    if (body) lines = lines.concat([""], body.split("\n").map(function (line) { return line.trim() ? "   " + line : ""; }));
-    return lines.join("\n") + "\n";
-  }
-  var VARIANT_HEAD = 3;  // lines before a variant written again starts its children
-
-  // The text cards make (framework/cards.py: build), and where each card
-  // is in it: {text, places: [{card, start, end, codeStart, codeIndent}]},
-  // lines counted from 0, a variant before what it holds. A card's code
-  // (what its editor holds) starts at codeStart, indented by codeIndent.
-  function assemble(els, original, typed) {
-    var parts = els.map(function (card) {
-      return { card: card, data: dataOf(card, typed) };
-    }).filter(function (p) {
-      return p.data.source != null || p.data.kind === "rvt" || p.data.kind === "variant" || (p.data.text || "").trim();
-    });
-    var text = "", places = [];
-    parts.forEach(function (part, n) {
-      var data = part.data, fresh = data.source == null, inner = null, piece;
-      if (data.kind === "variant" && fresh) {
-        inner = assemble(cardsOf(bodyOf(part.card)), data.count || 0, typed);
-        piece = variantWritten(data, inner.text);
-      } else {
-        piece = fresh ? written(data) : data.source;
-      }
-      if (fresh) {
-        // as written, which ends with one line end; spaces being typed at its end stay
-        if (n < parts.length - 1) piece += "\n";
-      } else if (n === parts.length - 1) {
-        if (data.index !== original - 1) piece = withoutTail(piece) + "\n";
-      } else {
-        var after = parts[n + 1].data;
-        var follows = after.source != null && data.index != null && after.index === data.index + 1;
-        if (!follows) piece = withoutTail(piece) + "\n\n";
-      }
-      var start = count(text, "\n"), place = { card: part.card, start: start, codeStart: start, codeIndent: 0 };
-      if (data.kind === "rvt" && fresh) {
-        var options = (data.definitions ? 1 : 0) + (data.table ? 1 : 0) + ((data.variations || []).length ? 1 : 0);
-        place.codeStart = start + 2 + options - (/^\n*/.exec(data.code || "")[0].length);
-        place.codeIndent = 3;
-      } else if (data.kind === "rvt") {
-        place.codeStart = start + (data.code_offset || 0);
-        place.codeIndent = (data.code_indent || 0) - (data.indent || 0);
-      } else if (fresh && data.kind !== "variant") {
-        place.codeStart = start - (/^\n*/.exec(data.text || "")[0].length);
-      }
-      text += piece;
-      place.end = count(text, "\n") + (/\n$/.test(text) ? 0 : 1);
-      places.push(place);
-      if (data.kind === "variant" && fresh) {
-        inner.places.forEach(function (p) {
-          places.push({ card: p.card, start: p.start + start + VARIANT_HEAD, end: p.end + start + VARIANT_HEAD,
-                        codeStart: p.codeStart + start + VARIANT_HEAD, codeIndent: p.codeIndent + 3 });
-        });
-      } else if (data.kind === "variant") {
-        unchangedPlaces(part.card, start, -(data.indent || 0), places);
-      }
-    });
-    return { text: text, places: places };
-  }
-
-  // Where the cards of a variant that is as it was cut are: their lines
-  // from the server, their columns moved by `cols`
-  function unchangedPlaces(variant, at, cols, places) {
-    cardsOf(bodyOf(variant)).forEach(function (child) {
-      var d = child._card, start = at + (d.line_in || 0);
-      var place = { card: child, start: start, end: start + lineCount(d.source || ""), codeStart: start, codeIndent: 0 };
-      if (d.kind === "rvt") {
-        place.codeStart = start + (d.code_offset || 0);
-        place.codeIndent = (d.code_indent || 0) + cols;
-      }
-      places.push(place);
-      if (d.kind === "variant") unchangedPlaces(child, start, cols, places);
-    });
-  }
-
-  function derive(doc, original) { return assemble(cardsOf(doc), original, true); }
-
-  // Tell the server what a tab's file is now, if that changed
+  // Tell the server what a tab's cards are now, if that changed
   function lspSync(path) {
     var st = states[path], doc = docOf(path);
     if (!editable || !st || !doc || doc.dataset.plain === "true" || doc.dataset.editable !== "true") return Promise.resolve();
-    var found = derive(doc, st.count), messages = [];
-    st.places = found.places;
-    var named = { uri: lspUri(path) };
-    if (!lsp.started) {
-      lsp.started = true;
-      messages.push({ jsonrpc: "2.0", id: lsp.next++, method: "initialize", params: {} },
-                    { jsonrpc: "2.0", method: "initialized", params: {} });
+    var cards = cardsOf(doc).map(function (c) { return dataOf(c, true); });
+    var sent = JSON.stringify([cards, st.count]), order = walkCards(doc);
+    if (lsp.sent[path] === sent) {
+      // the same cards, perhaps drawn again (undo): after what is on its way
+      lsp.queue = lsp.queue.then(function () { st.order = order; showProblems(path); });
+      return lsp.queue;
     }
-    if (!(path in lsp.sent)) {
-      messages.push({ jsonrpc: "2.0", method: "textDocument/didOpen", params: { textDocument: { uri: named.uri, languageId: "rst", version: 1, text: found.text } } });
-    } else if (lsp.sent[path] !== found.text) {
-      messages.push({ jsonrpc: "2.0", method: "textDocument/didChange", params: { textDocument: named, contentChanges: [{ text: found.text }] } });
-    }
-    lsp.sent[path] = found.text;
-    if (!messages.length) { showProblems(path); return lsp.queue; }
-    return lspPost(messages).then(function () { showProblems(path); });
+    lsp.sent[path] = sent;
+    var orders = {};
+    orders[path] = order;
+    return lspPost({ sync: [{ path: path, cards: cards, count: st.count }] }, orders);
   }
 
   function lspClose(path) {
     if (!(path in lsp.sent)) return;
     delete lsp.sent[path];
-    lspPost([{ jsonrpc: "2.0", method: "textDocument/didClose", params: { textDocument: { uri: lspUri(path) } } }]);
+    lspPost({ close: [path] });
   }
 
-  function lspRequest(method, params) {
-    var id = lsp.next++;
-    return lspPost([{ jsonrpc: "2.0", id: id, method: method, params: params }]).then(function (answers) {
-      var answer = answers.filter(function (a) { return a.id === id; })[0];
-      return answer ? answer.result : null;
+  // Where an offset of a card's editor (a CodeMirror doc) is, as the
+  // server is asked: {card, line, character}; null for a card it hasn't
+  function positionOf(card, text, offset) {
+    var st = states[pathOf(card)], index = st && st.order ? st.order.indexOf(card) : -1;
+    if (index < 0) return null;
+    var line = text.lineAt(offset);
+    return { card: index, line: line.number - 1, character: offset - line.from };
+  }
+
+  // Ask about a place in a card: hover, completion or signature
+  function lspRequest(method, card, text, offset) {
+    var path = pathOf(card);
+    return lspSync(path).then(function () {
+      var position = positionOf(card, text, offset);
+      if (!position) return null;
+      return lspPost({ request: Object.assign({ method: method, path: path }, position) })
+        .then(function (found) { return found && !found.reset ? found.result : null; });
     });
-  }
-
-  // The innermost card a line of the tab's file is in
-  function placeOf(st, line) {
-    var found = null;
-    (st.places || []).forEach(function (p) { if (p.start <= line && line < p.end) found = p; });
-    if (!found && st.places && st.places.length) {  // past the end: the last top-level card
-      var last = st.places.filter(function (p) { return p.card.parentNode && p.card.parentNode.hasAttribute("data-ed-doc"); }).pop();
-      found = last || st.places[st.places.length - 1];
-    }
-    return found;
   }
 
   // Draw a tab's diagnostics: squiggles in the card being edited, a list
   // under any other card, and a count on the tab
   function showProblems(path) {
     var st = states[path], doc = docOf(path);
-    if (!st || !doc || !st.places) return;
-    var problems = st.problems || [];
+    if (!st || !doc || !st.order) return;
+    var problems = lsp.problems[path] || [];
     doc.classList.add("is-live");  // the diagnostics drawn when the page was made are out of date now
     var by = new Map();
     problems.forEach(function (p) {
-      var place = placeOf(st, p.range.start.line);
-      if (!place) return;
-      if (!by.has(place)) by.set(place, []);
-      by.get(place).push(p);
+      var card = p.card == null ? null : st.order[p.card];
+      if (!card) return;
+      if (!by.has(card)) by.set(card, []);
+      by.get(card).push(p);
     });
-    st.places.forEach(function (place) {
-      var own = by.get(place) || [];
-      var card = place.card, list = $(":scope > .ed-card__problems", card);
+    st.order.forEach(function (card) {
+      var own = by.get(card) || [];
+      var list = $(":scope > .ed-card__problems", card);
       if (list) list.remove();
       if (card._edit && card._edit.view) {
         var view = card._edit.view, text = view.state.doc;
         var at = function (position) {
-          var line = position.line - place.codeStart;
-          if (line < 0) return 0;
-          if (line >= text.lines) return text.length;
-          var found = text.line(line + 1);
-          return Math.min(found.from + Math.max(position.character - place.codeIndent, 0), found.to);
+          if (position.line < 0) return 0;
+          if (position.line >= text.lines) return text.length;
+          var found = text.line(position.line + 1);
+          return Math.min(found.from + Math.max(position.character, 0), found.to);
         };
         view.dispatch(window.CM.setDiagnostics(view.state, own.map(function (p) {
-          var from = at(p.range.start), to = Math.max(at(p.range.end), from);
+          var from = at(p.from), to = Math.max(at(p.to), from);
           if (to === from && to < text.length) to += 1;
           else if (to === from && from > 0) from -= 1;  // at the very end: mark what comes before
           return { from: from, to: to, severity: p.severity === 1 ? "error" : "warning", message: p.message };
@@ -694,15 +598,15 @@
       var group = el("div", "ed-problems__file");
       group.appendChild(el("div", "ed-problems__path", path));
       var list = el("ul", "ed-problems__list");
-      lsp.problems[path].slice().sort(function (a, b) { return a.severity - b.severity || a.range.start.line - b.range.start.line; }).forEach(function (p) {
+      lsp.problems[path].slice().sort(function (a, b) { return a.severity - b.severity || a.line - b.line; }).forEach(function (p) {
         var item = el("li");
         var go = el("button", "ed-problems__item " + (p.severity === 1 ? "is-error" : "is-warning"));
         go.type = "button";
         go.dataset.edReveal = path;
-        go.dataset.line = p.range.start.line;
+        go.dataset.line = p.line;
         go.appendChild(el("strong", null, p.severity === 1 ? "Error" : "Warning"));
         go.appendChild(document.createTextNode(" " + p.message + " "));
-        go.appendChild(el("span", "ui-muted", "line " + (p.range.start.line + 1)));
+        go.appendChild(el("span", "ui-muted", "line " + (p.line + 1)));
         item.appendChild(go);
         list.appendChild(item);
       });
@@ -715,9 +619,10 @@
   function reveal(path, line) {
     if (!states[path] || !states[path].loaded) { open(path); states[path].reveal = line; return; }
     if (active !== path) activate(path);
-    var st = states[path], place = placeOf(st, line);
-    if (!place) { st.reveal = line; return; }
-    var card = place.card;
+    var st = states[path];
+    var problem = (lsp.problems[path] || []).filter(function (p) { return p.line === line && p.card != null; })[0];
+    var card = problem && st.order ? st.order[problem.card] : null;
+    if (!card) { st.reveal = line; return; }
     for (var d = card.closest("details"); d; d = d.parentNode.closest("details")) d.open = true;
     card.scrollIntoView({ block: "center", behavior: "smooth" });
     card.classList.remove("is-flashing");
@@ -737,14 +642,6 @@
       badge.title = errors ? errors + (errors === 1 ? " error" : " errors") : number + (number === 1 ? " warning" : " warnings");
       row.appendChild(badge);
     });
-  }
-
-  // Where an offset of a card's editor is in the tab's file
-  function positionOf(card, view, offset) {
-    var place = (states[pathOf(card)].places || []).filter(function (p) { return p.card === card; })[0];
-    if (!place) return null;
-    var line = view.state.doc.lineAt(offset);
-    return { line: place.codeStart + line.number - 1, character: place.codeIndent + offset - line.from };
   }
 
   // The little markdown the server writes, as elements: code fences,
@@ -779,18 +676,12 @@
   // What the name under the pointer is
   function hovers(card) {
     return function (view, offset) {
-      var path = pathOf(card);
-      return lspSync(path).then(function () {
-        var position = positionOf(card, view, offset);
-        if (!position) return null;
-        return lspRequest("textDocument/hover", { textDocument: { uri: lspUri(path) }, position: position });
-      }).then(function (found) {
+      return lspRequest("hover", card, view.state.doc, offset).then(function (found) {
         if (!found || !found.contents || !found.contents.value) return null;
-        var line = view.state.doc.lineAt(offset), place = positionOf(card, view, line.from);
-        var from = line.from + found.range.start.character - place.character;
-        var to = line.from + found.range.end.character - place.character;
+        var line = view.state.doc.lineAt(offset);
         return {
-          pos: Math.max(from, line.from), end: Math.min(to, line.to), above: true,
+          pos: Math.max(line.from + found.range.start.character, line.from),
+          end: Math.min(line.from + found.range.end.character, line.to), above: true,
           create: function () { return { dom: prose(found.contents.value) }; },
         };
       });
@@ -801,12 +692,7 @@
   // with the argument being typed marked
   function sign(card, view, bar) {
     if (!card._edit) return;
-    var path = pathOf(card);
-    lspSync(path).then(function () {
-      var position = positionOf(card, view, view.state.selection.main.head);
-      if (!position) return null;
-      return lspRequest("textDocument/signatureHelp", { textDocument: { uri: lspUri(path) }, position: position });
-    }).then(function (found) {
+    lspRequest("signature", card, view.state.doc, view.state.selection.main.head).then(function (found) {
       bar.textContent = "";
       bar.hidden = !found || !found.signatures.length;
       if (bar.hidden) return;
@@ -839,16 +725,7 @@
         var before = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
         if (!context.explicit && word.from === word.to && before !== "(" && before !== '"') return null;
       }
-      var path = pathOf(card);
-      return lspSync(path).then(function () {
-        var place = (states[path].places || []).filter(function (p) { return p.card === card; })[0];
-        if (!place) return null;
-        var line = context.state.doc.lineAt(context.pos);
-        return lspRequest("textDocument/completion", {
-          textDocument: { uri: lspUri(path) },
-          position: { line: place.codeStart + line.number - 1, character: place.codeIndent + context.pos - line.from },
-        });
-      }).then(function (found) {
+      return lspRequest("completion", card, context.state.doc, context.pos).then(function (found) {
         if (!found || !found.items.length) return null;
         return {
           from: word.from, validFor: valid,
@@ -1311,7 +1188,6 @@
       dropDraft(path);
       st.dirty = false;
       if (st.isNew) refreshTree();
-      lspPost([{ jsonrpc: "2.0", method: "textDocument/didSave", params: { textDocument: { uri: lspUri(path) } } }]);
       return load(path).then(function () { if (active === path) say("Saved"); return true; });
     }).catch(function () { say("Couldn't save: the server didn't answer"); return false; });
   }

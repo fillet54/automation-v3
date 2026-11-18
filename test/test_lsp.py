@@ -517,28 +517,72 @@ class TestWebRoute(unittest.TestCase):
         app.testing = True
         self.client = app.test_client()
 
-    def send(self, session, *messages):
-        response = self.client.post("/workspace/master/lsp", json={"session": session, "messages": list(messages)})
+    def post(self, session, **body):
+        response = self.client.post("/workspace/master/lsp", json={"session": session, **body})
         self.assertEqual(response.status_code, 200, response.get_data(True))
-        return response.json["messages"]
+        return response.json
 
-    def test_a_page_talks_to_its_own_server(self):
-        opened = notify("textDocument/didOpen", textDocument={
-            "uri": "rvt:///BRA/tc.rst", "text": SCRIPT.replace("<= limit", "<= limt")})
-        answer, published = self.send("page-one", request(1, "initialize"), opened)
-        self.assertEqual(answer["id"], 1)
-        self.assertEqual(len(published["params"]["diagnostics"]), 1)
-        (completion,) = self.send("page-one", request(2, "textDocument/completion",
-                                                      textDocument={"uri": "rvt:///BRA/tc.rst"},
-                                                      position={"line": 11, "character": 11}))
-        self.assertIn("target", [i["label"] for i in completion["result"]["items"]])
+    @staticmethod
+    def cards(text, edit=None):
+        """What the page sends for `text`: its cards, each with its
+        children; `edit(found)` changes them first"""
+        from automationv3.framework import cards
+        from automationv3.web import editor
+
+        def sent(card):
+            return {**editor.payload(card), "children": [sent(c) for c in card.children]}
+        found = cards.split(text)
+        if edit:
+            edit(found)
+        return [sent(c) for c in found]
+
+    def test_a_page_talks_to_its_own_server_in_cards(self):
+        text = SCRIPT.replace("<= limit", "<= limt")
+        answer = self.post("page-one", start=True,
+                           sync=[{"path": "BRA/tc.rst", "cards": self.cards(text), "count": 4}])
+        (problem,) = answer["problems"]["BRA/tc.rst"]
+        # the third card's code, its first line, where "limt" is
+        self.assertEqual((problem["card"], problem["line"]), (2, 11))
+        self.assertEqual(problem["from"], {"line": 0, "character": len("(Verify target <= ")})
+        found = self.post("page-one", request={"method": "completion", "path": "BRA/tc.rst",
+                                               "card": 2, "line": 1, "character": 11})
+        self.assertIn("target", [i["label"] for i in found["result"]["items"]])
+        self.assertNotIn("textEdit", found["result"]["items"][0])
+        hover = self.post("page-one", request={"method": "hover", "path": "BRA/tc.rst",
+                                               "card": 2, "line": 1, "character": 9})["result"]
+        self.assertEqual(hover["range"]["start"], {"line": 1, "character": len("(Verify (")})
         # another page has opened nothing
-        (other,) = self.send("page-two", request(1, "initialize"))
-        self.assertEqual(other["id"], 1)
-        self.assertEqual(self.send("page-two", notify("textDocument/didSave", textDocument={"uri": "rvt:///x"})), [])
+        self.assertEqual(self.post("page-two", start=True)["problems"], {})
+        self.assertTrue(self.post("page-two", request={"method": "hover", "path": "BRA/tc.rst",
+                                                       "card": 2, "line": 1, "character": 9})["reset"])
+
+    def test_a_block_in_a_variant_keeps_its_place_after_an_edit_above(self):
+        text = SCRIPT.replace(".. rvt::\n\n", '.. rvt::\n\n   (variations "speed" ["fast" [1]])\n\n.. rvt::\n\n', 1) + "\n.. rvt-variant::\n   :variations: fast\n\n   Only fast.\n\n   .. rvt::\n\n      (Verify target > limt)\n"
+
+        def edited(found):  # a longer first card, and the variant written again
+            found[0].source, found[0].text = None, "Brakes\n======\nChecks the brakes.\n\nAnd more.\n\nMore."
+            found[-1].source = None
+
+        lines = []
+        for edit in (None, edited):
+            answer = self.post("page", start=True, sync=[
+                {"path": "BRA/tc.rst", "cards": self.cards(text, edit), "count": 5}])
+            (problem,) = answer["problems"]["BRA/tc.rst"]
+            self.assertEqual(problem["card"], 6)  # the variant, its prose, its block
+            self.assertEqual(problem["from"], {"line": 0, "character": len("(Verify target > ")})
+            lines.append(problem["line"])
+        self.assertEqual(lines[1], lines[0] + 4)  # in the file, it moved
+
+    def test_closing_forgets_the_file(self):
+        text = SCRIPT.replace("<= limit", "<= limt")
+        self.post("page", start=True, sync=[{"path": "BRA/tc.rst", "cards": self.cards(text)}])
+        self.assertEqual(self.post("page", close=["BRA/tc.rst"])["problems"], {"BRA/tc.rst": []})
+
+    def test_a_page_the_server_forgot_starts_again(self):
+        self.assertTrue(self.post("new", sync=[])["reset"])
 
     def test_a_session_is_needed(self):
-        self.assertEqual(self.client.post("/workspace/master/lsp", json={"messages": []}).status_code, 400)
+        self.assertEqual(self.client.post("/workspace/master/lsp", json={}).status_code, 400)
 
 
 if __name__ == "__main__":

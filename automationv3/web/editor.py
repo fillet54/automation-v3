@@ -25,6 +25,7 @@ import threading
 import time
 from html import escape
 from pathlib import Path, PurePosixPath
+from urllib.parse import quote
 
 from docutils import nodes
 from flask import abort, current_app, jsonify, request
@@ -145,28 +146,22 @@ def card_html(card, diagnostics=(), plain=False):
         return failed(text, e)
 
 
-def payload(card, parent=None):
-    """What the page keeps of a card, and sends back to save (a
-    variant's children each keep their own)"""
+def payload(card):
+    """What the page keeps of a card, and sends back to save and to the
+    language server (a variant's children each keep their own)"""
     data = {name: getattr(card, name) for name in FIELDS}
     data["level"] = card.level
-    data["indent"] = card.indent
-    if card.kind == RVT and card.line:  # where its code is in its source
-        data["code_offset"] = card.code_line - card.line
-        data["code_indent"] = card.code_indent
     if card.kind == VARIANT:
         data["count"] = card.count
-    if parent is not None and card.line:  # where it is in its variant's source
-        data["line_in"] = card.line - parent.line
     return data
 
 
-def views(found, plain=False, diagnostics=(), parent=None):
+def views(found, plain=False, diagnostics=()):
     """[{kind, html, data, children}] for cards, a variant's children
     with it"""
     return [{"kind": card.kind, "html": card_html(card, diagnostics, plain),
-             "data": payload(card, parent),
-             "children": views(card.children, plain, diagnostics, card)}
+             "data": payload(card),
+             "children": views(card.children, plain, diagnostics)}
             for card in found]
 
 
@@ -355,23 +350,146 @@ class PageRequirements:
         return self.listed
 
 
+class PageSession:
+    """A page's language server (lsp/server.py), spoken to in cards.
+
+    The page sends a file as its cards; the text the server checks is
+    built from them here (cards.placed), as a save would build it, and
+    each position goes between the two: the server's are lines and
+    UTF-16 columns of the file, the page's a card (its place in walk
+    order of the cards it sent) and a line and column of what that
+    card's editor holds."""
+
+    def __init__(self, root):
+        from ..lsp.server import Server
+        self.changed = set()  # paths whose problems or cards changed
+        self.started = False  # the page has said it starts (a page this is new to must start over)
+        self.server = Server(root, lambda root: PageRequirements())
+        self.server.handle({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {}})
+        self.server.handle({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+        self.places = {}  # path -> [(Place or None, top level?)], in walk order
+        self.diagnostics = {}  # path -> the server's diagnostics last published
+        self.lock = threading.Lock()
+        self.used = time.monotonic()
+        self.next = 1
+
+    @staticmethod
+    def uri(path):
+        return "rvt:///" + quote(path)
+
+    def handle(self, message):
+        """Hand the server one message; keep what it publishes"""
+        from urllib.parse import unquote
+        answers = self.server.handle(message)
+        for answer in answers:
+            if answer.get("method") == "textDocument/publishDiagnostics":
+                path = unquote(answer["params"]["uri"].removeprefix("rvt:///"))
+                self.diagnostics[path] = answer["params"]["diagnostics"]
+                self.changed.add(path)
+        return answers
+
+    def sync(self, path, sent, count):
+        """The file at `path` is now what cards `sent` build"""
+        text, places = card_model.placed(sent, count)
+        top = {id(card) for card in sent}
+        self.places[path] = [(place, id(card) in top)
+                             for card, place in zip(card_model.walk(sent), places)]
+        method = "textDocument/didChange" if path in self.server.service.texts else "textDocument/didOpen"
+        params = ({"textDocument": {"uri": self.uri(path)}, "contentChanges": [{"text": text}]}
+                  if method.endswith("didChange")
+                  else {"textDocument": {"uri": self.uri(path), "languageId": "rst", "text": text}})
+        self.handle({"jsonrpc": "2.0", "method": method, "params": params})
+        self.changed.add(path)
+
+    def close(self, path):
+        self.places.pop(path, None)
+        self.handle({"jsonrpc": "2.0", "method": "textDocument/didClose",
+                     "params": {"textDocument": {"uri": self.uri(path)}}})
+
+    def card_at(self, path, line):
+        """The index of the innermost card a file line is in; past the
+        end, the last top-level card's"""
+        found = None
+        for index, (place, _) in enumerate(self.places.get(path, [])):
+            if place is not None and place.start <= line < place.end:
+                found = index
+        if found is None:
+            tops = [i for i, (place, top) in enumerate(self.places.get(path, []))
+                    if top and place is not None]
+            found = tops[-1] if tops else None
+        return found
+
+    def problem(self, path, d):
+        """A diagnostic as the page draws it: its card and where in it,
+        and its line in the file (for the Problems panel)"""
+        start, end = d["range"]["start"], d["range"]["end"]
+        found = {"line": start["line"], "severity": d["severity"], "message": d["message"],
+                 "card": None}
+        index = self.card_at(path, start["line"])
+        if index is not None:
+            place = self.places[path][index][0]
+            found.update(card=index, **{
+                key: {"line": at["line"] - place.code_start,
+                      "character": at["character"] - place.code_indent}
+                for key, at in (("from", start), ("to", end))})
+        return found
+
+    def problems(self):
+        """{path: problems} for each file whose problems, or whose cards,
+        changed since this was last asked"""
+        found = {path: [self.problem(path, d) for d in self.diagnostics.get(path, [])]
+                 for path in sorted(self.changed)}
+        self.changed = set()
+        return found
+
+    def request(self, data):
+        """The answer to a hover, completion or signature request, which
+        names a path, a card and a line and column in it; None when the
+        page's cards for that path aren't known (it must send them)"""
+        methods = {"hover": "textDocument/hover", "completion": "textDocument/completion",
+                   "signature": "textDocument/signatureHelp"}
+        path, index = data.get("path"), data.get("card")
+        method = methods.get(data.get("method"))
+        places = self.places.get(path)
+        if method is None or not isinstance(index, int) or not isinstance(data.get("line"), int) \
+                or not isinstance(data.get("character"), int):
+            abort(400)
+        if places is None:
+            return None, True
+        if not 0 <= index < len(places) or places[index][0] is None:
+            return {"result": None}, False
+        place = places[index][0]
+        self.next += 1
+        answers = self.handle({"jsonrpc": "2.0", "id": self.next, "method": method, "params": {
+            "textDocument": {"uri": self.uri(path)},
+            "position": {"line": place.code_start + data["line"],
+                         "character": place.code_indent + data["character"]}}})
+        result = next((a.get("result") for a in answers if a.get("id") == self.next), None)
+        if result and method == "textDocument/hover" and result.get("range"):
+            result["range"] = {key: {"line": at["line"] - place.code_start,
+                                     "character": at["character"] - place.code_indent}
+                               for key, at in result["range"].items()}
+        if result and method == "textDocument/completion":
+            for item in result.get("items", []):
+                item.pop("textEdit", None)  # the page replaces the word it completes
+        return {"result": result}, False
+
+
 def lsp_session(ws, session):
-    """(the Server of a page's session, its lock)"""
-    from ..lsp.server import Server
+    """The PageSession of a page's session"""
     sessions = current_app.config.setdefault("LSP_SESSIONS", {})
     now = time.monotonic()
     with _lsp_lock:
-        for key in [k for k, (_, _, used) in sessions.items() if now - used > LSP_IDLE]:
+        for key in [k for k, found in sessions.items() if now - found.used > LSP_IDLE]:
             del sessions[key]
         key = (ws.id, session[:64])
         if key not in sessions:
             while len(sessions) >= LSP_SESSIONS:  # the longest idle goes
-                del sessions[min(sessions, key=lambda k: sessions[k][2])]
-            sessions[key] = (Server(ws.root, lambda root: PageRequirements()),
-                             threading.Lock(), now)
-        server, lock, _ = sessions[key]
-        sessions[key] = (server, lock, now)
-    return server, lock
+                del sessions[min(sessions, key=lambda k: sessions[k].used)]
+            sessions[key] = PageSession(ws.root)
+        found = sessions[key]
+        found.used = now
+    return found
 
 
 # Routes, on the workspace blueprint
@@ -548,27 +666,51 @@ def register(bp, workspace_or_404, node_or_404):
 
     @bp.route("/<path:id>/lsp", methods=["POST"])
     def lsp(id):
-        """The language server (lsp/server.py) for the page's editor:
-        the messages sent are handled in order, and the answer is every
-        message the server has for the page, responses and notifications.
-        Each page has a session of its own, with the documents it has
-        open as it has them."""
+        """The language server for the page's editor (PageSession), in
+        cards. The body: `session`, the page's own; `sync`, files whose
+        cards changed, each {path, cards, count}; `close`, paths no
+        longer open; `request`, one {method (hover, completion or
+        signature), path, card, line, character}; `start`, true on the
+        page's first message. The answer:
+        `problems`, {path: [problem]} for each file whose problems or
+        cards changed, each problem with its card, `from` and `to` in it
+        and its `line` in the file; `result`, the request's; `reset`
+        when the session is new to the page (the server forgot it), which
+        then starts again and sends every file."""
         ws, data = workspace(id), body()
-        messages, session = data.get("messages"), data.get("session")
-        if not isinstance(messages, list) or not isinstance(session, str) or not session:
+        session = data.get("session")
+        syncs, closes = data.get("sync") or [], data.get("close") or []
+        if not isinstance(session, str) or not session or not isinstance(syncs, list) \
+                or not isinstance(closes, list):
             abort(400)
-        server, lock = lsp_session(ws, session)
-        replies = []
-        first = messages[0].get("method") if messages and isinstance(messages[0], dict) else None
-        if not server.initialized and first != "initialize":
-            # The session is gone (idle too long, or the server restarted):
-            # the page starts over and opens its documents again
-            return jsonify(messages=[], reset=True)
-        with lock:
-            for message in messages:
-                if isinstance(message, dict):
-                    replies += server.handle(message)
-        return jsonify(messages=replies)
+        sent = []
+        for sync in syncs:
+            if not isinstance(sync, dict) or not isinstance(sync.get("path"), str) \
+                    or not isinstance(sync.get("cards"), list):
+                abort(400)
+            count = sync.get("count")
+            sent.append((sync["path"], [as_card(c) for c in sync["cards"]],
+                         count if isinstance(count, int) else None))
+        page = lsp_session(ws, session)
+        answer = {}
+        with page.lock:
+            if data.get("start"):
+                page.started = True
+            elif not page.started:
+                return jsonify(problems={}, reset=True)
+            page.changed = set()
+            for path in closes:
+                if isinstance(path, str):
+                    page.close(path)
+            for path, found, count in sent:
+                page.sync(path, found, count)
+            if isinstance(data.get("request"), dict):
+                result, reset = page.request(data["request"])
+                if reset:
+                    return jsonify(problems={}, reset=True)
+                answer.update(result)
+            answer["problems"] = page.problems()
+        return jsonify(answer)
 
     @bp.route("/<path:id>/tabs", methods=["PUT"])
     def tabs(id):
