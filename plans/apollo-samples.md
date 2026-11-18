@@ -628,3 +628,50 @@ read each one and update it to the Apollo example.
   inside the package; `source-tree` fast-forwarded into master, branch
   `apollo-samples` off it; every existing sample and UUT goes, and the
   framework's unit tests move onto `lm` (no test-only stub).
+
+### Step 1: the inventory (2026-11-17)
+
+No test starts a worker in a subprocess (`test_mirror` runs git,
+`test_plugins` runs a fresh interpreter to load plugins), so the `lm`
+plugin is seen everywhere it is needed.
+
+- **any-UUT / behaviour** (inline scripts with `(uut :demo)`,
+  `:sim`/`:bench`, the `demo` handle, the sample blocks):
+  `test_jobs` (85 mentions: versions 1.0.0/1.1.0, install/kept,
+  `StartDemo`/`SnapshotDemo`, `(.mode demo)`, a `vm` version in a page),
+  `test_builds` (local builds, `AUTOMATION_DEMO_BUILDS`), `test_lsp`
+  (the `demo` handle in completion), `test_cli`, `test_analysis`,
+  `test_placeholders`, `test_plugins`, `test_cards`, `test_editor`,
+  `test_workspace_handler`, `test_source`, `test_worker_tokens`,
+  `test_client_web`, `test_blocks`, `test_variation_scopes`,
+  `test_statements`, `test_compose`, `test_api`, `test_filetree`,
+  `central.py`.
+- **vm**: `test_refs` (23 mentions) tests connectors on the
+  `VehicleManager` directly; it moves to the `lm` connectors.
+- **sample-data**: `test_example_set`, `test_demo`, `test_export`,
+  `test_report_pages` (the BRA scripts), `test_requirement_store`,
+  `test_requirement_flat`, `test_requirement_documents`,
+  `test_requirement_features`, `test_docutils_facts` (the DOORS sample
+  or the sample scripts), `test_mirror` (2 mentions).
+
+### Step 2: the model (2026-11-17)
+
+- The quadratic law with a fixed time to high gate was unworkable: it
+  asked for more than full throttle at PDI, and then more than 60%
+  after throttle-down, and crashed. A time-to-go search for full
+  throttle was unstable (the throttle a plan needs is U-shaped in its
+  time). What works: downrange, the constant deceleration that reaches
+  the gate's speed at the gate; time to go from that; vertically, the
+  quadratic law in that time to go. Ahead of plan, it asks for less,
+  so throttle-down comes on its own. P64 uses the same law to low gate.
+- Once throttled down, P63 and P64 never go back to full throttle
+  (only P70 does).
+- PDI ranges: 500 km (standard), 540 km (extended). The extended LM got
+  9,000 kg of propellant and a 2,500 kg dry descent stage (16,400 kg at
+  PDI), so a nominal landing ends with about 9% left in both missions
+  and lights no caution.
+- Timeline (seed 0): standard throttle-down 328 s, P64 562 s, touchdown
+  730 s at 2.4 m/s, 24 m from the site, 751 kg left; extended 364 s,
+  630 s, 781 s, 828 kg left. One flight is about 0.1 s.
+- The nominal crew clicks up to three times per look in P66, and stops
+  re-selecting V16 N68 after three 1202s (17 alarms otherwise).
