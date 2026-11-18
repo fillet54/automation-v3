@@ -96,12 +96,12 @@ class TestPluginFunctions(unittest.TestCase):
         self.assertEqual(calls, ["external-plugin"])
         self.assertEqual(lisp.eval(edn.read("(external/double 4)"), new_env()), 8)
 
-    def test_core_owns_test_helpers_and_vm_uses_the_registration_hook(self):
+    def test_core_owns_test_helpers_and_apollo_uses_the_registration_hook(self):
         self.assertNotIn("group", lisp.standard_env())
         functions = {f.name: f.plugin for f in plugins.registered_functions()}
         self.assertEqual(functions["group"], "automationv3.plugins.core")
-        self.assertEqual(functions["connector"], "automationv3.plugins.vm")
-        self.assertEqual(lisp.eval(edn.read('(vm/connector "vm.eps")')).path, "vm.eps")
+        self.assertEqual(functions["connector"], "automationv3.plugins.apollo")
+        self.assertEqual(lisp.eval(edn.read('(lm/connector "lm.eps")')).path, "lm.eps")
 
     def test_failed_plugin_registration_rolls_back_functions(self):
         def register(registry):
@@ -196,13 +196,13 @@ class TestPluginRendering(unittest.TestCase):
     def test_two_plugins_cant_give_the_same_snippet(self):
         import tempfile
         from pathlib import Path
-        folder = Path(tempfile.mkdtemp()) / "sample"
+        folder = Path(tempfile.mkdtemp()) / "apollo"
         folder.mkdir()
         (folder / "attached-files.rst").write_text("Mine.\n")
-        with self.assertRaisesRegex(ValueError, "sample/attached-files.rst is already"):
+        with self.assertRaisesRegex(ValueError, "apollo/attached-files.rst is already"):
             self.registry.snippets(folder.parent)
 
     def test_styles_and_versions_are_kept(self):
         self.assertIn(".attached-files", plugins.plugin_css())
         self.assertIn("sphinxclassattached-files", plugins.plugin_latex())
-        self.assertIn("automationv3.plugins.sample", plugins.plugin_versions())
+        self.assertIn("automationv3.plugins.apollo", plugins.plugin_versions())

@@ -107,9 +107,9 @@ def at_start(s):
 def step(s, n):
     """Run n ticks as one step"""
     dt = n / 10.0
-    if s["fixed"]:
-        apply_fixed(s)
     C.act(s)
+    if s["fixed"]:
+        apply_fixed(s)  # after the crew: a fixed input holds whatever they do
     V.panel(s)
     if not s["landed"]:
         V.landing_radar(s)

@@ -1,13 +1,7 @@
-"""Sample plugins: a simulated environment and a stub UUT
-
-They exercise the UUT/Environment plumbing without real hardware. The
-`sim` environment keeps its state in a work directory; the `demo` UUT
-"installs" by recording the version there. And an example of what a
-plugin can add to documents (documents.py).
-"""
+"""The stub `demo` UUT, until the framework's tests move to the lunar
+module (plans/apollo-samples.md, step 6)"""
 
 from .blocks import SnapshotDemo, StartDemo
-from .demo import Bench, Demo, Sim
-from .documents import register
+from .demo import Demo
 
-__all__ = [Bench, Demo, Sim, SnapshotDemo, StartDemo, register]
+__all__ = [Demo, SnapshotDemo, StartDemo]

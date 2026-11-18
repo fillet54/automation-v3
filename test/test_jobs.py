@@ -13,7 +13,8 @@ from automationv3.framework.closure import resolve
 from automationv3.framework.executor import execute_closure, execute_script
 from automationv3.framework.planning import build_plan
 from automationv3.framework.uut import Version, uut_types
-from automationv3.plugins.sample import Demo, Sim
+from automationv3.plugins.apollo import Sim
+from automationv3.plugins.sample import Demo
 from automationv3.services import jobs as models
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import rollup, store
@@ -129,7 +130,7 @@ class TestClosure(unittest.TestCase):
             "BRA/SUB/tc.rst": "(under-limit? 15)",
             "FUE/core.rst": "(defn fuel-ok? [] true)",
             "FUE/tc.rst": "(import FUE)",
-            "ENG/tc.rst": '(import FUE) (import "BRA") (environments :bench)',
+            "ENG/tc.rst": '(import FUE) (import "BRA") (environments :lms)',
         })
 
     def tearDown(self):
@@ -182,7 +183,7 @@ class TestClosure(unittest.TestCase):
     def test_declarations_inherit_and_script_overrides(self):
         self.assertEqual(resolve(self.root, "BRA/SUB/tc.rst").environments, ["sim"])
         closure = resolve(self.root, "ENG/tc.rst")
-        self.assertEqual(closure.environments, ["bench"])
+        self.assertEqual(closure.environments, ["lms"])
         self.assertEqual(closure.uuts, ["demo"])
 
     def test_text_overrides_disk_and_changes_hash(self):
@@ -434,7 +435,7 @@ class TestJobModels(QueueTestCase):
         _, run_id = self.queue(versions={"demo": "1.0.0"})
         self.assertEqual(models.get_job(self.conn, run_id).uut_versions["demo"]["id"],
                          "1.0.0")
-        for bad in ({"environment": "bench"}, {"versions": {"demo": "0.1"}}):
+        for bad in ({"environment": "lms"}, {"versions": {"demo": "0.1"}}):
             with self.assertRaises(models.QueueError):
                 self.queue(**bad)
 
@@ -1328,9 +1329,9 @@ class TestPlanning(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         write_tree(self.root, {
-            "core.rst": "(environments :sim :bench) (uut :demo) (def base 5)",
+            "core.rst": "(environments :sim :lms) (uut :demo) (def base 5)",
             "a.rst": '(variations "mode n" ["x" [:x base] "y" [:y 2]]) (Wait 1)',
-            "b.rst": "(environments :bench) (Wait 1)",
+            "b.rst": "(environments :lms) (Wait 1)",
             "c.rst": '(variations [other] ["only" [1]]) (Wait 1)',
         })
 

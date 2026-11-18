@@ -38,7 +38,7 @@ SAMPLE_EXPORTS = SAMPLES / "doors"
 DOCS_SOURCE = SOURCE / "docs"
 MARKER = ".automation-v3-demo"
 BRANCHES = ("branch1", "branch2", "branch3")
-ENVIRONMENTS = ("sim", "bench")
+ENVIRONMENTS = ("sim", "lms")
 
 
 class DemoError(Exception):

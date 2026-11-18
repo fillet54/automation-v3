@@ -536,49 +536,43 @@ class TestAnalysis(unittest.TestCase):
         self.assertIn("unknown name nope", error)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
-class TestVehicleManagerPoints(unittest.TestCase):
+class TestLunarModulePoints(unittest.TestCase):
     def setUp(self):
-        from automationv3.framework.uut import Environment
-        from automationv3.plugins.vm.sim import VehicleManager
+        from automationv3.plugins.apollo import LunarModule, Sim
         self.dir = Path(tempfile.mkdtemp())
-        env = Environment()
-        env.workdir = self.dir
-        uut = VehicleManager()
+        env = Sim(workdir=self.dir)
+        uut = LunarModule()
         uut.install(uut.list_versions()[-1], env)
-        self.vm = uut.handle(None, env)
+        self.lm = uut.handle(None, env)
+        self.lm.boot({edn.Keyword("start"): edn.Keyword("surface")})
 
     def tearDown(self):
         shutil.rmtree(self.dir)
 
     def test_read_and_read_only(self):
-        self.assertEqual(self.vm.read_point("vm.mode.current"), edn.Keyword("standby"))
+        self.assertEqual(self.lm.read_point("lm.lgc.config.mission"), edn.Keyword("standard"))
         with self.assertRaisesRegex(PermissionError, "read-only"):
-            self.vm.set_point("vm.eps.shed", "none")
-        with self.assertRaisesRegex(KeyError, "no connector vm.nope"):
-            self.vm.read_point("vm.nope")
+            self.lm.set_point("lm.eps.bus-volts", 28.0)
+        with self.assertRaisesRegex(KeyError, "no connector lm.nope"):
+            self.lm.read_point("lm.nope")
 
-    def test_fixed_values_hold_every_frame(self):
-        self.vm.fix_point("vm.bench.battery.soc", 30.0)
-        self.vm.discharge_to(10.0, 60.0)
-        self.vm.run_for(5)
-        self.assertEqual(self.vm.read_point("vm.eps.soc"), 30.0)
-        self.vm.release_point("vm.bench.battery.soc")
-        self.vm.discharge_to(10.0, 60.0)
-        self.vm.run_for(5)
-        self.assertLess(self.vm.read_point("vm.eps.soc"), 30.0)
+    def test_fixed_values_hold_every_step(self):
+        self.lm.fix_point("lm.bench.bus-load-amps", 300.0)
+        self.lm.run_for(60)
+        self.assertEqual(self.lm.read_point("lm.bench.bus-load-amps"), 300.0)
+        self.assertTrue(self.lm.read_point("lm.cwea.warning"))
 
     def test_releasing_a_fault_clears_it(self):
-        self.vm.fix_point("vm.bench.attitude-error", 15.0)
-        self.vm.release_point("vm.bench.attitude-error")
-        self.assertEqual(self.vm.read_point("vm.bench.attitude-error"), 0.0)
+        self.lm.fix_point("lm.bench.o2-leak-kg-h", 2.0)
+        self.lm.release_point("lm.bench.o2-leak-kg-h")
+        self.assertEqual(self.lm.read_point("lm.bench.o2-leak-kg-h"), 0.0)
 
-    def test_advancing_runs_whole_frames(self):
-        start = self.vm.read_point("vm.obc.sim-time")
+    def test_advancing_runs_whole_ticks(self):
+        start = self.lm.read_point("lm.time.sim")
         for _ in range(15):
-            self.vm.advance(0.1)
-        self.assertAlmostEqual(self.vm.read_point("vm.obc.sim-time") - start, 1.5)
-        self.assertEqual(self.vm.read_point("vm.obc.time") - start, 1.0)
+            self.lm.advance(0.1)
+        self.assertAlmostEqual(self.lm.read_point("lm.time.sim") - start, 1.5)
+
+
+if __name__ == "__main__":
+    unittest.main()

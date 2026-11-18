@@ -1,9 +1,9 @@
-"""What the sample plugin adds to documents: a directive listing the files
+"""What the apollo plugin adds to documents: a directive listing the files
 the report's runs attached, with how it looks live, in the site and in the
 PDF. An example of a plugin's rendering (see framework/plugins.py)::
 
     .. attached-files::
-       :script: BRA/*
+       :script: LND/*
 """
 
 import fnmatch
@@ -19,7 +19,7 @@ def attached_files(context, options):
         return ""
     runs = [(run, data.files(run)) for run in data.runs
             if fnmatch.fnmatch(run["script"], options.get("script") or "*")]
-    return context.render("sample/attached-files.rst",
+    return context.render("apollo/attached-files.rst",
                           runs=[(run, files) for run, files in runs if files])
 
 

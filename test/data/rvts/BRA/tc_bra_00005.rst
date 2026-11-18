@@ -10,7 +10,7 @@ Requirements
 
 .. rvt::
 
-   (environments :sim :bench)
+   (environments :sim :lms)
 
    (Precondition "Demo running in normal mode"
      (demo-in-mode? :normal)

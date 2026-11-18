@@ -1,6 +1,6 @@
 {
   "environments": {
     "sim": {},
-    "bench": {}
+    "lms": {}
   }
 }

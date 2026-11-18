@@ -1,43 +1,11 @@
 import hashlib
 import json
 import os
-import platform
 import shutil
-import tempfile
 from pathlib import Path
 
 from automationv3.framework import edn
-from automationv3.framework.uut import UUT, Environment, LocalBuild, Version
-
-
-class Sim(Environment):
-    """A simulated environment rooted in a work directory"""
-
-    name = "sim"
-
-    def __init__(self, workdir=None, **params):
-        super().__init__(workdir=workdir, **params)
-        default = Path(tempfile.gettempdir()) / f"automationv3-{self.name}"
-        self.workdir = Path(workdir or default)
-        self.workdir.mkdir(parents=True, exist_ok=True)
-
-    def fingerprint(self):
-        return {
-            "environment": self.name,
-            "platform": platform.platform(),
-            "python": platform.python_version(),
-        }
-
-    def clock(self, handles):
-        """The simulated Vehicle Manager's time, when it is under test"""
-        vm = handles.get("vm")
-        return vm.clock() if vm is not None else None
-
-
-class Bench(Sim):
-    """A stand-in for a hardware bench; behaves like the simulator"""
-
-    name = "bench"
+from automationv3.framework.uut import UUT, LocalBuild, Version
 
 
 class Demo(UUT):

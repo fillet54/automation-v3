@@ -35,7 +35,7 @@ EXPECTED = {
     ("BRA/tc_bra_00004.rst", "sim", "limp-home"): "pass",
     ("BRA/tc_bra_00004.rst", "sim", "emergency"): "pass",
     ("BRA/tc_bra_00005.rst", "sim", None): "pass",
-    ("BRA/tc_bra_00005.rst", "bench", None): "pass",
+    ("BRA/tc_bra_00005.rst", "lms", None): "pass",
     ("BRA/tc_bra_00006.rst", "sim", None): "blocked",
     ("BRA/tc_bra_00008.rst", "sim", None): "pass",
     ("FUE/tc_fue_00001.rst", "sim", None): "pass",
@@ -67,7 +67,7 @@ class TestExampleSet(unittest.TestCase):
                          session=FlaskSession(self.http, "http://server")),
             Host.from_config({"environments": {
                 "sim": {"workdir": str(self.tmp / "sim")},
-                "bench": {"workdir": str(self.tmp / "bench")},
+                "lms": {"workdir": str(self.tmp / "lms")},
             }}),
         )
         self.worker.check_in(started=True)
@@ -137,17 +137,6 @@ class TestExampleSet(unittest.TestCase):
         links.refresh(conn, "w", RVTS)
         linked = links.scripts_by_requirement(conn, "w")
         self.assertEqual(sorted(r for r in linked if r.startswith("VMC")), REQUIREMENTS)
-
-    def test_every_vehicle_manager_requirement_is_tested(self):
-        from automationv3.services.requirements import links, rst_source
-        conn = connect(":memory:")
-        init_db(conn)
-        links.refresh(conn, "w", RVTS)
-        linked = {r for r in links.scripts_by_requirement(conn, "w")
-                  if r.startswith("VM-")}
-        spec = RVTS.parent / "doors" / "specs" / "SRS-VM"
-        self.assertEqual(linked, {r.id for path in spec.glob("*.rst")
-                                  for r in rst_source.parse(path.read_text())})
 
 
 if __name__ == "__main__":

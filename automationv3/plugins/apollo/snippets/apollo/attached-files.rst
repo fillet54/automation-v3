@@ -1,4 +1,4 @@
-%# .. attached-files::  every file the report's runs attached, by run (the sample plugin's)
+%# .. attached-files::  every file the report's runs attached, by run (the apollo plugin's)
 % if not runs
 No run attached a file.
 % else

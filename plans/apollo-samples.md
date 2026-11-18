@@ -675,3 +675,21 @@ plugin is seen everywhere it is needed.
   630 s, 781 s, 828 kg left. One flight is about 0.1 s.
 - The nominal crew clicks up to three times per look in P66, and stops
   re-selecting V16 N68 after three 1202s (17 alarms otherwise).
+
+### Step 3: the plugin (2026-11-17)
+
+- The `vm` plugin and its VM scripts went in this step rather than
+  step 6: it registers the `connector` function and `Read`/`RunFor`
+  blocks that the `apollo` plugin now owns. The `SRS-VM` spec stays
+  until the DOORS history is replaced, because the history edits it.
+  `test_refs`, `test_lsp` (ref paths) and `test_plugins` moved to the
+  `lm` connectors for good; the VM example tests in `test_placeholders`
+  and `test_example_set` went with the VM scripts.
+- `sample` lost `Sim`, `Bench` and the `attached-files` directive (now
+  `apollo`'s). Old tests and scripts using `bench` now use `lms`,
+  until step 6 rewrites them.
+- Blocks: no `Telemetry` (connectors cover it); added
+  `PushMasterAlarm`. `ClickROD` fails when the switch does nothing.
+  Fixed inputs are applied after the crew acts, so they hold.
+- Handle extras that scripts will use: `ready`, `booted`,
+  `supports_extended`, `throttles`, `events`, `touchdown`.

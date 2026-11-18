@@ -43,7 +43,7 @@ class TestDemoSetup(unittest.TestCase):
     def test_the_worker_works_inside_the_demo_folder(self):
         made = demo.setup(self.path, docs=False, log=quiet)
         config = json.loads(made.config.read_text())
-        self.assertEqual(sorted(config["environments"]), ["bench", "sim"])
+        self.assertEqual(sorted(config["environments"]), ["lms", "sim"])
         for params in config["environments"].values():
             self.assertTrue(params["workdir"].startswith(str(self.path.resolve())))
 
@@ -131,12 +131,12 @@ class TestDocsLink(unittest.TestCase):
             "<html lang=\"en\"><head><title>Steps</title><link href=\"_static/ui.css\">"
             "</head><!--ui:top--><body><header>plain</header><!--/ui:top-->"
             "<p>The page</p><!--ui:bottom--><!--/ui:bottom--></body></html>")
-        client = self.client(self.docs, UI_BRAND="bench", UI_THEME="dark",
+        client = self.client(self.docs, UI_BRAND="lms", UI_THEME="dark",
                              UI_MARKING={"text": "CUI", "bg": "#502B85", "fg": "#FFFFFF"})
         page = client.get("/docs/page.html").get_data(as_text=True)
         self.assertIn("The page", page)
         self.assertNotIn("plain", page)
-        self.assertIn("bench", page)
+        self.assertIn("lms", page)
         self.assertIn('href="/requirements/"', page)
         self.assertRegex(page, r'href="/docs/"\s+aria-current="page"')
         self.assertEqual(page.count("ui-marking--"), 2)

@@ -27,7 +27,7 @@ class TestRunLocally(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.config = {"environments": {
             "sim": {"workdir": str(self.tmp / "sim")},
-            "bench": {"workdir": str(self.tmp / "bench")},
+            "lms": {"workdir": str(self.tmp / "lms")},
         }}
 
     def tearDown(self):
@@ -55,7 +55,7 @@ class TestRunLocally(unittest.TestCase):
             variations={"BRA/tc_bra_00004.rst::limp-home"})
         self.assertEqual(self.outcomes(report_id), {
             (None, "sim"): "pass",
-            (None, "bench"): "pass",
+            (None, "lms"): "pass",
             ("limp-home", "sim"): "pass",
         })
 
