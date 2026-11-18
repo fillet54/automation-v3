@@ -1,7 +1,8 @@
 # The console: run a card or a line from the editor
 
 While writing a script, run one card or one form against a live UUT and
-see the result in a popover in the editor, without queuing a run. Behind
+see what happened in a console panel on the editor page, without
+queuing a run, then edit the step and run it again. Behind
 it is a **kernel**: a long-lived interpreter, like a Jupyter kernel. It
 keeps the script's Lisp env, the UUT handles and the environment's clock
 between commands. The kernel can be reset (fresh definitions, fixed
@@ -35,7 +36,7 @@ or `plans/`.
 | Environment state | UUT state lives in the environment's workdir (`lm-state.json`), shared by every handle on that `Host`. A second worker with the same config would fight the first over it. So the kernel must **borrow the local worker's `Host`** and stop that worker taking jobs meanwhile. |
 | Waiting | `plugins/core/wait.py` sleeps only through `clock.current().sleep`. `SimClock.sleep` without `step` polls `time.sleep`; the lms handle's `run_for` and `fly_to` loop on `self.sleep`. These are the points where a Stop has to take effect. |
 | Editor | `web/editor.py` keeps a `PageSession` (the language server) per page, keyed by workspace and session. `static/js/editor.js` gives every card a gutter (`..` menu, `::` grip) in `decorate()` and keeps each card's data in `el._card`; `dataOf(card, true)` is what an open card's editor holds now, unsaved. |
-| Rendering a step | Run pages render steps from events (`web/report_view.py`, `templates/reports/`). Step 4 reuses that rendering for the popover. |
+| Rendering a step | Run pages render steps from events (`web/report_view.py`, `templates/reports/`). The console does **not** reuse it: it is a development tool, and a compact transcript (step 4) is what a quick edit-and-run loop wants. |
 
 ## Decisions
 
@@ -101,7 +102,15 @@ or `plans/`.
    300 ms until it ends. A lunar landing in `lms` takes about 40 s of
    wall time, too long for one request. A command sent while one runs
    waits in the queue, and the bar shows it.
-9. **An idle kernel closes itself** after 30 minutes with no command,
+9. **The console is a panel on the editor page, not a results page.**
+   It is docked at the bottom of the editor pane, like an IDE's
+   terminal, so the card being edited and what it did are on screen
+   together. It shows a transcript, newest at the bottom: each command
+   (the card's title, or the form typed or run), then one compact line
+   per step, with what it read, any output, and why it failed. Below the
+   transcript is a prompt for typing forms directly. There is no
+   per-card popover and no run-page rendering.
+10. **An idle kernel closes itself** after 30 minutes with no command,
    and hands the worker back. The time can be configured
    (`CONSOLE_IDLE`).
 
@@ -170,7 +179,7 @@ is given back; the worker finishes a job in progress before the borrow.
 | `GET .../console` | The kernel's state, or whether a console can be opened here, and the choices: environments, versions and variations for the script. |
 | `POST .../console/open` | `{script, environment, versions, variation}` |
 | `POST .../console/run` | `{text, kind}`, returning `{id}` |
-| `GET .../console/run/<id>?since=N` | `{events, done, html}`: the popover's rendering, so far |
+| `GET .../console/run/<id>?since=N` | `{lines, done}`: the command's transcript lines from `N` on |
 | `POST .../console/{stop,reset,restart,release,close}` | The kernel's controls |
 
 All of them 404 when the app has no local worker. They need the same
@@ -179,49 +188,76 @@ access as editing the workspace.
 Tests: endpoint round trips on the demo setup, and 404 without a local
 worker.
 
-### 4. Rendering a result
+### 4. The transcript (`services/worker/kernel.py`)
 
-The popover's HTML comes from the command's events through the run
-page's step rendering (`report_view` and the `reports/` step partials),
-so a Verify's comparisons, values read, block calls, stdout, failure
-messages with their trace, and attachments (the trajectory plot) look
-as they do on a run page. If the step partials are too tied to a
-report, pull out a partial that takes events only, and use it from
-both. A form's value is shown too: the REPL answer, written as edn.
+A command's events become transcript lines on the server, as they come
+in (`transcript(events) -> [line]`). The page only draws them. A line is
+`{kind, text, card?, at?}`:
+
+| kind | Shows | From |
+| --- | --- | --- |
+| `command` | `▶ Verify the touchdown` (a card's title or first form), or `» (Read lm.nav.altitude)` | the command |
+| `step` | `✓ (Keys "V16N68E")  0.3s`, or `✗ ...` | `step_end`, its form shortened to one line |
+| `check` | `  lm.landed (true) = true` | Verify/Wait comparisons in the step's data |
+| `value` | `  lm.nav.altitude = 1523.4` | `ref` events (reads, sets, fixes, clears) |
+| `out` | `  ...` | stdout and stderr, folded after 5 lines |
+| `fail` | `  Expected ... came out ...`, linked to the card and line | `message` and the innermost `trace` span |
+| `result` | `=> :accepted` | the value of a typed or Shift+Enter form, as edn |
+| `table` / `row` | `  row "extended": ✓` | `table_start`, `row_end` |
+| `phase` | `  check ✗, heal ✓, check ✓` | precondition `phase_end`s |
+| `file` | `  📎 trajectory.svg` (opens it) | `attachment` |
+| `note` | `stopped`, `reset`, `restarted (fresh)`, `released 2 values` | the kernel |
 
 Attachments are kept in the kernel's scratch folder (under the app's
 data path) and served from `.../console/files/<name>`, cleared on Close.
 
+Tests: the transcript of a passing card, a failing Verify (with its
+card and line), a table card, a healed precondition, a typed form's
+value, and an attachment.
+
 ### 5. The editor (`static/js/editor.js`, `templates/workspace.html`, css)
 
+- **Console panel** docked at the bottom of the editor pane:
+  - **Resizing:** it can be resized by dragging its top edge, and
+    collapsed to its header. Its height and whether it's open are
+    remembered per browser (localStorage, wrapped in try/catch).
+  - **The header is the kernel's bar:**
+    - which script it's bound to, the environment, versions and
+      variation, and `warm`/`fresh`;
+    - idle, running, or how many are queued;
+    - held values, with Release all;
+    - Stop, Reset, Restart, Close, and Clear (empties the transcript
+      only).
+  - **The transcript:**
+    - It follows new lines while scrolled to the bottom.
+    - A `fail` line jumps to its card and puts the cursor on the failing
+      line.
+    - A `command` line jumps to the card it ran.
+  - **The prompt:**
+    - A one-line CodeMirror with the same language mode and completion
+      as cards.
+    - Enter runs the form, Shift+Enter adds a line, and Up/Down walk
+      the history (kept per browser).
 - **Gutter:** a `▶` button on rvt cards (not on prose cards), next to
-  `..` and `::`. It's shown only when a console can be opened.
+  `..` and `::`, that runs the card. After a run it shows a dot for the
+  card's last outcome, until the card is edited.
 - **Shift+Enter** in an open card's editor runs the form at the cursor,
-  or the selection. Finding the top-level form uses the reader's spans,
-  server-side: the page sends the card's text and the cursor offset.
-- **Popover** anchored under the card:
-  - the result, live while it runs, with a Stop button;
-  - stays until dismissed, with Escape or the close button;
-  - running again replaces it;
-  - one popover per card, and the card's ▶ shows the last outcome as a
-    dot.
-- **Console bar** at the top of the editor pane, when a kernel is open:
-  - environment, versions, variation, `warm`/`fresh`;
-  - idle, running, or how many are queued;
-  - held values, with Release all;
-  - Reset, Restart, Close.
+  or the selection, without leaving the card. Finding the top-level form
+  uses the reader's spans, server-side: the page sends the card's text
+  and the cursor offset. So the loop is: edit the step, Shift+Enter,
+  read the transcript, edit again.
+- **Opening:** the first ▶, Shift+Enter or prompt entry with no kernel
+  opens the panel with a small form of choices from `GET .../console`,
+  defaulted, then runs. When no console is possible (no local worker),
+  there is no panel, no ▶, and Shift+Enter does nothing.
 
-  Opening: the first ▶ with no kernel opens a small dialog with the
-  choices from `GET .../console`, defaulted, then runs.
-- The whole thing is a no-op when the app has no local worker.
-
-Tests: the existing editor page tests, extended to check the gutter
-button appears with a local worker and not without.
+Tests: the existing editor page tests, extended to check that the panel
+and the gutter button appear with a local worker and not without.
 
 ### 6. Docs
 
 - `docs/operating/editor.rst`: a "Trying things out" section covering
-  the console, ▶ and Shift+Enter, Reset vs Restart, held values, Stop,
+  the console panel and its prompt, ▶ and Shift+Enter, Reset vs Restart, held values, Stop,
   and that console work isn't recorded.
 - `docs/operating/local-client.rst`: that the local worker is borrowed
   while the console is open.
@@ -230,9 +266,10 @@ button appears with a local worker and not without.
 
 ## Risks
 
-- **Event rendering may be report-bound.** If the step partials need a
-  whole report and run, step 4 grows. A fallback is a plain rendering
-  (outcome, message, values, stdout) first, and the full one later.
+- **Transcript too terse for some blocks.** Blocks that report rich
+  data (tables, plots) show only as a line and an attachment link. If
+  that turns out to hurt, a line can expand into the block's own
+  `as_rst` rendering later. It's not planned now.
 - **Unstoppable blocks.** Decision 7 leaves a thread behind. It's
   acceptable on a developer's machine; the bar says so.
 - **Two tabs, one kernel.** Both see the same state; commands queue. The
