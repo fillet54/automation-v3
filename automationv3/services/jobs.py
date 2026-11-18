@@ -8,7 +8,7 @@ from ..framework.planning import build_plan
 from .reports import store
 from .requirements import models as requirement_models
 
-ALLOWED_STATUS = ["available", "busy", "missing"]
+ALLOWED_STATUS = ["available", "busy", "console", "missing"]
 
 # Keepalives are sent every 60 seconds; a worker silent for longer
 # than this is considered missing

@@ -8,7 +8,8 @@
   {% for worker in workers | sort(attribute='last_keepalive', reverse=True) %}
   <tr>
     <td>{{ ui.ident(worker.url, plain=True) }}</td>
-    <td>{{ outcomes.outcome("missing" if worker.last_keepalive <= missing_time else worker.status) }}</td>
+    <td>{{ outcomes.outcome("missing" if worker.last_keepalive <= missing_time else worker.status,
+                            title="Someone is using it from the editor's console: it takes no jobs until they close it" if worker.status == "console" else None) }}</td>
     <td>{{ ui.timestamp(worker.last_keepalive, seconds=True) }} <span class="ui-text-caption">{{ worker.last_keepalive | humanize_ts }}</span></td>
     {% if central %}<td>{% if worker.token %}{{ ui.ident(worker.token) }}{% endif %}</td>{% endif %}
   </tr>

@@ -70,7 +70,12 @@ def create_app(**config):
 
     The local client (automation-v3 client) also gives CENTRAL, a
     services.client.CentralClient signed in to the central server, and
-    LOCAL_WORKER, True when this machine runs scratch runs itself."""
+    LOCAL_WORKER, True when this machine runs scratch runs itself.
+
+    CONSOLE_WORKER is the worker running in this process, if there is one
+    (client --config, server --local-worker, demo): the editor's console
+    borrows it (web/console.py). CONSOLE_IDLE is how long, in seconds, an
+    idle console is kept open (default 30 minutes)."""
     app = Flask(__name__)
     app.config.setdefault("SETTINGS", Settings())
     app.config.update(config)

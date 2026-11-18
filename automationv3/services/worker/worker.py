@@ -15,6 +15,10 @@ Scheduling is warm-first: every pending job is probed against the
 environment as it is, and the first whose preconditions hold (or heal)
 runs. If none does, the first (a scratch run, else the oldest) runs in
 force mode with its UUTs installed and started fresh.
+
+The console (kernel.py) borrows a worker in this process: borrow()
+waits for the job running, if any, then the worker takes no jobs, with
+status "console", until give_back().
 """
 
 import threading
@@ -137,6 +141,8 @@ class Worker:
         self.server = server
         self.host = host
         self.status = "available"
+        self.lock = threading.Lock()  # held while looking for or running a job
+        self.borrowed = False
         # Extra observers (e.g. console output) see every job's events
         self.observers = list(observers)
 
@@ -213,8 +219,34 @@ class Worker:
         self.set_status("available")
         return outcome
 
+    def borrow(self, timeout=60):
+        """Take the worker off the queue (for the console): waits for the
+        job it is running. True if it is now borrowed, False if the job
+        didn't finish within `timeout` seconds."""
+        if not self.lock.acquire(timeout=timeout):
+            return False
+        try:
+            self.borrowed = True
+            self.set_status("console")
+        finally:
+            self.lock.release()
+        return True
+
+    def give_back(self):
+        """Put the worker back on the queue"""
+        with self.lock:
+            self.borrowed = False
+            self.set_status("available")
+
     def work_once(self):
-        """Run one job. Returns its outcome, or None if there was no work."""
+        """Run one job. Returns its outcome, or None if there was no work
+        (or the worker is borrowed)."""
+        with self.lock:
+            if self.borrowed:
+                return None
+            return self._work_once()
+
+    def _work_once(self):
         for pending in self.server.pending_jobs():
             job = self.server.claim(pending["id"])
             if job is None:

@@ -122,6 +122,26 @@ class TestServerWithLocalWorker(unittest.TestCase):
         workers = self.http.get("/runner/workers", headers={"Accept": "application/json"})
         self.assertIn("local://test", [w["url"] for w in workers.get_json()])
 
+    def test_a_borrowed_worker_takes_no_jobs_until_given_back(self):
+        self.http.post("/runner/queue", data={
+            "workspace": self.branch, "requirement": "LGC-DSK-002",
+            "configured": "1", "environment": "sim"})
+        host = Host.from_config({"environments": {"sim": {"workdir": str(self.tmp / "sim")}}})
+        local = Worker(LocalServer(self.db, self.tmp / "reports", "local://test"), host)
+        local.check_in(started=True)
+        self.assertTrue(local.borrow())
+        workers = self.http.get("/runner/workers", headers={"Accept": "application/json"})
+        self.assertEqual([w["status"] for w in workers.get_json()], ["console"])
+        self.assertEqual(local.work_until_idle(), [])
+        local.give_back()
+        self.assertEqual(local.work_until_idle(), ["pass"])
+
+    def test_borrowing_waits_for_the_job_running(self):
+        local = Worker(LocalServer(self.db, self.tmp / "reports", "local://test"), Host())
+        with local.lock:  # as while a job runs
+            self.assertFalse(local.borrow(timeout=0.1))
+        self.assertTrue(local.borrow(timeout=0.1))
+
 
 if __name__ == "__main__":
     unittest.main()

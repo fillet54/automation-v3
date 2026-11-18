@@ -266,7 +266,8 @@ def start_client(args):
                      LOCAL_WORKER=bool(args["--config"]))
     print(f"   Signed in to {central.server} as {me['email']}")
     if args["--config"] and serving_process(args):
-        start_local_worker(db_path, data / "reports", args["--config"])
+        app.config["CONSOLE_WORKER"] = start_local_worker(db_path, data / "reports",
+                                                          args["--config"])
     serve(app, args, "Client", host="127.0.0.1")
 
 
@@ -316,7 +317,8 @@ def start_server(args):
         if not settings.git.webhook_secret:
             print("   No [git] webhook_secret: pushes show only when a report is queued")
     if args["--local-worker"] and serving_process(args):
-        start_local_worker(db_path, reports_path, args["--config"])
+        app.config["CONSOLE_WORKER"] = start_local_worker(db_path, reports_path,
+                                                          args["--config"])
     serve(app, args, "Server")
 
 

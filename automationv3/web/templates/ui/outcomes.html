@@ -7,7 +7,7 @@
 
 {#- state -> (glyph, word). Run outcomes (pass | fail | error | blocked | released), job states (pending |
     claimed | running), step states (not run), suppressed block calls inside try-ok? / try (true | false), requirement rollups
-    (green | partial | red) and worker states (available | busy | missing). #}
+    (green | partial | red) and worker states (available | busy | console | missing). #}
 {% set OUTCOMES = {
   "pass": ("pass", "Passed"), "fail": ("fail", "Failed"), "error": ("error", "Error"),
   "blocked": ("blocked", "Blocked"), "released": ("released", "Released"),
@@ -17,6 +17,7 @@
   "incomplete": ("incomplete", "Incomplete"), "tbd": ("tbd", "To do"),
   "green": ("pass", "Green"), "partial": ("partial", "Partial"), "red": ("fail", "Red"), "untested": ("not-run", "No tests"), "outdated": ("partial", "Outdated"),
   "available": ("available", "Available"), "busy": ("running", "Busy"), "missing": ("fail", "Missing"),
+  "console": ("partial", "In the console"),
 } %}
 
 {% macro outcome_glyph(kind, size=12) -%}

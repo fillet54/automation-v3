@@ -304,3 +304,12 @@ and the gutter button appear with a local worker and not without.
   that is the test, not `thread.is_alive()`.
 - Stop checks are in `WallClock.sleep` (0.1 s slices), `SimClock.sleep`
   and the lms handle's `run_for`/`fly_to` loops.
+
+### Step 2 (borrowing the worker)
+
+- `Worker.lock` is held while the worker looks for or runs a job
+  (`work_once`), so `borrow()` waits for the running job by taking it.
+- `console` is a worker status (`jobs.ALLOWED_STATUS`), shown on the
+  Workers page as "In the console", with a tooltip.
+- `cli.py` keeps the in-process worker as `app.config["CONSOLE_WORKER"]`
+  for `client --config`, `server --local-worker` and `demo`.
