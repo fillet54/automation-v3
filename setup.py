@@ -12,7 +12,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/fillet54/automationv3",
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=["test", "test.*"]),
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
@@ -32,7 +32,7 @@ setuptools.setup(
         "docs": ["sphinx"],
         "xlsx": ["openpyxl"],  # importing requirements from Excel workbooks
     },
-    python_requires='>=3.11'  # tomllib,
+    python_requires='>=3.11',  # tomllib
     include_package_data=True,
     entry_points = {
         'console_scripts': ['automation-v3=automationv3.cli:main'],

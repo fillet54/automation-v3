@@ -738,3 +738,18 @@ plugin is seen everywhere it is needed.
 - Docstrings, comments, placeholders and inline fixtures that spoke of
   the VM, brakes or the demo UUT now use the lunar module.
 - 853 tests, 90 s.
+
+### Step 7: packaging (2026-11-17)
+
+- `setup.py` had a syntax error (no comma after `python_requires`), so
+  the package couldn't be built at all; fixed. There was no `MANIFEST.in`,
+  so a wheel would have left out every template, static file, report
+  theme, the schema and the snippets; `MANIFEST.in` now grafts the
+  package. `find_packages` leaves `test` out of the wheel.
+- Checked: the wheel holds the example (rvts, doors, worker.json); installed
+  apart from the checkout, `demo.setup` builds a demo and `run` passes
+  `LND/tc_lnd_001` in all four variations.
+- Live walk-through (`automation-v3 demo --no-docs`): the whole set in sim
+  on LUM131 gives 39 pass, 4 incomplete, 1 fail (`ALM/tc_alm_003`,
+  extended); the same script on LUM210 passes. The local-build upload is
+  covered by `test_builds` and `test_demo`.

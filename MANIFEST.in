@@ -1,0 +1,5 @@
+# Everything the package needs besides its Python: templates, static
+# files, report themes, the database schema, plugin snippets, and the
+# Apollo example `automation-v3 demo` is built from
+graft automationv3
+global-exclude __pycache__ *.py[cod]
