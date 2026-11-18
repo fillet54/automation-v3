@@ -290,6 +290,7 @@ def fn_form(x, env):
 
     if name is not None:
         fn.__name__ = str(name)
+    fn.signatures = [params for params, _ in by_arity.values()]  # for showing it
     return fn
 
 

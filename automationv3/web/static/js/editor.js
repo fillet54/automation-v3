@@ -1617,10 +1617,16 @@
   // The console (web/console.py): a kernel on this machine, kept between
   // commands. A card's ▶ runs the card; Shift+Enter in a card's editor runs
   // the form at the cursor, or the selection; the prompt runs what is typed.
-  // The panel shows the transcript the kernel writes, asking for the lines
-  // after the last it has while the kernel is busy.
+  //
+  // While it is open the page is a workbench: full width and window high,
+  // the cards above and the console below, split by a handle. The console
+  // has the transcript and the prompt, and a side pane with the history of
+  // what was run (kept in this browser, per workspace) and the names in the
+  // console's scope. The transcript is the kernel's: the page asks for the
+  // lines after the last it has while the kernel is busy.
 
-  var con = null;  // {panel, list, head, body, ...} once the panel is made
+  var con = null;  // the panel's parts and state, once it is made
+  var HISTORY_KEPT = 200;
 
   function consoleBase() { return base + "/console"; }
   function stored(key, fallback) {
@@ -1642,12 +1648,22 @@
     window.addEventListener("focus", function () { if (con && con.state) consolePoll(true); });
   }
 
+  function conButton(label, name, title, cls) {
+    var b = el("button", "ui-btn ui-btn--sm " + (cls || "ui-btn--ghost"), label);
+    b.type = "button";
+    b.dataset.con = name;
+    if (title) b.title = title;
+    return b;
+  }
+
   function consolePanel() {
     if (con) return con;
     var panel = el("section", "ed-console");
     panel.setAttribute("aria-label", "Console");
     var grip = el("div", "ed-console__grip");
-    grip.title = "Drag to resize";
+    grip.setAttribute("role", "separator");
+    grip.setAttribute("aria-orientation", "horizontal");
+    grip.title = "Drag to give the console more or less of the window";
     var head = el("header", "ed-console__head");
     var toggle = el("button", "ed-console__toggle", "Console");
     toggle.type = "button";
@@ -1658,44 +1674,79 @@
     status.setAttribute("aria-live", "polite");
     var held = el("span", "ed-console__held");
     var tools = el("span", "ed-console__tools");
-    [["Stop", "stop", "Stop the command running, and drop the ones waiting"],
-     ["Reset", "reset", "Release what is held and load the definitions again; the UUT is left as it is"],
-     ["Restart", "restart", "Reset, and start the UUT fresh"],
-     ["Clear", "clear", "Empty the transcript"],
-     ["Close", "close", "Close the console: what is held is released, and the local worker takes jobs again"]]
-      .forEach(function (b) {
-        var x = el("button", "ui-btn ui-btn--sm ui-btn--ghost", b[0]);
-        x.type = "button";
-        x.dataset.con = b[1];
-        x.title = b[2];
-        tools.appendChild(x);
-      });
-    head.appendChild(toggle);
-    head.appendChild(what);
-    head.appendChild(status);
-    head.appendChild(held);
-    head.appendChild(tools);
+    tools.appendChild(conButton("Stop", "stop", "Stop the command running, and drop the ones waiting"));
+    tools.appendChild(conButton("Reset", "reset", "Release what is held and load the definitions again; the UUT is left as it is"));
+    tools.appendChild(conButton("Restart", "restart", "Reset, and start the UUT fresh"));
+    tools.appendChild(conButton("Clear", "clear", "Empty the transcript"));
+    tools.appendChild(conButton("Close", "close", "Close the console: what is held is released, and the local worker takes jobs again"));
+    [toggle, what, status, held, tools].forEach(function (x) { head.appendChild(x); });
+
+    var main = el("div", "ed-console__main");
     var body = el("div", "ed-console__body");
     var opening = el("div", "ed-console__opening");
     opening.hidden = true;
+    var scroll = el("div", "ed-console__scroll");
     var list = el("ol", "ed-console__lines");
+    scroll.appendChild(list);
     var prompt = el("div", "ed-console__prompt");
     prompt.appendChild(el("span", "ed-console__mark", "»"));
     var holder = el("div", "ed-console__input");
     prompt.appendChild(holder);
     body.appendChild(opening);
-    body.appendChild(list);
+    body.appendChild(scroll);
     body.appendChild(prompt);
+
+    var vgrip = el("div", "ed-console__vgrip");
+    vgrip.setAttribute("role", "separator");
+    vgrip.setAttribute("aria-orientation", "vertical");
+    vgrip.title = "Drag to resize the side pane";
+    var side = el("aside", "ed-console__side");
+    var tabs = el("div", "ed-console__tabs");
+    tabs.setAttribute("role", "tablist");
+    [["History", "history"], ["Names", "names"]].forEach(function (t) {
+      var b = el("button", "ed-console__tab", t[0]);
+      b.type = "button";
+      b.dataset.conTab = t[1];
+      b.setAttribute("role", "tab");
+      tabs.appendChild(b);
+    });
+    var history = el("div", "ed-console__pane ed-history");
+    var historyHead = el("div", "ed-console__pane-head");
+    historyHead.appendChild(el("span", "ui-muted", "Kept in this browser"));
+    historyHead.appendChild(conButton("Clear history", "clear-history", "Forget what was run here"));
+    var historyList = el("ol", "ed-history__list");
+    history.appendChild(historyHead);
+    history.appendChild(historyList);
+    var names = el("div", "ed-console__pane ed-names");
+    var namesHead = el("div", "ed-console__pane-head");
+    var filter = el("input", "ui-input ui-input--sm ed-names__filter");
+    filter.type = "search";
+    filter.placeholder = "Filter names";
+    filter.setAttribute("aria-label", "Filter names");
+    namesHead.appendChild(filter);
+    var namesList = el("div", "ed-names__list");
+    names.appendChild(namesHead);
+    names.appendChild(namesList);
+    side.appendChild(tabs);
+    side.appendChild(history);
+    side.appendChild(names);
+    main.appendChild(body);
+    main.appendChild(vgrip);
+    main.appendChild(side);
+
     panel.appendChild(grip);
     panel.appendChild(head);
-    panel.appendChild(body);
+    panel.appendChild(main);
     root.appendChild(panel);
-    body.style.height = stored("height", 240) + "px";
-    con = { panel: panel, head: head, body: body, list: list, what: what, status: status, held: held,
-            tools: tools, opening: opening, toggle: toggle, state: null, last: 0, cards: {},
-            polling: null, history: stored("history", []), at: -1 };
+    main.style.height = stored("height", 300) + "px";
+    side.style.width = stored("side", 340) + "px";
+    con = { panel: panel, head: head, main: main, body: body, scroll: scroll, list: list, what: what,
+            status: status, held: held, tools: tools, opening: opening, toggle: toggle,
+            side: side, historyList: historyList, namesList: namesList, filter: filter,
+            state: null, last: 0, cards: {}, entries: {}, polling: null, at: -1, names: [],
+            history: stored("history:" + ws, []).filter(function (h) { return h && h.payload; }) };
     con.input = window.CM.editor(holder, {
-      language: "rvt", placeholder: "A form to run: Enter runs it, Shift+Enter starts a new line",
+      language: "rvt", placeholder: "A form to run: Enter runs it, Shift+Enter starts a new line, Up goes back",
       keys: [
         { key: "Enter", run: function (view) { promptRun(view); return true; } },
         { key: "Shift-Enter", run: function (view) { view.dispatch(view.state.replaceSelection("\n")); return true; } },
@@ -1704,51 +1755,77 @@
       ],
     });
     panel.addEventListener("click", consoleClick);
-    grip.addEventListener("pointerdown", consoleResize);
+    grip.addEventListener("pointerdown", function (event) { dragSize(event, "height"); });
+    vgrip.addEventListener("pointerdown", function (event) { dragSize(event, "side"); });
+    filter.addEventListener("input", drawNames);
+    sideTab(stored("tab", "history"));
+    drawHistory();
     return con;
   }
 
   function consoleShow(open) {
     con.panel.hidden = false;
-    con.body.hidden = !open;
+    con.main.hidden = !open;
     con.toggle.setAttribute("aria-expanded", String(open));
-    root.classList.add("has-console");
+    document.documentElement.classList.add("ed-workbench");
     store("open", open);
-    consoleRoom();
+    if (open) con.scroll.scrollTop = con.scroll.scrollHeight;
   }
 
-  // Room under the cards for the panel, so it never covers the last of them
-  function consoleRoom() {
-    if (con && !con.panel.hidden) root.style.setProperty("--ed-console-h", (con.panel.offsetHeight + 16) + "px");
-  }
-
-  function consoleResize(event) {
+  // Drag the split between the cards and the console, or between the
+  // transcript and the side pane
+  function dragSize(event, which) {
     event.preventDefault();
-    var startY = event.clientY, startH = con.body.offsetHeight;
+    var startX = event.clientX, startY = event.clientY;
+    var startH = con.main.offsetHeight, startW = con.side.offsetWidth;
+    document.documentElement.classList.add("ed-resizing");
     function move(e) {
-      var h = Math.max(80, Math.min(window.innerHeight * 0.8, startH + startY - e.clientY));
-      con.body.style.height = h + "px";
-      consoleRoom();
+      if (which === "height") {
+        if (con.main.hidden) consoleShow(true);
+        var h = Math.max(80, Math.min(window.innerHeight * 0.8, startH + startY - e.clientY));
+        con.main.style.height = h + "px";
+      } else {
+        var w = Math.max(200, Math.min(con.main.offsetWidth * 0.6, startW + startX - e.clientX));
+        con.side.style.width = w + "px";
+      }
     }
     function up() {
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
-      store("height", con.body.offsetHeight);
+      document.documentElement.classList.remove("ed-resizing");
+      if (which === "height") store("height", con.main.offsetHeight);
+      else store("side", con.side.offsetWidth);
     }
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
   }
 
+  function sideTab(name) {
+    all("[data-con-tab]", con.side).forEach(function (b) {
+      var on = b.dataset.conTab === name;
+      b.setAttribute("aria-selected", String(on));
+    });
+    $(".ed-history", con.side).hidden = name !== "history";
+    $(".ed-names", con.side).hidden = name !== "names";
+    store("tab", name);
+    if (name === "names") fetchNames();
+  }
+
   function consoleClick(event) {
-    var target = event.target, which = target.closest("[data-con]");
+    var target = event.target;
+    var tab = target.closest("[data-con-tab]");
+    if (tab) { sideTab(tab.dataset.conTab); return; }
+    var hist = target.closest("[data-hist]");
+    if (hist) { historyAct(hist.dataset.hist, hist.closest(".ed-hist")._entry); return; }
+    var name = target.closest(".ed-name");
+    if (name) { insertInPrompt(name.dataset.name); return; }
+    var which = target.closest("[data-con]");
     if (which) {
-      var name = which.dataset.con;
-      if (name === "toggle") { consoleShow(con.body.hidden); return; }
-      if (name === "open") { consoleOpen(); return; }
-      if (name === "release") { consoleControl("release"); return; }
-      if (name === "clear") { con.list.textContent = ""; }
-      if (name === "close") { consoleControl("close"); return; }
-      consoleControl(name);
+      var act = which.dataset.con;
+      if (act === "toggle") { consoleShow(con.main.hidden); return; }
+      if (act === "clear-history") { con.history = []; store("history:" + ws, []); drawHistory(); return; }
+      if (act === "clear") con.list.textContent = "";
+      consoleControl(act);
       return;
     }
     var line = target.closest(".ed-cl");
@@ -1773,19 +1850,23 @@
     con.state = null;
     con.list.textContent = "";
     con.last = 0;
+    con.names = [];
+    drawNames();
     con.panel.hidden = true;
-    root.classList.remove("has-console");
+    document.documentElement.classList.remove("ed-workbench");
     all("[data-ed-ran]").forEach(function (card) { delete card.dataset.edRan; });
+    all("[data-ed-running]").forEach(function (card) { delete card.dataset.edRunning; });
   }
 
   function consoleSay(text) {
     var line = el("li", "ed-cl ed-cl--fail", text);
     con.list.appendChild(line);
-    line.scrollIntoView({ block: "nearest" });
+    con.scroll.scrollTop = con.scroll.scrollHeight;
   }
 
   // The header, from the kernel's state
   function consoleState(state) {
+    var was = con.state;
     con.state = state;
     if (!state) { con.what.textContent = ""; con.status.textContent = "closed"; return; }
     var versions = Object.keys(state.versions || {}).map(function (k) { return k + " " + state.versions[k]; });
@@ -1799,17 +1880,19 @@
     con.status.classList.toggle("is-busy", !!state.busy);
     con.held.textContent = "";
     if (state.held && state.held.length) {
-      var held = el("button", "ui-btn ui-btn--sm ui-btn--ghost ed-console__held-btn", state.held.length + " held · Release all");
-      held.type = "button";
-      held.dataset.con = "release";
-      held.title = state.held.join("\n");
+      var held = conButton(state.held.length + " held · Release all", "release", state.held.join("\n"));
+      held.classList.add("ed-console__held-btn");
       con.held.appendChild(held);
     }
     $("[data-con=stop]", con.tools).disabled = !state.busy;
+    var changed = false;
     Object.keys(state.outcomes || {}).forEach(function (id) {
-      var card = con.cards[id];
-      if (card && card.isConnected) { card.dataset.edRan = state.outcomes[id]; delete card.dataset.edRunning; }
+      var outcome = state.outcomes[id], card = con.cards[id], entry = con.entries[id];
+      if (card && card.isConnected) { card.dataset.edRan = outcome; delete card.dataset.edRunning; }
+      if (entry && entry.outcome !== outcome) { entry.outcome = outcome; changed = true; }
     });
+    if (changed) { saveHistory(); drawHistory(); }
+    if (was && was.busy && !state.busy) fetchNames();  // a command ended: names may have changed
   }
 
   // Ask for new lines; keep asking while the kernel is busy
@@ -1826,6 +1909,7 @@
           found.lines.forEach(drawLine);
           consoleState(found.state);
           if (found.state.busy) consolePoll();
+          else if (!con.names.length) fetchNames();
         })
         .catch(function () { con.polling = null; });
     }, now ? 0 : 300);
@@ -1834,7 +1918,7 @@
   function drawLine(line) {
     con.last = Math.max(con.last, line.n);
     var item = el("li", "ed-cl ed-cl--" + line.kind);
-    if (line.depth) item.style.paddingLeft = (12 + 14 * line.depth) + "px";
+    if (line.depth) item.style.paddingLeft = (26 + 14 * line.depth) + "px";
     var card = con.cards[line.command];
     if (line.kind === "error") {
       var details = el("details");
@@ -1857,12 +1941,12 @@
       item._card = card;
       item._at = line.at || null;
       item.classList.add("is-link");
-      item.title = line.at ? "Go to line " + (line.at.line + 1) + " of the card" : "Go to the card";
+      item.title = line.at ? "Go to line " + (line.at.line + 1) + " of the block" : "Go to the block";
     }
-    var follow = con.body.scrollTop + con.body.clientHeight >= con.body.scrollHeight - 8;
+    var follow = con.scroll.scrollTop + con.scroll.clientHeight >= con.scroll.scrollHeight - 8;
     con.list.appendChild(item);
     while (con.list.children.length > 2000) con.list.removeChild(con.list.firstChild);
-    if (follow) con.body.scrollTop = con.body.scrollHeight;
+    if (follow) con.scroll.scrollTop = con.scroll.scrollHeight;
   }
 
   // Put the cursor on a line of a card
@@ -1912,34 +1996,155 @@
   function promptRun(view) {
     var text = view.state.doc.toString();
     if (!text.trim()) return;
-    con.history = con.history.filter(function (h) { return h !== text; }).concat([text]).slice(-100);
-    store("history", con.history);
     con.at = -1;
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "" } });
     consoleRun({ kind: "forms", text: text }, null);
   }
 
+  function setPrompt(text) {
+    var view = con.input;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text }, selection: { anchor: text.length } });
+    view.focus();
+  }
+
+  function insertInPrompt(text) {
+    var view = con.input;
+    view.dispatch(view.state.replaceSelection(text));
+    view.focus();
+  }
+
+  // Up and Down in the prompt: back through the forms run, newest first
   function promptHistory(view, step) {
     var doc = view.state.doc, head = view.state.selection.main.head;
     if (step < 0 && doc.lineAt(head).number !== 1) return false;
     if (step > 0 && doc.lineAt(head).number !== doc.lines) return false;
-    if (!con.history.length) return false;
-    var at = con.at < 0 ? con.history.length : con.at;
-    at = Math.max(0, Math.min(con.history.length, at + step));
-    con.at = at === con.history.length ? -1 : at;
-    var text = con.at < 0 ? "" : con.history[at];
+    var texts = con.history.filter(function (h) { return h.payload.kind === "forms"; })
+      .map(function (h) { return h.payload.text; });
+    if (!texts.length) return false;
+    var at = con.at < 0 ? texts.length : con.at;
+    at = Math.max(0, Math.min(texts.length, at + step));
+    con.at = at === texts.length ? -1 : at;
+    var text = con.at < 0 ? "" : texts[at];
     view.dispatch({ changes: { from: 0, to: doc.length, insert: text }, selection: { anchor: text.length } });
     return true;
   }
 
+  // History: what was run, as it was run, to run again
+
+  function saveHistory() { store("history:" + ws, con.history.slice(-HISTORY_KEPT)); }
+
+  function firstLine(text) {
+    var line = String(text || "").trim().split("\n")[0];
+    return line.length > 90 ? line.slice(0, 89) + "…" : line;
+  }
+
+  function rememberRun(payload, card, label) {
+    var entry = { at: Date.now(), payload: payload, path: active, label: label, outcome: null };
+    con.history.push(entry);
+    if (con.history.length > HISTORY_KEPT) con.history.splice(0, con.history.length - HISTORY_KEPT);
+    saveHistory();
+    drawHistory();
+    return entry;
+  }
+
+  function labelOf(payload) {
+    var pre = payload.kind === "card" && /^\s*\(Precondition\s+"((?:[^"\\]|\\.)*)"/.exec(payload.code || "");
+    if (payload.kind === "card") return "▶ " + (payload.title || (pre ? "Precondition: " + pre[1] : firstLine(payload.code)) || "(empty)");
+    if (payload.kind === "form") return firstLine(payload.code.split("\n")[payload.line] || "");
+    return firstLine(payload.text);
+  }
+
+  function drawHistory() {
+    if (!con) return;
+    var list = con.historyList;
+    list.textContent = "";
+    if (!con.history.length) {
+      list.appendChild(el("li", "ed-history__empty ui-muted", "What you run in the console shows here, to run again."));
+      return;
+    }
+    con.history.slice().reverse().forEach(function (entry) {
+      var item = el("li", "ed-hist");
+      item._entry = entry;
+      var dot = el("span", "ed-hist__dot");
+      dot.dataset.outcome = entry.outcome || "";
+      dot.title = entry.outcome || "not finished";
+      item.appendChild(dot);
+      var label = el("span", "ed-hist__label", entry.label);
+      label.title = (entry.payload.kind === "card" ? entry.payload.code : entry.payload.text || entry.label) +
+        (entry.path ? "\n\nfrom " + entry.path : "");
+      item.appendChild(label);
+      var when = new Date(entry.at);
+      item.appendChild(el("span", "ed-hist__time", String(when.getHours()).padStart(2, "0") + ":" + String(when.getMinutes()).padStart(2, "0")));
+      var again = el("button", "ed-hist__btn", "▶");
+      again.type = "button";
+      again.dataset.hist = "run";
+      again.title = "Run it again, as it was";
+      var edit = el("button", "ed-hist__btn", "✎");
+      edit.type = "button";
+      edit.dataset.hist = "edit";
+      edit.title = "Put it in the prompt, to change it first";
+      item.appendChild(again);
+      item.appendChild(edit);
+      list.appendChild(item);
+    });
+  }
+
+  function historyAct(action, entry) {
+    if (!entry) return;
+    if (action === "edit") { setPrompt(entry.payload.kind === "card" ? entry.payload.code : entry.payload.text); return; }
+    consoleRun(entry.payload, null, entry.label);
+  }
+
+  // Names: what the console's scope holds
+
+  function fetchNames() {
+    if (!con || !con.state || $(".ed-names", con.side).hidden) return;
+    fetch(consoleBase() + "/names").then(function (r) { return r.ok ? r.json() : { names: [] }; })
+      .then(function (found) { con.names = found.names || []; drawNames(); })
+      .catch(function () { /* next time */ });
+  }
+
+  var SOURCES = { uut: "UUTs", variation: "Variation", console: "Defined in the console" };
+
+  function drawNames() {
+    if (!con) return;
+    var list = con.namesList, filter = con.filter.value.trim().toLowerCase();
+    list.textContent = "";
+    var shown = con.names.filter(function (n) { return !filter || n.name.toLowerCase().indexOf(filter) >= 0; });
+    if (!shown.length) {
+      list.appendChild(el("p", "ed-history__empty ui-muted", con.state ? (filter ? "No name matches." : "Nothing yet.") : "Start the console to see its names."));
+      return;
+    }
+    var group = null;
+    shown.forEach(function (n) {
+      if (n.source !== group) {
+        group = n.source;
+        list.appendChild(el("div", "ed-names__group", SOURCES[group] || group));
+      }
+      var row = el("div", "ed-name");
+      row.dataset.name = n.name;
+      row.title = "Put " + n.name + " in the prompt\n" + n.value;
+      row.appendChild(el("span", "ed-name__name", n.name));
+      row.appendChild(el("span", "ed-name__kind", n.kind));
+      row.appendChild(el("span", "ed-name__value", n.value));
+      list.appendChild(row);
+    });
+  }
+
   // Run something: open the console first if it isn't
-  function consoleRun(payload, card) {
+  function consoleRun(payload, card, label) {
     consolePanel();
     consoleShow(true);
-    if (!con.state || con.state.workspace !== ws) { con.waiting = { payload: payload, card: card }; consoleChoose(); return; }
+    if (!con.state || con.state.workspace !== ws) { con.waiting = { payload: payload, card: card, label: label }; consoleChoose(); return; }
     post(consoleBase() + "/run", payload).then(function (r) {
       return r.json().then(function (found) {
         if (!r.ok) { consoleSay(found.error || "Couldn't run it"); return; }
+        var kept = payload;
+        if (found.ran) {  // the form the server found at the cursor: kept as text, to run again
+          kept = { kind: "forms", text: found.ran.text, line: found.ran.line, character: found.ran.character,
+                   variations: payload.variations, table: payload.table };
+        }
+        con.entries[found.command] = rememberRun(kept, card, label || labelOf(kept));
         if (card) { con.cards[found.command] = card; delete card.dataset.edRan; card.dataset.edRunning = ""; }
         consoleState(found.state);
         consolePoll(true);
@@ -2014,7 +2219,7 @@
         consolePoll(true);
         var waiting = con.waiting;
         con.waiting = null;
-        if (waiting) consoleRun(waiting.payload, waiting.card);
+        if (waiting) consoleRun(waiting.payload, waiting.card, waiting.label);
       });
     }).catch(function () { con.opening.textContent = "The server can't be reached"; });
   }
@@ -2065,6 +2270,8 @@
     // A link from a requirement's page: write a script for it
     if (editable && asked.get("new")) fileDialog("new", { requirement: asked.get("requirement") || "" });
     if (consoleOn) consoleStart();
+    var panes = $(".ed-panes", root);
+    if (panes) panes.addEventListener("scroll", function () { if (pop) closeMenu(); }, { passive: true });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);

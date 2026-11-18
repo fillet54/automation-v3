@@ -398,3 +398,30 @@ and the gutter button appear with a local worker and not without.
   `printed` lines under the step, before its calls.
 - Prints in a Wait's silent polls are dropped. Outside a step (a `def`
   evaluated at load), `print` still writes to the process's output.
+
+### After: workbench, history and names
+
+- While the console is open, `html.ed-workbench` makes the workspace
+  page a workbench. `.ui-main` is full width and window high, and the
+  tree and the cards (`.ed-panes`) each scroll on their own. The console
+  is a flex row below the cards, not sticky over them, with a row-resize
+  handle above it. The panes get a left padding so the cards' gutter
+  (▶ .. ::) isn't clipped by their scrolling box.
+- The console's main area splits into the transcript and prompt, and a
+  side pane (col-resize handle) with History and Names tabs. Sizes and
+  the tab are kept in localStorage.
+- **History** lives in the browser (`ed-console:history:<workspace>`,
+  the last 200). Each entry keeps the payload as it was run.
+  - For Shift+Enter, the run response gives `ran` (the form the server
+    found), so the entry keeps the form's text, not the whole card.
+  - Re-running sends the payload again. Outcomes come from the kernel
+    state's `outcomes`. Up/Down in the prompt walk the entries that are
+    text.
+- **Names**: `GET console/names` → `Kernel.names()`. That's the env's own
+  names, each with where it came from: `uut`, `variation`, the file
+  that defines it (read from the closure's definitions), or `console`
+  when it is new or no longer the value the env was built with. Each
+  has its kind and a short value. Functions now keep their parameter
+  vectors (`fn.signatures`) so a name can show `(fn [mission start])`.
+- Watch for: a function in editor.js named `remember` already existed
+  (the undo history); the history's is `rememberRun`.

@@ -216,6 +216,11 @@ It is there wherever the app has a worker of its own: the local client
 started with ``--config``, a server started with ``--local-worker``, and
 ``automation-v3 demo``. **Console**, above the tabs, opens it.
 
+While it is open, the page is a workbench: it takes the whole window, the
+cards scroll above and the console sits below them. Drag the line between
+them to give either more room, and the line on the console's right to
+size its side pane. The sizes are remembered in this browser.
+
 Running
 ~~~~~~~
 
@@ -261,6 +266,26 @@ plot, are links.
 The header says which script the console was started on, its environment,
 versions and variation, and whether the UUT was taken as it was (**warm**)
 or started (**fresh**); then what is running.
+
+History and names
+~~~~~~~~~~~~~~~~~
+
+The side pane has two tabs.
+
+**History**
+   Everything run in the console, newest first, with a dot for how it went:
+   blocks by their title, forms by their text. ``▶`` runs one again as it
+   was then, even if the block has changed since; ``✎`` puts it in the
+   prompt, to change it first. **Up** in the prompt goes back through the
+   forms in it too. The history is kept in this browser, for each
+   workspace, and outlives the console: the last 200 commands.
+**Names**
+   What the console's scope holds: the UUT handles, the variation's
+   symbols, what was defined at the prompt or by running a block (**Defined
+   in the console**), and the definitions of each ``core.rst`` and the
+   script, by file. Each name has its kind and its value: a function's
+   parameters, a ref's path. Click a name to put it in the prompt. The list
+   is brought up to date after every command.
 
 Starting over
 ~~~~~~~~~~~~~

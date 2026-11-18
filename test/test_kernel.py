@@ -150,6 +150,23 @@ class KernelTest(unittest.TestCase):
         self.assertEqual([(l["kind"], l["text"]) for l in lines[1:]],
                          [("step", '✓ (print "ABC")'), ("printed", "ABC"), ("result", "=> nil")])
 
+    def test_names_in_scope(self):
+        kernel = self.kernel()
+        self.run_forms(kernel, "(def answer 42)")
+        names = {n["name"]: n for n in kernel.names()}
+        self.assertEqual(names["lm"]["source"], "uut")
+        self.assertEqual(names["mission"], {"name": "mission", "source": "variation",
+                                            "kind": "value", "value": ":standard"})
+        self.assertEqual(names["twice"], {"name": "twice", "source": "T/tc.rst",
+                                          "kind": "fn", "value": "(fn [x])"})
+        self.assertEqual(names["eps"]["value"], "connector lm.eps")
+        self.assertEqual(names["eps"]["source"], "core.rst")
+        self.assertEqual(names["answer"]["source"], "console")
+        self.assertNotIn("+", names, "the language's own are left out")
+        self.run_forms(kernel, "(defn twice [x y] x)")
+        self.assertEqual({n["name"]: n for n in kernel.names()}["twice"]["source"], "console")
+        self.assertEqual(kernel.names()[0]["source"], "uut")
+
     def test_a_definition_typed_is_kept(self):
         kernel = self.kernel()
         self.run_forms(kernel, "(def answer 42)")

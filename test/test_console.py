@@ -94,7 +94,9 @@ class ConsoleTest(unittest.TestCase):
     def test_the_form_at_the_cursor(self):
         self.opened()
         last = self.lines()[-1]["n"]
-        self.post("/run", kind="form", code="(+ 1 1)\n(* 2\n   21)", line=2, character=3)
+        answer = self.post("/run", kind="form", code="(+ 1 1)\n(* 2\n   21)", line=2,
+                           character=3).get_json()
+        self.assertEqual(answer["ran"], {"text": "(* 2\n   21)", "line": 1, "character": 0})
         self.idle()
         self.assertEqual([l["text"] for l in self.lines(last)][-1], "=> 42")
 
@@ -103,6 +105,12 @@ class ConsoleTest(unittest.TestCase):
         self.post("/run", kind="forms", text="(def x 5) (* x x)")
         self.idle()
         self.assertEqual(self.lines()[-1]["text"], "=> 25")
+
+    def test_names(self):
+        self.assertEqual(self.http.get(self.base + "/names").get_json(), {"names": []})
+        self.opened()
+        names = {n["name"] for n in self.http.get(self.base + "/names").get_json()["names"]}
+        self.assertTrue({"lm", "dsky", "boot"} <= names)
 
     def test_controls(self):
         self.opened()

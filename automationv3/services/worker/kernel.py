@@ -72,6 +72,28 @@ def label(text):
     return f"Precondition: {found.group(1)}" if found else text
 
 
+def described(value, source=None):
+    """{kind, value}: what a name is, and its value on one line"""
+    from ...framework.refs import Ref
+    if source == "uut":
+        return {"kind": "uut", "value": type(value).__name__}
+    if isinstance(value, Ref):
+        return {"kind": "ref", "value": f"{type(value).__name__.lower()} {value.path}"}
+    if callable(value):
+        signatures = getattr(value, "signatures", None)
+        if signatures is not None:
+            shown = " ".join(edn.writes(params) for params in signatures)
+            return {"kind": "fn", "value": f"(fn {shown})"}
+        return {"kind": "fn", "value": getattr(value, "__name__", "function")}
+    try:
+        shown = edn.writes(value)
+    except Exception:
+        shown = repr(value)
+    kind = ("map" if isinstance(value, dict) else "vector" if isinstance(value, list)
+            else "value")
+    return {"kind": kind, "value": short(shown, 120)}
+
+
 def newest(uut):
     versions = uut.list_versions()
     return versions[-1] if versions else None
@@ -265,6 +287,8 @@ class Kernel:
         self.variation = variation if variation is not None else (names[0] if names else None)
 
         self.env = None
+        self.built = {}  # name -> value, as the env was built
+        self.sources = {}  # name -> where it came from: a file, "uut" or "variation"
         self.clock = None
         self.held = {}  # the cleanups registered, kept across commands
         self.start = None  # "warm" or "fresh", once opened
@@ -503,6 +527,7 @@ class Kernel:
                                      self.variation)
             bound = handles(self.host, self._job())
             env.update({edn.Symbol(name): value for name, value in bound.items()})
+            values = {}
             if self.variation is not None:
                 values = executor.variation_values(
                     env, executor.find_variation(found.files[self.script], self.variation))
@@ -515,8 +540,50 @@ class Kernel:
                           f"{self.problem}")
             return
         self.env, self.problem = env, None
+        self.built = dict(dict.items(env))
+        self.sources = self._sources(bound, values if self.variation is not None else {})
         if self.variation is not None:
             self.add_line(command, "note", f"variation {self.variation}")
+
+    def _sources(self, bound, values):
+        """name -> where it was defined: the file of each definition, "uut"
+        for a UUT handle, "variation" for a variation's symbols"""
+        found = {}
+        for path in self.closure.load_order:
+            try:
+                statements = executor.read(self.closure.files[path], path)
+            except ValueError:
+                continue
+            for statement in statements:
+                if is_definition(statement.form) and len(statement.form) > 1:
+                    found[str(statement.form[1])] = path
+        found.update({name: "uut" for name in bound})
+        found.update({str(name): "variation" for name in values})
+        return found
+
+    def names(self):
+        """What the console's scope holds, beyond the language's own: each
+        name with its kind, its value shown short, and where it came from
+        ("console" for what was defined or changed since the env was
+        built). Script and core.rst names first, in order of the files."""
+        env = self.env
+        if env is None:
+            return []
+        try:
+            items = list(dict.items(env))
+        except RuntimeError:  # changed while read: the kernel is running
+            items = list(dict.items(dict(env)))
+        order = {path: n for n, path in enumerate(self.closure.load_order)}
+        order.update({"variation": -2, "uut": -3, "console": -1})
+        found = []
+        for name, value in items:
+            name = str(name)
+            source = self.sources.get(name, "console")
+            if name not in self.built or self.built[name] is not value:
+                source = "console"
+            found.append({"name": name, "source": source, **described(value, source)})
+        found.sort(key=lambda n: (order.get(n["source"], len(order)), n["name"]))
+        return found
 
     def _release(self, command, say_none=False):
         if not self.held:

@@ -15,6 +15,7 @@ Routes, on the workspace blueprint (`/workspace/<id>/console...`):
     GET  console?path=P         whether a console is possible, its state,
                                 and the choices for script P
     GET  console/lines?since=N  transcript lines after N, and the state
+    GET  console/names          what the console's scope holds (Kernel.names)
     POST console/open           {path, environment, versions, variation}
     POST console/run            {kind: "card", code, title, definitions,
                                  table, variations}
@@ -215,6 +216,14 @@ def register(bp, workspace_or_404, node_or_404, editable):
             return jsonify(lines=[], state=found.state())
         return jsonify(lines=kernel.lines_since(since), state=found.state())
 
+    @bp.route("/<path:id>/console/names", methods=["GET"])
+    def console_names(id):
+        ws, found = available(id)
+        kernel = found.kernel
+        if kernel is None or found.workspace != ws.id:
+            return jsonify(names=[])
+        return jsonify(names=kernel.names())
+
     @bp.route("/<path:id>/console/open", methods=["POST"])
     def console_open(id):
         ws, found = available(id)
@@ -242,6 +251,7 @@ def register(bp, workspace_or_404, node_or_404, editable):
         variations = data.get("variations") or []
         if not isinstance(variations, list):
             abort(400)
+        ran = None  # the form found at the cursor, for the page's history
         try:
             if kind == "card":
                 command = kernel.run_card(
@@ -256,6 +266,7 @@ def register(bp, workspace_or_404, node_or_404, editable):
                 if at is None:
                     refuse("There is no form at the cursor", 400)
                 text, line, character = at
+                ran = {"text": text, "line": line, "character": character}
                 command = kernel.run_forms(text, line=line, character=character,
                                            variations=variations, table=table)
             elif kind == "forms":
@@ -271,7 +282,7 @@ def register(bp, workspace_or_404, node_or_404, editable):
                 abort(400)
         except KernelError as e:
             refuse(str(e))
-        return jsonify(command=command.id, state=found.state())
+        return jsonify(command=command.id, state=found.state(), ran=ran)
 
     @bp.route("/<path:id>/console/<any(stop, reset, restart, release, clear, close):control>",
               methods=["POST"])
