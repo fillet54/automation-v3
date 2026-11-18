@@ -169,7 +169,8 @@ class Transcript:
             self.add("note", "not written yet (TBD)")
         if not passed:
             self.add("fail", message or "failed", **self.where(trace))
-            if error and stderr and "Traceback" in stderr:
+            plain = message.startswith(("unknown name", "No BuildingBlock"))
+            if error and stderr and "Traceback" in stderr and not plain:
                 self.add("error", stderr.strip())
 
     form = None
@@ -509,12 +510,20 @@ class Kernel:
         return True
 
     def _limited(self, command, variations):
-        names = [v for v in variations if v]
-        if names and self.variation not in names:
-            self.add_line(command, "fail", f"This is for {', '.join(names)}; the console runs "
-                          f"{self.variation or 'no variation'}.")
-            command.outcome = "skipped"
-            return True
+        """True (and say so) if what runs is limited to other variations.
+        `variations` is the names it is for, or a list of such lists (a
+        card's own, and the variant sections it is in): each must allow
+        the console's."""
+        scopes = [s for s in (variations or ()) if s]
+        if scopes and all(isinstance(s, str) for s in scopes):
+            scopes = [scopes]
+        for names in scopes:
+            names = [v for v in names if v]
+            if names and self.variation not in names:
+                self.add_line(command, "fail", f"This is for {', '.join(names)}; the console "
+                              f"runs {self.variation or 'no variation'}.")
+                command.outcome = "skipped"
+                return True
         return False
 
     def _running(self):

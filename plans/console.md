@@ -313,3 +313,25 @@ and the gutter button appear with a local worker and not without.
   Workers page as "In the console", with a tooltip.
 - `cli.py` keeps the in-process worker as `app.config["CONSOLE_WORKER"]`
   for `client --config`, `server --local-worker` and `demo`.
+
+### Step 3 (endpoints)
+
+- `web/console.py`. A `Console` per app (`app.config["_CONSOLE"]`, made
+  on first use) holds the borrowed worker and the kernel. A watcher
+  thread closes an idle console even when no page asks.
+- One transcript stream, as step 1 found: `GET console/lines?since=N`
+  replaces the per-command `run/<id>` of the table above. Its `state`
+  has `last` (the newest line's `n`), so a page that sees `last` go
+  below what it has knows the transcript was cleared.
+- `POST console/run` takes three kinds: `card` (a card's fields),
+  `form` (a card's code and the cursor; the server finds the form) and
+  `forms` (text typed at the prompt).
+- `variations` on a run is a list of lists: the card's own
+  `:variations:` and those of each `rvt-variant` it is in. Each must
+  allow the console's variation.
+- A console is bound to its workspace. Another workspace's page sees
+  its state, but gets 409 if it tries to run in it.
+- A script that isn't saved yet can't be opened (400): the console loads
+  the script from disk.
+- Tracebacks are left out of the transcript for unknown names and
+  missing blocks, where they say nothing more than the message.

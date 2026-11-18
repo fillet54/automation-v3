@@ -18,7 +18,7 @@ from ..services.reports import store
 from ..services.requirements import models as requirement_models
 from ..services.workspace import FileNode, is_binary
 from .db import get_db
-from . import documents, editor
+from . import console, documents, editor
 from .auth import can_change
 from .client_mode import build_choices, central
 from .jobs import checked_in_root, live_environments, workspaces
@@ -319,3 +319,4 @@ def view(id):
 
 
 editor.register(bp, workspace_or_404, node_or_404)
+console.register(bp, workspace_or_404, node_or_404, editor.editable)
