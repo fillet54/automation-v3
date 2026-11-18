@@ -205,6 +205,93 @@ example:
      end,
    })
 
+Trying things out: the console
+------------------------------
+
+While you write a script, the **console** runs a block, or a single form,
+against a real UUT on this machine, and shows what it did, without queuing a
+run. Change a step, run it again, read what happened, change it again.
+
+It is there wherever the app has a worker of its own: the local client
+started with ``--config``, a server started with ``--local-worker``, and
+``automation-v3 demo``. **Console**, above the tabs, opens it.
+
+Running
+~~~~~~~
+
+``▶``
+   Pointing at a block shows ``▶`` left of its ``..`` mark. It runs the
+   block as a run would: its definitions, its steps, a precondition's check
+   and heal, a table's steps once per row. It stops at the first step that
+   fails. Afterwards ``▶`` is green or red for how it went, until the block
+   is edited.
+**Shift+Enter**
+   In a block being edited, runs the form the cursor is in (the whole
+   top-level form), or the selected text. In a table block, it runs with
+   the first row's values bound.
+**The prompt**
+   At the bottom of the console. **Enter** runs what is typed,
+   **Shift+Enter** starts a new line, and **Up** and **Down** go back through
+   what you ran before.
+
+What runs is what the editor holds, unsaved edits included. Running a
+definitions block again defines its functions again, so an edit to a
+``defn`` takes effect without saving. A block limited to other variations
+isn't run.
+
+The first run asks what to start the console with: the environment, the
+version of each UUT (newest first), and the variation, from the script that
+is open. If the versions asked for are already installed, the console takes
+the UUT as it is; otherwise it installs them and starts the UUT fresh, as a
+run in force mode does. Then it loads the script's ``core.rst`` files and
+definitions, the UUT handles and the variation's symbols, and keeps them
+until it is closed: a ``def`` typed at the prompt is there for the next
+command.
+
+What it shows
+~~~~~~~~~~~~~
+
+Each command, then a line for each step it ran, with the block calls the step
+made, what they printed (a Verify's comparisons, a Wait's last look), the
+refs they read or set, and why a step failed. A form's value follows ``=>``.
+A failure links to the line of the block it came from: clicking it opens the
+block with the cursor there. Files a block attaches, such as a trajectory
+plot, are links.
+
+The header says which script the console was started on, its environment,
+versions and variation, and whether the UUT was taken as it was (**warm**)
+or started (**fresh**); then what is running.
+
+Starting over
+~~~~~~~~~~~~~
+
+**Stop**
+   Stops the command running, at the next place it waits, and drops the
+   ones waiting behind it. The console goes on.
+**Reset**
+   Releases what is held, and loads the ``core.rst`` files and the script
+   from disk again: use it after editing a ``core.rst``. What was typed at
+   the prompt is forgotten. The UUT is left as it is.
+**Restart**
+   Resets, then starts the UUT fresh. If the command running doesn't stop,
+   it is left running in the background and a new console carries on; the
+   header says so.
+**Release all**
+   Values fixed with ``SetFixedValue`` stay fixed between commands, until a
+   reset; the header counts them. This releases them and keeps everything
+   else.
+**Close**
+   Releases what is held and gives the worker back.
+
+While the console is open, this machine's worker takes no jobs: the
+Workers page shows it **In the console**, and queued jobs wait for it. A
+console no one has used for 30 minutes closes itself. There is one console
+for the app: another workspace's page sees it is open, but has to wait for
+it to be closed.
+
+Nothing the console does is recorded: it makes no runs and changes no
+report. Run the script, in scratch or in a report, for that.
+
 When the file changes on disk
 -----------------------------
 

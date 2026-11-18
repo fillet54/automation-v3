@@ -54,6 +54,9 @@ What belongs to the team stays on the central server:
   that config hosts, and its results stay in the client's folder
   (``~/.local/share/automation-v3/client``, or ``--data-path``). The client's
   **Scratch** page lists those runs.
+- With ``--config``, the editor also has a **Console**, which runs blocks and
+  forms against that worker's UUTs as you write them (see
+  :doc:`editor`). While it is open, the client's worker takes no jobs.
 - **Queue on the central server…** opens the central server's queue dialog
   for your branch. Reports run what was pushed, so push first.
 

@@ -21,6 +21,9 @@ Routes, on the workspace blueprint (`/workspace/<id>/console...`):
                                 {kind: "form", code, line, character}: the
                                  form at the cursor in a card's code
                                 {kind: "forms", text, line, character}
+                                Either can give `table`, the code of the
+                                 table card it is from: its first row is
+                                 bound
     POST console/<control>      stop, reset, restart, release, clear, close
     GET  console/files/<name>   a file a block attached
 """
@@ -235,6 +238,7 @@ def register(bp, workspace_or_404, node_or_404, editable):
         kernel = kernel_of(ws, found)
         data = body()
         kind = data.get("kind")
+        table = str(data["table"]) if kind in ("form", "forms") and data.get("table") else None
         variations = data.get("variations") or []
         if not isinstance(variations, list):
             abort(400)
@@ -253,7 +257,7 @@ def register(bp, workspace_or_404, node_or_404, editable):
                     refuse("There is no form at the cursor", 400)
                 text, line, character = at
                 command = kernel.run_forms(text, line=line, character=character,
-                                           variations=variations)
+                                           variations=variations, table=table)
             elif kind == "forms":
                 text = str(data.get("text") or "")
                 if not text.strip():
@@ -262,7 +266,7 @@ def register(bp, workspace_or_404, node_or_404, editable):
                 if not isinstance(line, int) or not isinstance(character, int):
                     abort(400)
                 command = kernel.run_forms(text, line=line, character=character,
-                                           variations=variations)
+                                           variations=variations, table=table)
             else:
                 abort(400)
         except KernelError as e:

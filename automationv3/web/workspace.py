@@ -125,6 +125,7 @@ def index(id):
         "workspace.html", workspaces=list(worktrees()), workspace=ws,
         report=target_report(), tabs=tabs, active_tab=active if active in tabs else None,
         editable=editor.editable(), editor_version=editor.script_version(),
+        console=editor.editable() and console.console() is not None,
     )
 
 

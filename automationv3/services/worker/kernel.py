@@ -48,6 +48,7 @@ from .worker import handles, install_uuts, versions_installed
 
 CARD = "<card>"  # the path a card's statements are read as
 MAX_LINES = 2000  # transcript lines kept
+MAX_OUTCOMES = 100  # command outcomes kept
 SHORT = 100  # characters of a form shown on one line
 FOLD = 5  # output lines shown before folding the rest
 
@@ -60,6 +61,15 @@ def short(text, width=SHORT):
     """`text` on one line, cut to `width`"""
     one = " ".join(str(text).split())
     return one if len(one) <= width else one[:width - 1] + "…"
+
+
+PRECONDITION_TEXT = re.compile(r'^\(Precondition\s+"((?:[^"\\]|\\.)*)"')
+
+
+def label(text):
+    """How a form is named on one line: a Precondition by its description"""
+    found = PRECONDITION_TEXT.match(text.strip())
+    return f"Precondition: {found.group(1)}" if found else text
 
 
 def newest(uut):
@@ -105,8 +115,8 @@ class Transcript:
     def on_procedure_begin(self, **kw):
         pass
 
-    def on_step_start(self, form, index, **kw):
-        self.form = form
+    def on_step_start(self, form, index, precondition=False, **kw):
+        self.form = label(form) if precondition else form
         self.calls, self.refs, self.phases = [], [], []
         self.kernel.running = short(form)
 
@@ -167,9 +177,11 @@ class Transcript:
             self.add("ref", f"{operation}: {', '.join(names)}")
         if placeholders:
             self.add("note", "not written yet (TBD)")
+        if not passed and self.kernel.stop_event.is_set() and "Stopped" in (message or ""):
+            return  # the kernel says it stopped
         if not passed:
             self.add("fail", message or "failed", **self.where(trace))
-            plain = message.startswith(("unknown name", "No BuildingBlock"))
+            plain = "unknown name" in message or message.startswith("No BuildingBlock")
             if error and stderr and "Traceback" in stderr and not plain:
                 self.add("error", stderr.strip())
 
@@ -252,6 +264,7 @@ class Kernel:
         self.running = None  # the step running now, shown short
         self.current = None  # the Command running
         self.lines = []
+        self.outcomes = {}  # command id -> its outcome, for the last commands
         self.counter = itertools.count(1)
         self.lines_lock = threading.Lock()
         self.stop_event = threading.Event()
@@ -281,6 +294,9 @@ class Kernel:
             except Exception:
                 self.add_line(command, "error", traceback.format_exc().strip())
                 command.outcome = "error"
+            self.outcomes[command.id] = command.outcome or "pass"
+            for old in list(self.outcomes)[:-MAX_OUTCOMES]:
+                del self.outcomes[old]
             if generation != self.generation:
                 return  # abandoned by a restart: a new thread carries on
             self.current, self.running = None, None
@@ -315,12 +331,14 @@ class Kernel:
         return self.submit("card", code=code, title=title, definitions=definitions,
                            table=table, variations=list(variations))
 
-    def run_forms(self, text, line=0, character=0, label=None, variations=()):
+    def run_forms(self, text, line=0, character=0, label=None, variations=(), table=None):
         """Run forms (typed, or a card's form at the cursor); `line` and
         `character` are where the text starts in its card, if it is from
-        one, so a failure can point there"""
+        one, so a failure can point there. `table` is the code of the
+        table card they are from, if they are: they run with its first
+        row's symbols bound."""
         return self.submit("forms", text=text, line=line, character=character,
-                           label=label, variations=list(variations))
+                           label=label, variations=list(variations), table=table)
 
     def reset(self, text=None):
         return self.submit("reset", text=text)
@@ -387,6 +405,7 @@ class Kernel:
             "abandoned": self.abandoned,
             "closed": self.closed,
             "last": self.lines[-1]["n"] if self.lines else 0,
+            "outcomes": dict(self.outcomes),
         }
 
     def lines_since(self, n):
@@ -540,8 +559,7 @@ class Kernel:
     def _run_card(self, command):
         d = command.details
         title = d.get("title")
-        self.add_line(command, "command", f"▶ {short(title)}" if title else
-                      f"▶ {short(d['code'].strip().splitlines()[0] if d['code'].strip() else '(empty)')}")
+        self.add_line(command, "command", f"▶ {short(title or label(d['code']) or '(empty)')}")
         if not self._ready(command) or self._limited(command, d.get("variations", ())):
             return
         from ...framework.cards import RVT, Card, rvt_source
@@ -590,15 +608,18 @@ class Kernel:
         transcript = Transcript(self, command, place)
         observer = transcript
         outcome = "pass"
+        env = self._row_env(command, d.get("table"))
+        if env is None:
+            return
         with self._running():
             for index, form in enumerate(forms):
                 if is_definition(form):
-                    if not executor.define(form, self.env, observer, index):
+                    if not executor.define(form, env, observer, index):
                         outcome = "error"
                         break
                     self.add_line(command, "result", f"=> #'{form[1]}")
                 elif is_step(form) or not isinstance(form, list):
-                    result = executor.run_step(form, self.env, observer, index)
+                    result = executor.run_step(form, env, observer, index)
                     if not result:
                         outcome = "error" if result.error else "fail"
                         break
@@ -609,6 +630,37 @@ class Kernel:
                                   "declaration: the console takes the script's")
         command.outcome = outcome
         self._said_stopped(command)
+
+    def _row_env(self, command, table):
+        """The env forms from a table card run in: the kernel's, with the
+        table's first row bound; None (and why) if the rows can't be read"""
+        if not table:
+            return self.env
+        from ...framework import lisp
+        from ...framework.language import parse_table
+        try:
+            first = edn.read_all_with_spans(table)[0][0]
+        except (edn.ParseError, IndexError) as e:
+            self.add_line(command, "fail", f"Can't read the table's rows: {e}")
+            command.outcome = "error"
+            return None
+        errors = []
+        rows = parse_table(CARD, first, errors)
+        if errors or not rows:
+            self.add_line(command, "fail", errors[0] if errors else "The table has no rows")
+            command.outcome = "error"
+            return None
+        row, env = rows[0], lisp.Env(outer=self.env)
+        try:
+            with self._running():
+                for symbol, value in zip(row.symbols, row.forms):
+                    env[edn.Symbol(symbol)] = lisp.eval(value, self.env)
+        except Exception as e:
+            self.add_line(command, "fail", f"row {row.name}: {executor.error_line(e)}")
+            command.outcome = "error"
+            return None
+        self.add_line(command, "row", f"with row {row.name}")
+        return env
 
     def _run(self, command, statements, place):
         transcript = Transcript(self, command, place)

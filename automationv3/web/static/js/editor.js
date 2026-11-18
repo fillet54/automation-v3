@@ -13,7 +13,7 @@
 (function () {
   "use strict";
 
-  var root, ws, base, editable;
+  var root, ws, base, editable, consoleOn;
   var tabs = [];      // paths, in tab order
   var active = null;  // the active tab's path
   var states = {};    // path -> {pane, loaded, dirty, conflict, baseHash, count, undo, redo, saved}
@@ -368,6 +368,15 @@
     grip.dataset.edGrip = "";
     grip.title = "Drag to move";
     grip.setAttribute("aria-label", "Drag to move");
+    if (consoleOn && card._card && card._card.kind === "rvt") {
+      var play = el("button", "ed-gutter__btn ed-play", "▶");
+      play.type = "button";
+      play.dataset.edPlay = "";
+      play.title = "Run this block in the console";
+      play.setAttribute("aria-label", "Run this block in the console");
+      gutter.appendChild(play);
+      gutter.classList.add("has-play");
+    }
     gutter.appendChild(menu);
     gutter.appendChild(grip);
     card.insertBefore(gutter, card.firstChild);
@@ -740,11 +749,11 @@
 
   // Editing a card
 
-  function foot(edit) {
+  function foot(edit, rvt) {
     var row = el("div", "ed-card__foot");
     row.appendChild(button("Done", "done", "ui-btn--primary"));
     row.appendChild(button("Cancel", "cancel"));
-    row.appendChild(el("span", "ui-muted", "Esc or Ctrl+Enter when done"));
+    row.appendChild(el("span", "ui-muted", "Esc or Ctrl+Enter when done" + (consoleOn && rvt ? "; Shift+Enter runs the form at the cursor" : "")));
     edit.appendChild(row);
     return row;
   }
@@ -762,7 +771,7 @@
     if (rvt && data.title) edit.appendChild(el("div", "ed-card__title", data.title));
     var holder = el("div", "ed-cm");
     edit.appendChild(holder);
-    var bottom = foot(edit);
+    var bottom = foot(edit, rvt);
     card.appendChild(edit);
     card.classList.add("is-editing");
     function done() { closeCard(card, true); return true; }
@@ -774,7 +783,8 @@
       text: rvt ? data.code || "" : data.text || "",
       language: rvt ? "rvt" : null,
       placeholder: rvt ? "(Verify ...)" : "Text, as reStructuredText",
-      keys: [{ key: "Mod-Enter", run: done }, { key: "Escape", run: done }],
+      keys: [{ key: "Mod-Enter", run: done }, { key: "Escape", run: done }]
+        .concat(rvt && consoleOn ? [{ key: "Shift-Enter", run: function (v) { return runAtCursor(card, v); } }] : []),
       extensions: [window.CM.autocompletion({ override: [completions(card)] }), window.CM.hoverTooltip(hovers(card))],
       onMove: rvt ? function (moved) { clearTimeout(signing); signing = setTimeout(function () { sign(card, moved, signature); }, 150); } : null,
       onChange: function () {  // the language server checks what is typed, once typing pauses
@@ -853,6 +863,7 @@
     finish(card);
     if (empty) { touch(card); card.remove(); dirty(path); return Promise.resolve(); }
     card._card = next;
+    delete card.dataset.edRan;
     touch(card);
     dirty(path);
     return redraw(card);
@@ -1521,6 +1532,9 @@
     }
     var opener = target.closest("[data-ed-menu]");
     if (opener) { openMenu(opener.closest(".ed-card")); return; }
+    var play = target.closest("[data-ed-play]");
+    if (play) { closeMenu(); runCard(play.closest(".ed-card")); return; }
+    if (target.closest("[data-ed-console]")) { consoleOpenPanel(); return; }
     closeMenu();
     var row = target.closest(".ui-tree__row--file[data-open]");
     if (row) { open(row.dataset.open); return; }
@@ -1599,12 +1613,426 @@
     else if ((key === "z" && event.shiftKey) || key === "y") { event.preventDefault(); undo(active, true); }
   }
 
+
+  // The console (web/console.py): a kernel on this machine, kept between
+  // commands. A card's ▶ runs the card; Shift+Enter in a card's editor runs
+  // the form at the cursor, or the selection; the prompt runs what is typed.
+  // The panel shows the transcript the kernel writes, asking for the lines
+  // after the last it has while the kernel is busy.
+
+  var con = null;  // {panel, list, head, body, ...} once the panel is made
+
+  function consoleBase() { return base + "/console"; }
+  function stored(key, fallback) {
+    try { var v = localStorage.getItem("ed-console:" + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; }
+  }
+  function store(key, value) {
+    try { localStorage.setItem("ed-console:" + key, JSON.stringify(value)); } catch (e) { /* this page only */ }
+  }
+
+  function consoleStart() {
+    fetch(consoleBase()).then(function (r) { return r.ok ? r.json() : null; }).then(function (found) {
+      if (found && found.state && found.state.workspace === ws) {
+        consolePanel();
+        consoleState(found.state);
+        consoleShow(stored("open", true));
+        consolePoll(true);
+      }
+    }).catch(function () { /* no console now */ });
+    window.addEventListener("focus", function () { if (con && con.state) consolePoll(true); });
+  }
+
+  function consolePanel() {
+    if (con) return con;
+    var panel = el("section", "ed-console");
+    panel.setAttribute("aria-label", "Console");
+    var grip = el("div", "ed-console__grip");
+    grip.title = "Drag to resize";
+    var head = el("header", "ed-console__head");
+    var toggle = el("button", "ed-console__toggle", "Console");
+    toggle.type = "button";
+    toggle.dataset.con = "toggle";
+    toggle.setAttribute("aria-expanded", "true");
+    var what = el("span", "ed-console__what ui-mono");
+    var status = el("span", "ed-console__status");
+    status.setAttribute("aria-live", "polite");
+    var held = el("span", "ed-console__held");
+    var tools = el("span", "ed-console__tools");
+    [["Stop", "stop", "Stop the command running, and drop the ones waiting"],
+     ["Reset", "reset", "Release what is held and load the definitions again; the UUT is left as it is"],
+     ["Restart", "restart", "Reset, and start the UUT fresh"],
+     ["Clear", "clear", "Empty the transcript"],
+     ["Close", "close", "Close the console: what is held is released, and the local worker takes jobs again"]]
+      .forEach(function (b) {
+        var x = el("button", "ui-btn ui-btn--sm ui-btn--ghost", b[0]);
+        x.type = "button";
+        x.dataset.con = b[1];
+        x.title = b[2];
+        tools.appendChild(x);
+      });
+    head.appendChild(toggle);
+    head.appendChild(what);
+    head.appendChild(status);
+    head.appendChild(held);
+    head.appendChild(tools);
+    var body = el("div", "ed-console__body");
+    var opening = el("div", "ed-console__opening");
+    opening.hidden = true;
+    var list = el("ol", "ed-console__lines");
+    var prompt = el("div", "ed-console__prompt");
+    prompt.appendChild(el("span", "ed-console__mark", "»"));
+    var holder = el("div", "ed-console__input");
+    prompt.appendChild(holder);
+    body.appendChild(opening);
+    body.appendChild(list);
+    body.appendChild(prompt);
+    panel.appendChild(grip);
+    panel.appendChild(head);
+    panel.appendChild(body);
+    root.appendChild(panel);
+    body.style.height = stored("height", 240) + "px";
+    con = { panel: panel, head: head, body: body, list: list, what: what, status: status, held: held,
+            tools: tools, opening: opening, toggle: toggle, state: null, last: 0, cards: {},
+            polling: null, history: stored("history", []), at: -1 };
+    con.input = window.CM.editor(holder, {
+      language: "rvt", placeholder: "A form to run: Enter runs it, Shift+Enter starts a new line",
+      keys: [
+        { key: "Enter", run: function (view) { promptRun(view); return true; } },
+        { key: "Shift-Enter", run: function (view) { view.dispatch(view.state.replaceSelection("\n")); return true; } },
+        { key: "ArrowUp", run: function (view) { return promptHistory(view, -1); } },
+        { key: "ArrowDown", run: function (view) { return promptHistory(view, 1); } },
+      ],
+    });
+    panel.addEventListener("click", consoleClick);
+    grip.addEventListener("pointerdown", consoleResize);
+    return con;
+  }
+
+  function consoleShow(open) {
+    con.panel.hidden = false;
+    con.body.hidden = !open;
+    con.toggle.setAttribute("aria-expanded", String(open));
+    root.classList.add("has-console");
+    store("open", open);
+    consoleRoom();
+  }
+
+  // Room under the cards for the panel, so it never covers the last of them
+  function consoleRoom() {
+    if (con && !con.panel.hidden) root.style.setProperty("--ed-console-h", (con.panel.offsetHeight + 16) + "px");
+  }
+
+  function consoleResize(event) {
+    event.preventDefault();
+    var startY = event.clientY, startH = con.body.offsetHeight;
+    function move(e) {
+      var h = Math.max(80, Math.min(window.innerHeight * 0.8, startH + startY - e.clientY));
+      con.body.style.height = h + "px";
+      consoleRoom();
+    }
+    function up() {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      store("height", con.body.offsetHeight);
+    }
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  }
+
+  function consoleClick(event) {
+    var target = event.target, which = target.closest("[data-con]");
+    if (which) {
+      var name = which.dataset.con;
+      if (name === "toggle") { consoleShow(con.body.hidden); return; }
+      if (name === "open") { consoleOpen(); return; }
+      if (name === "release") { consoleControl("release"); return; }
+      if (name === "clear") { con.list.textContent = ""; }
+      if (name === "close") { consoleControl("close"); return; }
+      consoleControl(name);
+      return;
+    }
+    var line = target.closest(".ed-cl");
+    if (!line) return;
+    if (line._more) { line.textContent = ""; line.appendChild(document.createTextNode(line._more)); line._more = null; return; }
+    var card = line._card;
+    if (card && card.isConnected) jumpTo(card, line._at || null);
+  }
+
+  function consoleControl(name) {
+    return post(consoleBase() + "/" + name, {}).then(function (r) {
+      return r.json().then(function (found) {
+        if (!r.ok) { consoleSay(found.error || "The console couldn't " + name); return; }
+        if (name === "close") { consoleClosed(); return; }
+        consoleState(found.state);
+        consolePoll(true);
+      });
+    });
+  }
+
+  function consoleClosed() {
+    con.state = null;
+    con.list.textContent = "";
+    con.last = 0;
+    con.panel.hidden = true;
+    root.classList.remove("has-console");
+    all("[data-ed-ran]").forEach(function (card) { delete card.dataset.edRan; });
+  }
+
+  function consoleSay(text) {
+    var line = el("li", "ed-cl ed-cl--fail", text);
+    con.list.appendChild(line);
+    line.scrollIntoView({ block: "nearest" });
+  }
+
+  // The header, from the kernel's state
+  function consoleState(state) {
+    con.state = state;
+    if (!state) { con.what.textContent = ""; con.status.textContent = "closed"; return; }
+    var versions = Object.keys(state.versions || {}).map(function (k) { return k + " " + state.versions[k]; });
+    con.what.textContent = [state.script, state.environment].concat(versions)
+      .concat(state.variation ? [state.variation] : []).concat(state.start ? [state.start] : []).join(" · ");
+    var status = state.problem ? "can't load: " + state.problem
+      : state.busy ? "running" + (state.running ? " " + state.running : "") + (state.queued ? " (+" + state.queued + " waiting)" : "")
+      : "idle";
+    if (state.abandoned) status += " · " + state.abandoned + " left running in the background";
+    con.status.textContent = status;
+    con.status.classList.toggle("is-busy", !!state.busy);
+    con.held.textContent = "";
+    if (state.held && state.held.length) {
+      var held = el("button", "ui-btn ui-btn--sm ui-btn--ghost ed-console__held-btn", state.held.length + " held · Release all");
+      held.type = "button";
+      held.dataset.con = "release";
+      held.title = state.held.join("\n");
+      con.held.appendChild(held);
+    }
+    $("[data-con=stop]", con.tools).disabled = !state.busy;
+    Object.keys(state.outcomes || {}).forEach(function (id) {
+      var card = con.cards[id];
+      if (card && card.isConnected) { card.dataset.edRan = state.outcomes[id]; delete card.dataset.edRunning; }
+    });
+  }
+
+  // Ask for new lines; keep asking while the kernel is busy
+  function consolePoll(now) {
+    if (!con || con.polling) return;
+    con.polling = setTimeout(function () {
+      fetch(consoleBase() + "/lines?since=" + con.last).then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (found) {
+          con.polling = null;
+          if (!found || !found.state || found.state.workspace !== ws) {
+            if (found && !found.state && con.state) consoleClosed();
+            return;
+          }
+          found.lines.forEach(drawLine);
+          consoleState(found.state);
+          if (found.state.busy) consolePoll();
+        })
+        .catch(function () { con.polling = null; });
+    }, now ? 0 : 300);
+  }
+
+  function drawLine(line) {
+    con.last = Math.max(con.last, line.n);
+    var item = el("li", "ed-cl ed-cl--" + line.kind);
+    if (line.depth) item.style.paddingLeft = (12 + 14 * line.depth) + "px";
+    var card = con.cards[line.command];
+    if (line.kind === "error") {
+      var details = el("details");
+      details.appendChild(el("summary", null, "Traceback"));
+      details.appendChild(el("pre", "ed-cl__pre", line.text));
+      item.appendChild(details);
+    } else if (line.kind === "file" && line.file) {
+      var link = el("a", null, "📎 " + line.text);
+      link.href = consoleBase() + "/files/" + encodeURIComponent(line.file);
+      link.target = "_blank";
+      link.rel = "noopener";
+      item.appendChild(link);
+    } else {
+      item.textContent = line.text;
+      if (line.duration && line.kind === "step") item.appendChild(el("span", "ed-cl__time", " " + line.duration + "s"));
+      if (line.at_text) item.appendChild(el("span", "ed-cl__time", " " + line.at_text));
+    }
+    if (line.more) { item._more = line.text + "\n" + line.more; item.classList.add("is-more"); item.title = "Show the rest"; }
+    if (card && (line.kind === "command" || line.at)) {
+      item._card = card;
+      item._at = line.at || null;
+      item.classList.add("is-link");
+      item.title = line.at ? "Go to line " + (line.at.line + 1) + " of the card" : "Go to the card";
+    }
+    var follow = con.body.scrollTop + con.body.clientHeight >= con.body.scrollHeight - 8;
+    con.list.appendChild(item);
+    while (con.list.children.length > 2000) con.list.removeChild(con.list.firstChild);
+    if (follow) con.body.scrollTop = con.body.scrollHeight;
+  }
+
+  // Put the cursor on a line of a card
+  function jumpTo(card, at) {
+    if (card._card.kind !== "rvt") return;
+    if (!card._edit) openCard(card);
+    card.scrollIntoView({ block: "center" });
+    if (!at || !card._edit) return;
+    var view = card._edit.view, doc = view.state.doc;
+    var line = doc.line(Math.min(Math.max(at.line + 1, 1), doc.lines));
+    view.dispatch({ selection: { anchor: Math.min(line.from + (at.character || 0), line.to) }, scrollIntoView: true });
+    view.focus();
+  }
+
+  // The variations a card is for: its own, and each variant's it is in
+  function scopesOf(card) {
+    var scopes = [];
+    for (var at = card; at; at = at.parentNode && at.parentNode.closest(".ed-card--variant")) {
+      if (at._card && (at._card.variations || []).length) scopes.push(at._card.variations);
+    }
+    return scopes;
+  }
+
+  function runCard(card) {
+    var data = dataOf(card, false);
+    consoleRun({ kind: "card", code: data.code || "", title: data.title || null,
+                 definitions: !!data.definitions, table: !!data.table, variations: scopesOf(card) }, card);
+  }
+
+  // Shift+Enter in a card's editor: the selection, or the form at the cursor
+  // (in a table card, with its first row's symbols bound)
+  function runAtCursor(card, view) {
+    var sel = view.state.selection.main, doc = view.state.doc;
+    var table = card._card.table ? doc.toString() : null;
+    if (!sel.empty) {
+      var line = doc.lineAt(sel.from);
+      consoleRun({ kind: "forms", text: doc.sliceString(sel.from, sel.to), line: line.number - 1,
+                   character: sel.from - line.from, variations: scopesOf(card), table: table }, card);
+    } else {
+      var here = doc.lineAt(sel.head);
+      consoleRun({ kind: "form", code: doc.toString(), line: here.number - 1, character: sel.head - here.from,
+                   variations: scopesOf(card), table: table }, card);
+    }
+    return true;
+  }
+
+  function promptRun(view) {
+    var text = view.state.doc.toString();
+    if (!text.trim()) return;
+    con.history = con.history.filter(function (h) { return h !== text; }).concat([text]).slice(-100);
+    store("history", con.history);
+    con.at = -1;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "" } });
+    consoleRun({ kind: "forms", text: text }, null);
+  }
+
+  function promptHistory(view, step) {
+    var doc = view.state.doc, head = view.state.selection.main.head;
+    if (step < 0 && doc.lineAt(head).number !== 1) return false;
+    if (step > 0 && doc.lineAt(head).number !== doc.lines) return false;
+    if (!con.history.length) return false;
+    var at = con.at < 0 ? con.history.length : con.at;
+    at = Math.max(0, Math.min(con.history.length, at + step));
+    con.at = at === con.history.length ? -1 : at;
+    var text = con.at < 0 ? "" : con.history[at];
+    view.dispatch({ changes: { from: 0, to: doc.length, insert: text }, selection: { anchor: text.length } });
+    return true;
+  }
+
+  // Run something: open the console first if it isn't
+  function consoleRun(payload, card) {
+    consolePanel();
+    consoleShow(true);
+    if (!con.state || con.state.workspace !== ws) { con.waiting = { payload: payload, card: card }; consoleChoose(); return; }
+    post(consoleBase() + "/run", payload).then(function (r) {
+      return r.json().then(function (found) {
+        if (!r.ok) { consoleSay(found.error || "Couldn't run it"); return; }
+        if (card) { con.cards[found.command] = card; delete card.dataset.edRan; card.dataset.edRunning = ""; }
+        consoleState(found.state);
+        consolePoll(true);
+      });
+    }).catch(function () { consoleSay("The server can't be reached"); });
+  }
+
+  // The choices to open the console with, for the active tab's script
+  function consoleChoose() {
+    var box = con.opening;
+    box.hidden = false;
+    box.textContent = "";
+    if (!active) { box.appendChild(el("p", "ui-muted", "Open a script to start the console on it.")); return; }
+    box.appendChild(el("p", "ui-muted", "Loading the choices for " + active + "…"));
+    fetch(consoleBase() + "?path=" + encodeURIComponent(active)).then(function (r) { return r.json(); }).then(function (found) {
+      box.textContent = "";
+      var state = found.state;
+      if (state && state.workspace !== ws) {
+        box.appendChild(el("p", null, "The console is open on " + state.workspace + ". Close it there to open it here."));
+        return;
+      }
+      var choices = found.choices || {};
+      if (choices.error) { box.appendChild(el("p", "ed-cl--fail", choices.error)); return; }
+      var form = el("form", "ed-console__form");
+      form.appendChild(el("strong", null, "Start the console on " + active));
+      function pick(label, name, options, selected) {
+        if (!options.length) return;
+        var field = el("label", "ed-console__field");
+        field.appendChild(el("span", "ui-muted", label));
+        var select = el("select", "ui-select ui-select--sm");
+        select.name = name;
+        options.forEach(function (o) { var opt = el("option", null, o); opt.value = o; if (o === selected) opt.selected = true; select.appendChild(opt); });
+        field.appendChild(select);
+        form.appendChild(field);
+      }
+      var d = choices.defaults || {};
+      pick("Environment", "environment", choices.environments || [], d.environment);
+      Object.keys(choices.versions || {}).forEach(function (uut) {
+        pick(uut, "version-" + uut, choices.versions[uut].slice().reverse(), (d.versions || {})[uut]);
+      });
+      pick("Variation", "variation", choices.variations || [], d.variation);
+      var go = el("button", "ui-btn ui-btn--sm ui-btn--primary", "Start");
+      go.type = "submit";
+      var cancel = el("button", "ui-btn ui-btn--sm ui-btn--ghost", "Cancel");
+      cancel.type = "button";
+      cancel.addEventListener("click", function () { box.hidden = true; con.waiting = null; if (!con.state) consoleClosed(); });
+      form.appendChild(go);
+      form.appendChild(cancel);
+      form.addEventListener("submit", function (event) { event.preventDefault(); consoleOpen(form); });
+      box.appendChild(form);
+      go.focus();
+    }).catch(function () { box.textContent = "The server can't be reached"; });
+  }
+
+  function consoleOpen(form) {
+    var body = { path: active, versions: {} };
+    if (form) {
+      all("select", form).forEach(function (select) {
+        if (select.name.indexOf("version-") === 0) body.versions[select.name.slice(8)] = select.value;
+        else body[select.name] = select.value;
+      });
+    }
+    con.opening.textContent = "";
+    con.opening.appendChild(el("p", "ui-muted", "Starting… (waiting for the local worker if it is running a job)"));
+    post(consoleBase() + "/open", body).then(function (r) {
+      return r.json().then(function (found) {
+        if (!r.ok) { con.opening.textContent = ""; con.opening.appendChild(el("p", "ed-cl--fail", found.error || "The console couldn't start")); return; }
+        con.opening.hidden = true;
+        con.list.textContent = "";
+        con.last = 0;
+        consoleState(found.state);
+        consolePoll(true);
+        var waiting = con.waiting;
+        con.waiting = null;
+        if (waiting) consoleRun(waiting.payload, waiting.card);
+      });
+    }).catch(function () { con.opening.textContent = "The server can't be reached"; });
+  }
+
+  // Open the console's choices without running anything
+  function consoleOpenPanel() {
+    consolePanel();
+    consoleShow(true);
+    if (!con.state) consoleChoose();
+  }
+
   function start() {
     root = document.getElementById("ed");
     if (!root) return;
     ws = root.dataset.workspace;
     base = root.dataset.base.replace(/\/$/, "");
     editable = root.dataset.editable === "true";
+    consoleOn = editable && root.dataset.console === "true";
     var asked = new URLSearchParams(location.search);  // read before a tab rewrites the address
     var given = JSON.parse(root.dataset.tabs || "[]");
     var first = root.dataset.active || null;
@@ -1636,6 +2064,7 @@
     drawProblems();
     // A link from a requirement's page: write a script for it
     if (editable && asked.get("new")) fileDialog("new", { requirement: asked.get("requirement") || "" });
+    if (consoleOn) consoleStart();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);

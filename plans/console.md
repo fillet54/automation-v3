@@ -335,3 +335,55 @@ and the gutter button appear with a local worker and not without.
   the script from disk.
 - Tracebacks are left out of the transcript for unknown names and
   missing blocks, where they say nothing more than the message.
+
+### Step 4 (the transcript)
+
+- Done in step 1: `kernel.Transcript` makes the lines as events come.
+  The table of kinds above holds, with `call` lines (block calls a step
+  made, indented by depth) and `error` (a traceback, folded on the
+  page).
+- A Precondition is named by its description ("Precondition: LM at
+  PDI…"), on its step line and as an untitled card's command line.
+- A step stopped by Stop has no failure line: the kernel's `stopped`
+  note says it.
+- The kernel's state has `outcomes` (command id → outcome, the last
+  100), which the page uses to colour a card's ▶.
+
+### Step 5 (the editor)
+
+- All in `editor.js`, in a section of its own ("The console"), because
+  it needs the cards' private state (`dataOf`, `openCard`, the card
+  elements). The template only says whether there is a console
+  (`data-console` on `#ed`, and a **Console** button in the bar).
+- The panel is `position: sticky; bottom: 0` inside `#ed`, so it stays
+  at the foot of the window as the cards scroll. The editor's panes are
+  padded by the panel's height (`--ed-console-h`), so the last card can
+  always be scrolled above it.
+- **Not done: completion in the prompt.** The language server completes
+  names in a card, by its place in a file it has been sent. The prompt
+  isn't in a file, so it would need a request of its own. It's left
+  for later.
+- Shift+Enter in a **table** block binds the table's first row before
+  running the form (`table` on the run request), so `(Verify light = true)`
+  inside a table's steps can be tried on its own. Without it, every
+  form in a table card failed with an unknown name.
+- Checked by hand in the demo (Chrome):
+  - opening from the bar and from ▶;
+  - a precondition card healing;
+  - a table card running every row;
+  - Shift+Enter on a nested form, with the failure link putting the
+    cursor on the failing call;
+  - Shift+Enter in a table card;
+  - the prompt;
+  - Stop on a Wait that never holds;
+  - a reload picking the open console up;
+  - the Workers page showing "In the console";
+  - Close giving the worker back.
+
+### Step 6 (docs)
+
+- `docs/operating/editor.rst`: a "Trying things out: the console"
+  section.
+- `docs/operating/local-client.rst`: `--config` gives the client a
+  console, which borrows its worker.
+- `docs/blocks/writing-blocks.rst`: `context.check_stopped()`.

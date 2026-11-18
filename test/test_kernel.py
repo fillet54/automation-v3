@@ -163,6 +163,33 @@ class KernelTest(unittest.TestCase):
         phases = [line["text"] for line in lines if line["kind"] == "phase"]
         self.assertEqual(phases, ["check ✗, heal ✓, check ✓"])
 
+    def test_a_precondition_is_named_by_its_description(self):
+        kernel = self.kernel()
+        command, lines = self.run_card(kernel, '''
+            (Precondition "Nothing to do" (= 1 1))
+        ''')
+        texts = [line["text"] for line in lines]
+        self.assertEqual(texts[:2], ["▶ Precondition: Nothing to do",
+                                     "✓ Precondition: Nothing to do"])
+
+    def test_a_form_from_a_table_card_gets_the_first_row(self):
+        kernel = self.kernel()
+        table = '''("x doubled"
+  ["one" [1 2]
+   "two" [2 4]])
+
+(Verify (twice x) = doubled)'''
+        command = kernel.run_forms("(Verify (twice x) = doubled)", line=4, table=table)
+        self.done(kernel)
+        lines = [line for line in kernel.lines if line["command"] == command.id]
+        self.assertEqual(command.outcome, "pass")
+        self.assertEqual(lines[1]["text"], "with row one")
+
+    def test_an_unknown_name_has_no_traceback(self):
+        kernel = self.kernel()
+        command, lines = self.run_forms(kernel, "(Read nowhere)")
+        self.assertEqual([line["kind"] for line in lines if line["kind"] == "error"], [])
+
     def test_a_table_card(self):
         kernel = self.kernel()
         command, lines = self.run_card(kernel, '''
@@ -231,6 +258,7 @@ class KernelTest(unittest.TestCase):
         self.done(kernel, 10)
         texts = [line["text"] for line in kernel.lines]
         self.assertIn("stopped", texts)
+        self.assertFalse([t for t in texts if "Stopped" in t], "the stop isn't a failure")
         self.run_forms(kernel, "(twice 4)")
         self.assertEqual(kernel.lines[-1]["text"], "=> 8", "the kernel goes on")
 

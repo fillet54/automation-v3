@@ -125,6 +125,22 @@ class ConsoleTest(unittest.TestCase):
         response = self.post("/open", path="DSKY/new.rst")
         self.assertEqual(response.status_code, 400)
 
+    def test_the_workspace_page_offers_it(self):
+        page = self.http.get(f"/workspace/{self.branch}").get_data(as_text=True)
+        self.assertIn('data-console="true"', page)
+        self.assertIn("data-ed-console", page)
+        app = create_app(DB_PATH=self.db, REPORTS_PATH=self.tmp / "reports",
+                         WORKSPACE_PATH=self.tmp / "repo", TESTING=True)
+        page = app.test_client().get(f"/workspace/{self.branch}").get_data(as_text=True)
+        self.assertIn('data-console="false"', page)
+        self.assertNotIn("data-ed-console", page)
+
+    def test_outcomes_in_the_state(self):
+        self.opened()
+        command = self.post("/run", kind="forms", text="(Verify 1 = 2)").get_json()["command"]
+        state = self.idle()
+        self.assertEqual(state["outcomes"][str(command)], "fail")
+
     def test_no_console_without_a_worker_in_process(self):
         app = create_app(DB_PATH=self.db, REPORTS_PATH=self.tmp / "reports",
                          WORKSPACE_PATH=self.tmp / "repo", TESTING=True)

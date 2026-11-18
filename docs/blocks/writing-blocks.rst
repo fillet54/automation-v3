@@ -236,6 +236,13 @@ bindings:
    The arguments of the running call, as written, e.g. to describe them in
    ``stdout``. ``Verify`` shows ``(< 2 limit) is true`` this way.
 
+``context.check_stopped()``
+   Raises ``context.Stopped`` if whatever runs the script asked it to stop
+   (the editor's console has a **Stop**). The clock's sleep checks it, so a
+   block that waits with ``clock.current().sleep`` stops at once; a block
+   with a loop of its own of any length calls it in the loop. The lunar
+   module's ``run_for`` and ``fly_to`` do, for ``lms``.
+
 ``StartLM`` uses the first: its configuration arrives evaluated (variation
 symbols and definitions already replaced by their values), and it finds the
 lunar module through its handle.

@@ -32,10 +32,11 @@
      data-base="{{ url_for('workspace.index', id=workspace.id) }}"
      data-tabs='{{ tabs | tojson }}' data-active="{{ active_tab or '' }}"
      data-variation="{{ request.args.get('variation') or '' }}" data-files="{{ request.args.get('files') or '' }}"
-     data-report="{{ request.args.get('report') or '' }}">
+     data-report="{{ request.args.get('report') or '' }}" data-console="{{ 'true' if console else 'false' }}">
   <div class="ed-bar" hidden>
     <div class="ed-tabs" role="tablist" aria-label="Open files"></div>
     {% if editable %}<div class="ed-actions"><span class="ed-status ui-muted" aria-live="polite"></span>
+      {% if console %}<button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-console title="Run blocks and forms against the UUT on this machine">Console</button>{% endif %}
       <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost ed-problems-toggle" data-ed-problems aria-expanded="false" title="Errors and warnings in the open files">Problems</button>
       <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-undo disabled title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
       <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-redo disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
