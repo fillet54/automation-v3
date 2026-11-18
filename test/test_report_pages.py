@@ -14,9 +14,9 @@ from automationv3.services.worker.local import run_locally
 from automationv3.web import report_view
 from automationv3.web.app import create_app
 
-from .data import make_workspaces as gitutil
+from . import gitutil
+from .examples import RVTS
 
-RVTS = Path(__file__).resolve().parent / "data" / "rvts"
 
 
 class TestDocumentTitle(unittest.TestCase):
@@ -31,7 +31,7 @@ class TestDocumentTitle(unittest.TestCase):
 
 
 class ReportPagesTestCase(unittest.TestCase):
-    """A report tracking BRA-1 (a script that passes) and BRA-2 (none run),
+    """A report tracking ALM-1 (a script that passes) and ALM-2 (none run),
     with a failing script added on its own"""
 
     @classmethod
@@ -39,13 +39,13 @@ class ReportPagesTestCase(unittest.TestCase):
         cls.source = Path(tempfile.mkdtemp())
         host = Host.from_config({"environments": {"sim": {"workdir": str(cls.source / "sim")}}})
         cls.report_id, _ = run_locally(
-            RVTS, ["BRA/tc_bra_00004.rst", "BRA/tc_bra_00003.rst"], cls.source / "reports",
-            host, versions={"demo": "1.0.0"})
+            RVTS, ["ALM/tc_alm_001.rst", "CFG/tc_cfg_002.rst"], cls.source / "reports",
+            host, versions={"lm": "LUM099"})
         store.update_report(
-            cls.source / "reports", cls.report_id, name="Brakes",
-            requirements={"BRA-1": ["BRA/tc_bra_00004.rst"], "BRA-2": ["BRA/missing.rst"]},
-            requirement_snapshots={"BRA-1": {"text": "The brakes shall hold.",
-                                             "subsystem": "BRA"}})
+            cls.source / "reports", cls.report_id, name="Alarms",
+            requirements={"ALM-1": ["ALM/tc_alm_001.rst"], "ALM-2": ["ALM/missing.rst"]},
+            requirement_snapshots={"ALM-1": {"text": "The computer shall fly through a 1202.",
+                                             "subsystem": "ALM"}})
 
     @classmethod
     def tearDownClass(cls):
@@ -68,38 +68,38 @@ class ReportPagesTestCase(unittest.TestCase):
 class TestTree(ReportPagesTestCase):
     def test_requirements_group_by_subsystem_with_untracked_scripts_last(self):
         view = self.view()
-        self.assertEqual([g["name"] for g in view["groups"]], ["BRA", "Unassigned"])
+        self.assertEqual([g["name"] for g in view["groups"]], ["ALM", "Unassigned"])
         (bra1,) = view["groups"][0]["requirements"]
-        self.assertEqual((bra1["id"], bra1["dot"], bra1["issues"]), ("BRA-1", "pass", 0))
-        self.assertEqual(bra1["text"], "The brakes shall hold.")
+        self.assertEqual((bra1["id"], bra1["dot"], bra1["issues"]), ("ALM-1", "pass", 0))
+        self.assertEqual(bra1["text"], "The computer shall fly through a 1202.")
         (script,) = bra1["scripts"]
-        self.assertEqual(script["title"], "Brake Pressure Modes")
-        self.assertEqual(len(script["rows"]), 3)  # its variations
-        self.assertEqual(script["anchor"], "BRA-1--BRA-tc_bra_00004-rst")
+        self.assertEqual(script["title"], "Executive Overflow (1202)")
+        self.assertEqual(len(script["rows"]), 2)  # its variations
+        self.assertEqual(script["anchor"], "ALM-1--ALM-tc_alm_001-rst")
 
         (bra2,) = view["groups"][1]["requirements"]
         self.assertEqual((bra2["dot"], bra2["issues"]), ("none", 1))
         self.assertEqual(bra2["scripts"][0]["rows"][0]["state"], "not run")
 
         other = view["other"]
-        self.assertEqual([s["script"] for s in other["scripts"]], ["BRA/tc_bra_00003.rst"])
+        self.assertEqual([s["script"] for s in other["scripts"]], ["CFG/tc_cfg_002.rst"])
         self.assertEqual(other["dot"], "fail")
         self.assertEqual(view["dot"], "fail")
 
     def test_a_requirement_without_tests_is_untested(self):
         report = store.load_report(self.root, self.report_id)
         store.update_report(self.root, self.report_id,
-                            requirements={**report["requirements"], "BRA-3": []},
+                            requirements={**report["requirements"], "ALM-3": []},
                             requirement_snapshots={
                                 **report["requirement_snapshots"],
-                                "BRA-3": {"text": "", "subsystem": "BRA"}})
+                                "ALM-3": {"text": "", "subsystem": "ALM"}})
         view = self.view()
         bra = view["groups"][0]
-        (bra3,) = [r for r in bra["requirements"] if r["id"] == "BRA-3"]
+        (bra3,) = [r for r in bra["requirements"] if r["id"] == "ALM-3"]
         self.assertEqual((bra3["color"], bra3["dot"], bra3["scripts"]),
                          ("untested", "none", []))
         self.assertEqual((bra["untested"], bra["issues"]), (1, 1))
-        self.assertEqual([r["id"] for r in view["untested"]], ["BRA-3"])
+        self.assertEqual([r["id"] for r in view["untested"]], ["ALM-3"])
 
         from automationv3.services.reports import export
         from automationv3.documents import core
@@ -117,8 +117,8 @@ class TestTree(ReportPagesTestCase):
         self.assertIn(row, view["issues"])
 
     def test_requirements_the_report_didnt_record_are_looked_up(self):
-        view = self.view(lambda ids: {"BRA-2": ("Stops.", "BRK")})
-        self.assertEqual([g["name"] for g in view["groups"]], ["BRA", "BRK"])
+        view = self.view(lambda ids: {"ALM-2": ("Stops.", "EPS")})
+        self.assertEqual([g["name"] for g in view["groups"]], ["ALM", "EPS"])
         self.assertEqual(view["groups"][1]["requirements"][0]["text"], "Stops.")
 
     def test_a_group_takes_its_worst_dot(self):
@@ -128,16 +128,16 @@ class TestTree(ReportPagesTestCase):
 
     def test_values_group_by_the_first_two_parts_of_their_path(self):
         group = report_view.connector_group
-        self.assertEqual(group("vm.eps.line.bus-computer.on"), "vm.eps")
+        self.assertEqual(group("lm.bench.battery.2.fault"), "lm.bench")
         self.assertEqual(group("bench.sun"), "bench")
         connectors = report_view.connectors([
-            {"path": "vm.eps.soc", "operations": ["read"]},
-            {"path": "vm.eps.shed", "operations": ["read", "fix"]},
-            {"path": "vm.mode.current", "operations": ["read"]},
+            {"path": "lm.eps.bus-volts", "operations": ["read"]},
+            {"path": "lm.eps.amps", "operations": ["read", "fix"]},
+            {"path": "lm.lgc.program", "operations": ["read"]},
         ])
         self.assertEqual([(c["name"], c["fixed"]) for c in connectors],
-                         [("vm.eps", 1), ("vm.mode", 0)])
-        self.assertEqual(connectors[0]["refs"][0]["path"], "vm.eps.shed")  # fixed first
+                         [("lm.eps", 1), ("lm.lgc", 0)])
+        self.assertEqual(connectors[0]["refs"][0]["path"], "lm.eps.amps")  # fixed first
 
 
 class PagesTestCase(ReportPagesTestCase):
@@ -167,33 +167,33 @@ class TestPages(PagesTestCase):
         for path in ("", "/values", "/history"):
             page = self.get(path)
             self.assertIn('id="report-nav"', page)
-            self.assertIn("Brake Pressure Modes", page)  # a script in the tree
-            self.assertIn(f"{self.base}?subsystem=BRA#req-bra-1", page)
+            self.assertIn("Executive Overflow (1202)", page)  # a script in the tree
+            self.assertIn(f"{self.base}?subsystem=ALM#req-alm-1", page)
 
     def test_the_document_narrows_to_a_subsystem(self):
-        page = self.get("?subsystem=BRA")
+        page = self.get("?subsystem=ALM")
         self.assertIn('id="report-filter"', page)
-        self.assertIn('id="req-bra-1"', page)
-        self.assertNotIn('id="req-bra-2"', page)  # Unassigned
+        self.assertIn('id="req-alm-1"', page)
+        self.assertNotIn('id="req-alm-2"', page)  # Unassigned
         everything = self.get()
         self.assertNotIn('id="report-filter"', everything)
-        self.assertIn('id="req-bra-2"', everything)
+        self.assertIn('id="req-alm-2"', everything)
         # the Runs page it replaces sends its links here
-        response = self.http.get(self.base + "/runs?subsystem=BRA")
-        self.assertEqual(response.headers["Location"], self.base + "?subsystem=BRA")
+        response = self.http.get(self.base + "/runs?subsystem=ALM")
+        self.assertEqual(response.headers["Location"], self.base + "?subsystem=ALM")
 
     def test_the_overview_lists_open_issues_with_why(self):
         page = self.get()
         self.assertIn("Open issues", page)
-        self.assertRegex(page, r"ui-outcome--fail.*Failed</span> at step")
+        self.assertRegex(page, r"ui-outcome--fail.*Failed</span> at The load is accepted")
         self.assertIn("Requirements", page)
         self.assertIn('href="/reports/', page)  # combinations link their runs
 
     def test_the_list_of_reports_sums_each_one_up(self):
         page = self.http.get("/reports/").get_data(True)
         self.assertNotIn("Covers", page)
-        self.assertIn("1 / 2 green", page)  # BRA-1 green, BRA-2 not run
-        self.assertIn("3 / 4", page)  # combinations passed
+        self.assertIn("1 / 2 green", page)  # ALM-1 green, ALM-2 not run
+        self.assertIn("2 / 3", page)  # combinations passed
         self.assertIn('flex-grow: 1;', page)  # the requirements bar
         store.set_frozen(self.root, self.report_id, True)
         self.assertIn("Frozen", self.http.get("/reports/").get_data(True))
@@ -226,7 +226,7 @@ class TestDocumentPages(PagesTestCase):
         self.assertEqual(response.status_code, 302)
         page = self.get()
         self.assertIn("Covers 2 requirements.", page)
-        self.assertIn("tc_bra_00004.rst / sim / normal", page)
+        self.assertIn("tc_alm_001.rst / sim / RR at LGC", page)
         self.assertIn(".. results::", export.source(self.root, self.report_id))
 
     def test_the_editor_previews_what_it_would_show(self):
@@ -235,7 +235,7 @@ class TestDocumentPages(PagesTestCase):
         self.assertIn('hx-post="' + self.base + '/preview"', editor)
         preview = self.http.post(self.base + "/preview", data={
             "source": "Ran :report:`runs` runs.\n\n.. nope::\n"}).get_data(True)
-        self.assertIn("Ran 4 runs.", preview)
+        self.assertIn("Ran 3 runs.", preview)
         self.assertIn("Unknown directive type", preview)  # problems listed
 
     def test_each_block_refreshes_itself_while_runs_are_in_progress(self):

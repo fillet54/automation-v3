@@ -17,34 +17,34 @@ class TestWorkspaceHandler(unittest.TestCase):
         # Master Workspace
         response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'BRA', response.data)
+        self.assertIn(b'GDN', response.data)
         self.assertNotIn(b'TEST', response.data)
 
         # Branch1
         response = self.client.get(url_for('workspace.tree', id='branch1'))
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'BRA', response.data)
+        self.assertIn(b'GDN', response.data)
         self.assertIn(b'TEST', response.data)
     
     def test_workspace_filesystem_tree_open_close(self):
         # Closed
         response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'BRA', response.data)
-        self.assertNotIn(b'tc_bra_00001.rst', response.data)
+        self.assertIn(b'GDN', response.data)
+        self.assertNotIn(b'tc_gdn_001.rst', response.data)
 
         # Toggle open
         response = self.client.post(url_for('workspace.expand',
                                             id='master',
-                                            path='BRA'))
+                                            path='GDN'))
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'tc_bra_00001.rst', response.data)
+        self.assertIn(b'tc_gdn_001.rst', response.data)
 
         # Stays open
         response = self.client.get(url_for('workspace.tree', id='master'))
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'BRA', response.data)
-        self.assertIn(b'tc_bra_00001.rst', response.data)
+        self.assertIn(b'GDN', response.data)
+        self.assertIn(b'tc_gdn_001.rst', response.data)
     
 
 
@@ -63,7 +63,7 @@ class TestWorkspaceHandler(unittest.TestCase):
     #################
 
     def setUp(self):
-        from .data import make_workspaces as gitutil
+        from . import gitutil
         import tempfile, shutil
 
         # Create and setup DB
@@ -73,7 +73,7 @@ class TestWorkspaceHandler(unittest.TestCase):
 
 
         # Create workspaces
-        rvtdir = Path(__file__).resolve().parent / 'data' / 'rvts'
+        from .examples import RVTS as rvtdir
         self.tempdir = Path(tempfile.mkdtemp())
         self.gitdir = self.tempdir / 'master'
         shutil.copytree(rvtdir, self.gitdir / 'rvts')

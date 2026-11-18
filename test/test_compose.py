@@ -50,6 +50,17 @@ class Refuses(BuildingBlock):
         return BlockResult(False, stdout="refused")
 
 
+class Configure(BuildingBlock):
+    """An action that takes its arguments as written, in pairs, and gives
+    nothing back"""
+
+    def check_syntax_forms(self, *args):
+        return len(args) % 2 == 0
+
+    def execute_forms(self, *args):
+        return BlockResult(True)
+
+
 class Measures(BuildingBlock):
     """An action that hands its result's renderer some data"""
 
@@ -152,7 +163,7 @@ class TestCallValues(unittest.TestCase):
         self.assertEqual(outcome, "pass")
 
     def test_an_action_gives_what_it_returned(self):
-        outcome, _ = run("(Verify (nil? (SetupSimulation :speed 1)))")
+        outcome, _ = run("(Verify (nil? (Configure :speed 1)))")
         self.assertEqual(outcome, "pass")
 
 

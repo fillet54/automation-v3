@@ -316,8 +316,8 @@ class Headings(unittest.TestCase):
 
 
 def scripts():
-    """Every script and core.rst under test/data and demo"""
-    return [path for top in ("test/data", "demo") for path in sorted((ROOT / top).rglob("*.rst"))
+    """Every script and core.rst in the Apollo example"""
+    return [path for top in ("automationv3/examples",) for path in sorted((ROOT / top).rglob("*.rst"))
             if source.has_rvt(path.read_text())]
 
 
@@ -325,7 +325,7 @@ class WholeFiles(unittest.TestCase):
 
     def test_every_script_parses_without_messages(self):
         found = scripts()
-        self.assertGreater(len(found), 80)
+        self.assertGreater(len(found), 30)  # the whole Apollo example
         for path in found:
             with self.subTest(path=str(path.relative_to(ROOT))):
                 _, warnings = parse(path.read_text(), doctitle_xform=False)

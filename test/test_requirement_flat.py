@@ -23,9 +23,9 @@ from automationv3.web.app import create_app
 from .central import SCRIPTS, Central, HttpSession
 
 CSV = (b"\xef\xbb\xbfID,Text,Satisfies,Subsystem,Section,Verification Method\n"
-       b'SRS-1,"The VM shall *shed* loads below 40%:\n- the payload first",SYS-1,EPS,Power,Test\n'
-       b"SRS-2,The VM shall keep time.,,TIM,,\n")
-LIST = b"# The SRS, by hand\nSRS-1  The VM shall shed loads.\n\nSRS-2: The VM shall keep time.\n"
+       b'SRS-1,"The LGC shall *shed* loads below 40%:\n- the payload first",SYS-1,EPS,Power,Test\n'
+       b"SRS-2,The LGC shall keep time.,,TIM,,\n")
+LIST = b"# The SRS, by hand\nSRS-1  The LGC shall shed loads.\n\nSRS-2: The LGC shall keep time.\n"
 
 
 def texts(found):
@@ -42,7 +42,7 @@ class TestReading(unittest.TestCase):
         one, two = sorted(spec.requirements, key=lambda r: r.id)
         # The text is as written: rst markup characters don't count
         self.assertEqual(rst_source.plain_text(one.text),
-                         "The VM shall *shed* loads below 40%: - the payload first")
+                         "The LGC shall *shed* loads below 40%: - the payload first")
         self.assertEqual(one.satisfies, ("SYS-1",))
         self.assertEqual(one.section, ("SRS", "Power"))
         self.assertEqual(one.attributes, {"subsystem": "EPS", "verification-method": "Test"})
@@ -51,8 +51,8 @@ class TestReading(unittest.TestCase):
 
     def test_a_list(self):
         self.assertEqual(texts(flat.read(LIST, "srs.txt", "SRS")),
-                         {"SRS-1": "The VM shall shed loads.",
-                          "SRS-2": "The VM shall keep time."})
+                         {"SRS-1": "The LGC shall shed loads.",
+                          "SRS-2": "The LGC shall keep time."})
 
     def test_a_tsv(self):
         found = flat.read(b"id\ttext\nA-1\tIt shall, with commas.\n", "a.tsv", "A")
@@ -84,7 +84,7 @@ class TestReading(unittest.TestCase):
         _, outcomes = store.import_export(conn, flat.read(LIST, "srs.txt", "SRS"))
         self.assertIn("unchanged", outcomes[0][1])
         changed = LIST.replace(b"shed loads.", b"shed loads in order.")
-        store.import_export(conn, flat.read(changed.replace(b"SRS-2: The VM shall keep time.\n", b""),
+        store.import_export(conn, flat.read(changed.replace(b"SRS-2: The LGC shall keep time.\n", b""),
                                             "srs.txt", "SRS"))
         changes = {c.id: c.changes for c in models.diff(conn, "trunk@1", "trunk@3")}
         self.assertEqual(set(changes), {"SRS-1", "SRS-2"})
@@ -120,7 +120,7 @@ class TestWithoutACentralServer(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("say which spec it is with --spec", out)
         status, out = self.run_cli(str(self.tmp / "srs.csv"), "--spec", "SRS",
-                                   "--title", "Vehicle Manager SRS")
+                                   "--title", "Guidance Computer SRS")
         self.assertEqual(status, 0, out)
         self.assertIn("SRS (trunk)", out)
         status, out = self.run_cli(str(self.tmp / "srs.csv"), "--spec", "SRS",
@@ -129,7 +129,7 @@ class TestWithoutACentralServer(unittest.TestCase):
         with closing(connect(self.db)) as conn:
             self.assertEqual(models.find_by_id(conn, "SRS-2").subsystem, "TIM")
             self.assertIsNotNone(models.find_by_id(conn, "SRS-1", "SRS@1.0"))
-            self.assertEqual(models.specs(conn)[0].title, "Vehicle Manager SRS")
+            self.assertEqual(models.specs(conn)[0].title, "Guidance Computer SRS")
 
     def test_the_imports_page(self):
         with closing(connect(self.db)) as conn:
@@ -248,8 +248,8 @@ def workbook(rows, sheets=("Requirements",)):
 
 DOORS_LIKE = [["Object Identifier", "Object Text", "Parent Requirements", "Verification Method",
                "Allocation", "Notes"],
-              ["VM-1", "The VM shall boot.", "SYS-1; SYS-2", "Test", "CPU", "x"],
-              ["VM-2", "The VM shall log.", None, "Analysis", 3.0, None],
+              ["LGC-1", "The LGC shall boot.", "SYS-1; SYS-2", "Test", "CPU", "x"],
+              ["LGC-2", "The LGC shall log.", None, "Analysis", 3.0, None],
               [None, None, None, None, None, None]]
 
 
@@ -263,17 +263,17 @@ class TestColumns(unittest.TestCase):
 
     def test_a_workbook(self):
         data = workbook(DOORS_LIKE, sheets=("Cover", "Requirements"))
-        table = flat.table(data, "vm.xlsx")
+        table = flat.table(data, "lgc.xlsx")
         # The first sheet with something on it, not the blank cover
         self.assertEqual((table.sheets, table.sheet),
                          (["Cover", "Requirements"], "Requirements"))
         with self.assertRaisesRegex(export.ExportError, "is empty"):
-            flat.read(data, "vm.xlsx", "VM", sheet="Cover")
+            flat.read(data, "lgc.xlsx", "LGC", sheet="Cover")
         with self.assertRaisesRegex(export.ExportError, "has no sheet 'Nope'"):
-            flat.read(data, "vm.xlsx", "VM", sheet="Nope")
+            flat.read(data, "lgc.xlsx", "LGC", sheet="Nope")
         columns = flat.guess(DOORS_LIKE[0])
         del columns.attributes[5]  # Notes, ignored
-        found = flat.read(data, "vm.xlsx", "VM", sheet="Requirements", columns=columns)
+        found = flat.read(data, "lgc.xlsx", "LGC", sheet="Requirements", columns=columns)
         one, two = found.specs[0].requirements
         self.assertEqual(one.satisfies, ("SYS-1", "SYS-2"))
         self.assertEqual(two.attributes, {"allocation": "3", "verification-method": "Analysis"})
@@ -325,8 +325,8 @@ class TestTheSheetImportPage(unittest.TestCase):
 
     def test_upload_preview_import(self):
         rows = [["Req ID", "Requirement", "Section", "Owner"],
-                ["SRS-1", "The VM shall boot.", "Start", "ann"],
-                ["SRS-2", "The VM shall log.", "", "bob"]]
+                ["SRS-1", "The LGC shall boot.", "Start", "ann"],
+                ["SRS-2", "The LGC shall log.", "", "bob"]]
         url = self.upload(workbook(rows), "srs.xlsx")
         self.assertIn("/requirements/imports/sheet/", url)
         page = self.page(url)
@@ -352,9 +352,9 @@ class TestTheSheetImportPage(unittest.TestCase):
 
         # Next time: the same file name comes back as it was read, and the
         # preview says what changed
-        rows[1][1] = "The VM shall boot in 5 s."
+        rows[1][1] = "The LGC shall boot in 5 s."
         del rows[2]
-        rows.append(["SRS-3", "The VM shall stop.", "", ""])
+        rows.append(["SRS-3", "The LGC shall stop.", "", ""])
         url = self.upload(workbook(rows), "srs.xlsx")
         page = self.page(url)
         self.assertIn("Filled in from the last import of srs.xlsx", page)

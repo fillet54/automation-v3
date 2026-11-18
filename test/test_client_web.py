@@ -14,7 +14,7 @@ from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 
 from .central import SCRIPTS, Central, HttpSession
-from .data import make_workspaces as gitutil
+from . import gitutil
 from .rvt import doc, rvt
 
 

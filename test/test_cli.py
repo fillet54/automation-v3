@@ -17,9 +17,9 @@ from automationv3.services.worker.local import LocalServer, run_locally
 from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 
-from .data import make_workspaces as gitutil
+from . import gitutil
+from .examples import RVTS
 
-RVTS = Path(__file__).resolve().parent / "data" / "rvts"
 
 
 class TestRunLocally(unittest.TestCase):
@@ -40,23 +40,22 @@ class TestRunLocally(unittest.TestCase):
         }
 
     def test_every_variation_by_default(self):
-        report_id, _ = run_locally(RVTS, ["BRA/tc_bra_00004.rst"], self.tmp / "reports",
+        report_id, _ = run_locally(RVTS, ["SFC/tc_sfc_001.rst"], self.tmp / "reports",
                                    Host.from_config(self.config))
         self.assertEqual(self.outcomes(report_id), {
-            ("normal", "sim"): "pass",
-            ("limp-home", "sim"): "pass",
-            ("emergency", "sim"): "pass",
+            ("standard", "sim"): "pass",
+            ("extended", "sim"): "pass",
         })
 
     def test_one_variation_in_every_hosted_environment(self):
         report_id, _ = run_locally(
-            RVTS, ["BRA/tc_bra_00005.rst", "BRA/tc_bra_00004.rst"], self.tmp / "reports",
+            RVTS, ["DSKY/tc_dsky_002.rst", "SFC/tc_sfc_001.rst"], self.tmp / "reports",
             Host.from_config(self.config),
-            variations={"BRA/tc_bra_00004.rst::limp-home"})
+            variations={"SFC/tc_sfc_001.rst::extended"})
         self.assertEqual(self.outcomes(report_id), {
             (None, "sim"): "pass",
             (None, "lms"): "pass",
-            ("limp-home", "sim"): "pass",
+            ("extended", "sim"): "pass",
         })
 
     def cli(self, *args):
@@ -69,15 +68,15 @@ class TestRunLocally(unittest.TestCase):
         return exit.exception.code, out.getvalue()
 
     def test_cli_exit_status(self):
-        code, out = self.cli("BRA/tc_bra_00001.rst")
+        code, out = self.cli("DSKY/tc_dsky_002.rst")
         self.assertEqual(code, 0, out)
-        self.assertIn("pass     BRA/tc_bra_00001.rst (sim)", out)
+        self.assertIn("pass     DSKY/tc_dsky_002.rst (sim)", out)
 
-        code, out = self.cli("BRA/tc_bra_00003.rst", "--uut", "demo=1.0.0")
+        code, out = self.cli("CFG/tc_cfg_002.rst", "--uut", "lm=LUM099")
         self.assertEqual(code, 1)
-        self.assertIn("fail     BRA/tc_bra_00003.rst", out)
+        self.assertIn("fail     CFG/tc_cfg_002.rst", out)
 
-        code, out = self.cli("BRA/tc_bra_00007.rst")
+        code, out = self.cli("DSKY/tc_dsky_005.rst")
         self.assertEqual(code, 2)
         self.assertIn("must come before the first step", out)
 
@@ -104,7 +103,8 @@ class TestServerWithLocalWorker(unittest.TestCase):
 
     def test_jobs_queued_in_the_app_run_in_process(self):
         response = self.http.post("/runner/queue", data={
-            "workspace": self.branch, "requirement": "VMCFUE00004"})
+            "workspace": self.branch, "requirement": "LGC-DSK-002",
+            "configured": "1", "environment": "sim"})
         report_id = response.headers["Location"].rstrip("/").split("/")[-1]
 
         # The worker's own thread, with its own connection to the same file

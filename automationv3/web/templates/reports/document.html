@@ -27,7 +27,7 @@
 
   {% call ui.fieldset("Documents", "One per line: NUMBER | REVISION | TITLE") %}
     {% call ui.field("Applicable documents", "doc-applicable") %}
-      {{ ui.textarea("applicable", applicable, id="doc-applicable", rows=4, mono=True, placeholder="VM-SRS-001 | C | Vehicle Manager software requirements") }}
+      {{ ui.textarea("applicable", applicable, id="doc-applicable", rows=4, mono=True, placeholder="LGC-SRS | C | Guidance computer software requirements") }}
     {% endcall %}
     {% call ui.field("Reference documents", "doc-reference") %}
       {{ ui.textarea("reference", reference, id="doc-reference", rows=4, mono=True) }}

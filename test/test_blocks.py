@@ -160,8 +160,8 @@ class TestBlocksWriteRst(unittest.TestCase):
         from automationv3.documents import core
         from .rvt import views
         script = rvt('(Verify 1 = 1)\n(Wait 2)\n(Wait (= 1 1) :within 5s)\n(TBD "later")\n'
-                     '(StartDemo {:mode :normal :readings {:pressure 60}})\n'
-                     '(SnapshotDemo "x")\n(Table-Driven [a b] [[1 2]])')
+                     '(StartLM {:mission :extended :start :high-gate})\n'
+                     '(AttachTrajectory "x")\n(Keys "V16N68E")\n(FlyTo :touchdown :within 900)')
         for statement in views(script):
             with self.subTest(statement=statement.rst[:40]):
                 latex = core.write(core.parse(statement.rst), "latex")["body"]

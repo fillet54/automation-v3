@@ -20,8 +20,16 @@ def quiet(*args):
     pass
 
 
+def keep_environment(test):
+    """setup() sets AUTOMATION_LM_BUILDS for the process: undo it after `test`"""
+    patch = mock.patch.dict(os.environ)
+    patch.start()
+    test.addCleanup(patch.stop)
+
+
 class TestDemoSetup(unittest.TestCase):
     def setUp(self):
+        keep_environment(self)
         self.tmp = Path(tempfile.mkdtemp())
         self.path = self.tmp / "demo"
 
@@ -32,13 +40,24 @@ class TestDemoSetup(unittest.TestCase):
         made = demo.setup(self.path, docs=False, log=quiet)
         worktrees = find_worktrees(made.workspace)
         self.assertEqual(sorted(worktrees), ["branch1", "branch2", "branch3", "master"])
-        self.assertTrue((worktrees["master"] / "BRA" / "tc_bra_00004.rst").exists())
+        self.assertTrue((worktrees["master"] / "LND" / "tc_lnd_001.rst").exists())
 
-    def test_loads_the_sample_requirements(self):
+    def test_loads_the_example_requirements(self):
         made = demo.setup(self.path, docs=False, log=quiet)
         with closing(connect(made.db_path)) as conn:
-            found = requirements.find_by_id(conn, "VMCBRA00001")
-        self.assertIsNotNone(found)
+            self.assertIsNotNone(requirements.find_by_id(conn, "LGC-GDN-001"))
+            self.assertIsNotNone(requirements.find_by_id(conn, "LGC-PRP-002"))  # Release 2
+
+    def test_sets_up_the_build_repository_and_a_local_build(self):
+        from automationv3.plugins.apollo import LunarModule
+        made = demo.setup(self.path, docs=False, log=quiet)
+        self.assertEqual(os.environ["AUTOMATION_LM_BUILDS"], str(made.path / "builds"))
+        build = LunarModule().find_local_build(made.path / "local-build")
+        self.assertTrue(build.id.startswith("local-"))
+        self.assertNotIn(build.digest, [v.digest for v in LunarModule().list_versions()])
+        os.environ.pop("AUTOMATION_LM_BUILDS")
+        demo.existing(self.path)  # the reloader's process finds it again
+        self.assertEqual(os.environ["AUTOMATION_LM_BUILDS"], str(made.path / "builds"))
 
     def test_the_worker_works_inside_the_demo_folder(self):
         made = demo.setup(self.path, docs=False, log=quiet)
@@ -76,6 +95,7 @@ class TestDemoUnderTheReloader(unittest.TestCase):
     """`demo --debug`: the reloader's processes reuse the demo, not rebuild it"""
 
     def setUp(self):
+        keep_environment(self)
         self.tmp = Path(tempfile.mkdtemp())
         self.path = self.tmp / "demo"
         self.args = {"--path": str(self.path), "--no-docs": True, "--debug": True}
@@ -105,6 +125,7 @@ class TestDemoUnderTheReloader(unittest.TestCase):
 
 class TestDocsLink(unittest.TestCase):
     def setUp(self):
+        keep_environment(self)
         self.tmp = Path(tempfile.mkdtemp())
         self.made = demo.setup(self.tmp / "demo", docs=False, log=quiet)
         self.docs = self.tmp / "html"
@@ -131,12 +152,12 @@ class TestDocsLink(unittest.TestCase):
             "<html lang=\"en\"><head><title>Steps</title><link href=\"_static/ui.css\">"
             "</head><!--ui:top--><body><header>plain</header><!--/ui:top-->"
             "<p>The page</p><!--ui:bottom--><!--/ui:bottom--></body></html>")
-        client = self.client(self.docs, UI_BRAND="lms", UI_THEME="dark",
+        client = self.client(self.docs, UI_BRAND="bench", UI_THEME="dark",
                              UI_MARKING={"text": "CUI", "bg": "#502B85", "fg": "#FFFFFF"})
         page = client.get("/docs/page.html").get_data(as_text=True)
         self.assertIn("The page", page)
         self.assertNotIn("plain", page)
-        self.assertIn("lms", page)
+        self.assertIn("bench", page)
         self.assertIn('href="/requirements/"', page)
         self.assertRegex(page, r'href="/docs/"\s+aria-current="page"')
         self.assertEqual(page.count("ui-marking--"), 2)

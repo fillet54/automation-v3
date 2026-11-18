@@ -119,8 +119,8 @@
         {
           "spec": "LGC",
           "file": "navigation.rst",
-          "old": ":satisfies: LM-LDG-003, MSN-001\n   :subsystem: NAV\n   :verification: Test\n   :last-modified-by: doors-import\n\n   Navigation shall take in",
-          "new": ":satisfies: LM-LDG-003, MSN-001, LM-NAV-099\n   :subsystem: NAV\n   :verification: Test\n   :last-modified-by: jdoe\n\n   Navigation shall take in"
+          "old": ":satisfies: LM-LDG-003, LM-GNC-001\n   :subsystem: NAV\n   :verification: Test\n   :last-modified-by: doors-import\n\n   Navigation shall take in",
+          "new": ":satisfies: LM-LDG-003, LM-GNC-001, LM-NAV-099\n   :subsystem: NAV\n   :verification: Test\n   :last-modified-by: jdoe\n\n   Navigation shall take in"
         },
         {
           "spec": "LGC",
@@ -156,12 +156,12 @@
         {
           "spec": "LGC",
           "file": "configuration.rst",
-          "append": ".. requirement:: LGC-CFG-002\n   :satisfies: MSN-012\n   :subsystem: CFG\n   :verification: Test\n   :last-modified-by: jdoe\n\n   The LGC shall accept an erasable load for an extended mission, and fly the descent with that mission's numbers.\n"
+          "append": ".. requirement:: LGC-CFG-002\n   :satisfies: LM-GNC-003, LM-PRP-004\n   :subsystem: CFG\n   :verification: Test\n   :last-modified-by: jdoe\n\n   The LGC shall accept an erasable load for an extended mission, and fly the descent with that mission's numbers.\n"
         },
         {
           "spec": "LGC",
           "file": "propellant.rst",
-          "append": ".. requirement:: LGC-PRP-002\n   :satisfies: MSN-003, LM-PRP-004\n   :subsystem: PRP\n   :verification: Test\n   :last-modified-by: jdoe\n\n   N93 shall show the descent propellant remaining as a percentage of the propellant the erasable load says was loaded.\n"
+          "append": ".. requirement:: LGC-PRP-002\n   :satisfies: LM-GNC-002, LM-PRP-004\n   :subsystem: PRP\n   :verification: Test\n   :last-modified-by: jdoe\n\n   N93 shall show the descent propellant remaining as a percentage of the propellant the erasable load says was loaded.\n"
         }
       ],
       "baselines": {

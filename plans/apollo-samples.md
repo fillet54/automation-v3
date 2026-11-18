@@ -714,3 +714,27 @@ plugin is seen everywhere it is needed.
   queue form, once `configured`, needs every variation ticked.
 - `lm.lgc.rate-command` connector added; `.throttles` takes the event
   to start from.
+
+### Step 6: every test on `lm`, the old samples gone (2026-11-17)
+
+- `plugins/sample`, `test/data` (rvts, doors, worker.json,
+  load_sample.py, make_workspaces.py) are deleted. Repository helpers
+  moved to `test/gitutil.py`; `test/examples.py` says where the Apollo
+  example is.
+- Mappings used: demo 1.0.0 → LUM099, 1.1.0 → LUM210 (newest);
+  `(.mode demo)` → `(.mission lm)`; `StartDemo`/`SnapshotDemo` →
+  `StartLM`/`AttachTrajectory`; the old pass + version-fail pair
+  (tc_bra_00004, tc_bra_00003) → `ALM/tc_alm_001` (passes all variations
+  on every version) and `CFG/tc_cfg_002` (fails on LUM099).
+  `SetupSimulation` became a `Configure` block inside `test_compose`.
+- `demo.py` moved onto the packaged example in this step (the store test
+  reads the history through it), with the build repository
+  (`builds/`, `AUTOMATION_LM_BUILDS`, also set by `existing()` for the
+  reloader) and a ready local build of LUM131 with its defect fixed.
+- The trace check found LGC requirements satisfying MSN ones directly.
+  LM got `LM-GNC-001..003` and `LM-ABT-003`, and every LGC requirement
+  traces to LM now; the only trace issue left is the deliberate
+  `LM-NAV-099`.
+- Docstrings, comments, placeholders and inline fixtures that spoke of
+  the VM, brakes or the demo UUT now use the lunar module.
+- 853 tests, 90 s.

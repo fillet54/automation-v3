@@ -10,11 +10,11 @@ from automationv3.framework.closure import resolve
 from .rvt import doc, rvt
 
 CORE = rvt("""
-(uut :demo)
+(uut :lm)
 (def limit 80)
 (defn check [p] (Verify p <= limit))
 (defn two ([a] a) ([a b] (+ a b)))
-(defn in-mode? [] (= (.mode demo) mode))
+(defn in-mode? [] (= (.mission lm) mode))
 """)
 
 
@@ -50,7 +50,7 @@ class TestNames(unittest.TestCase):
         self.assertIn("unknown name x", error)
 
     def test_handles_are_known(self):
-        self.assertEqual(check(rvt("(Verify (.running demo))"))[0], [])
+        self.assertEqual(check(rvt("(Verify (.booted lm))"))[0], [])
 
     def test_used_before_defined(self):
         (error,) = check(rvt("(Verify later = 1) (def later 1)"))[0]
@@ -61,9 +61,9 @@ class TestNames(unittest.TestCase):
         self.assertEqual(check(script)[0], [])
 
     def test_handles_are_not_bound_while_the_definitions_section_loads(self):
-        script = doc(rvt("(def m (.mode demo))", "definitions"), rvt("(Wait 1)"))
+        script = doc(rvt("(def m (.mission lm))", "definitions"), rvt("(Wait 1)"))
         (error,) = check(script)[0]
-        self.assertIn("demo isn't bound yet here", error)
+        self.assertIn("lm isn't bound yet here", error)
 
     def test_core_functions_are_checked_when_the_script_can_call_them(self):
         # in-mode? needs a `mode` variation symbol: fine until it's called
@@ -121,7 +121,7 @@ class TestShapes(unittest.TestCase):
                                    "(Verify 2 within? 1 3)"))[0], [])
 
     def test_quoted_and_as_written_arguments_are_not_names(self):
-        self.assertEqual(check(rvt("(Verify 1 <= 2) (Table-Driven [a b] [[1 2]])"))[0],
+        self.assertEqual(check(rvt("(Verify 1 <= 2) (Keys \"V16N68E\") (FlyTo :high-gate :within 600)"))[0],
                          [])
 
     def test_special_form_shapes(self):

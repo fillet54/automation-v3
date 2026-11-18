@@ -323,12 +323,20 @@ class TestSampleHistory(unittest.TestCase):
         self.addCleanup(conn.close)
         changes = {c.id: c.changes for c in models.diff(conn, "set:Release 1", "trunk")}
         self.assertEqual(changes, {
-            "SEG-SPC-007": ("text",), "VM-EPS-002": ("text",), "VM-EPS-007": ("added",),
-            "VM-MEM-001": ("links",), "VM-TC-001": ("metadata",),
-            "VM-TIM-005": ("section",), "VMCFUE00003": ("links",),
-            "VMCREL00008": ("removed",)})
+            "LGC-GDN-004": ("text",), "LGC-DSK-004": ("metadata",),
+            "LGC-DSK-005": ("removed",), "LM-CWS-002": ("added",),
+            "LGC-NAV-001": ("links",), "LGC-NAV-002": ("section",),
+            # Release 2: extended missions
+            "MSN-012": ("added",), "LM-PRP-004": ("added",), "LM-EPS-003": ("added",),
+            "LM-ECS-003": ("added",), "LGC-CFG-002": ("added",), "LGC-PRP-002": ("added",)})
+        # A change of formatting only (LGC-ABT-001), or of text outside the
+        # requirements (LM's index), is no change
+        self.assertEqual({c.id: c.changes for c in models.diff(conn, "set:Release 1",
+                                                                "set:Release 1.1")},
+                         {"LGC-GDN-004": ("text",), "LGC-DSK-004": ("metadata",),
+                          "LGC-DSK-005": ("removed",)})
         self.assertEqual(models.trace_issues(conn),
-                         [("VMCFUE00003", "SEG-AIR-099", "missing")])
+                         [("LGC-NAV-001", "LM-NAV-099", "missing")])
 
 
 if __name__ == "__main__":

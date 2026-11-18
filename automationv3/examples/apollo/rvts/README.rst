@@ -75,8 +75,9 @@ ECS/tc_ecs_001..003        flows to review                         incomplete
 Requirements without scripts
 ----------------------------
 Verified by analysis or inspection, on purpose: ``MSN-005``,
-``MSN-011``, ``MSN-012``, ``LM-PRP-002``, ``LM-PRP-004``,
-``LM-EPS-001``, ``LM-EPS-003``, ``LM-ECS-001``, ``LM-ECS-003``,
-``LGC-EXE-001``. ``LM-CWS-002`` (a headset tone) is verified by
+``MSN-011``, ``MSN-012``, ``LM-GNC-003``, ``LM-ABT-003``,
+``LM-PRP-002``, ``LM-PRP-004``, ``LM-EPS-001``, ``LM-EPS-003``,
+``LM-ECS-001``, ``LM-ECS-003``, ``LGC-EXE-001``. ``LM-GNC-002`` (the
+DSKY) and ``LM-CWS-002`` (a headset tone) are verified by
 demonstration. ``LGC-DSK-005`` is removed from the specification in the
 history's third run.

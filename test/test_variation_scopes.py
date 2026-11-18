@@ -87,7 +87,7 @@ class TestLint(unittest.TestCase):
             "s.rst: a block is limited to variations, but the script declares none"])
 
     def test_declarations_cant_be_scoped(self):
-        script = doc(VARIATIONS, rvt("(uut :demo)", variations="nominal"))
+        script = doc(VARIATIONS, rvt("(uut :lm)", variations="nominal"))
         self.assertEqual(errors(script), [
             "s.rst: uut can't be limited to variations"])
 

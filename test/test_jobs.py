@@ -14,7 +14,7 @@ from automationv3.framework.executor import execute_closure, execute_script
 from automationv3.framework.planning import build_plan
 from automationv3.framework.uut import Version, uut_types
 from automationv3.plugins.apollo import Sim
-from automationv3.plugins.sample import Demo
+from automationv3.plugins.apollo import LunarModule
 from automationv3.services import jobs as models
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import rollup, store
@@ -23,7 +23,7 @@ from automationv3.services.worker.client import ServerClient
 from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 
-from .data import make_workspaces as gitutil
+from . import gitutil
 from .rvt import doc, rvt
 
 PASSING = doc('''
@@ -49,7 +49,7 @@ ERRORING = doc("Docs", rvt('''
 
 ROOT_CORE = doc("Shared", rvt('''
     (environments :sim)
-    (uut :demo)
+    (uut :lm)
     (def limit 10)
     (defn under-limit? [x] (< x limit))
     '''))
@@ -184,7 +184,7 @@ class TestClosure(unittest.TestCase):
         self.assertEqual(resolve(self.root, "BRA/SUB/tc.rst").environments, ["sim"])
         closure = resolve(self.root, "ENG/tc.rst")
         self.assertEqual(closure.environments, ["lms"])
-        self.assertEqual(closure.uuts, ["demo"])
+        self.assertEqual(closure.uuts, ["lm"])
 
     def test_text_overrides_disk_and_changes_hash(self):
         on_disk = resolve(self.root, "BRA/SUB/tc.rst")
@@ -242,7 +242,7 @@ class TestExecutor(unittest.TestCase):
         files = {
             "core.rst": ROOT_CORE,
             "BRA/core.rst": rvt("(def limit 20)"),
-            "BRA/tc.rst": rvt("(uut :demo) (Verify (under-limit? 15)) (Wait 1) "
+            "BRA/tc.rst": rvt("(uut :lm) (Verify (under-limit? 15)) (Wait 1) "
                               "(Verify (under-limit? 25))"),
         }
         recorder = Recorder()
@@ -356,16 +356,16 @@ class TestSamplePlugins(unittest.TestCase):
         shutil.rmtree(self.workdir)
 
     def test_registered(self):
-        self.assertIs(uut_types()["demo"], Demo)
+        self.assertIs(uut_types()["lm"], LunarModule)
 
     def test_install(self):
-        env, demo = Sim(workdir=self.workdir), Demo()
-        self.assertIsNone(demo.installed_version(env))
-        version = demo.list_versions()[0]
-        demo.install(version, env)
-        self.assertEqual(demo.installed_version(env), version)
+        env, lm = Sim(workdir=self.workdir), LunarModule()
+        self.assertIsNone(lm.installed_version(env))
+        version = lm.list_versions()[0]
+        lm.install(version, env)
+        self.assertEqual(lm.installed_version(env), version)
         with self.assertRaises(ValueError):
-            demo.install(Version("9.9.9", "x"), env)
+            lm.install(Version("9.9.9", "x"), env)
 
 
 class QueueTestCase(unittest.TestCase):
@@ -430,12 +430,12 @@ class TestJobModels(QueueTestCase):
         report_id, run_id = self.queue()
         job = models.get_job(self.conn, run_id)
         self.assertEqual(job.environment, "sim")
-        self.assertEqual(job.uut_versions["demo"]["id"], "1.1.0")  # newest
+        self.assertEqual(job.uut_versions["lm"]["id"], "LUM210")  # newest
 
-        _, run_id = self.queue(versions={"demo": "1.0.0"})
-        self.assertEqual(models.get_job(self.conn, run_id).uut_versions["demo"]["id"],
-                         "1.0.0")
-        for bad in ({"environment": "lms"}, {"versions": {"demo": "0.1"}}):
+        _, run_id = self.queue(versions={"lm": "LUM099"})
+        self.assertEqual(models.get_job(self.conn, run_id).uut_versions["lm"]["id"],
+                         "LUM099")
+        for bad in ({"environment": "lms"}, {"versions": {"lm": "0.1"}}):
             with self.assertRaises(models.QueueError):
                 self.queue(**bad)
 
@@ -446,7 +446,7 @@ class TestJobModels(QueueTestCase):
         _, plain_job = self.queue("plain/x.rst")
 
         models.save_worker(self.conn, "http://bare", "available", [], {})
-        models.save_worker(self.conn, "http://sim", "available", ["demo"],
+        models.save_worker(self.conn, "http://sim", "available", ["lm"],
                            {"sim": {"os": "x"}})
         self.assertEqual([j.id for j in models.jobs_for_worker(self.conn, "http://bare")],
                          [plain_job])
@@ -515,7 +515,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.root = self.tmp / "reports"
         self.root.mkdir()
 
-        # A git workspace whose rvts hold a sim/demo tree and a plain one
+        # A git workspace whose rvts hold a sim/lm tree and a plain one
         gitdir = self.gitdir = self.tmp / "repo"
         write_tree(gitdir / "rvts", {
             "core.rst": ROOT_CORE,
@@ -529,8 +529,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
                 ".. rvt-variant::\n   :variations: high\n\n   High only: the level is high.\n\n"
                 + textwrap.indent(rvt("(Verify level = 50)", title="Level is high"), "   ")),
             "BRA/pre.rst": rvt('(Precondition "Low" (under-limit? 1)) (Wait 0)'),
-            "BRA/snap.rst": rvt('(StartDemo {:mode :normal}) (SnapshotDemo "state") '
-                                '(SnapshotDemo "state")'),
+            "BRA/snap.rst": rvt('(StartLM {:start :high-gate}) (AttachTrajectory "state") '
+                                '(AttachTrajectory "state")'),
             "BRA/unmet.rst": rvt('(Precondition "High" (under-limit? 50)) (Wait 0)'),
             "plain/core.rst": "(environments) (uut)",
             "plain/fail.rst": FAILING,
@@ -594,24 +594,24 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertIn(b'class="result not-run', page.data)
 
     def test_installs_uut_once_and_records_it(self):
-        ids = self.queue("BRA/tc.rst", uut_versions={"demo": "1.0.0"})
+        ids = self.queue("BRA/tc.rst", uut_versions={"lm": "LUM099"})
         self.assertEqual(self.worker.work_once(), "pass")
         run = store.load_run(self.root, ids["report_id"], ids["run_id"])
         self.assertEqual(run["environment"], "sim")
-        self.assertEqual(run["installed"]["demo"]["id"], "1.0.0")
-        self.assertEqual(run["installed"]["demo"]["action"], "installed")
+        self.assertEqual(run["installed"]["lm"]["id"], "LUM099")
+        self.assertEqual(run["installed"]["lm"]["action"], "installed")
         self.assertEqual(run["fingerprint"]["environment"], "sim")
 
         # Same version again is kept, a different one is installed
         self.http.post(f"/reports/{ids['report_id']}/runs/{ids['run_id']}/rerun")
         self.worker.work_once()
         latest = store.list_runs(self.root, ids["report_id"])[-1]
-        self.assertEqual(latest["installed"]["demo"]["action"], "kept")
+        self.assertEqual(latest["installed"]["lm"]["action"], "kept")
         self.assertEqual(latest["uut_versions"], run["uut_versions"])
 
-        self.queue("BRA/tc.rst", uut_versions={"demo": "1.1.0"})
+        self.queue("BRA/tc.rst", uut_versions={"lm": "LUM210"})
         self.worker.work_once()
-        self.assertEqual(Demo().installed_version(Sim(workdir=self.simdir)).id, "1.1.0")
+        self.assertEqual(LunarModule().installed_version(Sim(workdir=self.simdir)).id, "LUM210")
 
     def test_worker_keeps_chain_definitions_over_imports(self):
         ids = self.queue("BRA/imports.rst")
@@ -622,15 +622,15 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def test_warm_job_runs_before_older_cold_one(self):
         self.commit({
-            "BRA/core.rst": "(defn mode? [m] (= (.mode demo) m))",
+            "BRA/core.rst": "(defn mode? [m] (= (.mission lm) m))",
             "BRA/cold.rst": '(Precondition "x" (mode? :x)) (Wait 1)',
-            "BRA/warm.rst": '(Precondition "normal" (mode? :normal)) (Wait 1)',
+            "BRA/warm.rst": '(Precondition "extended" (mode? :extended)) (Wait 1)',
         })
-        # Demo 1.1.0 installed and running in :normal
+        # LUM210 installed, booted for an extended mission
         env = self.worker.host.environments["sim"]
-        demo = self.worker.host.uuts["demo"]
-        demo.install(demo.list_versions()[-1], env)
-        demo.handle(None, env).start(edn.Keyword("normal"))
+        lm = self.worker.host.uuts["lm"]
+        lm.install(lm.list_versions()[-1], env)
+        lm.handle(None, env).boot({edn.Keyword("mission"): edn.Keyword("extended")})
 
         cold = self.queue("BRA/cold.rst")
         warm = self.queue("BRA/warm.rst")
@@ -644,7 +644,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(cold_run["probes"], 1)
         self.assertEqual(store.read_events(self.root, cold["report_id"], cold["run_id"]), [])
 
-        # Nothing else is warm, so it is forced: a fresh start can't be :x
+        # Nothing else is warm, so it is forced: a fresh boot can't be :x
         self.assertEqual(self.worker.work_once(), "blocked")
         cold_run = store.load_run(self.root, cold["report_id"], cold["run_id"])
         self.assertEqual((cold_run["outcome"], cold_run["mode"]), ("blocked", "force"))
@@ -760,21 +760,22 @@ class TestWorkerAgainstServer(unittest.TestCase):
         ids = self.queue("BRA/snap.rst")
         self.assertEqual(self.worker.work_once(), "pass")
         self.assertEqual(store.list_files(self.root, ids["report_id"], ids["run_id"]),
-                         ["state-2.json", "state.json"])  # a taken name is numbered
+                         ["state-2.csv", "state-2.svg", "state.csv",
+                          "state.svg"])  # a taken name is numbered
 
         base = f"/reports/{ids['report_id']}/runs/{ids['run_id']}"
         page = self.http.get(base).get_data(True)
-        self.assertIn(f'href="{base}/files/state.json"', page)
+        self.assertIn(f'href="{base}/files/state.csv"', page)
         self.assertEqual(page.count('class="attachments'), 2)  # one per step
         # a plugin's directive in the report's document lists them too
         self.http.post(f"/reports/{ids['report_id']}/source",
                        data={"source": ".. attached-files::\n"})
         document = self.http.get(f"/reports/{ids['report_id']}").get_data(True)
-        self.assertIn(f'href="{base}/files/state.json"', document)
+        self.assertIn(f'href="{base}/files/state.csv"', document)
         self.assertIn('class="attached-files', document)
-        snapshot = self.http.get(f"{base}/files/state.json")
+        snapshot = self.http.get(f"{base}/files/state.csv")
         self.assertEqual(snapshot.status_code, 200)
-        self.assertIn('"mode": ":normal"', snapshot.get_data(True))
+        self.assertTrue(snapshot.get_data(True).startswith("t_s,downrange_m,altitude_m"))
         self.assertEqual(self.http.get(f"{base}/files/../run.json").status_code, 404)
 
     def test_only_the_worker_holding_a_job_attaches_to_it(self):
@@ -923,8 +924,8 @@ class TestWorkerAgainstServer(unittest.TestCase):
             phases = [s.split(" docutils")[0] for s in body.split('class="result ')[1:]]
             self.assertEqual(phases, states, script)
 
-    def new_report(self, name="Build 7", version="1.0.0"):
-        """A report on demo `version` (as if its first tests had set it), or
+    def new_report(self, name="Build 7", version="LUM099"):
+        """A report on lm `version` (as if its first tests had set it), or
         on no versions yet if `version` is None"""
         response = self.http.post("/reports/new", data={
             "name": name, "workspace": self.branch})
@@ -932,7 +933,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         report_id = response.headers["Location"].rstrip("/").split("/")[-1]
         if version:
             store.update_report(self.root, report_id, uut_versions={
-                "demo": asdict(Demo().find_version(version))})
+                "lm": asdict(LunarModule().find_version(version))})
         return report_id
 
     def add(self, report_id, **form):
@@ -994,11 +995,11 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         # Its first runs give it its UUT versions
         self.add(report_id, requirement="R1", variation=["BRA/modes.rst::low"],
-                 **{"version-demo": "1.0.0"})
-        self.assertEqual(store.load_report(self.root, report_id)["uut_versions"]["demo"]["id"],
-                         "1.0.0")
+                 **{"version-lm": "LUM099"})
+        self.assertEqual(store.load_report(self.root, report_id)["uut_versions"]["lm"]["id"],
+                         "LUM099")
         page = self.http.get(f"/reports/{report_id}").get_data(True)
-        self.assertNotIn("also demo", page)
+        self.assertNotIn("also lm", page)
 
     def test_nothing_to_run_or_track_is_refused(self):
         response = self.http.post("/runner/queue", data={
@@ -1028,7 +1029,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         report_id = self.new_report()
         report = store.load_report(self.root, report_id)
         self.assertEqual((report["name"], report["workspace"]), ("Build 7", self.branch))
-        self.assertEqual(report["uut_versions"]["demo"]["id"], "1.0.0")
+        self.assertEqual(report["uut_versions"]["lm"]["id"], "LUM099")
         self.assertIn("Nothing added yet", self.http.get(f"/reports/{report_id}").get_data(True))
 
         # A requirement adds every linked test and is tracked
@@ -1043,7 +1044,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
                          ["BRA/modes.rst", "BRA/tc.rst"])
         runs = store.list_runs(self.root, report_id)
         self.assertEqual(len(runs), 3)
-        self.assertEqual({r["uut_versions"]["demo"]["id"] for r in runs}, {"1.0.0"})
+        self.assertEqual({r["uut_versions"]["lm"]["id"] for r in runs}, {"LUM099"})
 
         self.worker.work_until_idle()
         rows = rollup.combinations(report, store.list_runs(self.root, report_id),
@@ -1077,30 +1078,30 @@ class TestWorkerAgainstServer(unittest.TestCase):
     def test_the_first_tests_added_set_the_reports_versions(self):
         report_id = self.new_report(version=None)
         self.assertEqual(store.load_report(self.root, report_id)["uut_versions"], {})
-        self.assertNotIn("version-demo", self.http.get("/reports/new").get_data(True))
-        self.add(report_id, script="BRA/tc.rst", **{"version-demo": "1.0.0"})
+        self.assertNotIn("version-lm", self.http.get("/reports/new").get_data(True))
+        self.add(report_id, script="BRA/tc.rst", **{"version-lm": "LUM099"})
         report = store.load_report(self.root, report_id)
-        self.assertEqual(report["uut_versions"]["demo"]["id"], "1.0.0")
+        self.assertEqual(report["uut_versions"]["lm"]["id"], "LUM099")
 
         # Later additions run on the report's versions: no picking another
         dialog = self.http.get("/runner/new", query_string={
             "report": report_id, "script": "BRA/modes.rst"}).get_data(True)
         self.assertIn("The report's version", dialog)
-        self.assertNotIn('name="version-demo"', dialog)
+        self.assertNotIn('name="version-lm"', dialog)
         self.add(report_id, script="BRA/modes.rst", variation=["BRA/modes.rst::low"],
-                 **{"version-demo": "1.1.0"})
-        versions = {r["uut_versions"]["demo"]["id"] for r in store.list_runs(self.root, report_id)}
-        self.assertEqual(versions, {"1.0.0"})
+                 **{"version-lm": "LUM210"})
+        versions = {r["uut_versions"]["lm"]["id"] for r in store.list_runs(self.root, report_id)}
+        self.assertEqual(versions, {"LUM099"})
 
     def test_the_header_shows_only_the_uuts_the_runs_use(self):
         report_id = self.new_report()
         store.update_report(self.root, report_id, uut_versions={
             **store.load_report(self.root, report_id)["uut_versions"],
-            "vm": {"id": "3.2.0", "digest": "x"}})
+            "rover": {"id": "2.0.0", "digest": "x"}})
         self.add(report_id, script="BRA/tc.rst")
         page = self.http.get(f"/reports/{report_id}").get_data(True)
-        self.assertIn("demo 1.0.0", page)
-        self.assertNotIn("vm 3.2.0", page)
+        self.assertIn("lm LUM099", page)
+        self.assertNotIn("rover 2.0.0", page)
 
     def test_changing_versions_outdates_runs_until_they_are_brought_up_to_date(self):
         report_id = self.new_report()
@@ -1109,24 +1110,24 @@ class TestWorkerAgainstServer(unittest.TestCase):
         (old,) = store.list_runs(self.root, report_id)
 
         form = self.http.get(f"/reports/{report_id}/versions",
-                             query_string={"version-demo": "1.1.0"}).get_data(True)
+                             query_string={"version-lm": "LUM210"}).get_data(True)
         self.assertIn("<strong>1</strong> combination will be outdated", form)
         partial = self.http.get(f"/reports/{report_id}/versions",  # as htmx asks for it
-                                query_string={"version-demo": "1.1.0"},
+                                query_string={"version-lm": "LUM210"},
                                 headers={"HX-Request": "true"})
         self.assertEqual(partial.status_code, 200)
         self.assertIn("<strong>1</strong> combination will be outdated", partial.get_data(True))
         response = self.http.post(f"/reports/{report_id}/versions",
-                                  data={"version-demo": "1.1.0"})
+                                  data={"version-lm": "LUM210"})
         self.assertEqual(response.status_code, 302, response.get_data(True))
         report = store.load_report(self.root, report_id)
-        self.assertEqual(report["uut_versions"]["demo"]["id"], "1.1.0")
+        self.assertEqual(report["uut_versions"]["lm"]["id"], "LUM210")
         self.assertEqual(len(store.list_runs(self.root, report_id)), 1)  # nothing queued
 
         (row,) = rollup.combinations(report, [old], lambda run: "pending")
-        self.assertEqual((row["state"], row["outdated"]), ("outdated", {"demo": "1.0.0"}))
+        self.assertEqual((row["state"], row["outdated"]), ("outdated", {"lm": "LUM099"}))
         page = self.http.get(f"/reports/{report_id}").get_data(True)
-        self.assertIn(": pass on demo 1.0.0, not the report's versions", page)
+        self.assertIn(": pass on lm LUM099, not the report's versions", page)
         self.assertIn("1 outdated", page)
         self.assertEqual(models.passed_combinations(self.root, report_id), set())
         dialog = self.http.get("/runner/new", query_string={
@@ -1135,11 +1136,11 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
         # Rerun brings it up to date: the same closure, on the report's versions
         run_page = self.http.get(f"/reports/{report_id}/runs/{old['id']}").get_data(True)
-        self.assertIn("Rerun on demo 1.1.0", run_page)
+        self.assertIn("Rerun on lm LUM210", run_page)
         self.http.post(f"/reports/{report_id}/runs/{old['id']}/rerun")
         new = store.list_runs(self.root, report_id)[-1]
-        self.assertEqual(new["uut_versions"]["demo"]["id"], "1.1.0")
-        self.assertEqual(new["updated_from"]["demo"]["id"], "1.0.0")
+        self.assertEqual(new["uut_versions"]["lm"]["id"], "LUM210")
+        self.assertEqual(new["updated_from"]["lm"]["id"], "LUM099")
         self.assertEqual(self.worker.work_once(), "pass")
         rows = rollup.combinations(store.load_report(self.root, report_id),
                                    store.list_runs(self.root, report_id), lambda run: "x")
@@ -1149,16 +1150,16 @@ class TestWorkerAgainstServer(unittest.TestCase):
         report_id = self.new_report()
         self.add(report_id, script="BRA/tc.rst")
         response = self.http.post(f"/reports/{report_id}/versions",
-                                  data={"version-demo": "1.1.0"})
+                                  data={"version-lm": "LUM210"})
         self.assertEqual(response.status_code, 409)
         self.assertIn("in progress", response.get_data(True))
         self.worker.work_once()
         store.set_frozen(self.root, report_id, True)
         response = self.http.post(f"/reports/{report_id}/versions",
-                                  data={"version-demo": "1.1.0"})
+                                  data={"version-lm": "LUM210"})
         self.assertEqual(response.status_code, 409)
-        self.assertEqual(store.load_report(self.root, report_id)["uut_versions"]["demo"]["id"],
-                         "1.0.0")
+        self.assertEqual(store.load_report(self.root, report_id)["uut_versions"]["lm"]["id"],
+                         "LUM099")
 
     def test_add_to_report_from_requirements_and_viewer(self):
         report_id = self.new_report()
@@ -1329,7 +1330,7 @@ class TestPlanning(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         write_tree(self.root, {
-            "core.rst": "(environments :sim :lms) (uut :demo) (def base 5)",
+            "core.rst": "(environments :sim :lms) (uut :lm) (def base 5)",
             "a.rst": '(variations "mode n" ["x" [:x base] "y" [:y 2]]) (Wait 1)',
             "b.rst": "(environments :lms) (Wait 1)",
             "c.rst": '(variations [other] ["only" [1]]) (Wait 1)',
@@ -1345,7 +1346,7 @@ class TestPlanning(unittest.TestCase):
     def test_fan_out(self):
         plan, runs = self.runs()
         self.assertEqual(len(runs), 2 * 2 + 1 + 2)
-        self.assertEqual(plan.uut_versions["demo"]["id"], "1.1.0")
+        self.assertEqual(plan.uut_versions["lm"]["id"], "LUM210")
         self.assertEqual(plan.scripts[0].variations[0].values, {"mode": ":x", "n": "5"})
 
     def test_environment_intersection(self):

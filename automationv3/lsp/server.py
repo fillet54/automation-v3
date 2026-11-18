@@ -14,7 +14,7 @@ completion (names in a block, the paths below a ref, requirement ids in
 
 Documents are named by URI. A file: URI is a path, which must be under
 the root; with any other scheme the URI's path is taken as relative to
-the root (the web editor's "rvt:///BRA/script.rst").
+the root (the web editor's "rvt:///GDN/tc_gdn_001.rst").
 """
 
 from pathlib import Path, PurePosixPath

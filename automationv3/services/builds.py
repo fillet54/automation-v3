@@ -3,7 +3,7 @@
 Where each UUT's builds land on this machine is set once in the client's
 config, client.json in the config folder (see services/client.py)::
 
-    {"builds": {"demo": "~/work/demo/build/out"}}
+    {"builds": {"lm": "~/work/luminary/build"}}
 
 For each UUT a script uses, the client asks its plugin for the newest build
 there and compares it with the versions the central server lists: if no

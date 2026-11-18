@@ -15,7 +15,7 @@ Checks the brake pressure stays under the limit.
 
 Requirements
 ------------
-1. :req:`VMCBRA00001` and :req:`VMCBRA00002`
+1. :req:`LGC-GDN-001` and :req:`LGC-GDN-002`
 
 .. rvt::
    :definitions:
@@ -24,7 +24,7 @@ Requirements
 
 Steps
 -----
-Apply the brakes, see :req:`VMCBRA00003`.
+Apply the brakes, see :req:`LGC-GDN-003`.
 
 .. rvt:: Apply the brakes
    fully
@@ -133,7 +133,7 @@ class Tree(unittest.TestCase):
 
     def test_requirement_refs_are_located(self):
         found = source.requirement_refs(self.tree)
-        self.assertEqual([id for id, _ in found], ["VMCBRA00001", "VMCBRA00002", "VMCBRA00003"])
+        self.assertEqual([id for id, _ in found], ["LGC-GDN-001", "LGC-GDN-002", "LGC-GDN-003"])
         for id, span in found:
             self.assertEqual(text_at(SCRIPT, span), f":req:`{id}`")
             self.assertEqual(span.source, "BRA/tc.rst")

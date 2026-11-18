@@ -11,12 +11,12 @@ Power
 
 Prose is ignored.
 
-.. requirement:: VM-EPS-002
+.. requirement:: LM-EPS-002
 
-   The VM shall shed loads below:
+   The EPS shall light a light below:
 
-   - 60%: the payload;
-   - 40%: everything else.
+   - 26.5 V: the BATTERY caution;
+   - 24 V: the WARNING light.
 
 .. requirement:: SYS-1
    :subsystem: SYSTEM
@@ -34,8 +34,8 @@ Prose is ignored.
 class TestParsing(unittest.TestCase):
     def test_ids_text_and_sections(self):
         eps, sys, r = parse(DOCUMENT)
-        self.assertEqual(eps.id, "VM-EPS-002")
-        self.assertTrue(eps.text.startswith("The VM shall shed loads below:\n\n- 60%"))
+        self.assertEqual(eps.id, "LM-EPS-002")
+        self.assertTrue(eps.text.startswith("The EPS shall light a light below:\n\n- 26.5 V"))
         self.assertEqual(eps.section, ("Power",))
 
     def test_options_are_links_and_attributes(self):
@@ -51,8 +51,8 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(r.id, "A-1")
 
     def test_plain_text_ignores_markup_and_wrapping(self):
-        self.assertEqual(plain_text("The *VM*  shall\nshed:\n\n- one;\n- two."),
-                         "The VM shall shed: one; two.")
+        self.assertEqual(plain_text("The *LGC*  shall\nshow:\n\n- one;\n- two."),
+                         "The LGC shall show: one; two.")
 
     def test_repeated_ids_and_empty_text_are_errors(self):
         with self.assertRaises(RequirementsError):
@@ -63,16 +63,16 @@ class TestParsing(unittest.TestCase):
 
 class TestRendering(unittest.TestCase):
     def test_one_paragraph_renders_inline(self):
-        html = Requirement("R-1", "The VM shall run.").__repr_html__()
-        self.assertEqual(html, '<span class="ui-requirement">The VM '
+        html = Requirement("R-1", "The LGC shall run.").__repr_html__()
+        self.assertEqual(html, '<span class="ui-requirement">The LGC '
                                '<strong>shall [R-1]</strong> run.</span>')
 
     def test_lists_render_as_blocks(self):
         (eps, *_) = parse(DOCUMENT)
         html = Requirement(eps.id, eps.text).__repr_html__()
         self.assertIn('<div class="ui-requirement ui-requirement--blocks">', html)
-        self.assertIn("<li>60%: the payload;</li>", html)
-        self.assertIn("<strong>shall [VM-EPS-002]</strong>", html)
+        self.assertIn("<li>26.5 V: the BATTERY caution;</li>", html)
+        self.assertIn("<strong>shall [LM-EPS-002]</strong>", html)
 
     def test_text_is_escaped(self):
         html = Requirement("R", "Small (<3 degree) shall be").__repr_html__()

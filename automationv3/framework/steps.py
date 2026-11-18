@@ -9,7 +9,7 @@ calls of the step that called it.
 
 Only blocks fail steps. A step passes unless a block call in it failed
 or something raised; the value it comes to is shown, never judged. To
-check a value, assert it: (Verify (fuel-level-ok? 40)).
+check a value, assert it: (Verify (landed-within-limits?)).
 
 Three forms change that, explicitly:
 

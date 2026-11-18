@@ -10,6 +10,7 @@ engine. Each requirement here traces up to the mission requirements.
 .. toctree::
    :maxdepth: 2
 
+   guidance
    propulsion
    landing
    power

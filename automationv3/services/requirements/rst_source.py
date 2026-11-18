@@ -4,15 +4,15 @@ A spec's documents are ordinary rst; each requirement in them is a
 ``requirement`` directive with its id, and its text is the directive's
 content, which may use any rst (lists, emphasis, notes)::
 
-    .. requirement:: VM-EPS-002
-       :satisfies: SEG-PWR-004, SEG-PWR-007
+    .. requirement:: LM-EPS-002
+       :satisfies: MSN-004
        :subsystem: EPS
        :verification: Test
 
-       The VM shall shed loads when the state of charge falls below:
+       The electrical power system shall light:
 
-       - 60%: the payload;
-       - 40%: everything except the essential loads.
+       - the BATTERY caution on a battery fault or a bus below 26.5 V;
+       - the WARNING light on a bus below 24 V.
 
 ``:satisfies:`` names the requirements this one traces up to; every
 other option is an attribute, checked against the spec's schema by the

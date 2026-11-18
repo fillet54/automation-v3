@@ -117,11 +117,11 @@ class TestStatements(unittest.TestCase):
                          [False, True, False])
         self.assertIn("Wait", statements[2].rst)
 
-    def test_sample_start_demo_block(self):
+    def test_start_lm_shows_its_configuration(self):
         (statement,) = views(rvt(
-            "(StartDemo {:mode :emergency :readings {:brake-pressure 70}})"))
+            "(StartLM {:mission :extended :start :high-gate})"))
         self.assertIn(".. list-table:: Configuration", statement.rst)
-        self.assertIn("brake-pressure", statement.rst)
+        self.assertIn("high-gate", statement.rst)
 
     def test_blocks_defined_after_import_are_found(self):
         class Later(StartWithConfig):

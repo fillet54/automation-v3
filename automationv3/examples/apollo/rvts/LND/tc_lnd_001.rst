@@ -9,8 +9,9 @@ The trajectory is attached to each run, as a table and as a plot.
 Requirements
 ------------
 1. :req:`MSN-001`
-2. :req:`LM-LDG-001`
-3. :req:`LM-LDG-002`
+2. :req:`LM-GNC-001`
+3. :req:`LM-LDG-001`
+4. :req:`LM-LDG-002`
 
 .. rvt::
 

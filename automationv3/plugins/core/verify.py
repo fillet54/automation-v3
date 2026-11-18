@@ -163,8 +163,8 @@ class Verify(BuildingBlock):
 
     Examples::
 
-        (Verify (reading :brake-pressure) <= max-pressure)
-        (Verify (demo-in-mode? :normal))
+        (Verify (abs (Read touchdown.vz)) <= touchdown-vz-limit)
+        (Verify (lm-ready? :standard :pdi))
         (Verify nav.mode = :run)
         (Verify nav.time > 10)
         (Verify nav.error some?)               ; a predicate without args

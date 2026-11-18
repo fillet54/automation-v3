@@ -1,4 +1,4 @@
-"""A central server for tests: accounts on, a git workspace of the sample
+"""A central server for tests: accounts on, a git workspace of the Apollo
 scripts, and helpers to sign people in"""
 
 import re
@@ -15,10 +15,10 @@ from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 from automationv3.web.auth import COOKIE
 
-from .data import make_workspaces as gitutil
+from . import gitutil
 from .rvt import doc, rvt
 
-RVTS = Path(__file__).resolve().parent / "data" / "rvts"
+from .examples import RVTS
 
 # A small workspace: scripts that need no environment, and one that runs
 # in sim

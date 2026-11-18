@@ -13,7 +13,7 @@ Checks the brake pressure stays under the limit.
 
 Requirements
 ------------
-1. :req:`VMCBRA00001`
+1. :req:`LGC-GDN-001`
 
 .. rvt::
    :definitions:
@@ -61,7 +61,7 @@ class TestSplit(unittest.TestCase):
 
     def test_every_rst_file_in_the_repository_round_trips(self):
         root = Path(__file__).parent.parent
-        files = [p for folder in ("test/data", "demo", "docs") for p in (root / folder).rglob("*.rst")]
+        files = [p for folder in ("automationv3/examples", "docs") for p in (root / folder).rglob("*.rst")]
         self.assertTrue(files)
         for path in files:
             text = path.read_text()
@@ -79,7 +79,7 @@ class TestSplit(unittest.TestCase):
 
     def test_prose_text_has_no_trailing_blank_lines(self):
         found = cards.split(SCRIPT)
-        self.assertEqual(found[1].text, "Requirements\n------------\n1. :req:`VMCBRA00001`")
+        self.assertEqual(found[1].text, "Requirements\n------------\n1. :req:`LGC-GDN-001`")
         self.assertEqual(found[3].text, "Steps\n-----\n\nApply and check.")
 
     def test_rvt_fields(self):

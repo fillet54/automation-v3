@@ -17,7 +17,7 @@ from automationv3.lsp.server import Server, characters, utf16
 from automationv3.lsp.service import Service, local_names, scan
 from automationv3.services.database import connect, init_db
 from automationv3.web.app import create_app
-from .data import make_workspaces as gitutil
+from . import gitutil
 
 CORE = """\
 Core
@@ -26,7 +26,7 @@ Core
 .. rvt::
 
    (environments :sim)
-   (uut :demo)
+   (uut :lm)
    (def limit 80)
    (defn double [x] (* 2 x))
 """
@@ -113,7 +113,7 @@ class TestService(Rooted):
     def test_completion_before_the_closure_is_read(self):
         self.service.texts["BRA/tc.rst"] = SCRIPT + "   (Verify "
         found = {i.label: i for i in self.service.complete("BRA/tc.rst", 13, 11)}
-        self.assertEqual(found["demo"].detail, "UUT handle")  # as core.rst declares it
+        self.assertEqual(found["lm"].detail, "UUT handle")  # as core.rst declares it
         self.assertEqual(found["target"].detail, "def in here")
 
     def test_an_open_core_stands_in_for_the_one_on_disk(self):
@@ -140,11 +140,11 @@ class TestService(Rooted):
 
     def test_completion_offers_what_a_block_can_use(self):
         found = self.complete(SCRIPT + "   (Verify ", 13, 11)
-        for name in ("target", "limit", "double", "demo", "+"):
+        for name in ("target", "limit", "double", "lm", "+"):
             self.assertIn(name, found)
         self.assertEqual(found["double"].detail, "[x] in core.rst")
         self.assertEqual(found["target"].detail, "def in here")
-        self.assertEqual(found["demo"].detail, "UUT handle")
+        self.assertEqual(found["lm"].detail, "UUT handle")
         self.assertNotIn("Verify", found)  # not where an argument goes
 
     def test_blocks_complete_where_a_call_starts(self):
@@ -251,12 +251,12 @@ class TestWhatNamesAre(Rooted):
         self.assertIsNone(self.hover("Refs", 0))
 
     def test_handles_and_variation_values(self):
-        text = REFS + "   (variations \"speed\" [\"slow\" [1] \"fast\" [9]])\n   (Verify speed > 0)\n   (.mode demo)\n"
+        text = REFS + "   (variations \"speed\" [\"slow\" [1] \"fast\" [9]])\n   (Verify speed > 0)\n   (.mission lm)\n"
         self.service.texts["BRA/tc.rst"] = text
         self.lines = text.splitlines()
         self.service.problems()
         self.assertIn("- slow: `1`\n- fast: `9`", self.hover("speed >"))
-        self.assertIn("handle of the UUT", self.hover("demo)"))
+        self.assertIn("handle of the UUT", self.hover("lm)"))
 
     def test_requirements(self):
         self.assertEqual(self.hover("R-1"), "**R-1** (SRS)\n\nThe brakes shall *hold*.")

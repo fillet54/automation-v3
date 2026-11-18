@@ -455,7 +455,7 @@ class Service:
         if code is None:
             return []
         typed = CONSTRUCTOR_STRING.search(code)
-        if typed is not None:  # the path of a ref being made: (connector "vm.e
+        if typed is not None:  # the path of a ref being made: (connector "lm.e
             return self.constructor_paths(typed.group(1), typed.group(2), col)
         word = PREFIX.search(code)
         stack = scan(code[:word.start()])

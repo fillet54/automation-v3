@@ -5,7 +5,7 @@ Each mission flies the same Luminary rope with its own erasable load:
 the propellant it expects, its approach angle and its surface stay.
 
 .. requirement:: LGC-CFG-001
-   :satisfies: MSN-001, LM-PRP-002
+   :satisfies: LM-GNC-003, LM-PRP-002
    :subsystem: CFG
    :verification: Test
    :last-modified-by: doors-import

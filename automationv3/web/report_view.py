@@ -173,7 +173,7 @@ def versions_text(versions):
 
 
 def outdated_label(row):
-    """'Passed on vm 3.1.0' for an outdated combination, else None"""
+    """'Passed on lm LUM131' for an outdated combination, else None"""
     if row["state"] != "outdated":
         return None
     word = WORDS.get(row["latest"].get("outcome"), "Ran")
@@ -203,7 +203,7 @@ def why(root, row, report=None):
 
 def connector_group(path):
     """A ref's group: its path's first two parts (the UUT's handle and
-    the connector group, e.g. vm.eps), or all but its last part"""
+    the connector group, e.g. lm.eps), or all but its last part"""
     parts = re.split(r"[./]", path)
     return ".".join(parts[:2] if len(parts) > 2 else parts[:-1] or parts)
 

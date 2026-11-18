@@ -1,25 +1,27 @@
 """A demo of Automation v3, set up in one command
 
-`automation-v3 demo` builds a self-contained demo folder from a source
-checkout and serves it:
+`automation-v3 demo` builds a self-contained demo folder from the Apollo
+lunar module example that ships with the package, and serves it:
 
     demo/
       .automation-v3-demo     marks the folder as safe to delete and rebuild
-      workspace/master/       a git repository of the sample scripts, with
+      workspace/master/       a git repository of the example scripts, with
       workspace/branch1..3/   worktrees for the other workspaces
-      automationv3.db         the sample requirements, imported from exports/
-      exports/                the sample DOORS history: one export per run
+      automationv3.db         the example's requirements, imported from exports/
+      exports/                the example's DOORS history: one export per run
       reports/
-      environments/           the sim and bench environments' work directories
+      environments/           the sim and lms environments' work directories
       worker.json             the local worker's config, hosting them
+      builds/                 the lunar module's build repository (uploaded builds)
+      local-build/            a build "made on this machine", ready to upload
       docs/                   this project's documentation, built
 
-The sample scripts, requirements and documentation sources come from the
-checkout (test/data and docs/), so the demo needs an editable install
-(`pip install -e .`).
+The example lives in automationv3/examples/apollo. The documentation is
+built only from a source checkout, which has docs/.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -32,10 +34,9 @@ from .services.requirements import export, links, store, suspects
 from .services.requirements import models as requirements
 from .services.workspace import find_worktrees
 
-SOURCE = Path(__file__).resolve().parent.parent
-SAMPLES = SOURCE / "test" / "data"
+SAMPLES = Path(__file__).resolve().parent / "examples" / "apollo"
 SAMPLE_EXPORTS = SAMPLES / "doors"
-DOCS_SOURCE = SOURCE / "docs"
+DOCS_SOURCE = Path(__file__).resolve().parent.parent / "docs"  # in a source checkout
 MARKER = ".automation-v3-demo"
 BRANCHES = ("branch1", "branch2", "branch3")
 ENVIRONMENTS = ("sim", "lms")
@@ -56,11 +57,9 @@ class Demo:
 
 
 def check_source():
-    """The checkout's sample data, or DemoError if this isn't a checkout"""
+    """DemoError if the example isn't installed with the package"""
     if not (SAMPLES / "rvts").is_dir():
-        raise DemoError(
-            "The demo needs the sample scripts from a source checkout: clone the "
-            "repository and install it with `pip install -e .`")
+        raise DemoError(f"The Apollo example is missing from this installation ({SAMPLES})")
 
 
 def clear(path):
@@ -123,7 +122,7 @@ def apply_edit(tree, edit):
 
 
 def write_sample_exports(out):
-    """Write the sample DOORS history (test/data/doors) as export folders
+    """Write the example's DOORS history (examples/apollo/doors) as export folders
     under `out`, one per run, as the exporter would. Returns their paths,
     oldest first."""
     history = json.loads((SAMPLE_EXPORTS / "history.json").read_text())
@@ -186,18 +185,40 @@ def pin_release_branch(repo, branch=RELEASE_BRANCH, context="set:Release 1"):
 
 
 def write_worker_config(path):
-    """A worker config hosting the sample environments, working under `path`"""
-    config = {"environments": {
-        name: {"workdir": str(path / "environments" / name)} for name in ENVIRONMENTS
-    }}
+    """The example's worker config (examples/apollo/worker.json), each
+    environment working under `path`"""
+    config = json.loads((SAMPLES / "worker.json").read_text())
+    for name, params in config["environments"].items():
+        params["workdir"] = str(path / "environments" / name)
     file = path / "worker.json"
     file.write_text(json.dumps(config, indent=2) + "\n")
     return file
 
 
+LOCAL_BUILD = {"revision": "LUM131-fix",
+               "flags": {"extended_missions": True, "prop_capacity_from_load": True}}
+
+
+def set_up_builds(path):
+    """The lunar module's build repository (AUTOMATION_LM_BUILDS, for this
+    process and the worker in it), and a local build of LUM131 with its
+    defect fixed, for the local client to find and upload. Returns the
+    local build's folder."""
+    repo = path / "builds"
+    repo.mkdir()
+    os.environ["AUTOMATION_LM_BUILDS"] = str(repo)
+    local = path / "local-build"
+    local.mkdir()
+    (local / "luminary.json").write_text(json.dumps(LOCAL_BUILD, indent=2) + "\n")
+    return local
+
+
 def build_docs(out):
     """Build the documentation into `out`. Returns `out`, or None (saying
     why) if Sphinx isn't installed or the build failed."""
+    if not (DOCS_SOURCE / "conf.py").exists():
+        print("   Docs not built: they are built from a source checkout's docs/")
+        return None
     try:
         import sphinx  # noqa: F401
     except ImportError:
@@ -218,6 +239,8 @@ def existing(path):
     path = Path(path).resolve()
     if not (path / MARKER).exists():
         raise DemoError(f"{path} isn't a demo folder")
+    if (path / "builds").is_dir():
+        os.environ["AUTOMATION_LM_BUILDS"] = str(path / "builds")
     docs = path / "docs" / "html"
     return Demo(path=path, db_path=path / "automationv3.db",
                 workspace=path / "workspace" / "master", reports=path / "reports",
@@ -235,10 +258,13 @@ def setup(path, docs=True, log=print):
                 workspace=make_workspace(path / "workspace"),
                 reports=path / "reports", config=write_worker_config(path))
     demo.reports.mkdir()
-    log("   Workspace: the sample scripts, on master and three branches")
+    log("   Workspace: the Apollo example's scripts, on master and three branches")
+    local = set_up_builds(path)
+    log(f"   Builds: the lunar module's build repository is builds/; local-build/ holds "
+        f"LUM131 with its defect fixed ({local / 'luminary.json'})")
     pin_release_branch(demo.workspace)
     load_requirements(demo.db_path, write_sample_exports(path / "exports"), demo.workspace)
-    log("   Requirements: the sample DOORS history, imported from exports/; "
+    log("   Requirements: the example's DOORS history, imported from exports/; "
         f"{RELEASE_BRANCH} verifies Release 1")
     if docs:
         log("   Building the documentation...")

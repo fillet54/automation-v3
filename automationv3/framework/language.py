@@ -39,8 +39,8 @@ run in order. The others:
 - A Precondition states what must hold before a script's steps run,
   and optionally how to get there::
 
-      (Precondition "Demo running" (demo-in-mode? :normal)
-        :heal "Start the demo in normal mode" (start-demo :normal))
+      (Precondition "LM at high gate" (lm-ready? :standard :high-gate)
+        :heal "Boot a standard mission at high gate" (boot :standard :high-gate))
 
   Preconditions come before the first regular step. The check and the
   heal are step forms; the heal may be described by a string. Unlike a

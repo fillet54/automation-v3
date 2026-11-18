@@ -63,7 +63,7 @@ class TestClientApi(unittest.TestCase):
         self.assertEqual(found["R1"]["text"], "The brake shall hold.")
         self.assertIsNone(found["NOPE"])
         uuts = self.get("/api/uuts").get_json()
-        self.assertIn("1.0.0", [v["id"] for v in uuts["demo"]])
+        self.assertIn("LUM099", [v["id"] for v in uuts["lm"]])
         self.assertEqual(self.get("/api/environments").get_json(), {})
 
     def test_scratch_uploads_run_as_the_user(self):

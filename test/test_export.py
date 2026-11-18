@@ -22,10 +22,10 @@ from automationv3.services.worker.local import run_locally
 from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 
-from .data import make_workspaces as gitutil
+from . import gitutil
+from .examples import RVTS
 from .test_jobs import PASSING, QueueTestCase
 
-RVTS = Path(__file__).resolve().parent / "data" / "rvts"
 HAS_LATEX = shutil.which("latexmk") is not None
 
 
@@ -37,11 +37,11 @@ class ReportTestCase(unittest.TestCase):
         cls.source = Path(tempfile.mkdtemp())
         host = Host.from_config({"environments": {"sim": {"workdir": str(cls.source / "sim")}}})
         cls.report_id, _ = run_locally(
-            RVTS, ["BRA/tc_bra_00004.rst", "BRA/tc_bra_00003.rst"], cls.source / "reports",
-            host, versions={"demo": "1.0.0"})
+            RVTS, ["ALM/tc_alm_001.rst", "CFG/tc_cfg_002.rst"], cls.source / "reports",
+            host, versions={"lm": "LUM099"})
         store.update_report(cls.source / "reports", cls.report_id,
-                            requirements={"REQ-1": ["BRA/tc_bra_00004.rst"],
-                                          "REQ-2": ["BRA/tc_bra_00003.rst"]},
+                            requirements={"REQ-1": ["ALM/tc_alm_001.rst"],
+                                          "REQ-2": ["CFG/tc_cfg_002.rst"]},
                             requirement_snapshots={"REQ-1": {"text": "The brakes shall hold."}})
 
     @classmethod
@@ -74,8 +74,8 @@ class TestDocument(ReportTestCase):
     def test_the_data_judges_each_combination_on_its_latest_run(self):
         data = ReportData(self.root, self.report_id)
         states = {(r["script"], r["variation"]): r["state"] for r in data.combinations}
-        self.assertEqual(states[("BRA/tc_bra_00004.rst", "normal")], "pass")
-        self.assertEqual(states[("BRA/tc_bra_00003.rst", None)], "fail")
+        self.assertEqual(states[("ALM/tc_alm_001.rst", "RR at LGC")], "pass")
+        self.assertEqual(states[("CFG/tc_cfg_002.rst", None)], "fail")
         colors = {r["id"]: r["color"] for r in data.requirements}
         self.assertEqual(colors, {"REQ-1": "green", "REQ-2": "red"})
 
@@ -110,13 +110,13 @@ class TestDocument(ReportTestCase):
     def test_prose_and_report_values_mix(self):
         html = body(self.root, self.report_id,
                     "Covers :report:`requirements` requirements, "
-                    ":report:`requirements.green` green, on demo :report:`uut.demo`.\n")
-        self.assertIn("Covers 2 requirements, 1 green, on demo 1.0.0.", html)
+                    ":report:`requirements.green` green, on lm :report:`uut.lm`.\n")
+        self.assertIn("Covers 2 requirements, 1 green, on lm LUM099.", html)
 
     def test_directive_options_filter(self):
         html = body(self.root, self.report_id, ".. results::\n   :state: fail\n")
-        self.assertIn("tc_bra_00003", html)
-        self.assertNotIn("tc_bra_00004", html)
+        self.assertIn("tc_cfg_002", html)
+        self.assertNotIn("tc_alm_001", html)
 
     def test_a_problem_in_the_source_stops_the_document(self):
         with self.assertRaisesRegex(export.ExportError, "no-such-directive"):  # unknown
@@ -138,10 +138,10 @@ class TestDocument(ReportTestCase):
         self.assertIn("*bold*", html)
 
     def test_text_that_could_open_a_block_stays_a_paragraph(self):
-        for value in ["- x", "1. x", ":x: y", "..", "===", "see::", "tc_bra_ x"]:
+        for value in ["- x", "1. x", ":x: y", "..", "===", "see::", "tc_alm_ x"]:
             html = body(self.root, self.report_id, template.text(value)).strip()
             self.assertRegex(html, r"\A<p>[^<]*</p>\Z", value)  # one plain paragraph
-        self.assertEqual(template.text("BRA/tc_bra_00004.rst"), "BRA/tc_bra_00004.rst")
+        self.assertEqual(template.text("ALM/tc_alm_001.rst"), "ALM/tc_alm_001.rst")
 
     def test_verdicts_carry_a_class_each_output_can_style(self):
         self.assertIn('<span class="verdict-fail"><strong>fail</strong></span>',
@@ -221,7 +221,7 @@ class TestExport(ReportTestCase):
         self.assertNotIn("automation-run:", index)  # every marker rewritten
         status = build.status(self.root, self.report_id)
         self.assertEqual(status["state"], "done")
-        self.assertIn("automationv3.plugins.sample", status["plugins"])  # what built it
+        self.assertIn("automationv3.plugins.apollo", status["plugins"])  # what built it
         self.assertIn(".attached-files", (site / "_static" / "plugins.css").read_text())
         self.assertIn(status["manifest_hash"],
                       (build.build_dir(self.root, self.report_id) / "report.tex").read_text())

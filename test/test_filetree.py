@@ -5,31 +5,33 @@ from automationv3.services.database import connect, init_db
 from automationv3.services.workspace import FileNode
 from automationv3.web.workspace import expanded_nodes, toggle_expanded
 
+from .examples import RVTS
+
 
 class TestFileNode(unittest.TestCase):
     def setUp(self):
-        self.root_path = Path(__file__).resolve().parent / 'data' / 'rvts'
+        self.root_path = RVTS
         self.root = FileNode(self.root_path)
 
     def test_children(self):
-        self.assertIn(self.root_path / 'BRA', self.root.children())
-        self.assertIn(self.root_path / 'FUE', self.root.children())
+        self.assertIn(self.root_path / 'GDN', self.root.children())
+        self.assertIn(self.root_path / 'LND', self.root.children())
 
     def test_relative_path(self):
-        child = FileNode(self.root_path / 'BRA', self.root)
-        self.assertEqual(child.relative_path, Path('BRA'))
+        child = FileNode(self.root_path / 'GDN', self.root)
+        self.assertEqual(child.relative_path, Path('GDN'))
 
     def test_is_root(self):
         self.assertTrue(self.root.is_root)
-        self.assertFalse(FileNode('BRA', self.root).is_root)
+        self.assertFalse(FileNode('GDN', self.root).is_root)
 
     def test_is_dir(self):
-        node = FileNode('BRA', self.root)
+        node = FileNode('GDN', self.root)
         self.assertTrue(node.is_dir())
         self.assertFalse(node.is_file())
 
     def test_is_file(self):
-        node = FileNode(self.root_path / 'BRA' / 'tc_bra_00001.rst', self.root)
+        node = FileNode(self.root_path / 'GDN' / 'tc_gdn_001.rst', self.root)
         self.assertTrue(node.is_file())
         self.assertFalse(node.is_dir())
 
@@ -44,13 +46,13 @@ class TestExpandedNodes(unittest.TestCase):
     def setUp(self):
         self.conn = connect(":memory:")
         init_db(self.conn)
-        self.root = FileNode(Path(__file__).resolve().parent / 'data' / 'rvts')
+        self.root = FileNode(RVTS)
 
     def tearDown(self):
         self.conn.close()
 
     def test_toggle(self):
-        node = FileNode('BRA', self.root)
+        node = FileNode('GDN', self.root)
 
         self.assertNotIn(node, expanded_nodes(self.conn, 'ws', self.root))
         toggle_expanded(self.conn, 'ws', node)
@@ -59,5 +61,5 @@ class TestExpandedNodes(unittest.TestCase):
         self.assertNotIn(node, expanded_nodes(self.conn, 'ws', self.root))
 
     def test_per_workspace(self):
-        toggle_expanded(self.conn, 'ws1', FileNode('BRA', self.root))
+        toggle_expanded(self.conn, 'ws1', FileNode('GDN', self.root))
         self.assertEqual(expanded_nodes(self.conn, 'ws2', self.root), set())

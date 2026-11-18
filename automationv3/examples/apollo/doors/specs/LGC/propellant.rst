@@ -2,7 +2,7 @@ Propellant
 ==========
 
 .. requirement:: LGC-PRP-001
-   :satisfies: MSN-004, LM-PRP-003
+   :satisfies: LM-CWS-001, LM-PRP-003
    :subsystem: PRP
    :verification: Test
    :last-modified-by: doors-import

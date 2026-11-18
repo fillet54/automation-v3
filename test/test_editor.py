@@ -13,7 +13,7 @@ from automationv3.services.database import connect, init_db
 from automationv3.web.app import create_app
 from automationv3.web import editor
 from .central import Central
-from .data import make_workspaces as gitutil
+from . import gitutil
 
 SCRIPT = """\
 Brakes
@@ -201,9 +201,9 @@ class TestEditor(unittest.TestCase):
         self.assertEqual(self.post("new", folder="", title="x", name="given").json["path"], "given.rst")
 
     def test_a_new_script_for_a_requirement(self):
-        found = self.post("new", folder="", title="Wear", requirement="VMCBRA00001").json
+        found = self.post("new", folder="", title="Wear", requirement="LGC-GDN-001").json
         text = "".join(c["data"]["source"] for c in found["cards"])
-        self.assertIn("Requirements\n------------\n1. :req:`VMCBRA00001`\n", text)
+        self.assertIn("Requirements\n------------\n1. :req:`LGC-GDN-001`\n", text)
 
     def test_a_clone_opens_unsaved_under_its_new_title(self):
         found = self.post("clone", **{"from": "BRA/brakes.rst"}, folder="", title="Brakes again").json

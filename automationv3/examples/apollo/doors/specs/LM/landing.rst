@@ -40,3 +40,11 @@ Landing
    :last-modified-by: doors-import
 
    ENGINE STOP shall shut the descent engine down, whatever the guidance computer commands, for as long as it is pressed.
+
+.. requirement:: LM-ABT-003
+   :satisfies: MSN-002
+   :subsystem: ABT
+   :verification: Analysis
+   :last-modified-by: doors-import
+
+   The lunar module shall be able to abort on the descent engine at any time before touchdown, climbing away from the surface.

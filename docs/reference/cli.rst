@@ -48,9 +48,10 @@ Command line
        automation-v3 (-h | --help)
 
    Commands:
-       demo                   set up a demo (sample scripts, requirements and
-                              these docs) in a fresh folder, and serve it with
-                              a worker. Deletes an earlier demo at --path
+       demo                   set up a demo (the Apollo lunar module example's
+                              scripts and requirements, and these docs) in a
+                              fresh folder, and serve it with a worker.
+                              Deletes an earlier demo at --path
        server                 serve the web app and the job API, optionally
                               with a worker in the same process
        worker                 take jobs from a server and run them

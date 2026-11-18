@@ -21,7 +21,7 @@ from automationv3.services.worker.client import ServerClient
 from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 
-from .data import make_workspaces as gitutil
+from . import gitutil
 from .test_jobs import FlaskSession
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "automationv3" / "examples" / "apollo"

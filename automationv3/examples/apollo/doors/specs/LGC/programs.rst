@@ -2,7 +2,7 @@ Descent programs
 ================
 
 .. requirement:: LGC-GDN-001
-   :satisfies: MSN-003, LM-ABT-002
+   :satisfies: LM-GNC-001, LM-GNC-002
    :subsystem: GDN
    :verification: Test
    :last-modified-by: doors-import
@@ -18,7 +18,7 @@ Descent programs
    P63 shall brake at full throttle until the thrust it needs falls below 57%, then throttle down, and stay within the throttling range for the rest of the descent.
 
 .. requirement:: LGC-GDN-003
-   :satisfies: MSN-001
+   :satisfies: LM-GNC-001
    :subsystem: GDN
    :verification: Test
    :last-modified-by: doors-import
@@ -26,7 +26,7 @@ Descent programs
    P63 shall hand over to P64 at high gate; P64 shall fly to low gate along the approach angle the erasable load gives.
 
 .. requirement:: LGC-GDN-004
-   :satisfies: MSN-003, LM-LDG-001
+   :satisfies: LM-GNC-001, LM-LDG-001
    :subsystem: GDN
    :verification: Test
    :last-modified-by: doors-import
@@ -50,7 +50,7 @@ Descent programs
    The lunar contact light shall end powered descent: P68 shall command no further thrust.
 
 .. requirement:: LGC-ABT-001
-   :satisfies: MSN-002, LM-ABT-001
+   :satisfies: LM-ABT-003
    :subsystem: ABT
    :verification: Test
    :last-modified-by: doors-import
@@ -58,7 +58,7 @@ Descent programs
    ABORT shall, at any time before landing, select P70: full thrust, upright, climbing.
 
 .. requirement:: LGC-ABT-002
-   :satisfies: MSN-003
+   :satisfies: LM-GNC-002
    :subsystem: ABT
    :verification: Test
    :last-modified-by: doors-import

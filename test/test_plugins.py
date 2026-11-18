@@ -145,7 +145,7 @@ class TestPluginFunctions(unittest.TestCase):
 
     def test_static_analysis_loads_plugin_defaults_in_a_fresh_process(self):
         with tempfile.TemporaryDirectory() as folder:
-            Path(folder, "s.rst").write_text(rvt('(Verify (ref? (connector "vm.eps")))'))
+            Path(folder, "s.rst").write_text(rvt('(Verify (ref? (connector "lm.eps")))'))
             result = subprocess.run([sys.executable, "-c",
                 "import sys; from automationv3.framework.closure import resolve; "
                 "c = resolve(sys.argv[1], 's.rst'); assert not c.errors, c.errors", folder],
@@ -166,7 +166,7 @@ class TestPluginFunctions(unittest.TestCase):
 
 
 class TestPluginRendering(unittest.TestCase):
-    """What plugins add to documents (see plugins/sample/documents.py)"""
+    """What plugins add to documents (see plugins/apollo/documents.py)"""
 
     def setUp(self):
         plugins.load_plugins()

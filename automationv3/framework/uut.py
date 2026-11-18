@@ -105,7 +105,7 @@ class UUT:
     def handle(self, version, env):
         """The object scripts use to reach this UUT, bound to its name.
 
-        Scripts call its methods with the dot form, e.g. (.mode demo).
+        Scripts call its methods with the dot form, e.g. (.mission lm).
         None means scripts get no handle.
         """
         return None

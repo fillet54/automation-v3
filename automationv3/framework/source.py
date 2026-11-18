@@ -9,21 +9,21 @@ code lives in `rvt` directives whose content is edn forms::
     .. rvt::
        :definitions:
 
-       (def stop-pressure 70)
+       (def approach-deg 16)
 
-    .. rvt:: Apply the brakes fully
-       :variations: degraded, limp-home
+    .. rvt:: On the load's approach angle
+       :variations: standard, extended
 
-       (Verify (reading :brake-pressure) <= limp-pressure)
+       (Verify (approach-angle) within? (- approach-deg 2.5) (+ approach-deg 2.5))
 
     .. rvt-variant::
-       :variations: emergency
+       :variations: extended
 
-       In emergency mode the pressure stays at the limit.
+       The extended approach comes in steeper.
 
        .. rvt::
 
-          (Verify (reading :brake-pressure) = max-pressure)
+          (Verify truth.downrange > -6000)
 
 `parse` reads the whole file with docutils once. The two directives
 become nodes in that tree:
