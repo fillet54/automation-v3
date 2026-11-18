@@ -34,7 +34,7 @@ a docutils tree.
 - [x] **Expired sign-ins are forgotten**: `accounts.create_link` calls
   `forget_expired`, so each new sign-in link clears out what has expired.
 
-## 2. Source text: one docutils tree (the main structural work)
+## 2. Source text: one docutils tree (done 2026-11-17)
 
 A script is represented today as:
 
@@ -72,6 +72,31 @@ Decisions this forces:
 
 The plan is `plans/source-tree.md`.
 
+- [x] **Done** (branch `source-tree`, steps 0 to 7). `framework/source.py`
+  parses a script once; statements, cards, problems, requirement refs,
+  titles and pages all come from that tree. `document.py`,
+  `statements.py` and `grouping.py` are gone, and so is the browser's copy
+  of `cards.build`: the editor sends its cards and the server builds the
+  text and maps positions back to cards. Byte-exact saving stays. One
+  renderer: each block is its own entry on a page, and a run page is the
+  script's page with results (this settles the grouped view question in
+  section 4).
+
+What is left, on purpose or for later:
+
+- Regexes that stay: `source.ANY_RVT` (`has_rvt`, a cheap test when
+  listing a folder), `source.DIRECTIVE_LINE` (finds a `.. rvt::` line
+  docutils took into the paragraph before it, so it can be reported), and
+  the language server's `REQ_OPEN`, `CONSTRUCTOR_STRING` and `PREFIX`,
+  which read what is being typed at the cursor.
+- Runs stored before the change show results beside the wrong steps
+  (statement numbers changed). Accepted: this is v1.
+- docutils' errors about prose (a heading that skips a level) show in the
+  editor but don't stop a script being queued.
+- The editor's positions were checked in a browser by hand (a throwaway
+  DevTools script); the editor still has no automated browser tests (see
+  section 3).
+
 ## 3. Features that need more development
 
 - **Project configuration.** Settings are spread over `automation.json`,
@@ -100,6 +125,7 @@ The plan is `plans/source-tree.md`.
 - Is `services/jobs.py` (876 lines, 58 definitions, no module
   description) one concept or several: the queue, workers, scratch,
   report planning?
-- Should the grouped statement view survive, or should cards become the
-  only way a script is shown, run pages included?
+- ~~Should the grouped statement view survive, or should cards become the
+  only way a script is shown, run pages included?~~ Settled 2026-11-15:
+  cards, run pages included (done in section 2).
 - Should a ref path that doesn't exist block queuing? Today it doesn't.

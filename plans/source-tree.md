@@ -239,7 +239,7 @@ changes how pages group blocks.
   - Check in headless Chromium: squiggles land on the right characters
     in a block inside a variant, before and after an edit above it.
 
-- [ ] **7. Finish.**
+- [x] **7. Finish.**
   - Delete `test/baseline.py`, `test/baseline.json`,
     `test/test_baseline.py` and `test/bench_closures.py`.
     (`framework/document.py` went in step 3.)
@@ -519,3 +519,14 @@ editor and the workspace page reach `render` through
   `max-presure`; after three lines are added to the first section, the
   block (and so its variant) written again, it still is, the Problems
   panel says line 59 (56 + 3), and clicking it reveals the block.
+
+**Step 7 (2026-11-17).** The baseline (`test/baseline.py`,
+`baseline.json`, `test_baseline.py`) and `test/bench_closures.py` are
+deleted; nothing else used them. Docs: the README code map says how a
+script is read (and no longer calls the workspace read-only);
+`docs/scripts/documenting.rst` says each block is its own section of
+the page. The rest of `docs/scripts/` and `docs/blocks/` describe
+scripts as an author sees them and were still right;
+`writing-blocks.rst` doesn't name `Statement`. Section 2 of
+`plans/cleanup-audit.md` is ticked with what is left, and section 4's
+grouped-view question marked settled. The plan is done.

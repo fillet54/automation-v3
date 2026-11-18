@@ -145,9 +145,18 @@ A worker takes jobs from anything with the small server interface in
 `services/worker/worker.py`: the HTTP client (`services/worker/client.py`)
 or `LocalServer` (`services/worker/local.py`), which `run` uses in-process.
 
+A script is read once: `framework/source.py` parses the whole file with
+docutils into one tree, in which `rvt` and `rvt-variant` are real
+directives and `:req:` a role. Everything else is derived from that tree:
+`source.statements`, the forms the executor, closures, static analysis and
+the language server work from; `framework/cards.py`, the pieces the editor
+edits (`build` and `placed` make the file from them again); and
+`documents/script.py`, the page of a script, a picked variation or a run.
+
 ## Scripts
 
-Scripts are authored in git; the workspace is a read-only viewer. A script
+Scripts live in git, and the workspace page edits them in a worktree on
+this machine (`docs/operating/editor.rst`). A script
 is a reStructuredText (`.rst`) document whose code lives in `rvt`
 directives; each form in an `rvt` block is a step, and the prose between
 them is the script's documentation:

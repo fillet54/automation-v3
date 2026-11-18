@@ -34,7 +34,8 @@ written yet (see :doc:`planning`):
 
 When a step is written, its block keeps the title. Expanding the title shows
 the forms. On a run page the title carries the block's overall result and
-duration. Untitled blocks show their steps at the top level, as before.
+duration. An untitled block shows its steps as they are. Each block is a
+section of the page of its own, as it is a card in the editor.
 
 Describe heals
 --------------
