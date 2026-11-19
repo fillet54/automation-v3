@@ -133,7 +133,7 @@
   <h2>What automation-v3 does about it</h2>
   <table class="plain" style="font-size:0.62em">
     <tr><th style="width:32%">Problem</th><th>Answer</th></tr>
-    <tr class="fragment"><td>No names, hardcoded values</td><td>A real (small) language: <code>def</code> names constants and connectors once, for every script under it</td></tr>
+    <tr class="fragment"><td>No names, hardcoded values</td><td>A real (small) language: <code>def</code> names constants once, for every script under it</td></tr>
     <tr class="fragment"><td>Copy and paste per configuration</td><td><code>defn</code> groups steps; <strong>variations</strong> and <strong>table blocks</strong> run the same steps over configurations and cases</td></tr>
     <tr class="fragment"><td>Intent in comments</td><td>A script is a <strong>document</strong>: rst prose around the steps, cited requirements, rendered as a readable procedure</td></tr>
     <tr class="fragment"><td>Framework and definitions mixed</td><td><strong>Blocks</strong> are Python, written by block developers; <strong>definitions</strong> live in <code>core.rst</code> files, scoped by folder</td></tr>
@@ -197,7 +197,7 @@
 <section class="section-slide" data-background-color="#101412">
   <div class="eyebrow">Part one</div>
   <h2>Concepts</h2>
-  <p>Scripts, blocks, refs, UUTs, environments, variations, preconditions, outcomes</p>
+  <p>Scripts, blocks, UUTs, environments, variations, preconditions, outcomes</p>
 </section>
 
 <section>
@@ -328,18 +328,16 @@ Verify lm.touchdown.vz &lt;= 3.5
   <div class="eyebrow">The language · 3 of 5</div>
   <h2>Name it once: <code>def</code></h2>
   <div class="cols">
-    <pre class="mid" data-id="def"><code class="language-clojure" data-trim data-line-numbers="2-5|7-8|10-11">
+    <pre class="mid" data-id="def"><code class="language-clojure" data-trim data-line-numbers="2-5|7-9">
 ;; rvts/core.rst: numbers from the requirements
 (def touchdown-vz-limit 3.05)
 (def touchdown-vx-limit 1.22)
 (def full-throttle 92.5)
-(def loaded-propellant {:standard 8200 :extended 9000})
+(def wait-every 1s)
 
-;; …and the system's connectors
-(def touchdown (connector "lm.touchdown"))
-
-;; a script
+;; any script below it
 (Verify touchdown.vz &lt;= touchdown-vz-limit)
+(Verify deca.throttle = full-throttle)
     </code></pre>
     <ul class="small">
       <li class="fragment">Defined <strong>once</strong>, in a <code>core.rst</code> every script under it loads; the prose around it says where it comes from</li>
@@ -355,33 +353,26 @@ Verify lm.touchdown.vz &lt;= 3.5
   <div class="eyebrow">The language · 4 of 5</div>
   <h2>Group steps: <code>defn</code></h2>
   <div class="cols">
-    <pre class="mid"><code class="language-clojure" data-trim data-line-numbers="1-2|4-7|9-12|14-16">
-(defn boot [mission start]
-  (StartLM {:mission mission :start start}))
+    <pre class="mid"><code class="language-clojure" data-trim data-line-numbers="1-5|7-10">
+;; rvts/core.rst
+(defn boot-and-release [mission start]
+  (StartLM {:mission mission :start start})
+  (Wait lm.mode = :wait-for-release :within 30s)
+  (ReleaseLM))
 
-(defn land-and-keep [label]
-  (step "Fly to touchdown and attach the trajectory"
-    (FlyTo :touchdown)
-    (AttachTrajectory label)))
-
-(defn landed-within-limits? []
-  (and (Read landed)
-       (&lt;= (abs (Read touchdown.vz)) touchdown-vz-limit)
-       (&lt;= (abs (Read touchdown.vx)) touchdown-vx-limit)))
-
-;; in a script
-(land-and-keep "descent")
-(Verify (landed-within-limits?))
+;; a script
+(boot-and-release :standard :high-gate)
+(FlyTo :touchdown)
+(Verify touchdown.vz &lt;= touchdown-vz-limit)
     </code></pre>
     <ul class="small">
-      <li class="fragment">A sequence of steps every script repeats becomes <strong>one named call</strong>, with parameters</li>
-      <li class="fragment">Transparent: its blocks still report one by one, under the step that called it</li>
-      <li class="fragment"><code>step</code> gives a group its own title on the page and in the run</li>
-      <li class="fragment">Predicates read like the requirement they check</li>
+      <li class="fragment">Steps every script repeats become <strong>one named call</strong>, with parameters for what differs</li>
+      <li class="fragment">The script says what it means: boot, fly, check</li>
+      <li class="fragment">Transparent: the three blocks inside still report one by one, under the step that called it</li>
       <li class="fragment">Written in the script language, by script writers: no Python, no new block to review</li>
     </ul>
   </div>
-  <aside class="notes">Blocks are the vocabulary the block developers provide in Python. defn is how script writers build phrases out of that vocabulary themselves, at the script level.</aside>
+  <aside class="notes">Blocks are the vocabulary the block developers provide in Python. defn is how script writers build phrases out of that vocabulary themselves, at the script level. (ReleaseLM and the wait-for-release mode are illustrative; the Apollo example's boot is just StartLM.)</aside>
 </section>
 
 <section>
@@ -392,7 +383,7 @@ Verify lm.touchdown.vz &lt;= 3.5
       <pre><code class="language-plaintext" data-trim>
 rvts/
   core.rst          (uut :lm)  (environments :sim :lms)
-                    connectors, limits, boot…
+                    limits, boot-and-release…
   LND/
     core.rst        land-and-keep
     tc_lnd_001.rst  ← loads both core.rst files
@@ -472,35 +463,6 @@ class FlyTo(BuildingBlock):
       <li><code>execute</code> returns a <code>BlockResult</code>: passed, stdout, data, files</li>
       <li><code>as_rst</code> is how the call reads on the page</li>
       <li>Blocks reach the UUT through its <strong>handle</strong>, bound to the UUT's name</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <h2>Refs: the values of the system</h2>
-  <div class="cols">
-    <div>
-      <pre><code class="language-clojure" data-trim data-noescape>
-(def eps (connector "lm.eps"))
-(def bench (connector "lm.bench"))
-
-(Read eps.bus-volts)                    ; a number
-(SetValue panel.engine-stop true)       ; once
-(SetFixedValue bench.bus-load-amps 200) ; held…
-(ClearFixedValue bench.bus-load-amps)   ; …until released
-
-(def cpu (group cpu1 cpu2))
-(Verify cpu.app.nav.mode = :run)        ; every member
-(VerifyAny cpu.role = :primary)
-      </code></pre>
-    </div>
-    <ul class="small">
-      <li>A <strong>ref</strong> names a value somewhere else: a point of the UUT, an input of the bench</li>
-      <li>Scripts declare a few roots and reach everything with <strong>dotted names</strong>; the editor completes the paths</li>
-      <li>Each plugin brings its own kind of ref (the lunar module's are connectors) and implements <code>Read</code> and the value blocks for it</li>
-      <li>Whatever a script leaves fixed is <strong>released when it ends</strong>, however it ends</li>
-      <li><strong>Groups</strong> test redundant units together, and say which member disagreed</li>
-      <li>Every run lists the values it touched, and which steps touched them</li>
     </ul>
   </div>
 </section>
@@ -693,7 +655,7 @@ class Lms(Sim):
     <ul class="small">
       <li>A script is cut into <strong>cards</strong>: prose sections, blocks, variants. Click one to edit it; only edited cards are rewritten on save</li>
       <li>A language server checks as you type, unsaved edits included: errors underlined, a <strong>Problems</strong> panel, counts in the tree</li>
-      <li><span class="kbd">Ctrl+Space</span> completes blocks, definitions, handles, variation values, and <strong>the paths below a ref</strong></li>
+      <li><span class="kbd">Ctrl+Space</span> completes blocks, definitions, handles, variation values, and <strong>dotted paths</strong> into the UUT</li>
       <li>Hover says what a name is; the line below shows how the call is made</li>
       <li>The same server speaks LSP: <code>automation-v3 lsp</code> in any editor</li>
     </ul>
