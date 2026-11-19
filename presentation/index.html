@@ -51,6 +51,8 @@
     .reveal pre { width: 100%; margin: 0.4em 0; box-shadow: none; font-size: 0.6em; }
     .reveal pre code { max-height: 560px; padding: 16px 20px; border-radius: 6px; border: 1px solid var(--rule); background: #0f1210; color: var(--ink); line-height: 1.45; }
     .reveal section img { margin: 0; }
+    .reveal pre.big { font-size: 0.78em; }
+    .reveal pre.mid { font-size: 0.68em; }
     .muted { color: var(--muted); }
     .lead { font-size: 0.85em; color: var(--muted); margin-top: -0.3em; }
     .small { font-size: 0.72em; }
@@ -233,42 +235,168 @@ Steps
   <p class="caption">Blocks render themselves: <code>(FlyTo :contact)</code> becomes <strong>Fly to</strong> <code>:contact</code>; <code>rvt-variant</code> prose shows only for its variations</p>
 </section>
 
+<section data-auto-animate>
+  <div class="eyebrow">The language · 1 of 5</div>
+  <h2>Where you start: a line per step</h2>
+  <p class="small">Most of a script is steps: call a block, give it some arguments. Today that's one line each:</p>
+  <pre class="big" data-id="steps"><code class="language-plaintext" data-trim data-line-numbers>
+StartLM standard pdi
+FlyTo contact
+Verify lm.contact = true
+Verify lm.touchdown.vz &lt;= 3.05
+  </code></pre>
+  <ul class="small">
+    <li class="fragment">The first word names the <strong>block</strong></li>
+    <li class="fragment">The rest is split like a shell command (<code>shlex</code>) and handed over as <strong>strings</strong></li>
+    <li class="fragment">Every block parses its own strings, its own way</li>
+  </ul>
+  <aside class="notes">Start from what people already write. Nobody has to learn a new mental model for the common case: a step is a block name and its arguments.</aside>
+</section>
+
+<section data-auto-animate>
+  <div class="eyebrow">The language · 1 of 5</div>
+  <h2>Where you start: a form per step</h2>
+  <p class="small">The same steps in automation-v3:</p>
+  <pre class="big" data-id="steps"><code class="language-clojure" data-trim data-line-numbers>
+(StartLM {:mission :standard :start :pdi})
+(FlyTo :contact)
+(Verify contact-light = true)
+(Verify touchdown.vz &lt;= 3.05)
+  </code></pre>
+  <ul class="small">
+    <li class="fragment">Same shape: the block first, then its arguments, now in parentheses</li>
+    <li class="fragment">It still reads as a procedure; each form is still one step on the page and in the run</li>
+    <li class="fragment">What changed is what's <em>inside</em> the parentheses: values, not strings</li>
+  </ul>
+  <aside class="notes">The parentheses are the price. What they buy is on the next three slides: typed values, names, and groups of steps.</aside>
+</section>
+
 <section>
-  <h2>The language</h2>
+  <div class="eyebrow">The language · 2 of 5</div>
+  <h2>Arguments have types</h2>
+  <p class="small">The language is <strong>edn</strong>, Clojure's data notation. A block gets the value you wrote, not text it has to parse.</p>
+  <table class="plain" style="margin-top:0.6em">
+    <tr><th>Line-based, a string</th><th>Now, a value</th><th>Type</th></tr>
+    <tr class="fragment"><td><code>3.05</code></td><td><code>3.05</code></td><td>number</td></tr>
+    <tr class="fragment"><td><code>true</code></td><td><code>true</code></td><td>boolean</td></tr>
+    <tr class="fragment"><td><code>contact</code></td><td><code>:contact</code></td><td>keyword: a name from a fixed set</td></tr>
+    <tr class="fragment"><td><code>15min</code></td><td><code>15min</code>, <code>500ms</code></td><td>time</td></tr>
+    <tr class="fragment"><td><code>"Fly to touchdown"</code></td><td><code>"Fly to touchdown"</code></td><td>string, quoted only when it is one</td></tr>
+    <tr class="fragment"><td><span class="muted">no way to say it</span></td><td><code>[1 2 3]</code>, <code>{:mission :standard}</code></td><td>vector, map</td></tr>
+  </table>
+  <ul class="small" style="margin-top:0.8em">
+    <li class="fragment">Blocks say what shape of arguments they accept, and it's checked <strong>before</strong> anything runs</li>
+    <li class="fragment">That's all a script writer needs to know about types</li>
+  </ul>
+</section>
+
+<section data-auto-animate>
+  <div class="eyebrow">The language · 3 of 5</div>
+  <h2>Name it once: <code>def</code></h2>
+  <p class="small">A number from a requirement, typed into every script that checks it:</p>
+  <pre class="mid" data-id="def"><code class="language-plaintext" data-trim data-line-numbers="2,5,8">
+# LND/landing.txt
+Verify lm.touchdown.vz &lt;= 3.05
+# LND/high_gate.txt
+FlyTo contact
+Verify lm.touchdown.vz &lt;= 3.05
+# ABT/abort.txt
+Verify lm.deca.throttle = 92.5
+Verify lm.touchdown.vz &lt;= 3.5
+  </code></pre>
+  <ul class="small">
+    <li class="fragment">Which requirement is <code>3.05</code>? The line doesn't say</li>
+    <li class="fragment">When the requirement changes, every copy has to be found</li>
+    <li class="fragment">A typo is just a different number, and still passes</li>
+  </ul>
+</section>
+
+<section data-auto-animate>
+  <div class="eyebrow">The language · 3 of 5</div>
+  <h2>Name it once: <code>def</code></h2>
   <div class="cols">
-    <div>
-      <p class="small">A small Lisp over edn. Definitions live in <code>core.rst</code>: a script loads every <code>core.rst</code> from the root down to its folder, then any it <code>(import …)</code>s.</p>
-      <pre><code class="language-clojure" data-trim data-noescape>
-;; rvts/core.rst
-(uut :lm)
-(environments :sim :lms)
-
-(def eps (connector "lm.eps"))
-(def touchdown (connector "lm.touchdown"))
+    <pre class="mid" data-id="def"><code class="language-clojure" data-trim data-line-numbers="2-5|7-8|10-11">
+;; rvts/core.rst: numbers from the requirements
 (def touchdown-vz-limit 3.05)
+(def touchdown-vx-limit 1.22)
+(def full-throttle 92.5)
+(def loaded-propellant {:standard 8200 :extended 9000})
 
+;; …and the system's connectors
+(def touchdown (connector "lm.touchdown"))
+
+;; a script
+(Verify touchdown.vz &lt;= touchdown-vz-limit)
+    </code></pre>
+    <ul class="small">
+      <li class="fragment">Defined <strong>once</strong>, in a <code>core.rst</code> every script under it loads; the prose around it says where it comes from</li>
+      <li class="fragment">The name says what the number is; the run shows both the name and the value it read</li>
+      <li class="fragment">A misspelled name is an error before the run:<br><code class="tiny">unknown name touchdown-vz-limt; did you mean touchdown-vz-limit?</code></li>
+      <li class="fragment"><strong>This is the main reason for the new syntax:</strong> a line of shell words has nowhere to name anything</li>
+    </ul>
+  </div>
+  <aside class="notes">The motivating slide. The 3.5 on the previous slide is the typo nobody notices. With names, the editor and the checker catch it, and changing a limit is a one-line change reviewed in one place.</aside>
+</section>
+
+<section>
+  <div class="eyebrow">The language · 4 of 5</div>
+  <h2>Group steps: <code>defn</code></h2>
+  <div class="cols">
+    <pre class="mid"><code class="language-clojure" data-trim data-line-numbers="1-2|4-7|9-12|14-16">
 (defn boot [mission start]
   (StartLM {:mission mission :start start}))
 
+(defn land-and-keep [label]
+  (step "Fly to touchdown and attach the trajectory"
+    (FlyTo :touchdown)
+    (AttachTrajectory label)))
+
 (defn landed-within-limits? []
   (and (Read landed)
-       (&lt;= (abs (Read touchdown.vz)) touchdown-vz-limit)))
+       (&lt;= (abs (Read touchdown.vz)) touchdown-vz-limit)
+       (&lt;= (abs (Read touchdown.vx)) touchdown-vx-limit)))
+
+;; in a script
+(land-and-keep "descent")
+(Verify (landed-within-limits?))
+    </code></pre>
+    <ul class="small">
+      <li class="fragment">A sequence of steps every script repeats becomes <strong>one named call</strong>, with parameters</li>
+      <li class="fragment">Transparent: its blocks still report one by one, under the step that called it</li>
+      <li class="fragment"><code>step</code> gives a group its own title on the page and in the run</li>
+      <li class="fragment">Predicates read like the requirement they check</li>
+      <li class="fragment">Written in the script language, by script writers: no Python, no new block to review</li>
+    </ul>
+  </div>
+  <aside class="notes">Blocks are the vocabulary the block developers provide in Python. defn is how script writers build phrases out of that vocabulary themselves, at the script level.</aside>
+</section>
+
+<section>
+  <div class="eyebrow">The language · 5 of 5</div>
+  <h2>Where definitions live</h2>
+  <div class="cols">
+    <div>
+      <pre><code class="language-plaintext" data-trim>
+rvts/
+  core.rst          (uut :lm)  (environments :sim :lms)
+                    connectors, limits, boot…
+  LND/
+    core.rst        land-and-keep
+    tc_lnd_001.rst  ← loads both core.rst files
       </code></pre>
     </div>
-    <div>
-      <ul class="small">
-        <li><code>def</code>, <code>defn</code>, <code>let</code>, <code>if</code>, maps, vectors, keywords</li>
-        <li>Times are values: <code>500ms</code>, <code>5s</code>, <code>2min</code></li>
-        <li><code>(uut …)</code> and <code>(environments …)</code> declare what a script tests and where it can run</li>
-        <li>The closure (script + every file it loaded) is <strong>resolved statically</strong> and checked before anything runs: unknown names, wrong calls, bad block syntax</li>
-        <li>The same checks power the editor's errors, hover and completion</li>
-      </ul>
-    </div>
+    <ul class="small">
+      <li>A script loads every <code>core.rst</code> from the root down to its folder, then any it <code>(import …)</code>s: its <strong>closure</strong></li>
+      <li class="fragment"><code>(uut …)</code> and <code>(environments …)</code> say what a script tests and where it can run</li>
+      <li class="fragment">The closure is resolved and checked statically: unknown names, wrong calls, bad block arguments</li>
+      <li class="fragment">The same checks give the editor its errors, hover and completion</li>
+      <li class="fragment">There's more when you need it (<code>let</code>, <code>if</code>, <code>fn</code>, maps), but most scripts are steps, names and a few <code>defn</code>s</li>
+    </ul>
   </div>
 </section>
 
 <section>
-  <h2>Steps and blocks</h2>
+  <h2>Blocks: what passes or fails</h2>
   <div class="cols">
     <div>
       <p class="small">A <strong>BuildingBlock</strong> is a Python class scripts call by name. Blocks are what pass or fail.</p>
@@ -281,7 +409,6 @@ Steps
       </table>
       <ul class="small" style="margin-top:0.8em">
         <li>The first failing block stops its step, and the step stops the script</li>
-        <li>A <code>defn</code> is transparent: its block calls report under the step that called it</li>
         <li><code>try-ok?</code>, <code>try</code>, <code>quietly</code>, <code>step</code> shape what is reported</li>
       </ul>
     </div>
