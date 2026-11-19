@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>automation-v3 overview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/monokai.min.css">
+  <style>
+    /* The app's own look: paper-ui's dark palette and IBM Plex */
+    :root {
+      --ink: #e6e9e4;
+      --muted: #9aa39c;
+      --paper: #151917;
+      --soft: #1f2521;
+      --rule: #333b36;
+      --accent: #8fd1bd;
+      --pass: #7fc48f;
+      --fail: #e58a7f;
+      --warn: #e2c26f;
+      --r-background-color: var(--paper);
+      --r-main-font: "IBM Plex Sans", system-ui, sans-serif;
+      --r-main-font-size: 30px;
+      --r-main-color: var(--ink);
+      --r-heading-font: "IBM Plex Serif", Georgia, serif;
+      --r-heading-color: var(--ink);
+      --r-heading-text-transform: none;
+      --r-heading-font-weight: 500;
+      --r-heading-letter-spacing: 0;
+      --r-heading1-size: 2.4em;
+      --r-heading2-size: 1.55em;
+      --r-heading3-size: 1.1em;
+      --r-code-font: "IBM Plex Mono", ui-monospace, monospace;
+      --r-link-color: var(--accent);
+      --r-link-color-hover: #b9e6d8;
+      --r-selection-background-color: rgba(143, 209, 189, 0.35);
+    }
+    .reveal .slides { text-align: left; }
+    .reveal h1, .reveal h2, .reveal h3 { line-height: 1.15; }
+    .reveal h2 { margin-bottom: 0.5em; }
+    .reveal p, .reveal li { line-height: 1.4; }
+    .reveal ul, .reveal ol { display: block; margin-left: 1.1em; }
+    .reveal li + li { margin-top: 0.3em; }
+    .reveal strong { color: #fff; font-weight: 600; }
+    .reveal code { font-family: var(--r-code-font); color: var(--accent); font-size: 0.9em; }
+    .reveal pre { width: 100%; margin: 0.4em 0; box-shadow: none; font-size: 0.6em; }
+    .reveal pre code { max-height: 560px; padding: 16px 20px; border-radius: 6px; border: 1px solid var(--rule); background: #0f1210; color: var(--ink); line-height: 1.45; }
+    .reveal section img { margin: 0; }
+    .reveal pre.big { font-size: 0.78em; }
+    .reveal pre.mid { font-size: 0.68em; }
+    .muted { color: var(--muted); }
+    .lead { font-size: 0.85em; color: var(--muted); margin-top: -0.3em; }
+    .small { font-size: 0.72em; }
+    .tiny { font-size: 0.6em; }
+    .eyebrow { font-family: var(--r-code-font); font-size: 0.5em; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.4em; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: start; }
+    .cols.wide-left { grid-template-columns: 1.35fr 1fr; }
+    .cols.wide-right { grid-template-columns: 1fr 1.5fr; }
+    .shot { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); }
+    .shot-full { max-height: 540px; width: auto; max-width: 100%; margin: 0 auto !important; }
+    .caption { font-size: 0.55em; color: var(--muted); margin-top: 0.6em; text-align: center; }
+    .card { border: 1px solid var(--rule); background: var(--soft); border-radius: 8px; padding: 14px 18px; }
+    .card h3 { margin: 0 0 0.3em; font-size: 0.85em; font-family: var(--r-main-font); font-weight: 600; color: var(--accent); }
+    .card p { margin: 0; font-size: 0.7em; color: var(--ink); }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .pill { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 0.75em; font-weight: 500; border: 1px solid currentColor; }
+    .pass { color: var(--pass); } .fail { color: var(--fail); } .warn { color: var(--warn); } .acc { color: var(--accent); }
+    table.plain { font-size: 0.6em; border-collapse: collapse; width: 100%; }
+    table.plain th { color: var(--muted); font-weight: 500; text-align: left; border-bottom: 1px solid var(--rule); padding: 6px 10px; }
+    table.plain td { border-bottom: 1px solid var(--rule); padding: 7px 10px; vertical-align: top; }
+    table.plain td code { font-size: 0.95em; }
+    /* Flow diagrams, drawn with boxes */
+    .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .node { border: 1px solid var(--rule); background: var(--soft); border-radius: 8px; padding: 12px 18px; font-size: 0.68em; text-align: center; min-width: 140px; }
+    .node b { display: block; font-size: 1.15em; color: #fff; font-weight: 600; }
+    .node span { color: var(--muted); }
+    .node.accent { border-color: var(--accent); }
+    .node.accent b { color: var(--accent); }
+    .arrow { color: var(--muted); font-size: 0.75em; }
+    .arrow small { display: block; font-size: 0.65em; text-align: center; }
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+    .title-slide h1 { font-size: 2.8em; margin-bottom: 0.2em; }
+    .title-slide .sub { font-size: 1.05em; color: var(--muted); }
+    .section-slide h2 { font-size: 2.2em; }
+    .section-slide p { color: var(--muted); }
+    .kbd { font-family: var(--r-code-font); font-size: 0.8em; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; color: #fff; }
+    .reveal .progress { color: var(--accent); }
+    .reveal .slide-number { background: transparent; color: var(--muted); font-family: var(--r-code-font); font-size: 14px; }
+    .reveal .controls { color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================================================ Title -->
+<section class="title-slide" data-background-gradient="radial-gradient(circle at 20% 20%, #1d2a25, #151917 60%)">
+  <div class="eyebrow">automation-v3 · overview</div>
+  <h1>Test scripts as documents,<br>runs as evidence</h1>
+  <p class="sub">A test automation framework for control systems</p>
+  <p class="small muted" style="margin-top:2em">Examples: the Apollo lunar module's powered descent, the demo that ships with the package. The detailed deck is <code>index.html</code>.</p>
+</section>
+
+<!-- ============================================================ Problem -->
+<section>
+  <h2>The problem</h2>
+  <p class="small">Our scripts today are lines of shell words. That makes them:</p>
+  <ul>
+    <li class="fragment"><strong>Hard to maintain:</strong> no names for values, no way to reuse steps; another configuration means copy and paste</li>
+    <li class="fragment"><strong>Hard to read:</strong> the intent lives in comments, if anywhere</li>
+    <li class="fragment"><strong>Big and coupled:</strong> starting the system is expensive, so each script tests everything it can, and one failure hides what still passes</li>
+    <li class="fragment"><strong>Hard to read back:</strong> walls of output to find a failure in, and fixed reports</li>
+  </ul>
+  <p class="fragment small acc" style="margin-top:1em">automation-v3: scripts are readable documents in a small language, and every result rolls up to the requirement it verifies.</p>
+</section>
+
+<!-- ============================================================ Language -->
+<section class="section-slide" data-background-color="#101412">
+  <div class="eyebrow">Part one</div>
+  <h2>From lines to forms</h2>
+  <p>What changes for someone writing a script</p>
+</section>
+
+<section data-auto-animate>
+  <h2>A step per line…</h2>
+  <pre class="big" data-id="steps"><code class="language-plaintext" data-trim data-line-numbers>
+StartLM standard pdi
+FlyTo contact
+Verify lm.contact = true
+Verify lm.touchdown.vz &lt;= 3.05
+  </code></pre>
+  <ul class="small">
+    <li class="fragment">The first word names the <strong>block</strong></li>
+    <li class="fragment">The rest is split like a shell command and handed over as <strong>strings</strong></li>
+  </ul>
+</section>
+
+<section data-auto-animate>
+  <h2>…becomes a form per step</h2>
+  <pre class="big" data-id="steps"><code class="language-clojure" data-trim data-line-numbers>
+(StartLM {:mission :standard :start :pdi})
+(FlyTo :contact)
+(Verify contact-light = true)
+(Verify touchdown.vz &lt;= 3.05)
+  </code></pre>
+  <ul class="small">
+    <li class="fragment">Same shape: the block first, then its arguments, in parentheses</li>
+    <li class="fragment">Arguments are <strong>typed values</strong>: numbers, keywords, booleans, times like <code>15min</code>, maps</li>
+    <li class="fragment">Calls are checked before anything runs</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Name it once: <code>def</code></h2>
+  <div class="cols">
+    <div>
+      <p class="small muted">Before: the same number in every script</p>
+      <pre class="mid"><code class="language-plaintext" data-trim>
+Verify lm.touchdown.vz &lt;= 3.05
+…
+Verify lm.touchdown.vz &lt;= 3.05
+…
+Verify lm.touchdown.vz &lt;= 3.5
+      </code></pre>
+    </div>
+    <div class="fragment">
+      <p class="small muted">After: defined once, in <code>core.rst</code></p>
+      <pre class="mid"><code class="language-clojure" data-trim>
+(def touchdown-vz-limit 3.05)
+(def full-throttle 92.5)
+
+(Verify touchdown.vz &lt;= touchdown-vz-limit)
+      </code></pre>
+    </div>
+  </div>
+  <ul class="small" style="margin-top:0.6em">
+    <li class="fragment">One place to change; the name says what the number is</li>
+    <li class="fragment">A misspelled name is an error before the run, not a different number</li>
+    <li class="fragment"><strong>The main reason for the new syntax</strong></li>
+  </ul>
+</section>
+
+<section>
+  <h2>Group steps: <code>defn</code></h2>
+  <div class="cols">
+    <pre class="mid"><code class="language-clojure" data-trim data-line-numbers="1-5|7-10">
+;; core.rst
+(defn boot-and-release [mission start]
+  (StartLM {:mission mission :start start})
+  (Wait lm.mode = :wait-for-release :within 30s)
+  (ReleaseLM))
+
+;; a script
+(boot-and-release :standard :high-gate)
+(FlyTo :touchdown)
+(Verify touchdown.vz &lt;= touchdown-vz-limit)
+    </code></pre>
+    <ul class="small">
+      <li class="fragment">Steps every script repeats become one named call</li>
+      <li class="fragment">The script reads as what it means: boot, fly, check</li>
+      <li class="fragment">Written by script writers, in the script language; the blocks inside still report one by one</li>
+    </ul>
+  </div>
+  <aside class="notes">ReleaseLM and the wait-for-release mode are illustrative; the Apollo example boots with StartLM alone.</aside>
+</section>
+
+<!-- ============================================================ UI -->
+<section class="section-slide" data-background-color="#101412">
+  <div class="eyebrow">Part two</div>
+  <h2>In the app</h2>
+  <p>Scripts and runs, rendered</p>
+</section>
+
+<section>
+  <h2>A script is a document</h2>
+  <img class="shot shot-full" src="img/script-page.jpg" alt="The workspace: the script tree on the left, the rendered script on the right">
+  <p class="caption">The workspace: pick a script, read it rendered, edit it a card at a time, run it</p>
+</section>
+
+<section>
+  <h2>Up close: the script</h2>
+  <div class="cols">
+    <div>
+      <img class="shot" src="img/ov-script-doc.jpg" alt="The script's title, its prose, and the requirements it cites">
+      <p class="caption">Prose says what is tested and why; the requirements it verifies are cited</p>
+    </div>
+    <div class="fragment">
+      <img class="shot" src="img/ov-script-steps.jpg" alt="Titled steps, each block rendered as a readable line">
+      <p class="caption">Steps render as readable lines: <code>(FlyTo :contact)</code> becomes <strong>Fly to</strong> <code>:contact</code></p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>A run is the script, with results</h2>
+  <img class="shot shot-full" src="img/run-page.jpg" alt="A run: the same rendered script, with Passed on its precondition and each step">
+  <p class="caption">The run page is the same document, with a result on every precondition and step</p>
+</section>
+
+<section>
+  <h2>Up close: what each step did</h2>
+  <img class="shot shot-full" src="img/ov-run-steps.jpg" alt="Steps of a passing run: each block with its result, its output, and the values it read">
+  <p class="caption">Each block shows its result and what it saw: <code>contact-light (true) = true</code>; a <code>defn</code>'s blocks are listed under the step that called it</p>
+</section>
+
+<section>
+  <h2>Up close: a failure</h2>
+  <img class="shot shot-full" src="img/ov-run-failure.jpg" alt="A failed Verify: the values it read, and the source line it came from, underlined">
+  <p class="caption">The failing check, the values it read, and the line it came from. The steps after it say <em>Not run</em>, not failed</p>
+</section>
+
+<!-- ============================================================ Requirements -->
+<section class="section-slide" data-background-color="#101412">
+  <div class="eyebrow">Part three</div>
+  <h2>Organized by requirements</h2>
+  <p>Scripts cite requirements; results roll up to them</p>
+</section>
+
+<section>
+  <h2>Requirements, and what tests them</h2>
+  <img class="shot shot-full" src="img/ov-requirements.jpg" alt="The requirements page: specs and subsystems on the left, each requirement with the scripts that test it">
+  <p class="caption">Imported requirements, by spec and subsystem, each with the scripts that cite it. Pick requirements to queue every script that tests them</p>
+</section>
+
+<section>
+  <h2>A report rolls up to requirements</h2>
+  <img class="shot shot-full" src="img/report.jpg" alt="A report: requirements in a tree on the left, the report document on the right">
+  <p class="caption">A report collects runs for the versions under test, grouped by requirement</p>
+</section>
+
+<section>
+  <h2>Up close: requirement by requirement</h2>
+  <img class="shot shot-full" src="img/ov-report-requirements.jpg" alt="Each requirement with its verdict and the runs that cover it">
+  <p class="caption">Each requirement, its verdict, and every script, environment and variation that covers it, linked to its run</p>
+</section>
+
+<section>
+  <h2>Up close: the verdicts</h2>
+  <div class="cols" style="grid-template-columns: 1fr 1.1fr; align-items:center">
+    <img class="shot" src="img/ov-report-summary.jpg" alt="Summary counts: requirements green, red, partial, no tests; combinations passed, failed, incomplete">
+    <ul class="small">
+      <li>A requirement is <span class="pass">green</span> when everything linked to it passed, <span class="fail">red</span> when anything failed, partial otherwise</li>
+      <li class="fragment">Requirements no script cites yet show as <em>no tests</em>: the gaps are visible too</li>
+      <li class="fragment">Each combination of script, environment and variation is judged on its latest run</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ Close -->
+<section class="title-slide" data-background-gradient="radial-gradient(circle at 80% 80%, #1d2a25, #151917 60%)">
+  <h2>In one breath</h2>
+  <p>Scripts are <strong>documents</strong> in a small, typed language with names and functions. Runs render as the same document with results. Everything rolls up to the <strong>requirements</strong>.</p>
+  <p class="small muted" style="margin-top:1.5em">Try it: <code>automation-v3 demo</code> · More detail: <code>index.html</code></p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/notes/notes.min.js"></script>
+<script>
+  Reveal.initialize({
+    width: 1280,
+    height: 760,
+    margin: 0.05,
+    hash: true,
+    slideNumber: "c/t",
+    transition: "fade",
+    transitionSpeed: "fast",
+    center: true,
+    plugins: [RevealHighlight, RevealNotes],
+  });
+</script>
+</body>
+</html>
