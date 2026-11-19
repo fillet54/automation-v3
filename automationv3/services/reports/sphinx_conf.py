@@ -7,7 +7,7 @@ build's settings (build.json, beside it) with `configure`.
 import json
 from pathlib import Path
 
-import paper_ui
+from ...vendor import paper_ui
 
 HERE = Path(__file__).resolve().parent
 # the app's look: paper-ui's ui.css, code.css and fonts, and the app's automation.css

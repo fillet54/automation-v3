@@ -1,4 +1,52 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automation-v3"
+dynamic = ["version"]
+description = "An automation test framework"
+readme = "README.md"
+authors = [{ name = "Phillip Gomez", email = "phillip.gomez@ngc.com" }]
+requires-python = ">=3.11"  # tomllib
+dependencies = [
+    "flask",
+    "jinja2",
+    "waitress",
+    "docutils",
+    "docopt",
+    "requests",
+    "pygments",
+    "sphinx",  # a frozen report's site and PDF
+    # paper-ui, the UI's look, is vendored: automationv3/vendor/paper_ui
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+docs = ["sphinx"]  # the docs also use mermaid-diag (../mermaid-diag): requirements.txt
+xlsx = ["openpyxl"]  # importing requirements from Excel workbooks
+
+[project.urls]
+Homepage = "https://github.com/fillet54/automationv3"
+
+[project.scripts]
+automation-v3 = "automationv3.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "automationv3.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["automationv3*"]
+
+[tool.setuptools]
+# Everything besides Python that the package needs is listed in MANIFEST.in
+# (templates, static files, report themes, the schema, the Apollo example,
+# the vendored paper-ui's static files and fonts)
+include-package-data = true
+
 [tool.black]
 target-version = ['py311']
 include = '\.pyi?$'
-  

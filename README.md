@@ -3,17 +3,20 @@
 
 ## Try the demo
 
-From a clone of this repository, with
-[paper-ui](../paper-ui) (the UI's look, a separate project) checked out
-next to it:
+From a clone of this repository, with Python 3.11 or newer:
 
 ```
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ../paper-ui
 pip install -e ".[docs]"
 automation-v3 demo
 ```
+
+The package is described by `pyproject.toml`. The UI's look, paper-ui,
+is vendored in `automationv3/vendor` (see the README there), so nothing
+else needs checking out to run the app; building these docs also uses
+mermaid-diag (`pip install -r requirements.txt` with it checked out next
+to this repository).
 
 Then open http://localhost:8080.
 

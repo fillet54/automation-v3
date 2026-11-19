@@ -1,4 +1,4 @@
-"""The web UI's look: paper-ui (the engineering tools' shared UI library), set up for this app.
+"""The web UI's look: paper-ui (the engineering tools' shared UI library, vendored in automationv3/vendor), set up for this app.
 
 paper-ui supplies the stylesheet, components (templates/ui/components.html), page shell, filters and the
 bundled IBM Plex fonts; this app adds its own pieces on top (static/css/automation.css, templates/ui/outcomes.html).
@@ -13,10 +13,10 @@ Config (create_app(**config), or the environment at startup):
 
 import os
 
-import paper_ui
-import paper_ui.flask
+from ..vendor import paper_ui
+from ..vendor.paper_ui import flask as paper_ui_flask
 from flask import current_app, url_for
-from paper_ui import iso, utc  # noqa: F401  (the filters, as they were here)
+from ..vendor.paper_ui import iso, utc  # noqa: F401  (the filters, as they were here)
 
 MARKING_COLORS = paper_ui.MARKING_COLORS
 THEMES = paper_ui.THEMES
@@ -65,4 +65,4 @@ def init_app(app):
     app.config.setdefault("UI_BRAND", os.environ.get("AUTOMATION_UI_BRAND") or "automation")
     app.config.setdefault("UI_MARKING", marking_from_env())
     app.config.setdefault("UI_THEME", os.environ.get("AUTOMATION_UI_THEME") or "auto")
-    paper_ui.flask.init_app(app, home=lambda: url_for("index"), nav=_nav)
+    paper_ui_flask.init_app(app, home=lambda: url_for("index"), nav=_nav)

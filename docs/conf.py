@@ -1,7 +1,8 @@
 """Sphinx configuration for the automation documentation
 
 Build with `make html` in this folder (or `sphinx-build -b html . _build/html`).
-The theme is paper-ui's ("paper"), the web UI's own look: its header, side
+The theme is paper-ui's ("paper", from the vendored copy in
+automationv3/vendor, loaded as an extension), the web UI's own look: its header, side
 column, stylesheet and IBM Plex fonts. _static/automation-docs.css adds this
 project's pieces. Served by the server at /docs, the pages also get its brand,
 nav and markings.
@@ -26,6 +27,7 @@ version = release = __version__
 # -- General ---------------------------------------------------------------
 
 extensions = [
+    "automationv3.vendor.paper_ui.sphinx",  # the "paper" theme, vendored
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",

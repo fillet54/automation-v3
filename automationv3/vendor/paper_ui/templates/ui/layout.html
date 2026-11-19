@@ -1,0 +1,58 @@
+{#- paper-ui's page shell. An app's base template extends it; its pages extend that:
+
+    {% extends "ui/layout.html" %}
+    {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">{% endblock %}
+
+    A page sets, before its blocks:
+    {% set nav_current = "reports" %}      (the current header nav item: an item's key)
+    {% set browse = True %}                (a side column: fill the `side` block)
+
+    Blocks: title, head (extra <head> tags, after paper-ui's stylesheets), header, side, content, scripts.
+    An app's own header block should keep a place for the settings menu (the reader's colour scheme, settings.js):
+    ui.app_header(..., settings=True).
+
+    The context comes from paper_ui.flask.init_app: ui_brand, ui_marking, ui_theme, ui_home, ui_nav (a list of
+    {"key", "label", "href"}) and ui_static (the URL of one of paper-ui's static files).
+-#}
+{% import "ui/components.html" as ui %}
+<!doctype html>
+<html lang="en"{% if ui_theme in ("light", "dark") %} data-ui-theme="{{ ui_theme }}"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ ui_brand }}{% endblock %}{% if ui_marking %} · {{ ui_marking.text }}{% endif %}</title>
+  <script>(function () {
+    {#- the reader's colour scheme (settings.js), before the page is drawn; the app's own is the default #}
+    var root = document.documentElement, kept = null;
+    root.setAttribute("data-ui-theme-default", root.getAttribute("data-ui-theme") || "auto");
+    try { kept = localStorage.getItem("paper-ui-theme"); } catch (e) {}
+    if (kept === "light" || kept === "dark") root.setAttribute("data-ui-theme", kept);
+    else if (kept === "auto") root.removeAttribute("data-ui-theme");
+  })();</script>
+  <link rel="preload" href="{{ ui_static('fonts/IBMPlexSans-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ ui_static('ui.css') }}">
+  <link rel="stylesheet" href="{{ ui_static('code.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="ui"{% if not ui_marking %} style="--ui-marking-h: 0px;"{% endif %}>
+  <a class="ui-skip" href="#main">Skip to content</a>
+  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "top") }}{% endif %}
+  {% block header %}{{ ui.app_header(ui_nav, nav_current | default(None), brand=ui_brand, home=ui_home, settings=True) }}{% endblock %}
+  <main id="main" class="ui-main">
+    {%- if browse %}
+    <div class="ui-browse">
+      <aside class="ui-browse__side">{% block side %}{% endblock %}</aside>
+      <div class="ui-stack">
+    {%- endif %}
+    {% block content %}{% endblock %}
+    {%- if browse %}
+      </div>
+    </div>
+    {%- endif %}
+  </main>
+  {%- if ui_marking %}{{ ui.marking_banner(ui_marking, "bottom") }}{% endif %}
+  {%- if browse %}<script src="{{ ui_static('browse.js') }}" defer></script>{% endif %}
+  <script src="{{ ui_static('settings.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,19 @@
+# paper-ui's Sphinx theme: html_theme = "paper"
+[theme]
+inherit = "basic"
+stylesheets = ["docs.css"]
+sidebars = []
+pygments_style = { default = "none" }
+
+[options]
+brand = ""                 # the header's wordmark; empty: the project's name
+nav_label = "Docs"         # the header's one nav item (the docs' start page)
+home_label = "Start here"  # the start page's entry above the contents
+globaltoc_maxdepth = "2"
+line_breaks = "browser"    # "live": TeX's line breaks worked out in the reader's browser (linebreak-live.js)
+layout = "medium"          # narrow, medium, full or tufte (ui.css: document layouts)
+layouts = "narrow, medium, full, tufte"   # the ones a reader can choose (one: no choice)
+margin = "sidebar, versionmodified, note, tip, hint, seealso"   # what the tufte layout puts in the margin
+sidenotes = "true"         # the tufte layout shows footnotes beside their references
+body_min_width = "0"
+body_max_width = "none"

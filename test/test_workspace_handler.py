@@ -1,5 +1,5 @@
 
-import paper_ui.flask
+from automationv3.vendor.paper_ui import flask as paper_ui_flask
 import os
 import unittest
 import sqlite3
@@ -92,7 +92,7 @@ class TestWorkspaceHandler(unittest.TestCase):
         # Setup a test app
         templates = TEMPLATES
         self.app = Flask(__name__, template_folder=templates)
-        paper_ui.flask.init_app(self.app)  # the ui/ templates the pages import
+        paper_ui_flask.init_app(self.app)  # the ui/ templates the pages import
         self.app.register_blueprint(workspace.bp, url_prefix='/workspace')
         self.app.config['DB_PATH'] = self.db_file
         self.app.config['WORKSPACE_PATH'] = self.gitdir

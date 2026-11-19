@@ -1,0 +1,57 @@
+/* IBM Plex Sans, Serif and Mono, bundled (fonts/, SIL Open Font License 1.1: fonts/OFL.txt).
+ *
+ * ui.css imports this file, so a page that links ui.css has the fonts. Paths are relative to this file,
+ * so it works wherever the static folder is served: Flask, a Sphinx build's _static, or straight from disk.
+ * Weights 400, 500, 600 and 700, upright and italic. Browsers only download the faces a page uses.
+ */
+
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/IBMPlexSans-Regular.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: italic; font-weight: 400; font-display: swap;
+  src: url("fonts/IBMPlexSans-Italic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("fonts/IBMPlexSans-Medium.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: italic; font-weight: 500; font-display: swap;
+  src: url("fonts/IBMPlexSans-MediumItalic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("fonts/IBMPlexSans-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: italic; font-weight: 600; font-display: swap;
+  src: url("fonts/IBMPlexSans-SemiBoldItalic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("fonts/IBMPlexSans-Bold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: italic; font-weight: 700; font-display: swap;
+  src: url("fonts/IBMPlexSans-BoldItalic.woff2") format("woff2"); }
+
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/IBMPlexSerif-Regular.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: italic; font-weight: 400; font-display: swap;
+  src: url("fonts/IBMPlexSerif-Italic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("fonts/IBMPlexSerif-Medium.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: italic; font-weight: 500; font-display: swap;
+  src: url("fonts/IBMPlexSerif-MediumItalic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("fonts/IBMPlexSerif-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: italic; font-weight: 600; font-display: swap;
+  src: url("fonts/IBMPlexSerif-SemiBoldItalic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("fonts/IBMPlexSerif-Bold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Serif"; font-style: italic; font-weight: 700; font-display: swap;
+  src: url("fonts/IBMPlexSerif-BoldItalic.woff2") format("woff2"); }
+
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/IBMPlexMono-Regular.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: italic; font-weight: 400; font-display: swap;
+  src: url("fonts/IBMPlexMono-Italic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("fonts/IBMPlexMono-Medium.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: italic; font-weight: 500; font-display: swap;
+  src: url("fonts/IBMPlexMono-MediumItalic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("fonts/IBMPlexMono-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: italic; font-weight: 600; font-display: swap;
+  src: url("fonts/IBMPlexMono-SemiBoldItalic.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("fonts/IBMPlexMono-Bold.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: italic; font-weight: 700; font-display: swap;
+  src: url("fonts/IBMPlexMono-BoldItalic.woff2") format("woff2"); }

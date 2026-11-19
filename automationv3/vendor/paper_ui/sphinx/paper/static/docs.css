@@ -1,0 +1,383 @@
+/* paper-ui's Sphinx theme: documentation as a page of the engineering tools' UI.
+ *
+ * The shell (header, side column, crumbs, search box) and every token come from paper-ui's ui.css, so the docs
+ * follow the tools' look, light and dark included, in the same IBM Plex type. This file only sets the
+ * documentation's prose: what Sphinx writes into the page, in the "research notebook" style (serif headings,
+ * thin rules, one accent). A project's own additions go in html_css_files, after this.
+ */
+
+@import url("basic.css");
+@import url("ui.css");
+
+/* ------------------------------------------------------------------ the side column: search and contents */
+
+.ui-docs__browse { --ui-side: 280px; }
+.ui-docs__search .ui-search { --ui-search-w: 100%; }
+.ui-docs__search .ui-search input::-webkit-search-cancel-button { display: none; }
+
+.ui-docs__toc { display: flex; flex-direction: column; font-size: var(--ui-text-sm); }
+.ui-docs__toc ul { margin: 0; padding: 0; list-style: none; }
+.ui-docs__toc p.caption {
+  margin: 18px 0 4px; padding: 0 8px;
+  font-size: var(--ui-text-xs); font-weight: 500; letter-spacing: var(--ui-label-tracking); text-transform: uppercase; color: var(--ui-muted);
+}
+.ui .ui-docs__toc a {
+  display: block; padding: 4px 8px; border-radius: var(--ui-radius);
+  color: var(--ui-ink); text-decoration: none;
+}
+.ui .ui-docs__toc a:hover { background: var(--ui-soft); }
+/* the current page, as the site marks the current item of a side list */
+.ui .ui-docs__toc a.current, .ui .ui-docs__toc a[aria-current="page"] {
+  background: color-mix(in srgb, var(--ui-accent) 10%, var(--ui-paper));
+  color: var(--ui-accent); box-shadow: inset 2px 0 0 var(--ui-accent); font-weight: 500;
+}
+/* the current page's sections, under a rule */
+.ui-docs__toc li > ul { margin: 2px 0 6px 12px; padding-left: 4px; border-left: 1px solid var(--ui-rule); }
+.ui .ui-docs__toc li > ul a { padding: 3px 8px; color: var(--ui-muted); font-size: var(--ui-text-sm); }
+.ui .ui-docs__toc li > ul a:hover { color: var(--ui-ink); }
+
+/* the reader's choice of layout, above the contents where the page has no header to put it in (layout.js makes
+   it the header's settings menu; until it has, it is hidden, so it doesn't show and go) */
+.ui-js .ui-docs__layout[data-ui-settings-source], .ui-docs__layout[hidden] { display: none; }
+.ui-docs__layout { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; font-size: var(--ui-text-xs); color: var(--ui-muted); }
+.ui-docs__layout .ui-select { min-height: var(--ui-control-h-sm); padding-left: 8px; font-size: var(--ui-text-xs); }
+
+/* on a narrow screen the page comes first, then the contents */
+@media (max-width: 900px) {
+  .ui-docs__side { order: 2; padding-top: 24px; border-top: 1px solid var(--ui-rule); }
+}
+
+/* ------------------------------------------------------------------ the page */
+
+.ui-docs__page { --ui-gap: 8px; }
+/* widths and type size from the layout (ui.css, <html data-ui-layout>); without one, the "full" layout's */
+.ui-doc { max-width: var(--ui-doc-wide, 780px); font-size: var(--ui-doc-size, 15px); line-height: var(--ui-doc-leading, 1.65); }
+div.body.ui-doc { min-width: 0; max-width: var(--ui-doc-wide, 780px); }
+
+.ui .ui-doc h1, .ui .ui-doc h2, .ui .ui-doc h3, .ui .ui-doc h4, .ui .ui-doc h5, .ui .ui-doc h6 {
+  font-family: var(--ui-font-heading); font-weight: 400; letter-spacing: -0.01em; line-height: 1.25; color: var(--ui-ink);
+}
+.ui .ui-doc h1 { font-size: var(--ui-text-display); line-height: 1.15; letter-spacing: -0.016em; margin: 0 0 18px; }
+.ui .ui-doc h2 { font-size: var(--ui-text-3xl); margin: 40px 0 12px; padding-top: 16px; border-top: 1px solid var(--ui-rule); }
+.ui .ui-doc h3 { font-size: var(--ui-text-2xl); margin: 28px 0 10px; }
+.ui .ui-doc h4 { font-size: var(--ui-text-xl); font-weight: 500; margin: 22px 0 8px; }
+.ui .ui-doc h5, .ui .ui-doc h6 { font: 600 var(--ui-text-sm) var(--ui-font-body); margin: 18px 0 6px; }
+.ui-doc :is(h1, h2, h3, h4, h5, h6, dt) { scroll-margin-top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h) + 16px); }
+
+.ui .ui-doc p { margin: 0 0 14px; }
+.ui-doc ul, .ui-doc ol { margin: 0 0 14px; padding-left: 24px; }
+.ui-doc li { margin-bottom: 4px; }
+.ui-doc li > p { margin-bottom: 4px; }
+.ui-doc blockquote { margin: 0 0 14px 24px; }
+.ui-doc img { max-width: 100%; height: auto; }
+
+.ui-doc a.headerlink { visibility: hidden; margin-left: 6px; color: var(--ui-faint); text-decoration: none; font-size: 0.75em; }
+.ui-doc :is(h1, h2, h3, h4, h5, h6, dt):hover > a.headerlink { visibility: visible; }
+.ui .ui-doc a.headerlink:hover { color: var(--ui-accent); }
+.ui .ui-doc a.reference.internal { text-decoration-color: color-mix(in srgb, var(--ui-accent) 45%, transparent); }
+
+::selection { background: color-mix(in srgb, var(--ui-accent) 22%, transparent); }
+
+/* a lead paragraph under a page title */
+/* in ink: the page's first paragraph is set apart by its size, not by a lighter colour */
+.ui .ui-doc p.lead, .ui-doc .lead p { font-size: var(--ui-text-xl); color: var(--ui-ink); line-height: 1.55; }
+
+/* the contents of a section, set in the page (.. toctree:: on an index page) */
+.ui-doc .toctree-wrapper p.caption { font: 500 var(--ui-text-xs) var(--ui-font-body); letter-spacing: var(--ui-label-tracking); text-transform: uppercase; color: var(--ui-muted); margin: 20px 0 6px; }
+
+/* prev / next */
+.ui-docs__pager { max-width: var(--ui-doc-wide, 780px); display: flex; justify-content: space-between; gap: 16px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--ui-rule); }
+.ui .ui-docs__pager a { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid var(--ui-rule); border-radius: var(--ui-radius); color: var(--ui-ink); text-decoration: none; max-width: 48%; }
+.ui .ui-docs__pager a:hover { background: var(--ui-soft); }
+.ui-docs__pager a > span:last-child { color: var(--ui-accent); font-weight: 500; }
+.ui-docs__next { margin-left: auto; text-align: right; }
+
+/* ------------------------------------------------------------------ code */
+
+.ui-doc code {
+  font-size: 0.86em; color: var(--ui-ink);
+  background: var(--ui-soft); border-radius: var(--ui-radius); padding: 1px 4px;   /* a fill, no border: keys (kbd) have the border */
+}
+.ui-doc a code, .ui-doc code.xref { color: var(--ui-accent); font-weight: 500; }
+.ui-doc pre code, .ui-doc .highlight code { background: none; border: 0; padding: 0; }
+
+.ui-doc div[class^="highlight"], .ui-doc pre.literal-block {
+  margin: 0 0 18px; background: var(--ui-soft); border: 1px solid var(--ui-rule); border-radius: var(--ui-radius);
+}
+.ui-doc div[class^="highlight"] div[class^="highlight"] { margin: 0; border: 0; }
+.ui-doc pre, .ui-doc .highlight {
+  margin: 0; background: transparent; color: var(--ui-ink);
+  font: var(--ui-text-sm)/1.65 var(--ui-font-mono); overflow-x: auto;
+}
+.ui-doc pre { padding: 10px 12px; }
+.ui-doc .code-block-caption { font: 500 var(--ui-text-xs) var(--ui-font-mono); color: var(--ui-muted); padding: 4px 0; }
+.ui-doc div.literal-block-wrapper { margin: 0 0 18px; }
+
+/* pygments tokens in the UI's tokens (the same mapping as paper-ui's code.css) */
+.highlight .c, .highlight .c1, .highlight .cm, .highlight .cs, .highlight .ch, .highlight .cp, .highlight .cpf { color: var(--ui-muted); font-style: italic; }
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr, .highlight .nb, .highlight .bp, .highlight .ow { color: var(--ui-accent); font-weight: 500; }
+.highlight .kc, .highlight .ss { color: var(--ui-series-5); }
+.highlight .nf, .highlight .fm, .highlight .nc, .highlight .nd { color: var(--ui-series-2); font-weight: 500; }
+.highlight .nv, .highlight .n, .highlight .na, .highlight .nn, .highlight .nt { color: var(--ui-ink); }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb, .highlight .sc, .highlight .sd, .highlight .se, .highlight .sh, .highlight .si, .highlight .sx, .highlight .sa, .highlight .dl { color: var(--ui-series-3); }
+.highlight .m, .highlight .mi, .highlight .mf, .highlight .mh, .highlight .mo, .highlight .il { color: var(--ui-series-4); }
+.highlight .o { color: var(--ui-series-6); }
+.highlight .p { color: var(--ui-muted); }
+.highlight .gh, .highlight .gu { color: var(--ui-ink); font-weight: 600; }
+.highlight .gp { color: var(--ui-muted); user-select: none; }
+.highlight .go { color: var(--ui-muted); }
+.highlight .gd { color: var(--ui-danger); }
+.highlight .gi { color: var(--ui-success); }
+.highlight .err { color: var(--ui-danger); border: 0; }
+.highlight .hll { background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
+.highlight .w { color: inherit; }
+
+/* ------------------------------------------------------------------ admonitions: a ruled margin note, tinted */
+
+.ui-doc div.admonition {
+  --ui-tone: var(--ui-info);
+  margin: 0 0 18px; padding: 12px 16px;
+  background: color-mix(in srgb, var(--ui-tone) 6%, var(--ui-paper));
+  border: 0; border-left: 2px solid var(--ui-tone); border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+}
+.ui-doc div.admonition:is(.tip, .hint, .seealso) { --ui-tone: var(--ui-accent); }
+.ui-doc div.admonition.important { --ui-tone: var(--ui-review); }
+.ui-doc div.admonition:is(.warning, .caution, .attention) { --ui-tone: var(--ui-warning); }
+.ui-doc div.admonition:is(.danger, .error) { --ui-tone: var(--ui-danger); }
+.ui .ui-doc p.admonition-title {
+  margin: 0 0 6px; color: var(--ui-tone);
+  font: 600 var(--ui-text-xs) var(--ui-font-body); text-transform: uppercase; letter-spacing: var(--ui-label-tracking);
+}
+.ui-doc p.admonition-title::after { content: none; }
+.ui-doc div.admonition > :last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ tables: thin rules, no zebra, no boxes */
+
+.ui-doc table.docutils { margin: 0 0 18px; border: 0; border-collapse: collapse; font-size: var(--ui-text-md); }
+.ui-doc table.docutils th {
+  border: 0; border-bottom: 1px solid var(--ui-rule-strong); padding: 8px 12px; text-align: left;
+  font: 600 var(--ui-text-xs) var(--ui-font-body); color: var(--ui-muted);
+}
+.ui-doc table.docutils td { border: 0; border-bottom: 1px solid var(--ui-rule); padding: 8px 12px; vertical-align: top; }
+.ui-doc table.docutils :is(td, th) > p:last-child { margin-bottom: 0; }
+/* captions read the same under a table as under a figure: sentence case, the number in bold */
+.ui-doc table caption { color: var(--ui-muted); font: var(--ui-text-xs)/1.5 var(--ui-font-body); text-align: left; padding-bottom: 6px; }
+
+/* ------------------------------------------------------------------ definition lists, glossary, fields */
+
+.ui-doc dl { margin: 0 0 14px; }
+.ui-doc dl:not(.py):not(.glossary):not(.field-list) > dt { margin-top: 14px; font-weight: 600; }
+.ui-doc dl:not(.py):not(.glossary):not(.field-list) > dd { margin: 4px 0 12px; padding-left: 16px; border-left: 1px solid var(--ui-rule); }
+.ui-doc dl.glossary dt { margin-top: 14px; font: 500 var(--ui-text-sm) var(--ui-font-mono); }
+.ui-doc dl.glossary dd { margin-left: 16px; }
+.ui-doc dl.field-list > dt { font-weight: 600; }
+.ui-doc dl.field-list > dd > p:last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ API reference (autodoc) */
+
+.ui-doc dl.py { margin-bottom: 20px; }
+.ui-doc dl.py > dt {
+  padding: 6px 10px; background: var(--ui-soft); border-left: 2px solid var(--ui-accent);
+  font: var(--ui-text-sm) var(--ui-font-mono); color: var(--ui-ink);
+}
+.ui-doc dl.py dl.py > dt { background: transparent; border-left-color: var(--ui-rule-strong); }
+.ui-doc dl.py > dd { margin: 8px 0 0 24px; }
+.ui-doc dt .sig-name, .ui-doc code.descname { color: var(--ui-ink); font-weight: 600; background: none; border: 0; padding: 0; }
+.ui-doc dt .sig-prename, .ui-doc code.descclassname { color: var(--ui-muted); background: none; border: 0; padding: 0; }
+.ui-doc dt .property, .ui-doc .viewcode-link, .ui-doc .viewcode-back { color: var(--ui-muted); }
+.ui-doc dt em.sig-param, .ui-doc dt .sig-paren { font-style: normal; }
+
+/* ------------------------------------------------------------------ search and index pages */
+
+.ui-doc #search-results h2 { font-size: var(--ui-text-2xl); }
+.ui-doc ul.search { padding: 0; list-style: none; }
+.ui-doc ul.search li { padding: 10px 0; border-bottom: 1px solid var(--ui-rule); background: none; }
+.ui-doc ul.search li p.context { color: var(--ui-muted); font-size: var(--ui-text-sm); margin: 4px 0 0; }
+.ui-doc form.search input[type="text"], .ui-doc #searchbox input[type="text"] {
+  min-height: var(--ui-control-h); padding: 0 10px; width: 320px; max-width: 100%;
+  border: 1px solid var(--ui-rule-strong); border-radius: var(--ui-radius); background: var(--ui-paper); color: var(--ui-ink);
+}
+.ui-doc form.search input[type="submit"] {
+  min-height: var(--ui-control-h); padding: 0 14px; border: 1px solid var(--ui-rule-strong); border-radius: var(--ui-radius);
+  background: var(--ui-paper); color: var(--ui-ink); font-weight: 500; cursor: pointer;
+}
+/* the words searched for, marked on the page a result opens */
+.ui span.highlighted { background: color-mix(in srgb, var(--ui-warning) 22%, transparent); color: inherit; border-radius: 2px; }
+.ui-doc #searchbox .highlight-link a { font-size: var(--ui-text-sm); }
+.ui-doc table.indextable td { border: 0; }
+.ui-doc table.indextable tr.cap { background: none; }
+.ui-doc table.indextable tr.cap td { font: 500 var(--ui-text-xl) var(--ui-font-heading); border-bottom: 1px solid var(--ui-rule); }
+
+@media print {
+  .ui-docs__side, .ui-docs__pager, .ui-doc a.headerlink { display: none !important; }
+}
+
+/* ------------------------------------------------------------------ asides: topic, sidebar, contents */
+
+.ui-doc div.topic, .ui-doc nav.contents, .ui-doc aside.topic {
+  margin: 0 0 18px; padding: 10px 16px; border: 0; border-left: 2px solid var(--ui-rule-strong); background: none;
+}
+.ui .ui-doc p.topic-title {
+  margin: 0 0 6px; font: 600 var(--ui-text-xs) var(--ui-font-body); text-transform: uppercase; letter-spacing: var(--ui-label-tracking); color: var(--ui-muted);
+}
+.ui-doc nav.contents ul { margin: 0; padding-left: 16px; }
+.ui-doc nav.contents > ul { padding-left: 0; list-style: none; }
+.ui-doc nav.contents p { margin: 0; }
+/* a heading that links back to the contents reads as a heading, not a link */
+.ui .ui-doc a.toc-backref { color: inherit; text-decoration: none; }
+
+.ui-doc div.sidebar, .ui-doc aside.sidebar {
+  float: right; clear: right; width: 34%; min-width: 200px; margin: 4px 0 14px 24px; padding: 12px 16px;
+  border: 0; border-top: 2px solid var(--ui-accent); background: var(--ui-soft); font-size: var(--ui-text-sm);
+}
+.ui .ui-doc p.sidebar-title { margin: 0; font: 500 var(--ui-text-xl) var(--ui-font-heading); }
+.ui .ui-doc p.sidebar-subtitle { margin: 0 0 8px; font: 500 var(--ui-text-xs) var(--ui-font-body); text-transform: uppercase; letter-spacing: var(--ui-label-tracking); color: var(--ui-muted); }
+.ui-doc :is(div, aside).sidebar > :last-child { margin-bottom: 0; }
+.ui-doc :is(div, aside).sidebar ul { padding-left: 18px; }
+@media (max-width: 720px) {
+  .ui-doc div.sidebar, .ui-doc aside.sidebar { float: none; width: auto; margin: 0 0 14px; }
+}
+
+.ui .ui-doc p.rubric { margin: 24px 0 8px; font: 600 var(--ui-text-xs) var(--ui-font-body); text-transform: uppercase; letter-spacing: var(--ui-label-tracking); color: var(--ui-muted); }
+.ui-doc .epigraph, .ui-doc .pull-quote { border-left: 0; padding-left: 0; margin: 0 0 18px; }
+.ui .ui-doc .epigraph p, .ui .ui-doc .pull-quote p { font: italic 400 var(--ui-text-xl)/1.5 var(--ui-font-heading); color: var(--ui-ink); }
+.ui .ui-doc .epigraph p.attribution, .ui .ui-doc .pull-quote p.attribution { font: var(--ui-text-xs) var(--ui-font-body); color: var(--ui-muted); }
+.ui-doc .highlights { border-left: 2px solid var(--ui-accent); color: var(--ui-ink); font-weight: 500; }
+
+/* ------------------------------------------------------------------ keys, versions, figures, notes */
+
+.ui-doc kbd.kbd:not(.compound), .ui-doc kbd.compound > kbd.kbd {
+  display: inline-block; padding: 0 5px; min-width: 1.6em; text-align: center;
+  font: 500 var(--ui-text-xs)/1.6 var(--ui-font-mono); color: var(--ui-ink);
+  background: var(--ui-paper); border: 1px solid var(--ui-rule-strong); border-bottom-width: 2px; border-radius: var(--ui-radius);
+}
+.ui-doc kbd.compound { background: none; border: 0; padding: 0; }
+/* basic.css sets these in the browser's sans-serif; they are text in the page's own face */
+.ui-doc .menuselection, .ui-doc .guilabel { font-family: inherit; font-weight: 500; }
+
+.ui-doc div:is(.versionadded, .versionchanged, .deprecated, .versionremoved) {
+  --ui-tone: var(--ui-success);
+  margin: 0 0 14px; padding: 2px 0 2px 12px; border-left: 2px solid var(--ui-tone);
+}
+.ui-doc div.versionchanged { --ui-tone: var(--ui-info); }
+.ui-doc div.deprecated { --ui-tone: var(--ui-warning); }
+.ui-doc div.versionremoved { --ui-tone: var(--ui-danger); }
+.ui-doc div:is(.versionadded, .versionchanged, .deprecated, .versionremoved) > p { margin: 0; }
+.ui-doc span.versionmodified { font-style: normal; font-weight: 600; color: var(--ui-tone); }
+
+/* figures and their captions, the same for images and diagrams */
+.ui-doc figure { margin: 8px 0 24px; }
+/* Figures sit at the text's left edge, like tables, with the caption left-aligned under them (Sphinx and
+   mermaid-diag centre both, which leaves a caption adrift from a figure narrower than the page). */
+.ui-doc figure:not(.align-right) { margin-left: 0; margin-right: 0; }
+.ui-doc figure:not(.align-right) > img, .ui-doc figure:not(.align-right) > a > img { display: block; margin: 0; }
+.ui-doc figure.align-right > img { display: block; margin: 0 0 0 auto; }
+.ui .ui-doc figcaption { margin-top: 8px; font: var(--ui-text-xs)/1.5 var(--ui-font-body); color: var(--ui-muted); text-align: left; }
+.ui-doc figure.mermaid-diag:not(.align-right) { text-align: left; }
+.ui .ui-doc figure.mermaid-diag:not(.align-left, .align-right) figcaption { padding-left: 16px; }   /* the canvas's inset */
+.ui .ui-doc figure.align-right figcaption { text-align: right; }
+.ui .ui-doc figcaption p { margin: 0 0 4px; }
+.ui-doc figcaption .caption-text { font-style: normal; }
+.ui-doc :is(figcaption, caption, .code-block-caption) .caption-number { font-style: normal; font-weight: 600; color: var(--ui-ink); }
+.ui-doc .math { overflow-x: auto; }
+.ui-doc span.eqno { float: right; color: var(--ui-muted); font-size: var(--ui-text-sm); }
+
+.ui-doc :is(aside.footnote-list, div.citation-list) { margin: 8px 0 18px; font-size: var(--ui-text-sm); color: var(--ui-muted); }
+.ui-doc aside:is(.footnote, .citation) { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; margin-bottom: 6px; }
+.ui-doc aside:is(.footnote, .citation) > p { margin: 0; }
+.ui-doc pre.productionlist { margin: 0 0 18px; }
+.ui-doc dl.option-list > dt { font-weight: 500; }
+.ui-doc dl.option-list kbd { font-family: var(--ui-font-mono); }
+.ui-doc p.centered { text-align: center; font-weight: 600; }
+
+/* ------------------------------------------------------------------ TeX line breaks (line_breaks = "live")
+ * linebreak-live.js splits a paragraph into .ui-line spans at the breaks it works out and sets p.ui-lines while
+ * they fit. Otherwise the spans are plain inline text and the browser breaks the lines. A line that had to
+ * shrink brings its own word spacing; the rest are stretched by justifying them. */
+@media screen {
+  .ui-doc p.ui-lines > .ui-line {
+    display: block; white-space: nowrap; text-align: justify; text-align-last: justify;
+    word-spacing: var(--ui-line-ws, 0px);
+  }
+  .ui-doc p.ui-lines > .ui-line:last-child { text-align-last: auto; }
+  .ui-doc p.ui-lines code { word-spacing: 0; }
+  .ui-doc p.ui-lines .ui-line__hy::after { content: "-"; }
+}
+
+/* ------------------------------------------------------------------ diagrams (mermaid-diag)
+ * Drawn at build time as inline SVG; their palette follows the page's tokens (light, dark, the reader's choice).
+ * A figure is ruled above and below, its caption under it. */
+.mermaid-diag svg {
+  --md-paper: var(--ui-paper); --md-soft: var(--ui-soft); --md-ink: var(--ui-ink); --md-muted: var(--ui-muted);
+  --md-faint: var(--ui-faint); --md-rule: var(--ui-rule); --md-rule-strong: var(--ui-rule-strong);
+  --md-accent: var(--ui-accent); --md-success: var(--ui-success); --md-danger: var(--ui-danger);
+  --md-warning: var(--ui-warning); --md-info: var(--ui-info); --md-review: var(--ui-review); --md-verify: var(--ui-verify);
+}
+.ui-doc figure.mermaid-diag { margin: 8px 0 24px; }
+.ui-doc .mermaid-diag__canvas { padding: 20px 16px; overflow-x: auto; border-top: 1px solid var(--ui-rule); border-bottom: 1px solid var(--ui-rule); }
+.ui-doc figure.mermaid-diag.align-left .mermaid-diag__canvas { padding-left: 0; }
+.ui-doc .mermaid-diag figcaption { opacity: 1; }
+/* a diagram mermaid couldn't draw: the message, then its source */
+.ui-doc .mermaid-diag--error .mermaid-diag__canvas {
+  text-align: left; border-left: 3px solid var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 5%, var(--ui-paper));
+}
+.ui .ui-doc .mermaid-diag__message { margin: 0 0 8px; font: var(--ui-text-xs) var(--ui-font-mono); color: var(--ui-danger); }
+.ui-doc .mermaid-diag__source { margin: 0; color: var(--ui-muted); font-size: var(--ui-text-xs); white-space: pre; }
+
+/* ------------------------------------------------------------------ zoom: diagrams and images open in a viewer (zoom.js) */
+
+.ui-doc .ui-zoomable { cursor: zoom-in; }
+.ui-doc .ui-zoomable:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; }
+.ui-doc .mermaid-diag__canvas.ui-zoomable { transition: background-color 120ms; }
+.ui-doc .mermaid-diag__canvas.ui-zoomable:hover { background: color-mix(in srgb, var(--ui-soft) 55%, transparent); }
+
+html.ui-zoom-open { overflow: hidden; }
+dialog.ui-zoom {
+  width: calc(100vw - 48px); height: calc(100vh - 48px); max-width: none; max-height: none;
+  margin: auto; padding: 0; display: none; flex-direction: column;
+  background: var(--ui-paper); color: var(--ui-ink);
+  border: 1px solid var(--ui-rule-strong); border-radius: var(--ui-radius); box-shadow: var(--ui-shadow-lift);
+  font: var(--ui-font-size)/var(--ui-line-height) var(--ui-font-body);
+}
+dialog.ui-zoom[open] { display: flex; }
+dialog.ui-zoom::backdrop { background: rgba(20, 24, 21, 0.55); }
+.ui-zoom__bar {
+  display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--ui-rule);
+}
+.ui-zoom__title {
+  flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 500 var(--ui-text-sm) var(--ui-font-body); color: var(--ui-muted);
+}
+.ui-zoom__tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.ui-zoom__btn, .ui-zoom__level {
+  display: inline-flex; align-items: center; justify-content: center; min-width: var(--ui-control-h-sm);
+  height: var(--ui-control-h-sm); padding: 0 8px; border: 1px solid var(--ui-rule-strong); border-radius: var(--ui-radius);
+  background: var(--ui-paper); color: var(--ui-ink); cursor: pointer; font: 500 var(--ui-text-xs) var(--ui-font-mono);
+}
+.ui-zoom__level { min-width: 58px; font-variant-numeric: tabular-nums; }
+.ui-zoom__btn:hover, .ui-zoom__level:hover { background: var(--ui-soft); }
+.ui-zoom__close { margin-left: 8px; }
+.ui-zoom button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ui-zoom__stage {
+  position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none;
+  background-color: var(--ui-paper);
+  background-image: radial-gradient(color-mix(in srgb, var(--ui-rule-strong) 70%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.ui-zoom__stage:focus { outline: none; }
+.ui-zoom__stage--dragging { cursor: grabbing; }
+.ui-zoom__content { position: absolute; top: 0; left: 0; transform-origin: 0 0; user-select: none; }
+.ui-zoom__content.mermaid-diag { margin: 0; text-align: left; }
+.ui-zoom__content > svg, .ui-zoom__content > img { display: block; width: 100%; height: 100%; max-width: none; }
+.ui-zoom__hint { margin: 0; padding: 6px 16px; border-top: 1px solid var(--ui-rule); font-size: var(--ui-text-xs); color: var(--ui-muted); }
+@media (max-width: 720px) {
+  dialog.ui-zoom { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
+  .ui-zoom__hint { display: none; }
+}
+@media print { .ui-zoom { display: none !important; } }
+
+/* ------------------------------------------------------------------ the tufte layout and Sphinx's basic.css
+ * basic.css has notes, topics and blockquotes clear floats (an ::after that clears both); beside the margin
+ * notes, which float in the margin, they must not. */
+html[data-ui-layout="tufte"] .ui-doc :is(div.admonition, div.topic, aside.topic, nav.contents, blockquote) { clear: none; }
+html[data-ui-layout="tufte"] .ui-doc :is(div.admonition, div.topic, aside.topic, nav.contents, blockquote)::after { clear: none; }
