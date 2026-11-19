@@ -46,6 +46,10 @@ In this section
    Writing a test's flow first with ``(TBD)`` steps, for review, and
    filling it in later.
 
+:doc:`snippets`
+   Named pieces of scripts, kept in ``snippets.rst`` files, that the editor
+   and the console insert.
+
 :doc:`blocks`
    Every BuildingBlock you can call, with its usage and documentation.
 

@@ -155,6 +155,13 @@ the definitions of the script and of its ``core.rst`` files, UUT handles,
 variation values, and the parameters and ``let`` names around the cursor.
 Completion also opens by itself as you type a name.
 
+**Snippets**, above the tabs, inserts a named piece of script from the
+``snippets.rst`` files of the open file's folder and those above it: into
+the block being edited, at the cursor, or into a new block at the end.
+**Ctrl+Space** offers the same snippets after the names. An inserted
+snippet's fields are selected one after the other with **Tab**. See
+:doc:`../scripts/snippets`.
+
 Hovering a name in a block says what it is: a block's calls and
 documentation, a definition's code and the file it is in, a UUT handle, a
 variation value with what each variation gives it. Where it can be told
@@ -267,10 +274,10 @@ The header says which script the console was started on, its environment,
 versions and variation, and whether the UUT was taken as it was (**warm**)
 or started (**fresh**); then what is running.
 
-History and names
-~~~~~~~~~~~~~~~~~
+History, names and snippets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The side pane has two tabs.
+The side pane has three tabs.
 
 **History**
    Everything run in the console, newest first, with a dot for how it went:
@@ -286,6 +293,10 @@ The side pane has two tabs.
    script, by file. Each name has its kind and its value: a function's
    parameters, a ref's path. Click a name to put it in the prompt. The list
    is brought up to date after every command.
+**Snippets**
+   The snippets of the console's script (see :doc:`../scripts/snippets`).
+   Click one to put it in the prompt, then fill in its fields, **Tab**
+   moving from one to the next.
 
 Starting over
 ~~~~~~~~~~~~~

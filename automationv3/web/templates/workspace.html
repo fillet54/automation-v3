@@ -38,6 +38,8 @@
     {% if editable %}<div class="ed-actions"><span class="ed-status ui-muted" aria-live="polite"></span>
       {% if console %}<button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-console title="Run blocks and forms against the UUT on this machine">Console</button>{% endif %}
       <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost ed-problems-toggle" data-ed-problems aria-expanded="false" title="Errors and warnings in the open files">Problems</button>
+      <details class="ed-menu ed-snippets" hidden><summary class="ui-btn ui-btn--sm ui-btn--ghost" title="Insert a snippet: into the open block, or a new one at the end (Ctrl+Space in a block offers them too)">Snippets</summary>
+        <div class="ed-menu__items ed-snippets__items"></div></details>
       <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-undo disabled title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
       <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-redo disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
       <details class="ed-menu" hidden><summary class="ui-btn ui-btn--secondary">File</summary>

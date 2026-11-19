@@ -191,8 +191,10 @@
     var save = $("[data-ed-save]", root), discard = $("[data-ed-discard]", root);
     if (save) save.disabled = !(st && st.dirty);
     if (discard) { discard.hidden = !(st && st.dirty); discard.textContent = "Discard edits"; delete discard.dataset.sure; }
-    var menu = $(".ed-menu", root);
+    var menu = $(".ed-menu:not(.ed-snippets)", root);
     if (menu) { menu.hidden = !st || !!st.isNew || !st.loaded; menu.open = false; }
+    var snips = $(".ed-snippets", root);
+    if (snips) { snips.hidden = !st || !st.loaded || !/\.rst$/.test(active || ""); snips.open = false; }
     var undo = $("[data-ed-undo]", root), redo = $("[data-ed-redo]", root);
     if (undo) undo.disabled = !(st && st.undo && st.undo.length);
     if (redo) redo.disabled = !(st && st.redo && st.redo.length);
@@ -734,17 +736,91 @@
         var before = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
         if (!context.explicit && word.from === word.to && before !== "(" && before !== '"') return null;
       }
-      return lspRequest("completion", card, context.state.doc, context.pos).then(function (found) {
-        if (!found || !found.items.length) return null;
-        return {
-          from: word.from, validFor: valid,
-          options: found.items.map(function (item) {
-            return { label: item.label, type: TYPES[item.kind], detail: item.detail, info: item.documentation ? function () { return prose(item.documentation); } : null,
-                     boost: 5 - Number((item.sortText || "5")[0]) };
-          }),
-        };
+      // Snippets only where a whole form can go: not right after "(" or in a string
+      var at = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
+      var offer = !req && at !== "(" && at !== '"' ? snippetsFor(pathOf(card)) : Promise.resolve([]);
+      return Promise.all([lspRequest("completion", card, context.state.doc, context.pos), offer]).then(function (got) {
+        var found = got[0], options = (found && found.items || []).map(function (item) {
+          return { label: item.label, type: TYPES[item.kind], detail: item.detail, info: item.documentation ? function () { return prose(item.documentation); } : null,
+                   boost: 5 - Number((item.sortText || "5")[0]) };
+        }).concat(got[1].map(snippetOption));
+        if (!options.length) return null;
+        return { from: word.from, validFor: valid, options: options };
       });
     };
+  }
+
+  // Snippets (framework/snippets.py): what a file's folder offers to
+  // insert, from the snippets.rst files from the root down to it
+
+  var snippetCache = {};  // folder -> Promise of [snippet]
+
+  function snippetsFor(path) {
+    var folder = folderOf(path || "");
+    if (!snippetCache[folder]) {
+      snippetCache[folder] = fetch(url(path || "", "snippets"))
+        .then(function (r) { return r.ok ? r.json() : { snippets: [] }; })
+        .then(function (found) { return found.snippets || []; })
+        .catch(function () { delete snippetCache[folder]; return []; });
+    }
+    return snippetCache[folder];
+  }
+
+  function snippetInfo(snippet) {
+    var box = el("div", "ed-snippet-info");
+    if (snippet.description) box.appendChild(el("p", null, snippet.description));
+    box.appendChild(el("pre", null, snippet.text));
+    box.appendChild(el("p", "ui-muted", "From " + snippet.path));
+    return box;
+  }
+
+  function snippetOption(snippet) {
+    return { label: snippet.name, type: "snippet", detail: "snippet", boost: -10,
+             info: function () { return snippetInfo(snippet); }, apply: window.CM.snippet(snippet.code) };
+  }
+
+  // Put a snippet at the cursor of `view`, its fields ready to fill in
+  function insertSnippet(view, snippet) {
+    var range = view.state.selection.main;
+    view.focus();
+    window.CM.snippet(snippet.code)(view, null, range.from, range.to);
+  }
+
+  // The toolbar's Snippets menu: into the open block, or a new one at the end
+  function drawSnippetMenu(menu) {
+    var items = $(".ed-menu__items", menu), path = active;
+    items.textContent = "";
+    items.appendChild(el("p", "ed-snippets__empty ui-muted", "Loading…"));
+    snippetsFor(path).then(function (found) {
+      items.textContent = "";
+      if (!found.length) {
+        items.appendChild(el("p", "ed-snippets__empty ui-muted", "No snippets here: a snippets.rst in this folder, or one above it, adds them."));
+        return;
+      }
+      found.forEach(function (snippet) {
+        var b = el("button", "ed-snippets__item");
+        b.type = "button";
+        b._snippet = snippet;
+        b.dataset.edSnippet = snippet.name;
+        b.title = snippet.text;
+        b.appendChild(el("span", "ed-snippets__name", snippet.name));
+        if (snippet.description) b.appendChild(el("span", "ed-snippets__about", snippet.description));
+        b.appendChild(el("span", "ed-snippets__from ui-mono", snippet.path));
+        items.appendChild(b);
+      });
+    });
+  }
+
+  function useSnippet(snippet) {
+    var doc = docOf(active);
+    if (!doc) return;
+    var open = editing(doc).filter(function (c) { return c._card.kind === "rvt" && c._edit; })[0];
+    if (!open) {
+      if (doc.dataset.editable !== "true") return;
+      addCard(doc, null, "rvt");
+      open = editing(doc).filter(function (c) { return c._edit; })[0];
+    }
+    if (open) insertSnippet(open._edit.view, snippet);
   }
 
   // Editing a card
@@ -1198,6 +1274,7 @@
       if (!response.ok) { say("Couldn't save (" + response.status + ")"); return false; }
       dropDraft(path);
       st.dirty = false;
+      if (/(^|\/)snippets\.rst$/.test(path)) snippetCache = {};
       if (st.isNew) refreshTree();
       return load(path).then(function () { if (active === path) say("Saved"); return true; });
     }).catch(function () { say("Couldn't save: the server didn't answer"); return false; });
@@ -1542,6 +1619,13 @@
     if (menu && !target.closest(".ed-menu > summary")) menu.open = false;
     var file = target.closest("[data-ed-file]");
     if (file) { fileDialog(file.dataset.edFile); return; }
+    var snip = target.closest("[data-ed-snippet]");
+    if (snip && snip._snippet) {
+      var holder = snip.closest(".ed-menu");
+      if (holder) holder.open = false;
+      useSnippet(snip._snippet);
+      return;
+    }
     if (!root.contains(target)) return;
     var tab = target.closest("[data-ed-tab]"), close = target.closest("[data-ed-close]");
     if (close) { closeTab(close.dataset.edClose); return; }
@@ -1703,7 +1787,7 @@
     var side = el("aside", "ed-console__side");
     var tabs = el("div", "ed-console__tabs");
     tabs.setAttribute("role", "tablist");
-    [["History", "history"], ["Names", "names"]].forEach(function (t) {
+    [["History", "history"], ["Names", "names"], ["Snippets", "snippets"]].forEach(function (t) {
       var b = el("button", "ed-console__tab", t[0]);
       b.type = "button";
       b.dataset.conTab = t[1];
@@ -1727,9 +1811,16 @@
     var namesList = el("div", "ed-names__list");
     names.appendChild(namesHead);
     names.appendChild(namesList);
+    var snippetPane = el("div", "ed-console__pane ed-con-snippets");
+    var snippetHead = el("div", "ed-console__pane-head");
+    snippetHead.appendChild(el("span", "ui-muted", "From snippets.rst, the script's folder and up"));
+    var snippetList = el("div", "ed-con-snippets__list");
+    snippetPane.appendChild(snippetHead);
+    snippetPane.appendChild(snippetList);
     side.appendChild(tabs);
     side.appendChild(history);
     side.appendChild(names);
+    side.appendChild(snippetPane);
     main.appendChild(body);
     main.appendChild(vgrip);
     main.appendChild(side);
@@ -1742,7 +1833,7 @@
     side.style.width = stored("side", 340) + "px";
     con = { panel: panel, head: head, main: main, body: body, scroll: scroll, list: list, what: what,
             status: status, held: held, tools: tools, opening: opening, toggle: toggle,
-            side: side, historyList: historyList, namesList: namesList, filter: filter,
+            side: side, historyList: historyList, namesList: namesList, filter: filter, snippetList: snippetList,
             state: null, last: 0, cards: {}, entries: {}, polling: null, at: -1, names: [],
             history: stored("history:" + ws, []).filter(function (h) { return h && h.payload; }) };
     con.input = window.CM.editor(holder, {
@@ -1807,8 +1898,10 @@
     });
     $(".ed-history", con.side).hidden = name !== "history";
     $(".ed-names", con.side).hidden = name !== "names";
+    $(".ed-con-snippets", con.side).hidden = name !== "snippets";
     store("tab", name);
     if (name === "names") fetchNames();
+    if (name === "snippets") drawConsoleSnippets();
   }
 
   function consoleClick(event) {
@@ -1819,6 +1912,8 @@
     if (hist) { historyAct(hist.dataset.hist, hist.closest(".ed-hist")._entry); return; }
     var name = target.closest(".ed-name");
     if (name) { insertInPrompt(name.dataset.name); return; }
+    var snip = target.closest(".ed-con-snippet");
+    if (snip && snip._snippet) { insertSnippet(con.input, snip._snippet); return; }
     var which = target.closest("[data-con]");
     if (which) {
       var act = which.dataset.con;
@@ -2131,6 +2226,29 @@
     });
   }
 
+  // Snippets: the console's script's, or the open file's; a click puts
+  // one in the prompt, its fields ready to fill in
+
+  function drawConsoleSnippets() {
+    if (!con) return;
+    var list = con.snippetList, path = (con.state && con.state.script) || active || "";
+    snippetsFor(path).then(function (found) {
+      list.textContent = "";
+      if (!found.length) {
+        list.appendChild(el("p", "ed-history__empty ui-muted", "No snippets: a snippets.rst in the script's folder, or one above it, adds them."));
+        return;
+      }
+      found.forEach(function (snippet) {
+        var row = el("div", "ed-con-snippet");
+        row._snippet = snippet;
+        row.title = "Put it in the prompt\n\n" + snippet.text;
+        row.appendChild(el("span", "ed-con-snippet__name", snippet.name));
+        if (snippet.description) row.appendChild(el("span", "ed-con-snippet__about", snippet.description));
+        list.appendChild(row);
+      });
+    });
+  }
+
   // Run something: open the console first if it isn't
   function consoleRun(payload, card, label) {
     consolePanel();
@@ -2269,6 +2387,8 @@
     drawProblems();
     // A link from a requirement's page: write a script for it
     if (editable && asked.get("new")) fileDialog("new", { requirement: asked.get("requirement") || "" });
+    var snips = $(".ed-snippets", root);
+    if (snips) snips.addEventListener("toggle", function () { if (snips.open) drawSnippetMenu(snips); });
     if (consoleOn) consoleStart();
     var panes = $(".ed-panes", root);
     if (panes) panes.addEventListener("scroll", function () { if (pop) closeMenu(); }, { passive: true });

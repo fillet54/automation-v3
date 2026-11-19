@@ -55,6 +55,7 @@ Where to start
    scripts/composing
    scripts/documenting
    scripts/planning
+   scripts/snippets
    scripts/blocks
 
 .. toctree::

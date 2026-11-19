@@ -39,6 +39,7 @@ from .language import (
 )
 
 CORE = "core.rst"
+SNIPPETS = "snippets.rst"  # see snippets.py: neither a script nor definitions
 
 
 def lint_preconditions(path, forms):
@@ -67,9 +68,11 @@ def requirement_refs(text):
 
 
 def is_script(path, text):
-    """An .rst document with rvt blocks, other than a core.rst"""
+    """An .rst document with rvt blocks, other than a core.rst or a
+    snippets.rst"""
     path = PurePosixPath(path)
-    return path.suffix == ".rst" and path.name != CORE and source.has_rvt(text)
+    return (path.suffix == ".rst" and path.name not in (CORE, SNIPPETS)
+            and source.has_rvt(text))
 
 
 @dataclass

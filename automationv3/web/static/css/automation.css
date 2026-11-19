@@ -527,3 +527,18 @@ html.ed-resizing, html.ed-resizing * { user-select: none; }
 .ed-name__name { font-family: var(--ui-font-mono); font-weight: 600; }
 .ed-name__kind { color: var(--ui-muted); font-size: var(--ui-text-xs); }
 .ed-name__value { font-family: var(--ui-font-mono); color: var(--ui-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Snippets (framework/snippets.py): the toolbar's menu, the completion's
+   preview, and the console's tab */
+.ed-snippets .ed-menu__items { width: 360px; max-height: 60vh; overflow-y: auto; }
+.ed-snippets__item { display: flex; flex-direction: column; gap: 2px; }
+.ed-snippets__name, .ed-con-snippet__name { font-weight: 500; color: var(--ui-ink); }
+.ed-snippets__about, .ed-con-snippet__about { font-size: var(--ui-text-xs); color: var(--ui-muted); line-height: 1.35; white-space: normal; }
+.ed-snippets__from { font-size: var(--ui-text-xs); color: var(--ui-muted); }
+.ed-snippets__empty { margin: 0; padding: 8px 10px; font-size: var(--ui-text-sm); max-width: 340px; }
+.ed-snippet-info { max-width: 420px; padding: 4px 2px; }
+.ed-snippet-info p { margin: 0 0 6px; }
+.ed-snippet-info pre { margin: 0 0 6px; font-family: var(--ui-font-mono); font-size: var(--ui-text-xs); white-space: pre-wrap; }
+.ed-con-snippets__list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.ed-con-snippet { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-bottom: 1px solid var(--ui-rule); cursor: pointer; }
+.ed-con-snippet:hover { background: var(--ui-soft); }

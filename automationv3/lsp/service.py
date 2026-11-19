@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from ..framework import closure as closures, edn, lisp, refs, source
+from ..framework import closure as closures, edn, lisp, refs, snippets, source
 from ..framework.analysis import ERROR, KNOWN_FORMS, WARNING
 from ..framework.block import block_names, documented
 from ..framework.language import DEFINITIONS, DIRECTIVES, PRECONDITION, head, name_of
@@ -383,6 +383,8 @@ class Service:
     def check_code(self, path, text):
         if PurePosixPath(path).name == closures.CORE:
             return [(path, problem) for problem in self.core_problems(path, text)]
+        if snippets.is_snippets(path):
+            return [(path, self.problem_at(problem)) for problem in snippets.read(text, path)[1]]
         if not closures.is_script(path, text):
             return []
         try:
@@ -436,6 +438,12 @@ class Service:
                  for e in errors if e not in placed]
         return ([self.placed(d, path) for d in diagnostics]
                 + [self.whole(text, message) for message in whole])
+
+    def problem_at(self, problem):
+        """A source.Problem as a Problem, an error"""
+        s = problem.span
+        return Problem(ERROR, problem.message, s.line - 1, s.col, s.end_line - 1,
+                       max(s.end_col, s.col + 1) if s.end_line == s.line else s.end_col)
 
     # Completion
 

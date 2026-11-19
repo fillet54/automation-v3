@@ -1,6 +1,7 @@
 // The CodeMirror the workspace editor uses (static/js/editor.js), as one
 // global: CM.editor(parent, {text, language, onChange, keys}) makes an
-// editor; the rest is exported for the language client.
+// editor; the rest is exported for the language client, and `snippet`
+// for inserting snippets (framework/snippets.py) with fields to step through.
 //
 // Rebuild after changing this file: npm install && npm run build
 import { EditorState, Compartment } from "@codemirror/state";
@@ -11,7 +12,9 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import {
   StreamLanguage, bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle,
 } from "@codemirror/language";
-import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import {
+  closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap, snippet,
+} from "@codemirror/autocomplete";
 import { linter, setDiagnostics, lintKeymap } from "@codemirror/lint";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { clojure } from "@codemirror/legacy-modes/mode/clojure";
@@ -77,5 +80,5 @@ function editor(parent, options) {
 
 export {
   editor, EditorState, EditorView, Compartment, keymap, autocompletion, linter, setDiagnostics,
-  hoverTooltip,
+  hoverTooltip, snippet,
 };

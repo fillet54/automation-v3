@@ -7,9 +7,9 @@ from functools import cached_property
 from pathlib import Path
 import re
 
-from flask import Blueprint, current_app, g, render_template, request, abort
+from flask import Blueprint, current_app, g, jsonify, render_template, request, abort
 
-from ..framework import edn
+from ..framework import edn, snippets
 from ..framework.closure import is_script, resolve
 from ..framework.source import has_rvt
 from ..framework.excerpt import excerpt
@@ -317,6 +317,18 @@ def view(id):
             editable=True, unsaved=True)
     return render_view(ws, node, variation=request.args.get("variation"),
                        files=request.args.get("files"))
+
+
+@bp.route("/<path:id>/snippets", methods=["GET"])
+def snippet_list(id):
+    """The snippets a file can use (snippets.py): those of every
+    snippets.rst from the root down to its folder"""
+    ws = workspace_or_404(id)
+    path = request.args.get("path") or ""
+    if ".." in path.split("/") or path.startswith("/"):
+        abort(400)
+    # a file's folder: a new file need not be on disk yet
+    return jsonify(snippets=[s.as_dict() for s in snippets.collect(ws.root, path or "x")])
 
 
 editor.register(bp, workspace_or_404, node_or_404)
