@@ -103,7 +103,7 @@
 <section class="title-slide" data-background-gradient="radial-gradient(circle at 20% 20%, #1d2a25, #151917 60%)">
   <div class="eyebrow">automation-v3</div>
   <h1>Test scripts as documents,<br>runs as evidence</h1>
-  <p class="sub">A test automation framework for embedded units: how it fits together, and how it's used</p>
+  <p class="sub">A test automation framework for control systems: how it fits together, and how it's used</p>
   <p class="small muted" style="margin-top:2em">Examples throughout: the Apollo lunar module's powered descent, the demo that ships with the package</p>
   <aside class="notes">Two halves: the concepts (scripts, blocks, UUTs, environments, workers, reports) and then the UI workflows. Every example is from the Apollo example that ships with the package, so anything shown can be tried with `automation-v3 demo`.</aside>
 </section>
@@ -111,24 +111,37 @@
 <!-- ============================================================ Why -->
 <section>
   <h2>The problem</h2>
-  <p>Verifying a vehicle controller produces two things: <strong>evidence</strong> that each requirement holds, and the <strong>scripts</strong> that produced it. Both rot.</p>
-  <ul>
-    <li class="fragment">Scripts become code only their author can review</li>
-    <li class="fragment">Results live in spreadsheets, detached from the software, test code and bench that produced them</li>
-    <li class="fragment">Rerunning a test "the same way" is a matter of hope</li>
-    <li class="fragment">Hardware time is scarce, and every test boots the rig from scratch</li>
-  </ul>
-  <aside class="notes">This is the motivation page of the docs in four bullets. Every feature that follows is an answer to one of these.</aside>
+  <p class="small">Verifying a control system against its requirements means writing a lot of test scripts, and keeping them working as the system and its requirements change. With line-based scripts, that gets hard:</p>
+  <div class="grid3" style="margin-top:0.6em">
+    <div class="card fragment"><h3>Hard to maintain</h3><p>A step is a line of shell words: no way to name a value, so limits and settings are hardcoded and repeated. No constructs either, so testing the same thing in another configuration means copy and paste.</p></div>
+    <div class="card fragment"><h3>Hard to read</h3><p>The only prose is comments, so a script's intent is often unclear, even to its author months later. It can't be read or reviewed as a description of what is tested.</p></div>
+    <div class="card fragment"><h3>Hard to structure</h3><p>Nothing separates the framework (what a step can do) from a project's definitions, so both pile up in huge global files with no thought to which is which.</p></div>
+  </div>
+  <aside class="notes">Three problems with writing scripts. The next slide is about running them and reading what they did.</aside>
 </section>
 
 <section>
-  <h2>Four commitments</h2>
-  <div class="grid2">
-    <div class="card"><h3>Scripts are documents</h3><p>A script is reStructuredText. Prose says what is tested and why; <code>rvt</code> blocks hold the steps. It renders as a readable procedure a reviewer can sign off.</p></div>
-    <div class="card"><h3>Requirements are the unit of progress</h3><p>Scripts cite the requirements they verify. Reports roll every run up to them: green, red, partial or untested.</p></div>
-    <div class="card"><h3>Every run is reproducible</h3><p>A run records its closure, variation, UUT versions and the environment's fingerprint. Its identity is their hash; a rerun matches it or says it didn't.</p></div>
-    <div class="card"><h3>Hardware stays warm</h3><p>Scripts say what state they need, and how to get there. Workers run the job that fits the bench as it is, before reinstalling anything.</p></div>
+  <h2>…and when they run</h2>
+  <div class="grid3" style="margin-top:0.6em">
+    <div class="card fragment"><h3>Big, coupled scripts</h3><p>Starting the system is expensive, so each script tests as much as it can per start. Tests become coupled, and when one fails it's unclear what really failed and what still passes.</p></div>
+    <div class="card fragment"><h3>Failures lost in noise</h3><p>Output is so verbose that finding the failure means searching walls of text.</p></div>
+    <div class="card fragment"><h3>Fixed reports</h3><p>Reports are a fixed output of a run, not designed to be extended: no rolling up across scripts, versions or requirements.</p></div>
   </div>
+</section>
+
+<section>
+  <h2>What automation-v3 does about it</h2>
+  <table class="plain" style="font-size:0.62em">
+    <tr><th style="width:32%">Problem</th><th>Answer</th></tr>
+    <tr class="fragment"><td>No names, hardcoded values</td><td>A real (small) language: <code>def</code> names constants and connectors once, for every script under it</td></tr>
+    <tr class="fragment"><td>Copy and paste per configuration</td><td><code>defn</code> groups steps; <strong>variations</strong> and <strong>table blocks</strong> run the same steps over configurations and cases</td></tr>
+    <tr class="fragment"><td>Intent in comments</td><td>A script is a <strong>document</strong>: rst prose around the steps, cited requirements, rendered as a readable procedure</td></tr>
+    <tr class="fragment"><td>Framework and definitions mixed</td><td><strong>Blocks</strong> are Python, written by block developers; <strong>definitions</strong> live in <code>core.rst</code> files, scoped by folder</td></tr>
+    <tr class="fragment"><td>Big scripts to save start-ups</td><td><strong>Preconditions</strong> say what state a script needs; workers keep the system warm and reuse it, so scripts can stay small</td></tr>
+    <tr class="fragment"><td>Walls of text</td><td>Each step passes or fails on its own; a failure shows the values it read and points at its line</td></tr>
+    <tr class="fragment"><td>Fixed reports</td><td>Runs are data. Reports collect them by version and roll them up to <strong>requirements</strong></td></tr>
+  </table>
+  <aside class="notes">Each row is a part of the rest of the deck. Reproducibility comes along too (every run records what it ran), but it isn't the headline.</aside>
 </section>
 
 <!-- ============================================================ Big picture -->
