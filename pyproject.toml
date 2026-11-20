@@ -18,7 +18,8 @@ dependencies = [
     "requests",
     "pygments",
     "sphinx",  # a frozen report's site and PDF
-    # paper-ui, the UI's look, is vendored: automationv3/vendor/paper_ui
+    # paper-ui (the UI's look) and mermaid-diag (the docs' diagrams) are
+    # vendored: automationv3/vendor
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -26,7 +27,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-docs = ["sphinx"]  # the docs also use mermaid-diag (../mermaid-diag): requirements.txt
+docs = ["sphinx", "quickjs-ng"]  # quickjs-ng: the vendored mermaid-diag's JavaScript engine when Node isn't on PATH
 xlsx = ["openpyxl"]  # importing requirements from Excel workbooks
 
 [project.urls]
@@ -44,7 +45,7 @@ include = ["automationv3*"]
 [tool.setuptools]
 # Everything besides Python that the package needs is listed in MANIFEST.in
 # (templates, static files, report themes, the schema, the Apollo example,
-# the vendored paper-ui's static files and fonts)
+# the vendored paper-ui's and mermaid-diag's static files, scripts and fonts)
 include-package-data = true
 
 [tool.black]

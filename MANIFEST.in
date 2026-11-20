@@ -1,6 +1,7 @@
 # Everything the package needs besides its Python: templates, static
 # files, report themes, the database schema, plugin snippets, and the
 # Apollo example `automation-v3 demo` is built from, and the vendored
-# paper-ui's templates, static files and fonts (automationv3/vendor)
+# paper-ui's and mermaid-diag's templates, static files, scripts and
+# fonts (automationv3/vendor)
 graft automationv3
 global-exclude __pycache__ *.py[cod]

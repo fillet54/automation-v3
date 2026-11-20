@@ -27,3 +27,28 @@ git -C ../paper-ui rev-parse --short HEAD   # the commit, for the line above
 
 and bring `paper_ui/NOTICE.md` up to date with paper-ui's own if its
 third-party material changed.
+
+## mermaid_diag
+
+Build-time Mermaid 12 diagrams (the docs' `.. mermaid::`), from the
+mermaid-diag repository at commit `251f605`. Its third-party material
+(Mermaid, mermaidx's headless DOM, IBM Plex) is listed in
+`mermaid_diag/NOTICE.md`.
+
+Imported as `automationv3.vendor.mermaid_diag`; docs/conf.py loads the
+extension `automationv3.vendor.mermaid_diag.sphinx`. It runs Mermaid in
+Node (22.12 or later) when that's on PATH, otherwise in QuickJS, which
+needs `quickjs-ng` (the `docs` extra). Its own command line
+(`python -m automationv3.vendor.mermaid_diag`) also needs `docopt-ng`;
+nothing here uses it.
+
+To update it from a mermaid-diag checkout beside this one:
+
+```sh
+rsync -a --delete --exclude __pycache__ --exclude NOTICE.md \
+    ../mermaid-diag/src/mermaid_diag/ automationv3/vendor/mermaid_diag/
+git -C ../mermaid-diag rev-parse --short HEAD   # the commit, for the line above
+```
+
+and bring `mermaid_diag/NOTICE.md` up to date with mermaid-diag's own if
+its third-party material changed.

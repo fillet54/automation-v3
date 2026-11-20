@@ -1,0 +1,67 @@
+/* mermaid-diag figures.
+ *
+ * The diagrams' colours are CSS variables defined in each SVG (light, and dark under prefers-color-scheme or
+ * [data-theme="dark"] on the root element). To match a site, set the palette on the SVGs, e.g.
+ *
+ *   .mermaid-diag svg { --md-paper: var(--my-bg); --md-ink: var(--my-text); --md-accent: var(--my-brand); }
+ *
+ * Tokens: paper, soft, ink, muted, faint, rule, rule-strong, accent, success, danger, warning, info, review,
+ * verify, and for each tone <tone>-bg and <tone>-mid; cluster-bg, note-bg, note-border.
+ */
+.mermaid-diag {
+  margin: 1.5em 0;
+  text-align: center;
+}
+figure.mermaid-diag, figure.mermaid-diag.align-left, figure.mermaid-diag.align-right,
+figure.mermaid-diag.align-center, figure.mermaid-diag.align-default {
+  float: none;
+  clear: both;
+  margin-left: 0;
+  margin-right: 0;
+}
+figure.mermaid-diag.align-left { text-align: left; }
+figure.mermaid-diag.align-right { text-align: right; }
+.mermaid-diag svg {
+  display: inline-block;
+  height: auto;
+  max-width: 100%;
+  vertical-align: top;
+}
+.mermaid-diag.mermaid-diag--scroll {
+  overflow-x: auto;
+}
+.mermaid-diag.mermaid-diag--scroll svg {
+  max-width: none !important;
+}
+.mermaid-diag figcaption, .mermaid-diag .caption {
+  margin-top: 0.6em;
+  font-size: 0.9em;
+  color: inherit;
+  opacity: 0.8;
+  text-align: center;
+}
+.mermaid-diag--error {
+  text-align: left;
+  border: 1px solid #a03630;
+  border-left-width: 3px;
+  border-radius: 3px;
+  padding: 0.6em 0.9em;
+  background: color-mix(in srgb, #a03630 6%, transparent);
+}
+.mermaid-diag--error .mermaid-diag__message {
+  margin: 0 0 0.5em;
+  color: #a03630;
+  font-weight: 600;
+}
+.mermaid-diag--error pre {
+  margin: 0;
+  overflow-x: auto;
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mermaid-diag--error { border-color: #f5c0ba; }
+  :root:not([data-theme="light"]) .mermaid-diag--error .mermaid-diag__message { color: #f5c0ba; }
+}
+:root[data-theme="dark"] .mermaid-diag--error { border-color: #f5c0ba; }
+:root[data-theme="dark"] .mermaid-diag--error .mermaid-diag__message { color: #f5c0ba; }

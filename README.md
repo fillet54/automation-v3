@@ -12,11 +12,10 @@ pip install -e ".[docs]"
 automation-v3 demo
 ```
 
-The package is described by `pyproject.toml`. The UI's look, paper-ui,
-is vendored in `automationv3/vendor` (see the README there), so nothing
-else needs checking out to run the app; building these docs also uses
-mermaid-diag (`pip install -r requirements.txt` with it checked out next
-to this repository).
+The package is described by `pyproject.toml`. The UI's look (paper-ui)
+and the docs' diagram renderer (mermaid-diag) are vendored in
+`automationv3/vendor` (see the README there), so nothing else needs
+checking out to run the app or build these docs.
 
 Then open http://localhost:8080.
 
