@@ -38,9 +38,7 @@ mermaid-diag repository at commit `251f605`. Its third-party material
 Imported as `automationv3.vendor.mermaid_diag`; docs/conf.py loads the
 extension `automationv3.vendor.mermaid_diag.sphinx`. It runs Mermaid in
 Node (22.12 or later) when that's on PATH, otherwise in QuickJS, which
-needs `quickjs-ng` (the `docs` extra). Its own command line
-(`python -m automationv3.vendor.mermaid_diag`) also needs `docopt-ng`;
-nothing here uses it.
+needs `quickjs-ng` (the `docs` extra).
 
 To update it from a mermaid-diag checkout beside this one:
 
