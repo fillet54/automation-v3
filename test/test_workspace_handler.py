@@ -95,7 +95,7 @@ class TestWorkspaceHandler(unittest.TestCase):
         paper_ui_flask.init_app(self.app)  # the ui/ templates the pages import
         self.app.register_blueprint(workspace.bp, url_prefix='/workspace')
         self.app.config['DB_PATH'] = self.db_file
-        self.app.config['WORKSPACE_PATH'] = self.gitdir
+        self.app.config['WORKSPACE_PATH'] = self.gitdir / 'rvts'
         self.app.testing = True
         self.app_context = self.app.test_request_context()
         self.app_context.push()
@@ -113,3 +113,40 @@ class TestWorkspaceHandler(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestScriptsFolder(unittest.TestCase):
+    """A workspace is a scripts folder anywhere in a git worktree; git
+    finds the same folder in the other worktrees"""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from automationv3.services.workspace import find_worktrees
+        from . import gitutil
+        from .gitutil import check_output_no_stderr
+        self.find = find_worktrees
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        master = self.tmp / "master"
+        (master / "tests" / "scripts").mkdir(parents=True)
+        (master / "tests" / "scripts" / "a.rst").write_text("(Wait 1)")
+        gitutil.create_repo(master)
+        gitutil.create_worktree(master, self.tmp / "branch1")
+        check_output_no_stderr(["git", "worktree", "add", "--detach",
+                                str(self.tmp / "detached")], cwd=master)
+
+    def test_a_folder_below_the_top(self):
+        self.assertEqual(self.find(self.tmp / "branch1" / "tests" / "scripts"), {
+            "master": self.tmp / "master" / "tests" / "scripts",
+            "branch1": self.tmp / "branch1" / "tests" / "scripts",
+        })
+
+    def test_the_top_of_a_worktree(self):
+        self.assertEqual(self.find(self.tmp / "master"),
+                         {"master": self.tmp / "master", "branch1": self.tmp / "branch1"})
+
+    def test_a_branch_without_the_folder_is_left_out(self):
+        (self.tmp / "master" / "tests" / "more").mkdir()
+        self.assertEqual(self.find(self.tmp / "master" / "tests" / "more"),
+                         {"master": self.tmp / "master" / "tests" / "more"})

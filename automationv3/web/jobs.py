@@ -48,12 +48,12 @@ def workspaces():
 
 
 def workspace_root(name):
-    """The rvts root of branch `name` as the workspace shows it, or None"""
+    """The scripts folder of branch `name` as the workspace shows it, or None"""
     return workspaces().root(name) if name else None
 
 
 def checked_in_root(name):
-    """The rvts of branch `name` as checked in, which reports run; None
+    """The scripts folder of branch `name` as checked in, which reports run; None
     for an unknown branch or one with nothing committed"""
     return workspaces().checked_in(name) if name else None
 
@@ -242,7 +242,7 @@ def queue():
 def queue_job():
     """Queue a script as a new report.
 
-    JSON body: workspace (branch name), script (path relative to its rvts
+    JSON body: workspace (branch name), script (path relative to its scripts
     root), and optionally text (content overriding the file), environment
     and uut_versions (uut name -> version id).
     """

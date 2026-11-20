@@ -300,7 +300,7 @@ TeX Live), on the server's host.
 The document template
 ~~~~~~~~~~~~~~~~~~~~~
 
-A workspace keeps its template in a ``report/`` folder beside its ``rvts/``
+A workspace keeps its template in a ``report/`` folder beside its scripts
 folder; without one, a built-in placeholder template (a made-up company) is
 used. Start from the built-in one, in
 ``automationv3/services/reports/template/``:

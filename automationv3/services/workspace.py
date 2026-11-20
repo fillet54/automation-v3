@@ -1,4 +1,9 @@
-"""Workspaces: the rvts directory of each git worktree, as a file tree"""
+"""Workspaces: the scripts folder of each git worktree, as a file tree
+
+A workspace is named by its scripts folder in one worktree, anywhere in
+the repository (its top, or a folder below it). Every other worktree of
+the repository has its workspace in the same folder: git finds them.
+"""
 
 import io
 import os
@@ -64,18 +69,28 @@ class FileNode:
         return f"FileNode('{self.path}')"
 
 
-def find_worktrees(repo):
-    """Maps each branch checked out in `repo` to its rvts directory"""
-    output = subprocess.check_output(
-        ["git", "worktree", "list", "--porcelain"], cwd=repo
-    )
-    output = output.decode("utf-8").splitlines()
-    output = zip(output[::4], output[1::4], output[2::4], output[3::4])
+def scripts_folder(path):
+    """Where `path` is in its git worktree: its folder relative to the
+    worktree's top, with "/" between folders ("" for the top itself)"""
+    return git(path, "rev-parse", "--show-prefix").strip().rstrip("/")
+
+
+def find_worktrees(path):
+    """Maps each branch checked out in the repository of `path` (a scripts
+    folder in one of its worktrees) to the same folder in that branch's
+    worktree. Branches whose worktree has no such folder are left out,
+    as are worktrees on no branch."""
+    path = Path(path)
+    folder = scripts_folder(path)
     worktrees = {}
-    for worktree, head, branch, _ in output:
-        worktree_root = Path(worktree[len("worktree") + 1 :]) / "rvts"
-        name = branch[len("branch refs/heads/") :]
-        worktrees[name] = worktree_root
+    for entry in git(path, "worktree", "list", "--porcelain").split("\n\n"):
+        fields = dict(line.partition(" ")[::2] for line in entry.splitlines())
+        branch = fields.get("branch", "")
+        if "worktree" not in fields or not branch.startswith("refs/heads/"):
+            continue  # a bare repository, or a detached HEAD
+        root = Path(fields["worktree"]) / folder
+        if root.is_dir():
+            worktrees[branch[len("refs/heads/"):]] = root
     return worktrees
 
 
@@ -166,26 +181,27 @@ def checked_in(root, cache):
 
 
 class LocalWorktrees:
-    """The branches checked out as git worktrees of `repo`: each branch's
-    rvts on disk (in work, edits included) and as checked in (its HEAD,
+    """The branches checked out as git worktrees of the repository whose
+    scripts folder (in one of them) is `path`: each branch's scripts
+    folder on disk (in work, edits included) and as checked in (its HEAD,
     extracted under `cache` by commit)"""
 
     editable = True  # files on disk may differ from what is checked in
 
-    def __init__(self, repo, cache):
-        self.repo = Path(repo)
+    def __init__(self, path, cache):
+        self.path = Path(path)
         self.cache = Path(cache)
 
     def branches(self):
-        """branch -> its rvts folder on disk"""
-        return find_worktrees(self.repo)
+        """branch -> its scripts folder on disk"""
+        return find_worktrees(self.path)
 
     def root(self, name):
-        """The rvts folder of branch `name` as it is on disk, or None"""
+        """The scripts folder of branch `name` as it is on disk, or None"""
         return self.branches().get(name) if name else None
 
     def checked_in(self, name):
-        """The rvts of branch `name` as checked in, or None for an unknown
+        """The scripts folder of branch `name` as checked in, or None for an unknown
         branch or one with nothing committed"""
         root = self.root(name)
         if root is None:

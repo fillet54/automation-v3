@@ -89,12 +89,12 @@ class TestServerWithLocalWorker(unittest.TestCase):
         gitdir = self.tmp / "repo"
         shutil.copytree(RVTS, gitdir / "rvts")
         gitutil.create_repo(gitdir)
-        self.branch = next(iter(find_worktrees(gitdir)))
+        self.branch = next(iter(find_worktrees(gitdir / "rvts")))
         self.db = self.tmp / "test.db"
         with connect(self.db) as conn:
             init_db(conn)
         app = create_app(DB_PATH=self.db, REPORTS_PATH=self.tmp / "reports",
-                         WORKSPACE_PATH=gitdir, TESTING=True)
+                         WORKSPACE_PATH=gitdir / "rvts", TESTING=True)
         (self.tmp / "reports").mkdir()
         self.http = app.test_client()
 

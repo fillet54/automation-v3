@@ -387,11 +387,11 @@ class TestWeb(unittest.TestCase):
         (gitdir / "rvts").mkdir(parents=True)
         (gitdir / "rvts" / "a.rst").write_text(PASSING)
         gitutil.create_repo(gitdir)
-        self.branch = next(iter(find_worktrees(gitdir)))
+        self.branch = next(iter(find_worktrees(gitdir / "rvts")))
         self.root = self.tmp / "reports"
         self.root.mkdir()
         app = create_app(DB_PATH=self.tmp / "test.db", REPORTS_PATH=self.root,
-                         WORKSPACE_PATH=gitdir, TESTING=True, BUILD_WAIT=True)
+                         WORKSPACE_PATH=gitdir / "rvts", TESTING=True, BUILD_WAIT=True)
         from automationv3.services.database import connect, init_db
         with connect(self.tmp / "test.db") as conn:
             init_db(conn)

@@ -29,7 +29,7 @@ class TestMirror(unittest.TestCase):
             remote="placeholder", webhook_secret="s3cret")), scripts=SCRIPTS)
         self.remote = self.server.gitdir
         mirror = MirrorWorkspaces(str(self.remote), self.server.tmp / "mirror.git",
-                                  self.server.tmp / "checked-in")
+                                  self.server.tmp / "checked-in", scripts="rvts")
         self.server.app.config["WORKSPACES"] = mirror
         mirror.refresh()
         self.mirror = mirror
@@ -109,3 +109,37 @@ class TestWebhookOff(unittest.TestCase):
             self.assertEqual(server.client().post("/hooks/git").status_code, 404)
         finally:
             server.close()
+
+
+class TestMirrorScriptsFolder(unittest.TestCase):
+    """The mirror shows the [git] scripts folder of each branch"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.remote = self.tmp / "remote"
+        (self.remote / "tests" / "scripts").mkdir(parents=True)
+        (self.remote / "tests" / "scripts" / "a.rst").write_text("(Wait 1)")
+        (self.remote / "README").write_text("top")
+        for args in (["init", "-q", "-b", "master"], ["add", "--all"],
+                     ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "one"]):
+            subprocess.run(["git", *args], cwd=self.remote, check=True)
+
+    def mirror(self, scripts):
+        mirror = MirrorWorkspaces(str(self.remote), self.tmp / f"m-{scripts or 'top'}.git",
+                                  self.tmp / f"c-{scripts or 'top'}", scripts=scripts)
+        mirror.refresh()
+        return mirror
+
+    def test_a_folder_below_the_top(self):
+        mirror = self.mirror("tests/scripts")
+        self.assertEqual(sorted(p.name for p in mirror.root("master").iterdir()), ["a.rst"])
+        self.assertEqual(mirror.committed_text("master", "a.rst"), "(Wait 1)")
+
+    def test_the_top(self):
+        mirror = self.mirror("")
+        self.assertEqual(sorted(p.name for p in mirror.root("master").iterdir()), ["README", "tests"])
+        self.assertEqual(mirror.committed_text("master", "tests/scripts/a.rst"), "(Wait 1)")
+
+    def test_a_branch_without_the_folder_is_left_out(self):
+        self.assertEqual(self.mirror("elsewhere").branches(), {})

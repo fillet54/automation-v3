@@ -564,10 +564,10 @@ class TestWorkerAgainstServer(unittest.TestCase):
             "BRA/imports.rst": "(import LIB) (Verify (under-limit? 50))",
         })
         gitutil.create_repo(gitdir)
-        self.branch = next(iter(find_worktrees(gitdir)))
+        self.branch = next(iter(find_worktrees(gitdir / "rvts")))
 
         app = create_app(DB_PATH=self.tmp / "test.db", REPORTS_PATH=self.root,
-                         WORKSPACE_PATH=gitdir, TESTING=True)
+                         WORKSPACE_PATH=gitdir / "rvts", TESTING=True)
         with connect(app.config["DB_PATH"]) as conn:
             init_db(conn)
         self.http = app.test_client()
@@ -1228,7 +1228,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         (first,) = models.scratch_runs(self.root)
         self.assertEqual(self.worker.work_once(), "pass")
 
-        script = find_worktrees(self.gitdir)[self.branch] / "plain/pass.rst"
+        script = find_worktrees(self.gitdir / "rvts")[self.branch] / "plain/pass.rst"
         script.write_text(FAILING)  # an uncommitted edit
         response = self.http.post(f"/scratch/runs/{first['id']}/again")
         self.assertEqual(response.status_code, 302)
@@ -1246,7 +1246,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def edit(self, path, text):
         """An edit on disk that isn't checked in"""
-        (find_worktrees(self.gitdir)[self.branch] / path).write_text(script(text))
+        (find_worktrees(self.gitdir / "rvts")[self.branch] / path).write_text(script(text))
 
     def view(self, path, **args):
         return self.http.get(f"/workspace/{self.branch}/view",

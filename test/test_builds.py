@@ -94,11 +94,11 @@ class TestBuildsInTheClient(BuildsTest):
             (repo / "rvts" / path).parent.mkdir(parents=True, exist_ok=True)
             (repo / "rvts" / path).write_text(text)
         gitutil.create_repo(repo)
-        self.branch = next(iter(find_worktrees(repo)))
+        self.branch = next(iter(find_worktrees(repo / "rvts")))
         with closing(connect(self.tmp / "client.db")) as conn:
             init_db(conn)
         (self.tmp / "reports").mkdir()
-        self.http = create_app(DB_PATH=self.tmp / "client.db", WORKSPACE_PATH=repo,
+        self.http = create_app(DB_PATH=self.tmp / "client.db", WORKSPACE_PATH=repo / "rvts",
                                REPORTS_PATH=self.tmp / "reports", CENTRAL=self.remote,
                                TESTING=True).test_client()
 

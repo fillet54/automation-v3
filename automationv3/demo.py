@@ -84,8 +84,9 @@ def git(*args, cwd):
 
 
 def make_workspace(path):
-    """A git repository of the sample scripts on master, with a worktree
-    per other branch. Returns the repository."""
+    """A git repository of the sample scripts (in its rvts/ folder) on
+    master, with a worktree per other branch. Returns master's scripts
+    folder, the workspace path."""
     repo = path / "master"
     shutil.copytree(SAMPLES / "rvts", repo / "rvts")
     git("init", "-q", cwd=repo)
@@ -95,7 +96,7 @@ def make_workspace(path):
     for branch in BRANCHES:
         git("branch", branch, cwd=repo)
         git("worktree", "add", "-q", str(path / branch), branch, cwd=repo)
-    return repo
+    return repo / "rvts"
 
 
 def apply_edit(tree, edit):
@@ -157,7 +158,7 @@ def write_sample_exports(out):
 
 def load_requirements(db_path, exports, workspace=None):
     """Import export folders, in order, into the database at `db_path`.
-    With a `workspace` repository, its scripts' links are first seen
+    With a `workspace` (a scripts folder in a git worktree), its scripts' links are first seen
     after the first export, as if the scripts had been written then, so
     later changes to their requirements make them suspect."""
     with closing(connect(db_path)) as conn:
@@ -174,13 +175,13 @@ def load_requirements(db_path, exports, workspace=None):
 RELEASE_BRANCH = "branch1"
 
 
-def pin_release_branch(repo, branch=RELEASE_BRANCH, context="set:Release 1"):
+def pin_release_branch(workspace, branch=RELEASE_BRANCH, context="set:Release 1"):
     """Make `branch` a release branch: its automation.json says it verifies
     `context`"""
-    root = repo.parent / branch
-    (root / "rvts" / "automation.json").write_text(
+    root = find_worktrees(workspace)[branch]
+    (root / "automation.json").write_text(
         json.dumps({"requirements": context}, indent=2) + "\n")
-    git("add", "rvts/automation.json", cwd=root)
+    git("add", "automation.json", cwd=root)
     git("commit", "-q", "-m", f"Verify {context}", cwd=root)
 
 
@@ -243,7 +244,7 @@ def existing(path):
         os.environ["AUTOMATION_LM_BUILDS"] = str(path / "builds")
     docs = path / "docs" / "html"
     return Demo(path=path, db_path=path / "automationv3.db",
-                workspace=path / "workspace" / "master", reports=path / "reports",
+                workspace=path / "workspace" / "master" / "rvts", reports=path / "reports",
                 config=path / "worker.json",
                 docs=docs if (docs / "index.html").exists() else None)
 

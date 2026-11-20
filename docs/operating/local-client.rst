@@ -32,11 +32,12 @@ The local web UI
 
 .. code-block:: console
 
-   $ automation-v3 client --workspace-path ~/work/scripts
+   $ automation-v3 client --workspace-path ~/work/scripts/rvts
       Signed in to https://automation.example.com as ann@example.com
       Client started: http://localhost:8080/
 
-``client`` serves the workspace pages for your own clone and its worktrees, on
+``client`` serves the workspace pages for your own clone and its worktrees
+(the scripts folder ``--workspace-path`` names, in each of them), on
 this machine only (it listens on 127.0.0.1). Scripts are rendered and checked
 as you save them, with in-work edits marked just as on a single-user server.
 

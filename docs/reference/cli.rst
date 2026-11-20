@@ -102,8 +102,11 @@ Command line
        --port=PORT            tcp port to bind to [default: 8080]
        --dbpath=PATH          path to application database file
                               [default: ./automationv3.db]
-       --workspace-path=PATH  path to git repo [default: ./] (not used when the
-                              settings name a [git] remote to mirror)
+       --workspace-path=PATH  the scripts folder, in a git worktree: its top or
+                              a folder below it; the same folder in each
+                              other worktree is that branch's [default: ./]
+                              (not used when the settings name a [git]
+                              remote to mirror)
        --reports-path=PATH    directory holding reports and runs
                               [default: ./reports]
        --docs-path=PATH       built HTML documentation to serve at /docs
@@ -161,9 +164,8 @@ Command line
        --spec=KEY             the spec a CSV or list is; for diff, only
                               this spec's requirements
        --subsystem=NAME       only this subsystem's requirements
-       --scripts=PATH         the folder scripts are in (default: the rvts
-                              folder of the folder the editor has open, or
-                              that folder itself)
+       --scripts=PATH         the folder scripts are in (default: the folder
+                              the editor has open)
 
 ``demo``
 --------
@@ -174,8 +176,9 @@ requirements, and these docs) and serves it with a worker in-process. See :doc:`
 ``server``
 ----------
 
-Serves the web app and the job API. ``--workspace-path`` is the git checkout
-scripts are read from; ``--reports-path`` is where finished runs are stored.
+Serves the web app and the job API. ``--workspace-path`` is the scripts
+folder in a git checkout (its top or a folder below it); the same folder in
+each of the repository's worktrees is that branch's workspace. ``--reports-path`` is where finished runs are stored.
 ``--settings`` makes it a central server: sign-in, mail, and a mirror of the
 team's git remote instead of ``--workspace-path`` (see
 :doc:`../operating/deployment`).
@@ -204,7 +207,7 @@ included, to run in the central server's scratch space, printing each step.
 .. code-block:: bash
 
    automation-v3 login --server https://automation.example.com
-   automation-v3 client --workspace-path ~/work/scripts
+   automation-v3 client --workspace-path ~/work/scripts/rvts
    automation-v3 scratch ALM/tc_alm_003.rst --env sim --uut lm=local
 
 ``run``
@@ -259,6 +262,6 @@ requirement's text on hover, and are flagged when they aren't requirements:
 these come from the database at ``--dbpath``, when there is one. The web
 app's editor uses the same server.
 
-The scripts root is the ``rvts`` folder of the folder the editor has open,
-or that folder itself when it has none; ``--scripts`` names another. See
+The scripts root is the folder the editor has open; ``--scripts`` names
+another. See
 :doc:`../operating/editor` for setting up an editor.

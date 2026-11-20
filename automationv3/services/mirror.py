@@ -2,8 +2,9 @@
 
 The server keeps a bare `git clone --mirror` of the remote and shows every
 branch at its tip. Nothing is edited on the server, so every file is
-checked in: a branch's files are its tip's rvts folder, extracted once per
-commit under the cache. The mirror is fetched when the git host's webhook
+checked in: a branch's files are its tip's scripts folder (`scripts`, a
+path in the repository; "" for its top), extracted once per commit under
+the cache. The mirror is fetched when the git host's webhook
 says something was pushed, and again before a report is queued, so a
 report never runs a stale commit (see web/hooks.py and web/jobs.py).
 
@@ -19,9 +20,6 @@ import tempfile
 import threading
 from pathlib import Path, PurePosixPath
 
-RVTS = "rvts"
-
-
 class MirrorError(RuntimeError):
     pass
 
@@ -29,8 +27,9 @@ class MirrorError(RuntimeError):
 class MirrorWorkspaces:
     editable = False  # what the server shows is what was pushed
 
-    def __init__(self, remote, path, cache):
+    def __init__(self, remote, path, cache, scripts=""):
         self.remote = remote
+        self.scripts = str(PurePosixPath(scripts)).strip("/") if scripts else ""
         self.path = Path(path)
         self.cache = Path(cache)
         self.lock = threading.Lock()
@@ -73,7 +72,7 @@ class MirrorWorkspaces:
         return self.commits().get(name) if name else None
 
     def branches(self):
-        """branch -> its rvts folder at its tip (branches without one are left out)"""
+        """branch -> its scripts folder at its tip (branches without one are left out)"""
         found = {}
         for name, commit in sorted(self.commits().items()):
             root = self.extract(commit)
@@ -95,19 +94,21 @@ class MirrorWorkspaces:
         if commit is None:
             return None
         try:
-            return self.git("show", f"{commit}:{RVTS}/{PurePosixPath(path)}")
+            return self.git("show", f"{commit}:{PurePosixPath(self.scripts, path)}")
         except MirrorError:
             return None
 
     def extract(self, commit):
-        """The rvts folder of `commit`, extracted once under the cache; None
-        if the commit has none"""
+        """The scripts folder of `commit`, extracted once under the cache;
+        None if the commit has none"""
         out = self.cache / f"{commit}-mirror"
+        scripts = out / self.scripts if self.scripts else out
         if out.is_dir():
-            return out / RVTS if (out / RVTS).is_dir() else None
+            return scripts if scripts.is_dir() else None
         try:
-            archive = self.git("archive", "--format=tar", commit, RVTS, binary=True)
-        except MirrorError:  # no rvts folder in that commit
+            archive = self.git("archive", "--format=tar", commit,
+                               *([self.scripts] if self.scripts else []), binary=True)
+        except MirrorError:  # no scripts folder in that commit
             archive = None
         self.cache.mkdir(parents=True, exist_ok=True)
         work = Path(tempfile.mkdtemp(prefix="mirror-", dir=self.cache))
@@ -122,4 +123,4 @@ class MirrorWorkspaces:
                     raise
         finally:
             shutil.rmtree(work, ignore_errors=True)
-        return out / RVTS if (out / RVTS).is_dir() else None
+        return scripts if scripts.is_dir() else None

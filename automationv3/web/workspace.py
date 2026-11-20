@@ -46,7 +46,7 @@ def toggle_expanded(conn, workspace_id, node):
 
 @dataclass
 class Workspace:
-    """A git worktree's rvts directory, named by its branch"""
+    """A git worktree's scripts folder, named by its branch"""
 
     id: str
     root: Path

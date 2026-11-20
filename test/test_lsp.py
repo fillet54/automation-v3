@@ -463,11 +463,11 @@ class TestServer(Rooted):
     def test_files_outside_the_root_are_left_alone(self):
         self.assertEqual(self.open("((", "file:///somewhere/else.rst"), [])
 
-    def test_the_rvts_folder_of_the_root_is_the_scripts_root(self):
-        (self.root / "rvts").mkdir()
+    def test_the_folder_the_editor_has_open_is_the_scripts_root(self):
+        (self.root / "rvts").mkdir()  # whatever folders it holds
         server = Server()
         server.handle(request(1, "initialize", rootUri=self.root.as_uri()))
-        self.assertEqual(server.service.root, (self.root / "rvts").resolve())
+        self.assertEqual(server.service.root, self.root)
 
     def test_other_schemes_name_paths_under_the_root(self):
         server = Server(self.root)
@@ -513,7 +513,7 @@ class TestWebRoute(unittest.TestCase):
         gitutil.create_repo(self.tmp / "master")
         with closing(connect(self.tmp / "a.db")) as conn:
             init_db(conn)
-        app = create_app(DB_PATH=str(self.tmp / "a.db"), WORKSPACE_PATH=self.tmp / "master",
+        app = create_app(DB_PATH=str(self.tmp / "a.db"), WORKSPACE_PATH=self.tmp / "master" / "rvts",
                          REPORTS_PATH=str(self.tmp / "reports"))
         app.testing = True
         self.client = app.test_client()

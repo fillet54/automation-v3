@@ -49,8 +49,9 @@ Closure
    into the run, so a result can always be traced to the exact text that ran.
 
 Workspace
-   A git checkout (or worktree) the app reads scripts from. The app never
-   writes to it.
+   A folder of scripts in a git checkout (or worktree): its top, or a folder
+   below it. The same folder in each of the repository's worktrees is that
+   branch's workspace. The app never writes to it.
 
 What a script runs against
 --------------------------

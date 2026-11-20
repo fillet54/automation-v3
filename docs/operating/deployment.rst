@@ -57,8 +57,10 @@ The three modes
    from the central server.
 
 **Single-user server**
-   ``automation-v3 server --workspace-path REPO`` with no settings, which is
-   how it has always worked. Scripts come from the git worktrees of ``REPO``,
+   ``automation-v3 server --workspace-path SCRIPTS`` with no settings.
+   ``SCRIPTS`` is the scripts folder in a git worktree (its top, or a folder
+   below it); each worktree of that repository is a workspace, with its
+   scripts in the same folder,
    there's no sign-in and nobody owns anything. It suits a laptop, a lab with
    one person, and the demo.
 
@@ -82,6 +84,7 @@ A central server's settings are a TOML file:
    [git]
    remote = "git@git.example.com:team/scripts.git"
    webhook_secret = "a long random string"   # or AUTOMATION_WEBHOOK_SECRET
+   scripts = "rvts"                          # the scripts folder; default: the top
    # mirror_path = "mirror.git"              # default; relative to the database's folder
 
 :doc:`accounts` describes ``[auth]`` and ``[smtp]``. An unknown setting is an
@@ -91,8 +94,8 @@ The mirror
 ----------
 
 With ``[git]``, the server keeps a ``git clone --mirror`` of ``remote`` next to
-its database, and every branch of the remote is a workspace, shown at its
-latest commit. The server's own account needs read access to the remote
+its database, and every branch of the remote that has the ``scripts`` folder
+is a workspace, shown at its latest commit. The server's own account needs read access to the remote
 (for example a deploy key). It never pushes.
 
 Nothing is edited on the server, so there are no in-work files: what you

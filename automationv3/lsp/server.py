@@ -29,7 +29,6 @@ SEVERITY_ERROR, SEVERITY_WARNING = 1, 2
 KINDS = {FUNCTION: 3, VARIABLE: 6, BLOCK: 7, KEYWORD: 14, REQUIREMENT: 18, PATH: 10}
 # Blocks first where a call starts, then what scripts define
 ORDER = {BLOCK: "1", REQUIREMENT: "1", PATH: "1", VARIABLE: "2", FUNCTION: "3", KEYWORD: "4"}
-SCRIPTS_FOLDER = "rvts"  # a worktree's scripts (services/workspace.py)
 
 
 def utf16(text, col):
@@ -89,8 +88,6 @@ class Server:
             folders = params.get("workspaceFolders") or []
             uri = (folders[0].get("uri") if folders else None) or params.get("rootUri")
             root = Path(unquote(urlparse(uri).path)) if uri else Path(params.get("rootPath") or ".")
-            if (root / SCRIPTS_FOLDER).is_dir():
-                root = root / SCRIPTS_FOLDER
             self.service = Service(root, self.requirements(root))
         self.initialized = True
         return {

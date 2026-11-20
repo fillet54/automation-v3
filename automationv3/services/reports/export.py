@@ -35,7 +35,7 @@ document_type and the signature roles), latex.tex_t (Sphinx's LaTeX
 template, with the title page; see the built-in one), report.rst (the
 document a new report starts from), optionally snippets/ (overriding the built-in ones, see
 documents/template.py) and the files they include, such as logo.pdf. A
-workspace keeps its own in a report/ folder beside its rvts/ folder;
+workspace keeps its own in a report/ folder beside its scripts folder;
 without one, the built-in template is used. A report copies its
 workspace's template when it is created, so its look can't drift.
 """
@@ -123,7 +123,7 @@ def format_documents(documents, kind):
 # Templates
 
 def find_template(workspace_root=None):
-    """The template folder of a workspace (its rvts/ folder's sibling
+    """The template folder of a workspace (its scripts folder's sibling
     report/), else the built-in one"""
     if workspace_root:
         candidate = Path(workspace_root).parent / "report"

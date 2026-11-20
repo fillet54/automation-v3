@@ -152,7 +152,7 @@ class PagesTestCase(ReportPagesTestCase):
         with connect(self.tmp / "test.db") as conn:
             init_db(conn)
         app = create_app(DB_PATH=self.tmp / "test.db", REPORTS_PATH=self.root,
-                         WORKSPACE_PATH=gitdir, TESTING=True)
+                         WORKSPACE_PATH=gitdir / "rvts", TESTING=True)
         self.http = app.test_client()
         self.base = f"/reports/{self.report_id}"
 

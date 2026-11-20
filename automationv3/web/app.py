@@ -56,7 +56,8 @@ def workspace_source(config):
         from ..services.mirror import MirrorWorkspaces
         db = config.get("DB_PATH")
         base = Path(db).resolve().parent if db and str(db) != ":memory:" else Path.cwd()
-        return MirrorWorkspaces(git.remote, base / git.mirror_path, checked_in_cache(config))
+        return MirrorWorkspaces(git.remote, base / git.mirror_path, checked_in_cache(config),
+                                git.scripts)
     path = config.get("WORKSPACE_PATH")
     return LocalWorktrees(path, checked_in_cache(config)) if path else None
 

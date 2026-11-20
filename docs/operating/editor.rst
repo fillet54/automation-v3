@@ -194,8 +194,8 @@ In another editor
 The same server runs on its own as ``automation-v3 lsp``, speaking the
 Language Server Protocol on stdin and stdout, so an editor with an LSP
 client gets the same errors and completion. Start it for ``.rst`` files
-with the worktree as the root; it takes the worktree's ``rvts`` folder as
-the scripts root, and reads requirements from the database at ``--dbpath``
+with the scripts folder as the root (or name it with ``--scripts``), and
+it reads requirements from the database at ``--dbpath``
 (``./automationv3.db`` unless you say) when it is there. In Neovim, for
 example:
 
@@ -204,10 +204,12 @@ example:
    vim.api.nvim_create_autocmd("FileType", {
      pattern = "rst",
      callback = function(args)
+       local repo = vim.fs.root(args.buf, ".git")
+       if not repo then return end
        vim.lsp.start({
          name = "automation-v3",
          cmd = { "automation-v3", "lsp" },
-         root_dir = vim.fs.root(args.buf, { "rvts", ".git" }),
+         root_dir = repo .. "/rvts",  -- the scripts folder in your repository
        })
      end,
    })

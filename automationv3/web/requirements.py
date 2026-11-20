@@ -45,7 +45,7 @@ def facet_tone(name):
 
 
 def workspaces():
-    """branch -> rvts root, or {} when no workspace is configured"""
+    """branch -> scripts folder, or {} when no workspace is configured"""
     source = current_app.config.get("WORKSPACES")
     return source.branches() if source else {}
 

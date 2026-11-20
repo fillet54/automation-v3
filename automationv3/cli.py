@@ -92,8 +92,11 @@ Options:
     --port=PORT            tcp port to bind to [default: 8080]
     --dbpath=PATH          path to application database file
                            [default: ./automationv3.db]
-    --workspace-path=PATH  path to git repo [default: ./] (not used when the
-                           settings name a [git] remote to mirror)
+    --workspace-path=PATH  the scripts folder, in a git worktree: its top or
+                           a folder below it; the same folder in each
+                           other worktree is that branch's [default: ./]
+                           (not used when the settings name a [git]
+                           remote to mirror)
     --reports-path=PATH    directory holding reports and runs
                            [default: ./reports]
     --docs-path=PATH       built HTML documentation to serve at /docs
@@ -151,9 +154,8 @@ Options:
     --spec=KEY             the spec a CSV or list is; for diff, only
                            this spec's requirements
     --subsystem=NAME       only this subsystem's requirements
-    --scripts=PATH         the folder scripts are in (default: the rvts
-                           folder of the folder the editor has open, or
-                           that folder itself)
+    --scripts=PATH         the folder scripts are in (default: the folder
+                           the editor has open)
 
 """
 from . import __version__
@@ -174,6 +176,7 @@ __banner__ = (
 
 import os
 import socket
+import subprocess
 import sys
 from contextlib import closing
 from pathlib import Path
@@ -253,8 +256,7 @@ def start_client(args):
     except client.ClientError as e:
         sys.exit(str(e))
     workspace_path = Path(args["--workspace-path"]).resolve()
-    if not workspace_path.exists():
-        sys.exit("--workspace-path=PATH should exist")
+    check_workspace(workspace_path)
     data = Path(args["--data-path"] or data_home() / "client").resolve()
     (data / "reports").mkdir(parents=True, exist_ok=True)
     db_path = data / "client.db"
@@ -289,8 +291,8 @@ def start_server(args):
     for path, flag in parents:
         if not path.is_dir():
             sys.exit(f"{flag}=PATH should be in an existing directory")
-    if not workspace_path.exists():
-        sys.exit("--workspace-path=PATH should exist")
+    if settings.git is None:  # else the workspaces are the mirror's
+        check_workspace(workspace_path)
     reports_path.mkdir(exist_ok=True)
 
     with closing(connect(db_path)) as conn:
@@ -468,6 +470,17 @@ class ConsoleObserver:
 
     def on_error(self, traceback=None, **kw):
         print(traceback)
+
+
+def check_workspace(path):
+    """Exit unless `path` is a folder in a git worktree"""
+    from .services.workspace import scripts_folder
+    if not path.is_dir():
+        sys.exit(f"--workspace-path={path} should be an existing folder")
+    try:
+        scripts_folder(path)
+    except (OSError, subprocess.CalledProcessError):
+        sys.exit(f"--workspace-path={path} should be in a git worktree")
 
 
 def script_paths(root, given):

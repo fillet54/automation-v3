@@ -73,7 +73,7 @@ Once a demo folder exists, a server and a separate worker can run on it:
 
 .. code-block:: bash
 
-   automation-v3 server --workspace-path demo/workspace/master --dbpath demo/automationv3.db
+   automation-v3 server --workspace-path demo/workspace/master/rvts --dbpath demo/automationv3.db
 
 In a second terminal:
 
@@ -85,7 +85,7 @@ Or run everything in one process, with a worker inside the server:
 
 .. code-block:: bash
 
-   automation-v3 server --workspace-path demo/workspace/master --dbpath demo/automationv3.db --local-worker --config demo/worker.json
+   automation-v3 server --workspace-path demo/workspace/master/rvts --dbpath demo/automationv3.db --local-worker --config demo/worker.json
 
 Add ``--docs-path docs/_build/html`` to serve a build of these docs at
 ``/docs``.

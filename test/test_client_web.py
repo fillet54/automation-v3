@@ -37,13 +37,13 @@ class TestLocalClient(unittest.TestCase):
             (repo / "rvts" / path).parent.mkdir(parents=True, exist_ok=True)
             (repo / "rvts" / path).write_text(text)
         gitutil.create_repo(repo)
-        self.branch = next(iter(find_worktrees(repo)))
+        self.branch = next(iter(find_worktrees(repo / "rvts")))
         (repo / "rvts/plain/pass.rst").write_text(
             doc("Edited :req:`R1`", rvt("(Wait 1) (Wait 3)")))
         with closing(connect(self.tmp / "client.db")) as conn:
             init_db(conn)
         (self.tmp / "reports").mkdir()
-        self.app = create_app(DB_PATH=self.tmp / "client.db", WORKSPACE_PATH=repo,
+        self.app = create_app(DB_PATH=self.tmp / "client.db", WORKSPACE_PATH=repo / "rvts",
                               REPORTS_PATH=self.tmp / "reports", CENTRAL=self.remote,
                               LOCAL_WORKER=True, TESTING=True)
         self.http = self.app.test_client()

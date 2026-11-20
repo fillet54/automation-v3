@@ -54,7 +54,7 @@ class TestEditor(unittest.TestCase):
         gitutil.create_repo(self.repo)
         with closing(connect(self.tmp / "a.db")) as conn:
             init_db(conn)
-        self.app = create_app(DB_PATH=str(self.tmp / "a.db"), WORKSPACE_PATH=self.repo,
+        self.app = create_app(DB_PATH=str(self.tmp / "a.db"), WORKSPACE_PATH=self.rvts,
                               REPORTS_PATH=str(self.tmp / "reports"))
         self.app.testing = True
         self.client = self.app.test_client()

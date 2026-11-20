@@ -22,6 +22,8 @@ A TOML file, given to `server --settings PATH`::
     remote = "git@git.example.com:team/scripts.git"
     webhook_secret = "..."         # or AUTOMATION_WEBHOOK_SECRET
     mirror_path = "mirror.git"     # relative to the database's folder
+    scripts = "rvts"               # the scripts folder in the repository
+                                   # (default: its top)
 
 With no file, a server is single-user: local worktrees, no sign-in.
 """
@@ -67,6 +69,7 @@ class Git:
     remote: str
     webhook_secret: str = ""
     mirror_path: str = "mirror.git"
+    scripts: str = ""  # the scripts folder, a path in the repository ("": its top)
 
 
 @dataclass(frozen=True)

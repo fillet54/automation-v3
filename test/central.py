@@ -44,7 +44,7 @@ class Central:
         else:
             shutil.copytree(scripts, self.gitdir / "rvts")
         gitutil.create_repo(self.gitdir)
-        self.branch = next(iter(find_worktrees(self.gitdir)))
+        self.branch = next(iter(find_worktrees(self.gitdir / "rvts")))
         self.db = self.tmp / "test.db"
         self.reports = self.tmp / "reports"
         self.reports.mkdir()
@@ -52,7 +52,7 @@ class Central:
             init_db(conn)
         self.settings = settings or Settings(auth=AUTH)
         self.app = create_app(DB_PATH=self.db, REPORTS_PATH=self.reports,
-                              WORKSPACE_PATH=self.gitdir, TESTING=True,
+                              WORKSPACE_PATH=self.gitdir / "rvts", TESTING=True,
                               SETTINGS=self.settings, **config)
 
     def close(self):

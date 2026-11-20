@@ -64,7 +64,7 @@ its main workflows in the app.
    config.
 2. Run the server on them:
 ```
-automation-v3 server --workspace-path demo/workspace/master --dbpath demo/automationv3.db
+automation-v3 server --workspace-path demo/workspace/master/rvts --dbpath demo/automationv3.db
 ```
 3. Start a worker (in another terminal) to execute queued scripts. The
    config names the environments it hosts; this one hosts `sim` and `lms`.
@@ -82,14 +82,14 @@ To run everything in one process instead, start the server with its own
 worker; it takes jobs straight from the server's database. Separate workers
 can still connect as well:
 ```
-automation-v3 server --workspace-path demo/workspace/master --dbpath demo/automationv3.db --local-worker --config demo/worker.json
+automation-v3 server --workspace-path demo/workspace/master/rvts --dbpath demo/automationv3.db --local-worker --config demo/worker.json
 ```
 
 To serve the documentation at `/docs` (with a **Docs** link in the
 navigation), build it and pass `--docs-path`:
 ```
 make -C docs html
-automation-v3 server --workspace-path demo/workspace/master --docs-path docs/_build/html
+automation-v3 server --workspace-path demo/workspace/master/rvts --docs-path docs/_build/html
 ```
 
 The docs' paragraphs use TeX line breaks, worked out in the reader's browser
@@ -141,7 +141,7 @@ On each person's machine, the **client** works on their own worktrees and
 sends scratch runs (edits included) and local builds to the central server:
 ```
 automation-v3 login --server https://automation.example.com
-automation-v3 client --workspace-path ~/work/scripts       # http://localhost:8080
+automation-v3 client --workspace-path ~/work/scripts/rvts  # http://localhost:8080
 automation-v3 scratch ALM/tc_alm_003.rst --uut lm=local
 ```
 Reports run only what's pushed. Reports, Queue and Scratch show your own by

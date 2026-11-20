@@ -25,7 +25,7 @@ class ConsoleTest(unittest.TestCase):
         gitdir = self.tmp / "repo"
         shutil.copytree(RVTS, gitdir / "rvts")
         gitutil.create_repo(gitdir)
-        self.branch = next(iter(find_worktrees(gitdir)))
+        self.branch = next(iter(find_worktrees(gitdir / "rvts")))
         self.db = self.tmp / "test.db"
         with connect(self.db) as conn:
             init_db(conn)
@@ -34,7 +34,7 @@ class ConsoleTest(unittest.TestCase):
         self.worker = Worker(LocalServer(self.db, self.tmp / "reports", "local://test"), host)
         self.worker.check_in(started=True)
         self.app = create_app(DB_PATH=self.db, REPORTS_PATH=self.tmp / "reports",
-                              WORKSPACE_PATH=gitdir, TESTING=True,
+                              WORKSPACE_PATH=gitdir / "rvts", TESTING=True,
                               CONSOLE_WORKER=self.worker)
         self.http = self.app.test_client()
         self.base = f"/workspace/{self.branch}/console"

@@ -109,12 +109,12 @@ class RouteTest(unittest.TestCase):
         gitdir = self.tmp / "repo"
         shutil.copytree(RVTS, gitdir / "rvts")
         gitutil.create_repo(gitdir)
-        self.branch = next(iter(find_worktrees(gitdir)))
+        self.branch = next(iter(find_worktrees(gitdir / "rvts")))
         db = self.tmp / "test.db"
         with connect(db) as conn:
             init_db(conn)
         (self.tmp / "reports").mkdir()
-        app = create_app(DB_PATH=db, REPORTS_PATH=self.tmp / "reports", WORKSPACE_PATH=gitdir,
+        app = create_app(DB_PATH=db, REPORTS_PATH=self.tmp / "reports", WORKSPACE_PATH=gitdir / "rvts",
                          TESTING=True)
         self.http = app.test_client()
 
