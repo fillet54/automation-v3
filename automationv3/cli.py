@@ -470,6 +470,14 @@ class ConsoleObserver:
         print(traceback)
 
 
+def script_paths(root, given):
+    """Scripts named on the command line, as paths relative to `root`
+    with "/" between folders (what closures and reports key files by),
+    whichever separator the platform or the user typed"""
+    return [(Path(s).resolve().relative_to(root) if Path(s).is_absolute() else Path(s)).as_posix()
+            for s in given]
+
+
 def run(args):
     """Run scripts locally. Returns the exit status: 0 if every run passed."""
     from .services.jobs import QueueError
@@ -478,10 +486,7 @@ def run(args):
     from .services.worker.local import run_locally
 
     root = Path(args["--root"]).resolve()
-    scripts = [
-        str(Path(s).resolve().relative_to(root)) if Path(s).is_absolute() else s
-        for s in args["SCRIPT"]
-    ]
+    scripts = script_paths(root, args["SCRIPT"])
     variations = None
     if args["--variation"]:
         variations = {f"{s}::{v}" for s in scripts for v in args["--variation"]}
@@ -553,10 +558,7 @@ def scratch(args, central):
     from .services import client
 
     root = Path(args["--root"]).resolve()
-    scripts = [
-        str(Path(s).resolve().relative_to(root)) if Path(s).is_absolute() else s
-        for s in args["SCRIPT"]
-    ]
+    scripts = script_paths(root, args["SCRIPT"])
     files = client.upload_files(root, scripts)
     versions = local_versions(central, dict(uut.split("=", 1) for uut in args["--uut"]))
     environments = args["--env"] or [None]

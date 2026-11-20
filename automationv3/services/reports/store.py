@@ -143,9 +143,11 @@ def file_path(root, report_id, run_id, name):
 
 
 def read_closure(root, report_id, run_id):
+    """relative path -> text of the run's closure. The paths use "/" on
+    every platform, as scripts, load orders and traces name them."""
     base = run_dir(root, report_id, run_id) / "closure"
     return {
-        str(p.relative_to(base)): p.read_text()
+        p.relative_to(base).as_posix(): p.read_text()
         for p in sorted(base.rglob("*"))
         if p.is_file()
     }

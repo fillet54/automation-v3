@@ -153,3 +153,28 @@ class TestCliReference(unittest.TestCase):
         from automationv3 import cli
         reference = (Path(__file__).resolve().parents[1] / "docs" / "reference" / "cli.rst")
         self.assertIn(textwrap.indent(cli.__doc__.strip("\n"), "   "), reference.read_text())
+
+
+class TestPathsUseSlashes(unittest.TestCase):
+    """Reports, closures and traces name files with "/" between folders,
+    on Windows too"""
+
+    def test_script_paths(self):
+        from pathlib import PureWindowsPath
+        from unittest import mock
+        with mock.patch.object(cli, "Path", PureWindowsPath):  # relative paths, as Windows reads them
+            self.assertEqual(cli.script_paths(Path("."), ["lm\\descent\\p63.rst", "lm/a.rst"]),
+                             ["lm/descent/p63.rst", "lm/a.rst"])
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        self.assertEqual(cli.script_paths(root.resolve(), [str(root / "lm" / "a.rst")]), ["lm/a.rst"])
+
+    def test_closure_keys(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        report_id = store.create_report(root)
+        files = {"lm/core.rst": "", "lm/descent/p63.rst": "(Wait 1)"}
+        run_id = store.create_run(root, report_id, "lm/descent/p63.rst", files)
+        self.assertEqual(store.read_closure(root, report_id, run_id), files)
+        self.assertEqual(store.read_closure_file(root, report_id, run_id, "lm/descent/p63.rst"),
+                         "(Wait 1)")
