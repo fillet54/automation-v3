@@ -17,7 +17,9 @@ dependencies = [
     "docopt-ng",
     "requests",
     "pygments",
-    "sphinx",  # a frozen report's site and PDF
+    "sphinx",  # the docs, and a frozen report's site and PDF
+    "openpyxl",  # importing requirements from Excel workbooks
+    "quickjs-ng",  # the vendored mermaid-diag's JavaScript engine when Node isn't on PATH
     # paper-ui (the UI's look) and mermaid-diag (the docs' diagrams) are
     # vendored: automationv3/vendor
 ]
@@ -25,10 +27,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-
-[project.optional-dependencies]
-docs = ["sphinx", "quickjs-ng"]  # quickjs-ng: the vendored mermaid-diag's JavaScript engine when Node isn't on PATH
-xlsx = ["openpyxl"]  # importing requirements from Excel workbooks
 
 [project.urls]
 Homepage = "https://github.com/fillet54/automationv3"

@@ -15,7 +15,7 @@ From a clone of the repository, with Python 3.11 or newer:
 
    python -m venv .venv
    source .venv/bin/activate
-   pip install -e ".[docs]"
+   pip install -e .
    automation-v3 demo
 
 Open http://localhost:8080.

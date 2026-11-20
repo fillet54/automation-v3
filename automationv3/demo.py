@@ -222,7 +222,7 @@ def build_docs(out):
     try:
         import sphinx  # noqa: F401
     except ImportError:
-        print("   Docs not built: install Sphinx with `pip install -e \".[docs]\"`")
+        print("   Docs not built: Sphinx isn't installed (`pip install sphinx`)")
         return None
     result = subprocess.run(
         [sys.executable, "-m", "sphinx", "-b", "html", "-q",

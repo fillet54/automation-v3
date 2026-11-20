@@ -231,8 +231,7 @@ role: the id, the text, the ids it satisfies, its section, an attribute, or
 ignored. On the command line the roles are guessed from the headers; the
 Imports page guesses too, then lets you change them (see
 :doc:`../operating/requirements`). A workbook's sheet is ``--sheet NAME``, by
-default the first with anything on it. Reading workbooks needs ``openpyxl``
-(``pip install automation-v3[xlsx]``).
+default the first with anything on it.
 
 .. code-block:: text
 

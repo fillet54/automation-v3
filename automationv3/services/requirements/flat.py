@@ -166,11 +166,8 @@ def table(data, name, sheet=None):
 
 
 def workbook_table(data, name, sheet=None):
-    try:
-        import openpyxl
-    except ImportError:
-        raise ExportError(f"{name}: reading Excel workbooks needs openpyxl "
-                          "(pip install openpyxl); or save the sheet as CSV UTF-8") from None
+    import openpyxl  # here, so starting the app doesn't load it
+
     try:
         book = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except Exception as e:

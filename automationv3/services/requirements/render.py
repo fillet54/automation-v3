@@ -42,7 +42,7 @@ def build(conn, spec_version, cache):
     if (out / "nav.json").is_file():
         return out
     if not available():
-        raise RenderError("Sphinx isn't installed: install it with pip install -e \".[docs]\"")
+        raise RenderError("Sphinx isn't installed: install it with pip install sphinx")
     row = conn.execute("SELECT tree FROM spec_versions WHERE hash = ?", (spec_version,)).fetchone()
     if row is None:
         raise RenderError(f"no spec version {spec_version}")

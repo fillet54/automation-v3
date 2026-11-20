@@ -8,7 +8,7 @@ From a clone of this repository, with Python 3.11 or newer:
 ```
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[docs]"
+pip install -e .
 automation-v3 demo
 ```
 
@@ -50,8 +50,7 @@ worker in the same process:
 Each run deletes the earlier demo and starts again; it won't delete a
 folder it didn't make. Use `--path` for another folder, `--port` for
 another port, and `--no-docs` to skip building the documentation. The
-documentation is built only from a source checkout; without the `[docs]`
-extra the demo runs without it.
+documentation is built only from a source checkout.
 
 To present it, `presentation/overview.html` is a short reveal.js deck
 (the problem, the language, the app, requirements), and
