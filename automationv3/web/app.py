@@ -2,7 +2,6 @@
 
 from flask import Flask, current_app, g, has_app_context, redirect, url_for
 
-from ..framework import rst
 from ..services.requirements import models as requirements
 from ..services.settings import Settings
 import tempfile
@@ -96,7 +95,6 @@ def create_app(**config):
     app.register_blueprint(hooks.hooks)
     app.register_blueprint(api.api, url_prefix="/api")
     app.teardown_appcontext(close_db)
-    rst.set_requirement_lookup(requirement_lookup, requirement_key)
 
     @app.route("/")
     def index():

@@ -581,9 +581,9 @@ def register(bp, workspace_or_404, node_or_404):
         node, title = new_file(ws, data)
         requirement, intro = str(data.get("requirement") or "").strip() or None, None
         if requirement:
-            from ..framework import rst as script_rst
-            from ..services.requirements.rst_source import plain_text
-            found = script_rst.find_requirement(requirement)
+            from .app import requirement_lookup
+            from ..framework.rst import plain_text
+            found = requirement_lookup(requirement)
             intro = plain_text(found.text) if found is not None and found.text else None
         return jsonify(drafted(node.path, node.relative_path,
                                skeleton(title, requirement, intro)))

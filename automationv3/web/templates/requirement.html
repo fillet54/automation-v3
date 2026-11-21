@@ -27,7 +27,7 @@
 {% endcall %}
 {% call ui.card() %}{% call ui.card_body() %}
 <div class="ui-stack">
-  <div class="ui-requirement-text">{{ requirement.__repr_html__() | safe }}</div>
+  <div class="ui-requirement-text">{{ requirement | requirement_html | safe }}</div>
   {% set attrs = [] %}
   {% for name, value in requirement.attributes | dictsort %}{% set _ = attrs.append((name, value | join(", ") if value is sequence and value is not string else value)) %}{% endfor %}
   {% if attrs %}{{ ui.dl(attrs, cols=True) }}{% endif %}
@@ -42,7 +42,7 @@
       <div class="ui-row" style="gap: 8px;">{{ ui.ident(target, url_for('requirements.requirement', id=target, context=ctx_param)) }} <span class="ui-muted">{{ parent.spec }}</span>
         {% if suspect %}{{ ui.badge("changed since reviewed", tone="warning") }}{% endif %}</div>
       {% if suspect %}{{ diff.details(change) }}{{ review_button({"child": id, "parent": target}) }}
-      {% else %}<div>{{ parent.__repr_html__() | safe }}</div>{% endif %}
+      {% else %}<div>{{ parent | requirement_html | safe }}</div>{% endif %}
       {% else %}<div>{{ ui.ident(target) }} {{ ui.badge("missing", tone="danger") }}</div>{% endif %}
     </div>
     {% else %}{{ ui.empty("Traces to nothing above it.") }}{% endfor %}

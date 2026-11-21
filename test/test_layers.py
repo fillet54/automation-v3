@@ -17,6 +17,7 @@ PACKAGE = Path(__file__).resolve().parent.parent / "automationv3"
 
 FORBIDDEN = {
     "framework": {
+        "automationv3.documents",
         "automationv3.services", "automationv3.web", "automationv3.cli",
         "flask", "sqlite3", "requests", "waitress",
     },

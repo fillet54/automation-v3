@@ -30,6 +30,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from ...framework.markup import heading as rst_heading
 from . import store
 from .data import ReportData
 from ..util import now_iso, write_json
@@ -166,11 +167,6 @@ def manifest(root, report_id):
 
 # The Sphinx project
 
-def heading(title, char="="):
-    title = " ".join(title.split())
-    return f"{title}\n{char * len(title)}\n"
-
-
 def run_title(run):
     variation = (run.get("variation") or {}).get("name")
     parts = [run["script"], run.get("environment"), variation]
@@ -185,7 +181,7 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
     (out / "runs").mkdir()
     for run in data.runs:
         (out / "runs" / f"{run['id']}.rst").write_text(
-            heading(run_title(run))
+            f"{rst_heading(run_title(run))}\n"
             + f"\n.. run-summary::\n\n.. run-document:: {run['id']}\n")
     doc_source = source(root, report_id)
     failing = [r["latest"]["id"] for r in data.combinations

@@ -21,39 +21,44 @@ from .language import (
 from .requirement import SHALL, Requirement
 from .source import requirement_reference
 
-# How a :req:`ID` reference finds its requirement. Applications with a
-# requirements store install their own lookup; it may return None. Its
-# key says what the lookup would answer from (the requirements' context
-# and their latest import, say), so rendering cached under another key
-# isn't reused.
-_requirement_lookup = None
-_requirement_key = None
-
-
-def set_requirement_lookup(lookup, key=None):
-    """Use `lookup(id) -> Requirement | None` to resolve :req: references,
-    and `key() -> hashable` to tell apart what it would answer from"""
-    global _requirement_lookup, _requirement_key
-    _requirement_lookup = lookup
-    _requirement_key = key
-
-
-def requirement_key():
-    return _requirement_key() if _requirement_key else None
-
-
-def find_requirement(id):
-    found = _requirement_lookup(id) if _requirement_lookup else None
-    return found or Requirement(id)
-
-
 @functools.lru_cache(maxsize=1024)
-def _plain(text):
+def plain_text(text):
+    """A requirement's rst text as plain words, markup and line breaks
+    gone"""
     try:
-        return docutils.core.publish_doctree(text, settings_overrides={
-            "report_level": 5, "halt_level": 5, "doctitle_xform": False}).astext()
+        tree = docutils.core.publish_doctree(text, settings_overrides={
+            "report_level": 5, "halt_level": 5, "doctitle_xform": False,
+            "file_insertion_enabled": False})
+        return " ".join(tree.astext().split())
     except Exception:
-        return text
+        return " ".join(str(text).split())
+
+
+def mark_shall(root, req_id, classes=("shall",)):
+    """Mark every 'shall' in Text nodes under `root` with `req_id`"""
+    for text_node in list(root.findall(nodes.Text)):
+        if isinstance(text_node.parent, (nodes.literal, nodes.literal_block)):
+            continue
+        raw = str(text_node)
+        parts = SHALL.split(f" {raw} ")
+        if len(parts) == 1:
+            continue
+        replacement = []
+        for n, part in enumerate(parts):
+            if n % 2:
+                strong = nodes.strong("", f"{part} [{req_id}]")
+                if classes:
+                    strong["classes"].extend(classes)
+                replacement.append(strong)
+            else:
+                if n == 0:
+                    part = part[1:]
+                if n == len(parts) - 1:
+                    part = part[:-1]
+                if part:
+                    replacement.append(nodes.Text(part))
+        text_node.parent.replace(text_node, replacement)
+    return root
 
 
 def requirement_nodes(req, rawtext=""):
@@ -63,15 +68,8 @@ def requirement_nodes(req, rawtext=""):
     if not req.text:
         node += nodes.strong("", f"[{req.id}]", classes=["shall"])
         return node
-    words = " ".join(_plain(req.text).split())
-    parts = SHALL.split(f" {words} ")
-    for n, part in enumerate(parts):
-        if n % 2:
-            node += nodes.strong("", f"{part} [{req.id}]", classes=["shall"])
-        elif part.strip(" ") or 0 < n < len(parts) - 1:
-            node += nodes.Text(part[1:] if n == 0 else part[:-1] if n == len(parts) - 1
-                               else part)
-    return node
+    node += nodes.Text(plain_text(req.text))
+    return mark_shall(node, req.id)
 
 
 class RequirementReferences(Transform):
@@ -82,9 +80,16 @@ class RequirementReferences(Transform):
 
     default_priority = 210
 
+    def __init__(self, document, startnode=None, lookup=None):
+        super().__init__(document, startnode=startnode)
+        self.lookup = lookup
+
     def apply(self):
+        lookup = self.lookup or getattr(self.document.settings, "requirement_lookup", None)
         for node in list(self.document.findall(requirement_reference)):
-            node.replace_self(requirement_nodes(find_requirement(node["id"]), node.rawsource))
+            found = lookup(node["id"]) if lookup else None
+            req = found or Requirement(node["id"])
+            node.replace_self(requirement_nodes(req, node.rawsource))
 
 
 def repr_rst(form):

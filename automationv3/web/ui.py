@@ -13,9 +13,11 @@ Config (create_app(**config), or the environment at startup):
 
 import os
 
+from .. import documents as documents_pkg
+from ..documents.html import requirement_html
 from ..vendor import paper_ui
 from ..vendor.paper_ui import flask as paper_ui_flask
-from flask import current_app, url_for
+from flask import current_app, send_from_directory, url_for
 from ..vendor.paper_ui import iso, utc  # noqa: F401  (the filters, as they were here)
 
 MARKING_COLORS = paper_ui.MARKING_COLORS
@@ -66,3 +68,8 @@ def init_app(app):
     app.config.setdefault("UI_MARKING", marking_from_env())
     app.config.setdefault("UI_THEME", os.environ.get("AUTOMATION_UI_THEME") or "auto")
     paper_ui_flask.init_app(app, home=lambda: url_for("index"), nav=_nav)
+    app.jinja_env.filters["requirement_html"] = requirement_html
+
+    @app.route("/static/css/automation.css")
+    def automation_css():
+        return send_from_directory(documents_pkg.STATIC, "automation.css")

@@ -14,10 +14,45 @@ Exported sites and PDFs never go through this: they render the same
 classes their own way.
 """
 
+import functools
+import re
+from html import escape
+
+import docutils.core
 from docutils import nodes
 from docutils.writers.html5_polyglot import HTMLTranslator, Writer
 
+from ..framework.rst import mark_shall
 from . import core
+
+ONE_PARAGRAPH = re.compile(r"\A\s*<p>(.*)</p>\s*\Z", re.DOTALL)
+
+
+@functools.lru_cache(maxsize=1024)
+def _render_requirement(req_id, text):
+    """HTML for a requirement's text: inline if it is one paragraph,
+    else blocks (lists, several paragraphs)"""
+    try:
+        tree = docutils.core.publish_doctree(
+            text, settings_overrides={
+                "report_level": 5, "halt_level": 5,
+                "doctitle_xform": False, "file_insertion_enabled": False,
+            })
+        mark_shall(tree, req_id, classes=())
+        html = core.write(tree, "html5", {"initial_header_level": 4})["fragment"]
+    except Exception:
+        html = f"<p>{escape(text)}</p>"
+    inline = ONE_PARAGRAPH.match(html)
+    if inline and "<p>" not in inline.group(1):
+        return f'<span class="ui-requirement">{inline.group(1)}</span>'
+    return f'<div class="ui-requirement ui-requirement--blocks">{html}</div>'
+
+
+def requirement_html(requirement):
+    """HTML for a Requirement, with each 'shall' marked with its id"""
+    if requirement.text:
+        return _render_requirement(requirement.id, requirement.text)
+    return f'<span class="ui-requirement"><strong>[{escape(requirement.id)}]</strong></span>'
 
 OPEN = {"fail", "error", "running", "blocked"}
 

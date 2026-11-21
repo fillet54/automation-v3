@@ -13,7 +13,6 @@ must not meet this one.
 """
 
 import json
-import re
 from html import escape
 from pathlib import Path
 
@@ -21,13 +20,7 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx.util.docutils import SphinxDirective
 
-
-class AnyOption(dict):
-    def __missing__(self, name):
-        return directives.unchanged
-
-    def __bool__(self):
-        return True
+from ....framework.source import AnyOption
 
 
 def req_link(id):
@@ -41,6 +34,10 @@ class RequirementDirective(SphinxDirective):
 
     def run(self):
         id = self.arguments[0].strip()
+        reqs = getattr(self.env, "spec_requirements", None)
+        if reqs is None:
+            reqs = self.env.spec_requirements = {}
+        reqs.setdefault(self.env.docname, []).append(id)
         options = {k: " ".join((v or "").split()) for k, v in self.options.items()}
         satisfies = [s.strip() for s in options.pop("satisfies", "").split(",") if s.strip()]
         head = [f'<div class="spec-req__head" id="{escape(id)}">',
@@ -60,6 +57,24 @@ class RequirementDirective(SphinxDirective):
         return [box]
 
 
+def purge_requirements(app, env, docname):
+    reqs = getattr(env, "spec_requirements", None)
+    if reqs is not None:
+        reqs.pop(docname, None)
+
+
+def merge_requirements(app, env, docnames, other):
+    other_reqs = getattr(other, "spec_requirements", None)
+    if not other_reqs:
+        return
+    reqs = getattr(env, "spec_requirements", None)
+    if reqs is None:
+        reqs = env.spec_requirements = {}
+    for docname in docnames:
+        if docname in other_reqs:
+            reqs[docname] = list(other_reqs[docname])
+
+
 def write_nav(app, exception):
     """nav.json: {"doc", "title", "children": [...]} from the root document
     down, and "requirements": requirement id -> the document it is in"""
@@ -74,25 +89,18 @@ def write_nav(app, exception):
                              if child not in seen and child in env.all_docs]}
 
     nav = entry(app.config.root_doc, set())
+    by_doc = getattr(env, "spec_requirements", None) or {}
     found = {}
     for doc in env.all_docs:
-        path = page_path(app.outdir, doc)
-        if path.is_file():
-            for id in HEAD.findall(json.loads(path.read_text()).get("body", "")):
-                found.setdefault(id, doc)
+        for id in by_doc.get(doc, ()):
+            found.setdefault(id, doc)
     nav["requirements"] = found
     Path(app.outdir, "nav.json").write_text(json.dumps(nav))
 
 
-def page_path(out, doc):
-    """Where the dirhtml builder writes document `doc`"""
-    return Path(out, "index.html") if doc == "index" else Path(out, doc, "index.html")
-
-
-HEAD = re.compile(r'<div class="spec-req__head" id="([^"]+)">')
-
-
 def setup(app):
     app.add_directive("requirement", RequirementDirective, override=True)
+    app.connect("env-purge-doc", purge_requirements)
+    app.connect("env-merge-info", merge_requirements)
     app.connect("build-finished", write_nav)
     return {"parallel_read_safe": True, "version": "1"}

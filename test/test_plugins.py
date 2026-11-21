@@ -168,6 +168,7 @@ class TestPluginRendering(unittest.TestCase):
     """What plugins add to documents (see plugins/apollo/documents.py)"""
 
     def setUp(self):
+        import automationv3.documents  # noqa: F401
         plugins.load_plugins()
         self.rendering = patch.dict(plugins._rendering,
                                     {k: dict(v) for k, v in plugins._rendering.items()})

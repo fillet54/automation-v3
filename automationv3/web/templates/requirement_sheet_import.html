@@ -105,14 +105,14 @@
   {% if preview.added %}
   <details{% if preview.added | length <= 50 %} open{% endif %}><summary><strong>Added</strong> ({{ preview.added | length }})</summary>
   <div class="ui-table-wrap" style="margin-top: 8px;"><table class="ui-table">
-    <tbody>{% for r in preview.added %}<tr style="vertical-align: top;"><td style="white-space: nowrap;">{{ ui.ident(r.id) }}</td><td>{{ r.__repr_html__() | safe }}</td><td class="ui-muted">{{ r.section[1:] | join(" › ") }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for r in preview.added %}<tr style="vertical-align: top;"><td style="white-space: nowrap;">{{ ui.ident(r.id) }}</td><td>{{ r | requirement_html | safe }}</td><td class="ui-muted">{{ r.section[1:] | join(" › ") }}</td></tr>{% endfor %}</tbody>
   </table></div></details>
   {% endif %}
 
   {% if preview.removed %}
   <details open><summary><strong>Removed</strong> ({{ preview.removed | length }})</summary>
   <div class="ui-table-wrap" style="margin-top: 8px;"><table class="ui-table">
-    <tbody>{% for r in preview.removed %}<tr style="vertical-align: top;"><td style="white-space: nowrap;">{{ ui.ident(r.id) }}</td><td><del>{{ r.__repr_html__() | safe }}</del></td></tr>{% endfor %}</tbody>
+    <tbody>{% for r in preview.removed %}<tr style="vertical-align: top;"><td style="white-space: nowrap;">{{ ui.ident(r.id) }}</td><td><del>{{ r | requirement_html | safe }}</del></td></tr>{% endfor %}</tbody>
   </table></div></details>
   {% endif %}
 </div>

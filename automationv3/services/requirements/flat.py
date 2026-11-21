@@ -371,19 +371,20 @@ def escape(text):
 
 
 def heading(title, mark):
-    return [title, mark * max(len(title), 1), ""]
+    from ...framework.markup import heading as rst_heading
+    return [*str(rst_heading(title, mark)).splitlines(), ""]
 
 
 def document(title, rows):
     """The spec's index.rst: its title, then each section's
     requirements, in the order the sections first appear"""
-    lines = heading(escape(title), "=")
+    lines = heading(title, "=")
     sections = {"": []}  # requirements in no section come before any heading
     for row in rows:
         sections.setdefault(row["section"], []).append(row)
     for section, members in sections.items():
         if section:
-            lines += heading(escape(section), "-")
+            lines += heading(section, "-")
         for row in members:
             lines.append(f".. requirement:: {row['id']}")
             links = ", ".join(t.strip() for t in row["satisfies"].split(",") if t.strip())

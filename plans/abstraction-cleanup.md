@@ -105,21 +105,21 @@ three parallel copies of state-ranking / failure-reason logic.
 Make the layering in `test/test_layers.py` completely true in both directions
 and remove process-global docutils/RST side effects.
 
-- [ ] **Break the `framework/` ↔ `documents/` circular dependency**
+- [x] **Break the `framework/` ↔ `documents/` circular dependency**
   - Move `Rst` and pure RST formatting/escaping helpers (`text`, `literal`, `indent`, `heading`) into `framework/markup.py` (or `framework/rst_escape.py`), and have `documents/template.py`, `services/reports/build.py:88`, and `services/requirements/flat.py:366-377` reuse them.
   - Invert plugin rendering registration: instead of `framework/plugins.py:120-152, 207-266` mutating `documents.core.RESOLVERS`, `ROLE_VALUES`, `template.FILTERS`, and `Snippets.plugin_folders`, register a rendering-registry adapter from `documents/` (or expose a clean `documents.registry` facade with atomic snapshot/rollback that also clears `Snippets._envs`).
   - Add `"automationv3.documents"` to `FORBIDDEN["framework"]` in `test/test_layers.py`.
-- [ ] **Remove process-global `:req:` lookup (`rst.set_requirement_lookup`)**
+- [x] **Remove process-global `:req:` lookup (`rst.set_requirement_lookup`)**
   - Carry `requirement_lookup` on `documents.core.Context` (defaulting to `None`) and pass it explicitly into `RequirementReferences` in `documents/core.py:271-277` and `services/reports/sphinx_ext.py`.
   - Remove global `_requirement_lookup` / `_requirement_key` from `framework/rst.py:29-48` and the global mutation in `web/app.py:99` and `services/reports/sphinx_ext.py:64-65`.
-- [ ] **Unify requirement rendering & RST→plain-text**
+- [x] **Unify requirement rendering & RST→plain-text**
   - Move HTML rendering out of `framework/requirement.py:19-35` (`Requirement.__repr_html__` using legacy `html4css1` + regex on raw HTML) into `documents/` (or `web/documents.py`), sharing the docutils `shall`-marking logic with `framework/rst.py:59-74`.
   - Consolidate `_plain()` (`framework/rst.py:50-56`) and `plain_text()` (`services/requirements/rst_source.py:153-157`).
-- [ ] **Stop global docutils directive pollution in `services/requirements/rst_source.py`**
+- [x] **Stop global docutils directive pollution in `services/requirements/rst_source.py`**
   - Replace import-time `directives.register_directive("toctree"|"only"|"index"|..., Ignored)` (`rst_source.py:71-73`) with a scoped parser/directive lookup (or local `directives._directives` context/parser subclass) so importing `rst_source` never breaks Sphinx or other docutils parsers in the same process.
   - Deduplicate `AnyOption` (currently 3 copies: `framework/source.py:117`, `services/requirements/rst_source.py:35`, `services/requirements/sphinx/__init__.py:25`).
   - In `services/requirements/sphinx/__init__.py:78-92`, record `(docname, req_id)` on `self.env` in `RequirementDirective.run()` instead of regex-scraping rendered HTML files in `write_nav`.
-- [ ] **Clean up `services/reports/sphinx_ext.py` & `sphinx_conf.py`**
+- [x] **Clean up `services/reports/sphinx_ext.py` & `sphinx_conf.py`**
   - Store build `Context` on `app.env` instead of module-global `_contexts[id(env.app)]`.
   - Register `run-document` with `app.add_directive("run-document", RunDocument)` instead of global `directives.register_directive`.
   - Move shared report CSS (`automation.css` or its document rules) so `services/reports/sphinx_conf.py:14` does not reach into `automationv3/web/static/css`.

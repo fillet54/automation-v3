@@ -41,15 +41,13 @@ class StartWithConfig(BuildingBlock):
         return markup.mapping(config, caption="Config")
 
 
-def document_html(text):
+def document_html(text, requirement_lookup=None):
     """As a page renders: parsed (cached), then resolved"""
-    return core.write(core.resolved(core.parse(text), core.Context()), "html5")["body"]
+    context = core.Context(requirement_lookup=requirement_lookup)
+    return core.write(core.resolved(core.parse(text), context), "html5")["body"]
 
 
 class TestStatements(unittest.TestCase):
-    def tearDown(self):
-        rst.set_requirement_lookup(None)
-
     def test_one_statement_per_form(self):
         from automationv3.documents import script
         statements = views(SCRIPT)
@@ -66,18 +64,20 @@ class TestStatements(unittest.TestCase):
         conn = connect(":memory:")
         init_db(conn)
         models.insert(conn, [Requirement("R1", "The system shall start", "SYS")])
-        rst.set_requirement_lookup(lambda id: models.find_by_id(conn, id))
-        self.assertIn("shall [R1]", document_html(script.render(SCRIPT)))
+        lookup = lambda id: models.find_by_id(conn, id)
+        self.assertIn("shall [R1]", document_html(script.render(SCRIPT), lookup))
 
     def test_a_cached_page_shows_the_requirement_as_it_is_now(self):
         from automationv3.documents import script
         tree = script.parsed(SCRIPT)
         texts = {"R1": "The system shall start"}
-        rst.set_requirement_lookup(lambda id: Requirement(id, texts[id], "SYS"))
-        first = core.write(core.resolved(tree, core.Context()), "html5")["body"]
+        lookup = lambda id: Requirement(id, texts[id], "SYS")
+        first = core.write(core.resolved(tree, core.Context(requirement_lookup=lookup)),
+                           "html5")["body"]
         texts["R1"] = "The system shall stop"
         self.assertIs(script.parsed(SCRIPT), tree)  # cached, by the text alone
-        second = core.write(core.resolved(tree, core.Context()), "html5")["body"]
+        second = core.write(core.resolved(tree, core.Context(requirement_lookup=lookup)),
+                            "html5")["body"]
         self.assertIn("start", first)
         self.assertIn("stop", second)
 

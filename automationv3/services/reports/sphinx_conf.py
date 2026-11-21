@@ -7,11 +7,12 @@ build's settings (build.json, beside it) with `configure`.
 import json
 from pathlib import Path
 
+from ... import documents
 from ...vendor import paper_ui
 
 HERE = Path(__file__).resolve().parent
-# the app's look: paper-ui's ui.css, code.css and fonts, and the app's automation.css
-STATIC = [paper_ui.STATIC, HERE.parent.parent / "web" / "static" / "css"]
+# the app's look: paper-ui's ui.css, code.css and fonts, and documents' automation.css
+STATIC = [paper_ui.STATIC, documents.STATIC]
 
 
 def configure(namespace, settings_file):

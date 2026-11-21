@@ -21,59 +21,21 @@ from docutils.core import publish_doctree
 from docutils.utils import SystemMessage
 from jinja2.ext import Extension
 
-
-class Rst(str):
-    """Text that is already reStructuredText"""
-
-
-# Inline markup that could start anywhere: emphasis, literals,
-# interpreted text and substitutions; and a reference's closing "_"
-INLINE = re.compile(r"([\\`*|])|_(?=\W|$)")
-# What could open a block at the start of a line: a bullet or
-# enumerated list, a field, a comment or directive, a line block
-BLOCK = re.compile(r"[-+*•|]( |$)|:|(\d+|[a-zA-Z#]|[ivxlcdmIVXLCDM]+)[.)]( |$)"
-                   r"|\(\w+\)( |$)|\.\.( |$)|>>>")
-
-
-def text(value):
-    """`value` on one line, as plain rst text: nothing in it is markup"""
-    value = " ".join(str(value if value is not None else "").split())
-    value = INLINE.sub(lambda m: "\\" + m.group(0), value)
-    if BLOCK.match(value) or (len(value) > 1 and len(set(value)) == 1
-                              and not value[0].isalnum()):
-        value = "\\" + value  # not a list, nor a heading's underline
-    if value.endswith("::"):
-        value = value[:-1] + "\\:"  # not the start of a literal block
-    return Rst(value)
-
-
-def literal(value):
-    """`value` as inline literal text"""
-    value = " ".join(str(value if value is not None else "").split())
-    return Rst(f"``{value.replace('``', '` `')}``" if value else "")
-
-
-def indent(value, width=3, first=False):
-    """`value`'s lines indented by `width` (the first too, if `first`),
-    blank lines left blank; escaped first unless it is Rst"""
-    value = value if isinstance(value, Rst) else text(value)
-    pad = " " * width
-    lines = value.split("\n")
-    return Rst("\n".join(
-        (pad + line if line.strip() and (n or first) else line)
-        for n, line in enumerate(lines)))
+from ..framework.markup import (  # noqa: F401
+    BLOCK,
+    INLINE,
+    Rst,
+    escape_text as text,
+    heading,
+    indent,
+    literal,
+)
 
 
 def verbatim(value, width=3):
     """`value` as it is, every line indented: for a literal block's body"""
     return indent(Rst(str(value if value is not None else "").rstrip() or "(empty)"),
                   width, first=True)
-
-
-def heading(title, char):
-    """A section title and its underline"""
-    title = text(title)
-    return Rst(f"{title}\n{char * len(title)}")
 
 
 def escape(value):
@@ -202,3 +164,4 @@ class Snippets:
 def register_folder(folder):
     """Add a plugin's snippet folder, overriding the built-in snippets"""
     Snippets.plugin_folders.append(Path(folder))
+    Snippets._envs.clear()

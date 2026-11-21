@@ -555,4 +555,5 @@ def by_id(id):
     if requirement is None:
         abort(404)
 
-    return requirement.__repr_html__()
+    from ..documents.html import requirement_html
+    return requirement_html(requirement)

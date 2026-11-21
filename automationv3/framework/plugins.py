@@ -47,12 +47,42 @@ class PluginLoadError(RuntimeError):
 
 _functions = {}
 _rendering = {"directive": {}, "role": {}, "filter": {}, "snippet": {}}  # name -> plugin
+_directives = {}   # name -> (resolver, option_spec, arguments)
+_roles = {}        # name -> value
+_filters = {}      # name -> fn
+_snippet_folders = []  # [Path]
+_rendering_backend = None  # registered by documents/registry.py
 _styles = {"css": [], "latex": []}  # (plugin, text)
 _versions = {}  # plugin -> its version
 _loaded = False
 _loading = False
 _error = None  # the PluginLoadError of a failed load, raised again when asked
 _lock = threading.RLock()
+
+
+def set_rendering_registry(backend):
+    """Attach the document rendering registry (called by documents/).
+    Any directives, roles, filters and snippet folders plugins registered
+    before documents/ was imported are replayed into `backend`."""
+    global _rendering_backend
+    with _lock:
+        _rendering_backend = backend
+        if backend is None:
+            return
+        for name, (resolver, option_spec, arguments) in _directives.items():
+            if name in backend.builtins("directive"):
+                raise ValueError(f"the directive {name} is a built-in one")
+            backend.register_directive(name, resolver, option_spec, arguments)
+        for name, value in _roles.items():
+            if name in backend.builtins("role"):
+                raise ValueError(f"the role {name} is a built-in one")
+            backend.register_role(name, value)
+        for name, fn in _filters.items():
+            if name in backend.builtins("filter"):
+                raise ValueError(f"the filter {name} is a built-in one")
+            backend.register_filter(name, fn)
+        for folder in _snippet_folders:
+            backend.register_snippets(folder)
 
 # Execution forms may register later, when steps.py is imported.
 RESERVED = {"step", "try", "try-ok?", "quietly", PRECONDITION} | DIRECTIVES
@@ -117,24 +147,30 @@ class PluginRegistry:
         writes its rst, from context.data (the report) and context.run
         (see documents/core.py); with `arguments`, its one argument is
         options["argument"]"""
-        from ..documents import core
-        self._claim("directive", name, core.RESOLVERS)
-        core.directive(name, resolver, option_spec, arguments)
+        builtins = _rendering_backend.builtins("directive") if _rendering_backend else ()
+        self._claim("directive", name, builtins)
+        _directives[name] = (resolver, option_spec, arguments)
+        if _rendering_backend is not None:
+            _rendering_backend.register_directive(name, resolver, option_spec, arguments)
         return resolver
 
     def role(self, name, value):
         """A role documents can use: ``:name:`what``` is ``value(context,
         what)``, inline rst"""
-        from ..documents import core
-        self._claim("role", name, core.ROLE_VALUES)
-        core.role(name, value)
+        builtins = _rendering_backend.builtins("role") if _rendering_backend else ()
+        self._claim("role", name, builtins)
+        _roles[name] = value
+        if _rendering_backend is not None:
+            _rendering_backend.register_role(name, value)
         return value
 
     def filter(self, name, fn):
         """A filter every snippet can use"""
-        from ..documents import template
-        self._claim("filter", name, {*template.FILTERS, *template.BUILTIN_FILTERS})
-        template.FILTERS[name] = fn
+        builtins = _rendering_backend.builtins("filter") if _rendering_backend else ()
+        self._claim("filter", name, builtins)
+        _filters[name] = fn
+        if _rendering_backend is not None:
+            _rendering_backend.register_filter(name, fn)
         return fn
 
     def snippets(self, folder):
@@ -143,12 +179,13 @@ class PluginRegistry:
         Two plugins can't provide the same snippet."""
         from pathlib import Path
 
-        from ..documents import template
         folder = Path(folder)
         for path in sorted(folder.rglob("*")):
             if path.is_file():
                 self._claim("snippet", path.relative_to(folder).as_posix(), ())
-        template.register_folder(folder)
+        _snippet_folders.append(folder)
+        if _rendering_backend is not None:
+            _rendering_backend.register_snippets(folder)
 
     def css(self, text):
         """CSS for what the plugin's directives and blocks write: on live
@@ -204,10 +241,13 @@ def load_plugins():
             return
         _loading = True
         before_functions, before_env = dict(_functions), dict(lisp.global_env)
-        from ..documents import template
-        before_rendering = ({k: dict(v) for k, v in _rendering.items()},
-                            list(template.Snippets.plugin_folders),
-                            {k: list(v) for k, v in _styles.items()})
+        before_rendering = (
+            {k: dict(v) for k, v in _rendering.items()},
+            dict(_directives), dict(_roles), dict(_filters),
+            list(_snippet_folders),
+            {k: list(v) for k, v in _styles.items()},
+            _rendering_backend.snapshot() if _rendering_backend is not None else None,
+        )
         try:
             modules = sorted(pkgutil.iter_modules(automationv3.plugins.__path__,
                              automationv3.plugins.__name__ + "."),
@@ -252,18 +292,20 @@ def load_plugins():
 
 def forget_rendering(before):
     """Undo what plugins registered for documents since `before`"""
-    from ..documents import core, template
-    names, folders, styles = before
-    for name in set(_rendering["directive"]) - set(names["directive"]):
-        core.RESOLVERS.pop(name, None)
-    for name in set(_rendering["role"]) - set(names["role"]):
-        core.ROLE_VALUES.pop(name, None)
-    for name in set(_rendering["filter"]) - set(names["filter"]):
-        template.FILTERS.pop(name, None)
+    names, directives, roles, filters, folders, styles, backend_snap = before
+    _rendering.clear()
     _rendering.update(names)
-    template.Snippets.plugin_folders[:] = folders
+    _directives.clear()
+    _directives.update(directives)
+    _roles.clear()
+    _roles.update(roles)
+    _filters.clear()
+    _filters.update(filters)
+    _snippet_folders[:] = folders
     for kind, texts in styles.items():
         _styles[kind][:] = texts
+    if _rendering_backend is not None and backend_snap is not None:
+        _rendering_backend.restore(backend_snap)
 
 
 def bundled_version():

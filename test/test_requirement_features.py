@@ -102,21 +102,17 @@ class TestWorkspaceContext(ExportCase):
 
 class TestScriptPagesQuoteTheirContext(ExportCase):
     def test_rendering_is_cached_per_context(self):
-        from automationv3.framework import rst
         self.load([("SRS", "1", {"index.rst": SRS})], sets=[("R1", {"SRS": "1"})])
         self.trunk(srs=SRS.replace("below 40%", "below 45%"))
-        context = ["trunk"]
-        rst.set_requirement_lookup(lambda id: models.find_by_id(self.conn, id, context[0]),
-                                   lambda: context[0])
-        self.addCleanup(rst.set_requirement_lookup, None)
         script = "Title\n=====\n\nTests :req:`SW-1`.\n"
-        def page():
+        def page(ctx):
             tree = document_script.parsed(script)
-            return document_core.write(document_core.resolved(tree, document_core.Context()),
+            context = document_core.Context(
+                requirement_lookup=lambda id: models.find_by_id(self.conn, id, ctx))
+            return document_core.write(document_core.resolved(tree, context),
                                        "html5")["body"]
-        self.assertIn("45%", page())
-        context[0] = "set:R1"
-        self.assertIn("40%", page())  # the cached document is by context
+        self.assertIn("45%", page("trunk"))
+        self.assertIn("40%", page("set:R1"))  # the cached document is by context
 
 
 class TestTextDiff(unittest.TestCase):

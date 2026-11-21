@@ -35,7 +35,7 @@
 {% call ui.alert("warning", title="This spec can't be shown as a document") %}<pre class="ui-mono" style="white-space: pre-wrap; margin: 0;">{{ problem }}</pre>{% endcall %}
 {% call ui.table(["Requirement", "Text"]) %}
   {% for r in requirements %}
-  <tr style="vertical-align: top;"><td>{{ ui.ident(r.id, url_for('requirements.requirement', id=r.id, context=ctx_param)) }}</td><td>{{ r.__repr_html__() | safe }}</td></tr>
+  <tr style="vertical-align: top;"><td>{{ ui.ident(r.id, url_for('requirements.requirement', id=r.id, context=ctx_param)) }}</td><td>{{ r | requirement_html | safe }}</td></tr>
   {% endfor %}
 {% endcall %}
 {% else %}

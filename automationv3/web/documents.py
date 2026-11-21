@@ -8,7 +8,6 @@ from flask import get_template_attribute, url_for
 
 from ..documents import core, html, script
 from ..documents.template import Snippets
-from ..framework import rst as script_rst
 from ..services.reports.data import Links, ReportData
 
 
@@ -68,15 +67,17 @@ FINISHED_CACHE = 200
 
 def run_document(root, report_id, run, status, snippets=()):
     """The HTML of a run's document: its script, each step with its result"""
+    from .app import requirement_key, requirement_lookup
     ready()
-    key = (report_id, run["id"], run.get("outcome"), script_rst.requirement_key())
+    key = (report_id, run["id"], run.get("outcome"), requirement_key())
     if run.get("outcome") is not None and key in _finished:
         _finished.move_to_end(key)
         return _finished[key]
     data = ReportData(root, report_id, status=status, links=LiveLinks())
     variation = (run.get("variation") or {}).get("name")
     tree = script.parsed(data.script_text(run), variation, results=True, variations=False)
-    context = core.Context(data=data, run=run, snippets=Snippets(snippets))
+    context = core.Context(data=data, run=run, snippets=Snippets(snippets),
+                           requirement_lookup=requirement_lookup)
     found = render(core.resolved(tree, context))
     if run.get("outcome") is not None:
         _finished[key] = found
@@ -87,15 +88,18 @@ def run_document(root, report_id, run, status, snippets=()):
 
 def script_document(text, variation=None, diagnostics=(), variations=True):
     """The HTML of a script's document, before any run"""
+    from .app import requirement_lookup
     ready()
     tree = script.parsed(text, variation, results=False, diagnostics=diagnostics,
                          variations=variations)
-    return render(core.resolved(tree, core.Context()))
+    return render(core.resolved(tree, core.Context(requirement_lookup=requirement_lookup)))
 
 
 def rst_document(text):
     """The HTML of a plain reStructuredText file"""
-    return render(core.resolved(core.parse(text), core.Context()))
+    from .app import requirement_lookup
+    return render(core.resolved(core.parse(text),
+                                core.Context(requirement_lookup=requirement_lookup)))
 
 
 # A report's document
@@ -106,9 +110,11 @@ def parsed_report(text):
 
 
 def report_context(root, report_id, status=None, data=None, **extra):
+    from .app import requirement_lookup
     from ..services.reports import export
     return export.context(root, report_id, host=core.LIVE, links=LiveLinks(),
-                          status=status, data=data, extra=extra)
+                          status=status, data=data,
+                          requirement_lookup=requirement_lookup, extra=extra)
 
 
 def report_document(text, context, poll=None):

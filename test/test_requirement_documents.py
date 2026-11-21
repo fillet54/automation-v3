@@ -2,6 +2,7 @@
 
 import unittest
 
+from automationv3.documents.html import requirement_html
 from automationv3.framework.requirement import Requirement
 from automationv3.services.requirements.rst_source import RequirementsError, parse, plain_text
 
@@ -60,22 +61,30 @@ class TestParsing(unittest.TestCase):
         with self.assertRaises(RequirementsError):
             parse(".. requirement:: A-1\n")
 
+    def test_parsing_does_not_pollute_global_docutils_directives(self):
+        from docutils.parsers.rst import directives
+        before = dict(directives._directives)
+        parse(".. toctree::\n\n   power\n\n.. requirement:: A-1\n\n   x shall y\n")
+        self.assertEqual(directives._directives, before)
+        self.assertNotIn("toctree", directives._directives)
+        self.assertNotIn("requirement", directives._directives)
+
 
 class TestRendering(unittest.TestCase):
     def test_one_paragraph_renders_inline(self):
-        html = Requirement("R-1", "The LGC shall run.").__repr_html__()
+        html = requirement_html(Requirement("R-1", "The LGC shall run."))
         self.assertEqual(html, '<span class="ui-requirement">The LGC '
                                '<strong>shall [R-1]</strong> run.</span>')
 
     def test_lists_render_as_blocks(self):
         (eps, *_) = parse(DOCUMENT)
-        html = Requirement(eps.id, eps.text).__repr_html__()
+        html = requirement_html(Requirement(eps.id, eps.text))
         self.assertIn('<div class="ui-requirement ui-requirement--blocks">', html)
-        self.assertIn("<li>26.5 V: the BATTERY caution;</li>", html)
+        self.assertIn("<li><p>26.5 V: the BATTERY caution;</p></li>", html)
         self.assertIn("<strong>shall [LM-EPS-002]</strong>", html)
 
     def test_text_is_escaped(self):
-        html = Requirement("R", "Small (<3 degree) shall be").__repr_html__()
+        html = requirement_html(Requirement("R", "Small (<3 degree) shall be"))
         self.assertIn("(&lt;3 degree)", html)
 
 

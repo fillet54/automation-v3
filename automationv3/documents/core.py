@@ -45,6 +45,7 @@ class Context:
     host: str = LIVE
     exported: str = ""           # when an export was made
     manifest_hash: str = ""
+    requirement_lookup: object = None  # id -> Requirement | None
     extra: dict = field(default_factory=dict)
 
     def render(self, name, **values):
@@ -268,12 +269,11 @@ def parse(source, settings=None, source_path="<document>"):
                                          settings_overrides=overrides)
 
 
-def requirement_references(tree):
+def requirement_references(tree, lookup=None):
     """Write the :req: references in `tree` with the requirements' text
-    as it is now (see rst.RequirementReferences; imported here because
-    framework.rst imports documents, through markup)"""
+    as it is now (see rst.RequirementReferences)"""
     from ..framework.rst import RequirementReferences
-    RequirementReferences(tree).apply()
+    RequirementReferences(tree, lookup=lookup).apply()
     return tree
 
 
@@ -282,7 +282,7 @@ def resolved(doctree, context):
     document = doctree.deepcopy()
     document.settings = copy.copy(doctree.settings)
     document.settings.automation = context
-    return requirement_references(resolve(document, context))
+    return requirement_references(resolve(document, context), context.requirement_lookup)
 
 
 def resolved_block(doctree, serial, context):
@@ -294,7 +294,7 @@ def resolved_block(doctree, serial, context):
     document = utils.new_document("<block>", copy.copy(doctree.settings))
     document.settings.automation = context
     document += node.deepcopy()
-    return requirement_references(resolve(document, context))
+    return requirement_references(resolve(document, context), context.requirement_lookup)
 
 
 def write(document, writer="html5", settings=None):

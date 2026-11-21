@@ -38,8 +38,8 @@
     <td style="white-space: nowrap;">{{ ui.ident(c.id, url_for('requirements.requirement', id=c.id, context=after if c.after else before)) }}</td>
     <td class="ui-mono">{{ c.spec }}</td>
     <td>{{ diff.facets(c.changes) }}
-      {% if "added" in c.changes %}<div class="ui-diff"><ins>{{ c.after.__repr_html__() | striptags }}</ins></div>
-      {% elif "removed" in c.changes %}<div class="ui-diff"><del>{{ c.before.__repr_html__() | striptags }}</del></div>
+      {% if "added" in c.changes %}<div class="ui-diff"><ins>{{ c.after | requirement_html | striptags }}</ins></div>
+      {% elif "removed" in c.changes %}<div class="ui-diff"><del>{{ c.before | requirement_html | striptags }}</del></div>
       {% else %}{{ diff.details(d) }}{% endif %}</td>
   </tr>
   {% else %}{{ ui.empty_row("No differences.", 3) }}{% endfor %}

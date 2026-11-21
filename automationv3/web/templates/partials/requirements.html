@@ -31,7 +31,7 @@
                  {% if not scripts %}title="No scripts reference it yet: a report tracks it until some do"{% endif %}></td>
       {% endif %}
       <td style="white-space: nowrap;">{{ ui.ident(requirement.id, url_for('requirements.requirement', id=requirement.id, context=ctx_param)) if requirement.text else ui.ident(requirement.id) }}</td>
-      <td class="ui-requirement">{% if requirement.text %}{{ requirement.__repr_html__() | safe }}{% else %}<span class="ui-muted">Not in the requirements database</span>{% endif %}</td>
+      <td class="ui-requirement">{% if requirement.text %}{{ requirement | requirement_html | safe }}{% else %}<span class="ui-muted">Not in the requirements database</span>{% endif %}</td>
       <td>
         {% if not workspace %}<span class="ui-muted">—</span>
         {% elif scripts %}<ul class="ui-plain-list">{% for s in scripts %}<li>{{ ui.ident(s, url_for('workspace.index', id=workspace, path=s), plain=True) }}{% if (s, requirement.id) in suspect %} <a href="{{ url_for('requirements.requirement', id=requirement.id, context=ctx_param) }}" title="The requirement's text changed since this script was reviewed">{{ ui.badge("suspect", tone="warning") }}</a>{% endif %}</li>{% endfor %}</ul>

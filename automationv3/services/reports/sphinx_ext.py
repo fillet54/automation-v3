@@ -19,11 +19,14 @@ import shutil
 from pathlib import Path
 
 from docutils import nodes
-from docutils.parsers.rst import Directive, directives
+from docutils.parsers.rst import Directive
 from docutils.statemachine import StringList
+from docutils.transforms import Transform
 
 from ...documents import core, script
 from ...documents.template import Snippets
+from ...framework.requirement import Requirement
+from ...framework.rst import RequirementReferences
 
 RUN, FILE = "automation-run:", "automation-file:"
 
@@ -46,28 +49,23 @@ class SiteLinks:
         return ServerLinks(self.base).requirement(id, snapshot)
 
 
-_contexts = {}
-
-
 def build_context(env):
-    """The Context a build's documents resolve with: one per build, and
-    the run a run page is about (see context_of)"""
-    found = _contexts.get(id(env.app))
+    """The Context a build's documents resolve with: one per build, stored
+    on `env`, and the run a run page is about (see document_context)"""
+    found = getattr(env, "automation_context", None)
     if found is None:
         from .data import ReportData
         config = env.config
         data = ReportData(config.automation_root, config.automation_folder,
                           links=SiteLinks(config.automation_server_url))
-        from ...framework import rst
-        from ...framework.requirement import Requirement
         snapshots = data.snapshots
-        rst.set_requirement_lookup(  # scripts' :req: quote the text the report kept
-            lambda id: Requirement(id, (snapshots.get(id) or {}).get("text")))
-        found = _contexts[id(env.app)] = core.Context(
+        found = env.automation_context = core.Context(
             data=data, host=core.EXPORT,
             snippets=Snippets([config.automation_snippets]),
             exported=config.automation_exported,
-            manifest_hash=config.automation_manifest_hash)
+            manifest_hash=config.automation_manifest_hash,
+            requirement_lookup=lambda id: Requirement(
+                id, (snapshots.get(id) or {}).get("text")))
     return found
 
 
@@ -75,7 +73,8 @@ def run_context(context, run_id):
     run = context.data.run(run_id)
     return core.Context(data=context.data, run=run, snippets=context.snippets,
                         host=context.host, exported=context.exported,
-                        manifest_hash=context.manifest_hash)
+                        manifest_hash=context.manifest_hash,
+                        requirement_lookup=context.requirement_lookup)
 
 
 class RunDocument(Directive):
@@ -144,6 +143,17 @@ def document_context(document):
     return run_context(context, run) if run else context
 
 
+class SphinxRequirementReferences(Transform):
+    """Resolve :req: references using the Sphinx build's Context"""
+
+    default_priority = 210
+
+    def apply(self):
+        context = document_context(self.document)
+        lookup = context.requirement_lookup if context is not None else None
+        RequirementReferences(self.document, lookup=lookup).apply()
+
+
 def setup(app):
     from ...framework.plugins import load_plugins
     load_plugins()  # their directives, roles, filters and snippets
@@ -152,9 +162,8 @@ def setup(app):
     for name in ("root", "folder", "server_url", "exported", "manifest_hash", "snippets"):
         app.add_config_value(f"automation_{name}", "", "env")
     app.add_config_value("automation_latex", {}, "env")
-    directives.register_directive("run-document", RunDocument)
-    from ...framework.rst import RequirementReferences
-    app.add_transform(RequirementReferences)
+    app.add_directive("run-document", RunDocument)
+    app.add_transform(SphinxRequirementReferences)
     app.connect("builder-inited", latex_values)
     app.connect("doctree-resolved", rewrite_links)
     app.connect("build-finished", copy_files)

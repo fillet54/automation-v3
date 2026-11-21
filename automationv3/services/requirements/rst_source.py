@@ -20,26 +20,21 @@ importer. Everything else in a document (headings, prose, figures) is
 documentation; headings give each requirement its section.
 """
 
+import contextlib
 import re
+import threading
 from dataclasses import dataclass
 
 import docutils.core
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 
+from ...framework.rst import plain_text  # noqa: F401
+from ...framework.source import AnyOption
+
 
 class requirement_node(nodes.Element):
     """A parsed requirement directive: its id, options and rst text"""
-
-
-class AnyOption(dict):
-    """An option_spec taking every option as plain text"""
-
-    def __missing__(self, name):
-        return directives.unchanged
-
-    def __bool__(self):
-        return True  # docutils reads no options at all for an empty spec
 
 
 class RequirementDirective(Directive):
@@ -68,9 +63,28 @@ class Ignored(Directive):
         return []
 
 
-directives.register_directive("requirement", RequirementDirective)
-for name in ("toctree", "only", "index", "tabularcolumns", "highlight"):
-    directives.register_directive(name, Ignored)
+LOCAL_DIRECTIVES = {
+    "requirement": RequirementDirective,
+    **{name: Ignored for name in ("toctree", "only", "index", "tabularcolumns", "highlight")},
+}
+_DIRECTIVE_LOCK = threading.RLock()
+
+
+@contextlib.contextmanager
+def _spec_directives():
+    """Register spec-only directives for one parse without polluting
+    docutils' global directive registry."""
+    with _DIRECTIVE_LOCK:
+        saved = {name: directives._directives.get(name) for name in LOCAL_DIRECTIVES}
+        directives._directives.update(LOCAL_DIRECTIVES)
+        try:
+            yield
+        finally:
+            for name, previous in saved.items():
+                if previous is None:
+                    directives._directives.pop(name, None)
+                else:
+                    directives._directives[name] = previous
 
 
 class RequirementsError(ValueError):
@@ -113,11 +127,12 @@ class _Collect:
 
 def doctree(text, source="<string>"):
     stream = _Collect()
-    tree = docutils.core.publish_doctree(
-        text, source_path=source,
-        settings_overrides={"warning_stream": stream, "report_level": 3,
-                            "halt_level": 5, "file_insertion_enabled": False,
-                            "doctitle_xform": False})
+    with _spec_directives():
+        tree = docutils.core.publish_doctree(
+            text, source_path=source,
+            settings_overrides={"warning_stream": stream, "report_level": 3,
+                                "halt_level": 5, "file_insertion_enabled": False,
+                                "doctitle_xform": False})
     return tree, stream.messages
 
 
@@ -148,10 +163,3 @@ def parse(text, source="<string>"):
         seen.add(id)
         found.append(Parsed(id, node["text"], node["options"], section_of(node)))
     return found
-
-
-def plain_text(text):
-    """A requirement's rst text as plain words, markup and line breaks
-    gone: what its text hash is of"""
-    tree, _ = doctree(text)
-    return " ".join(tree.astext().split())
