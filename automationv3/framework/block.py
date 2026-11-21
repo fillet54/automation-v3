@@ -334,6 +334,24 @@ def block_id(block):
     return f"{type(block).__module__.rsplit('.', 1)[-1]}.{type(block).__qualname__}"
 
 
+def usage_of(name):
+    """A block's usage lines, joined with "or" (the name if undocumented)"""
+    doc = documented(name)
+    return " or ".join(doc.usage().splitlines()) if doc else name
+
+
+def unimplemented(name):
+    return f"no plugin implements {name}: see its usage, {usage_of(name)}"
+
+
+def ambiguous(name, matches, given):
+    """The AmbiguousBlock for `matches` all accepting a call given `given`"""
+    return AmbiguousBlock(
+        f"{name} is accepted by {len(matches)} blocks "
+        f"({', '.join(block_id(b) for b in matches)}), given {given}: "
+        f"only one may accept a call of {name}")
+
+
 def resolve(form, env=None):
     """The block (with its arguments, and their values if it takes them
     evaluated) that runs a call. Raises NoBlock or AmbiguousBlock."""
@@ -353,18 +371,13 @@ def resolve(form, env=None):
             if not unique:
                 break
     if not matches:
-        doc = documented(name)
-        usage = " or ".join(doc.usage().splitlines()) if doc else name
         if not found:
-            raise NoBlock(f"no plugin implements {name}: see its usage, {usage}")
+            raise NoBlock(unimplemented(name))
         given = f" given {_type_names(values)}" if values is not None else ""
         raise NoBlock(f"no form of {name} accepts {edn.writes(edn.List(form))}"
-                      f"{given}: see its usage, {usage}")
+                      f"{given}: see its usage, {usage_of(name)}")
     if len(matches) > 1:
-        raise AmbiguousBlock(
-            f"{name} is accepted by {len(matches)} blocks "
-            f"({', '.join(block_id(b) for b in matches)}), given "
-            f"{_type_names(values or [])}: only one may accept a call of {name}")
+        raise ambiguous(name, matches, _type_names(values or []))
     block = matches[0]
     return BuildingBlockInst(block, forms, None if block.takes_forms() else values)
 

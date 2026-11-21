@@ -36,7 +36,7 @@ import inspect
 from dataclasses import dataclass, field
 
 from . import edn, lisp, source, steps
-from .block import all_blocks, block_names, candidates, documented
+from .block import all_blocks, block_names, candidates, documented, unimplemented, usage_of
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_text, name_of,
     parse_precondition, parse_table,
@@ -536,9 +536,9 @@ class Analyzer:
             return
         forms = form[1:]
         found = candidates(name)
-        usage = " or ".join(self.blocks[name].usage().splitlines())
+        usage = usage_of(name)
         if not found:
-            self.error(f"no plugin implements {name}: see its usage, {usage}", form)
+            self.error(unimplemented(name), form)
             return
         by_forms = [b for b in found if b.takes_forms() and b.accepts_forms(*forms)]
         by_values = [b for b in found if not b.takes_forms()

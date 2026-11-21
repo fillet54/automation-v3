@@ -188,15 +188,13 @@ def make_group(*refs):
 def implementation(name, ref):
     """The one block named `name` that accepts `ref` (e.g. the Read for
     a plugin's kind of ref)"""
-    from .block import AmbiguousBlock, NoBlock, block_id, candidates
+    from .block import NoBlock, ambiguous, candidates
     found = [b for b in candidates(name) if b.check_syntax(ref)]
     if not found:
         raise NoBlock(f"no {name} accepts {ref.label}, a {type(ref).__name__}: "
                       "is the plugin that implements it loaded?")
     if len(found) > 1:
-        raise AmbiguousBlock(
-            f"{name} is accepted by {len(found)} blocks "
-            f"({', '.join(block_id(b) for b in found)}) for a {type(ref).__name__}")
+        raise ambiguous(name, found, f"a {type(ref).__name__}")
     return found[0]
 
 
