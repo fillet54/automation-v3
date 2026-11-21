@@ -373,6 +373,7 @@ def start_local_worker(db_path, reports_path, config):
 
 
 def start_worker(args):
+    from .services.client import normal_server
     from .services.worker import Host, Worker
     from .services.worker.client import ServerClient
     from .services.worker.host import read_config
@@ -380,9 +381,7 @@ def start_worker(args):
     if not args["--central-server"]:
         sys.exit("--central-server=URL is required")
     self_url = f"http://{socket.gethostname()}:{port(args)}"
-    server = args["--central-server"]
-    if "://" not in server:
-        server = f"http://{server}"
+    server = normal_server(args["--central-server"])
     config = read_config(args["--config"])
     worker = Worker(
         ServerClient(server, self_url, token=worker_token(config)),

@@ -68,7 +68,7 @@ Eliminate divergent low-level helpers across `services/`.
   - Extract a shared git helper and atomic `extract_archive(archive_bytes, target_dir, cache_dir)` helper used by both `services/workspace.py:112-174` and `services/mirror.py:37-126`.
   - Fix `services/mirror.py:104` to include `self.scripts` in its cache directory key (preventing stale cache hits if `[git] scripts` changes) and keep the `hasattr(tarfile, "data_filter")` guard.
   - Reuse the git helper in `services/client.py:228` and `services/worker/host.py:30`.
-- [ ] **Align `ServerClient` with `CentralClient`**
+- [x] **Align `ServerClient` with `CentralClient`**
   - In `services/worker/client.py:8-69`: reuse `services/client.py:normal_server`, pass `params={"worker_url": self.worker_url}` in `pending_jobs` instead of string interpolation, guard `response.json()` on 401/403 in `check_in`, and check HTTP error status on `start`/`release`/`post_events`/`complete`.
   - Reuse `normal_server` in `cli.py:382-384`.
 

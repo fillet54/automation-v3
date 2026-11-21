@@ -513,11 +513,13 @@ class FlaskSession:
         self.client = client
         self.server_url = server_url
 
-    def get(self, url):
-        return Response(self.client.get(url[len(self.server_url):]))
+    def get(self, url, params=None, headers=None):
+        return Response(self.client.get(url[len(self.server_url):],
+                                        query_string=params, headers=headers))
 
-    def post(self, url, json=None):
-        return Response(self.client.post(url[len(self.server_url):], json=json))
+    def post(self, url, json=None, headers=None):
+        return Response(self.client.post(url[len(self.server_url):],
+                                         json=json, headers=headers))
 
 
 class Response:
