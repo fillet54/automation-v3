@@ -94,7 +94,7 @@ def run_phase(action, form, env, runtime):
         result.passed = False
         result.message = f"{edn.writes(form)} came out {edn.writes(result.value)}"
         span = edn.span_of(form)
-        result.trace = [span._asdict()] if span else []
+        result.trace = [span] if span else []
     runtime.observer.on_phase_end(passed=bool(result), error=result.error,
                                   **failure_details(result), stdout=result.stdout,
                                   stderr=result.stderr, duration=elapsed(started),
@@ -237,14 +237,14 @@ def run_statements(statements, observer, script, env, mode="normal", variation=N
             if outcome != "pass":
                 break
         elif is_definition(form):
-            if statement.definitions and not redefine and dict.__contains__(env, form[1]):
+            if statement.definitions and not redefine and env.has_local(form[1]):
                 continue  # loaded with the closure
             if not define(form, env, observer, index):
                 outcome = "error"
                 break
         elif is_step(form):
             result = run_step(form, env, observer, index)
-            placeholders += getattr(result, "placeholders", 0)
+            placeholders += result.placeholders
             if not result:
                 if head(form) == PRECONDITION:
                     outcome = "released" if mode == "probe" else "blocked"
@@ -254,12 +254,17 @@ def run_statements(statements, observer, script, env, mode="normal", variation=N
     return outcome, placeholders
 
 
+def serialize_trace(trace):
+    return [span._asdict() if isinstance(span, edn.Span) else span
+            for span in (trace or ()) if span is not None]
+
+
 def failure_details(result):
     """What a failed step's report says about why and where"""
     if result:
         return {}
-    return {"message": getattr(result, "message", "") or "",
-            "trace": getattr(result, "trace", None) or []}
+    return {"message": result.message or "",
+            "trace": serialize_trace(result.trace)}
 
 
 def define(form, env, observer, index):
@@ -276,7 +281,7 @@ def define(form, env, observer, index):
         observer.on_step_end(passed=False, error=True, stdout="",
                              stderr=traceback.format_exc(), duration=0,
                              message=error_line(e),
-                             trace=[span._asdict() for span in trace if span], **details)
+                             trace=serialize_trace(trace), **details)
         return False
 
 
@@ -312,7 +317,7 @@ def _run_table(index, steps, statements, env, observer, variation, script):
                 if not statement.applies(variation) or not is_step(statement.form):
                     continue
                 result = run_step(statement.form, row_env, observer, step, row=row.name)
-                placeholders += getattr(result, "placeholders", 0)
+                placeholders += result.placeholders
                 if not result:
                     row_outcome = "error" if result.error else "fail"
                     break

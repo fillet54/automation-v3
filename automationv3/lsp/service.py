@@ -382,7 +382,8 @@ class Service:
 
     def check_code(self, path, text):
         if PurePosixPath(path).name == closures.CORE:
-            return [(path, problem) for problem in self.core_problems(path, text)]
+            _, diagnostics = closures.check_core(path, text)
+            return [(path, self.placed(d, path)) for d in diagnostics]
         if snippets.is_snippets(path):
             return [(path, self.problem_at(problem)) for problem in snippets.read(text, path)[1]]
         if not closures.is_script(path, text):
@@ -396,15 +397,6 @@ class Service:
         for d in closure.diagnostics:
             where = (d.span.source if d.span is not None else None) or d.path or path
             found.append((where, self.placed(d, where)))
-        analysed = {str(d) for d in closure.diagnostics}
-        for message in closure.errors:
-            if message in analysed:
-                continue
-            where = next((p for p in closure.load_order if message.startswith(f"{p}: ")), None)
-            if where is not None:
-                message = message[len(where) + 2:]
-            where = where or path
-            found.append((where, self.whole(self.text(where) or "", message)))
         return found
 
     def placed(self, d, where):
@@ -423,21 +415,6 @@ class Service:
         """A problem with the document as a whole: shown on its first line"""
         first = text.splitlines()[0] if text else ""
         return Problem(severity, message, 0, 0, 0, max(len(first), 1))
-
-    def core_problems(self, path, text):
-        """What closure.resolve would say of a core.rst: blocks that can't
-        be read on their lines, the rest on the whole file"""
-        errors, diagnostics = [], []
-        statements = closures.read_statements(path, text, errors, diagnostics)
-        placed = {str(d) for d in diagnostics}
-        errors += closures.lint(path, [statement.form for statement in statements])
-        if any(statement.table is not None for statement in statements):
-            errors.append(f"{path}: core.rst blocks can't be tables")
-        errors += closures.lint_variation_scopes(path, text, [])
-        whole = [e[len(path) + 2:] if e.startswith(f"{path}: ") else e
-                 for e in errors if e not in placed]
-        return ([self.placed(d, path) for d in diagnostics]
-                + [self.whole(text, message) for message in whole])
 
     def problem_at(self, problem):
         """A source.Problem as a Problem, an error"""
@@ -552,7 +529,7 @@ class Service:
         for name, value in lisp.global_env.items():
             add(Item(str(name), FUNCTION if callable(value) else VARIABLE, "builtin"))
         special = {n for n in lisp.special_forms if isinstance(n, str)} | KNOWN_FORMS
-        for name in sorted(special | DIRECTIVES | {PRECONDITION, "TBD"}):
+        for name in sorted(special | DIRECTIVES | {PRECONDITION}):
             add(Item(name, KEYWORD, head=True))
         from ..framework.plugins import load_plugins
         load_plugins()
@@ -787,11 +764,9 @@ class Service:
         function = form if head(form) == "defn" else form[2] if len(form) == 3 else None
         if head(function) not in ("defn", "fn"):
             return []
-        rest = [i for i in function[2 if head(function) == "defn" else 1:]]
-        arities = [rest[0]] if rest and isinstance(rest[0], edn.Vector) else \
-            [a[0] for a in rest if isinstance(a, list) and a and isinstance(a[0], edn.Vector)]
+        from ..framework.language import fn_params
         found = []
-        for params in arities:
+        for params in fn_params(function):
             labels, variadic = [], False
             for param in params:
                 if str(param) == "&":

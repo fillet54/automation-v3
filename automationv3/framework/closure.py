@@ -34,8 +34,8 @@ from pathlib import Path, PurePosixPath
 
 from . import edn, source
 from .language import (
-    DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_definition, is_step,
-    name_of, parse_precondition, parse_variations,
+    DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, ancestor_files, head,
+    is_definition, is_step, name_of, parse_precondition, parse_variations,
 )
 
 CORE = "core.rst"
@@ -163,10 +163,10 @@ def lint_variation_scopes(path, text, variations):
     declared = {v.name for v in variations}
     reported = set()
     for node in source.walk(tree):
-        names = node["variations"]
+        names = node.variations
         if not names:
             continue
-        forms = [form for form, _ in node["forms"]] if isinstance(node, source.rvt_block) else []
+        forms = [form for form, _ in node.forms] if isinstance(node, source.rvt_block) else []
         directive = next((head(form) for form in forms if head(form) in DIRECTIVES), None)
         if is_core:
             message = f"{path}: core.rst blocks can't be limited to variations"
@@ -188,8 +188,28 @@ def lint_variation_scopes(path, text, variations):
 
 def ancestors(script):
     """core.rst paths from the root down to the script's folder"""
-    folders = list(reversed(PurePosixPath(script).parents))
-    return [str(folder / CORE) if str(folder) != "." else CORE for folder in folders]
+    return ancestor_files(script, CORE)
+
+
+def _error_diagnostic(path, message):
+    from .analysis import ERROR, Diagnostic
+    prefix = f"{path}: "
+    clean = message[len(prefix):] if message.startswith(prefix) else message
+    return Diagnostic(ERROR, clean, None, path)
+
+
+def check_core(path, text):
+    """Parse and lint one core.rst file, returning (statements, diagnostics)."""
+    errors, diagnostics = [], []
+    statements = read_statements(path, text, errors, diagnostics)
+    forms = [statement.form for statement in statements]
+    extra = lint(path, forms)
+    if any(statement.table is not None for statement in statements):
+        extra.append(f"{path}: core.rst blocks can't be tables")
+    extra.extend(lint_variation_scopes(path, text, []))
+    for message in extra:
+        diagnostics.append(_error_diagnostic(path, message))
+    return statements, diagnostics
 
 
 def find_imports(root, script, forms, chain, errors, texts=()):
@@ -224,14 +244,21 @@ def resolve(root, script, text=None, texts=None):
     errors = closure.errors
 
     if PurePosixPath(script).name == CORE:
-        errors.append(f"{script}: core.rst files are not scripts")
+        d = _error_diagnostic(script, f"{script}: core.rst files are not scripts")
+        closure.diagnostics.append(d)
+        errors.append(str(d))
     if text is None:
         text = texts[script] if script in texts else (root / script).read_text()
     script_statements = read_statements(script, text, errors, closure.diagnostics)
     script_forms = [statement.form for statement in script_statements]
 
     chain = [path for path in ancestors(script) if path in texts or (root / path).is_file()]
-    closure.imports = find_imports(root, script, script_forms, chain, errors, texts)
+    import_errors = []
+    closure.imports = find_imports(root, script, script_forms, chain, import_errors, texts)
+    for message in import_errors:
+        d = _error_diagnostic(script, message)
+        closure.diagnostics.append(d)
+        errors.append(message)
     closure.load_order = chain + closure.imports + [script]
     core_paths = closure.load_order[:-1]
     closure.files = {path: texts[path] if path in texts else (root / path).read_text()
@@ -241,13 +268,12 @@ def resolve(root, script, text=None, texts=None):
     core_forms = {}
     parsed = {script: script_statements}
     for path in core_paths:
-        found = parsed[path] = read_statements(path, closure.files[path], errors,
-                                               closure.diagnostics)
+        found, core_diags = check_core(path, closure.files[path])
+        parsed[path] = found
         core_forms[path] = [statement.form for statement in found]
-        errors.extend(lint(path, core_forms[path]))
-        if any(statement.table is not None for statement in found):
-            errors.append(f"{path}: core.rst blocks can't be tables")
-        errors.extend(lint_variation_scopes(path, closure.files[path], []))
+        for d in core_diags:
+            closure.diagnostics.append(d)
+            errors.append(str(d))
 
     # Declarations: the chain's, then the script's; the last one wins.
     # Imported core.rst files only add definitions.
@@ -257,15 +283,19 @@ def resolve(root, script, text=None, texts=None):
         elif head(form) == "environments":
             closure.environments = [name_of(v) for v in form[1:]]
 
+    script_errors = []
     declared = [form for form in script_forms if head(form) == "variations"]
     if len(declared) > 1:
-        errors.append(f"{script}: variations may only be declared once")
+        script_errors.append(f"{script}: variations may only be declared once")
     if declared:
-        closure.variations = parse_variations(script, declared[0], errors)
-    errors.extend(lint(script, script_forms))
-    errors.extend(lint_preconditions(script, script_forms))
-    errors.extend(lint_definitions(script, script_statements))
-    errors.extend(lint_variation_scopes(script, text, closure.variations))
+        closure.variations = parse_variations(script, declared[0], script_errors)
+    script_errors.extend(lint(script, script_forms))
+    script_errors.extend(lint_preconditions(script, script_forms))
+    script_errors.extend(lint_definitions(script, script_statements))
+    script_errors.extend(lint_variation_scopes(script, text, closure.variations))
+    for message in script_errors:
+        closure.diagnostics.append(_error_diagnostic(script, message))
+        errors.append(message)
     if not errors:
         check(closure, parsed)
     return closure

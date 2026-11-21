@@ -8,13 +8,23 @@ picks the spans of a trace worth showing.
 """
 
 
-def _get(span, key):
-    return span[key] if isinstance(span, dict) else getattr(span, key)
+from . import edn
+
+
+def _as_span(span):
+    """Normalize a serialized span dict (from events.jsonl) to edn.Span"""
+    if isinstance(span, dict):
+        return edn.Span(
+            span["line"], span["col"], span["end_line"], span["end_col"],
+            span.get("source"),
+        )
+    return span
 
 
 def location(span):
     """path:line:col (1-based column) of a span"""
-    return f"{_get(span, 'source')}:{_get(span, 'line')}:{_get(span, 'col') + 1}"
+    span = _as_span(span)
+    return f"{span.source}:{span.line}:{span.col + 1}"
 
 
 def excerpt(files, span, context=1):
@@ -24,13 +34,14 @@ def excerpt(files, span, context=1):
     the span covers, or None. None if the span's file isn't in `files`."""
     if span is None:
         return None
-    path = _get(span, "source")
+    span = _as_span(span)
+    path = span.source
     text = files.get(path) if path is not None else None
     if text is None:
         return None
     lines = text.splitlines()
-    line, col = _get(span, "line"), _get(span, "col")
-    end_line, end_col = _get(span, "end_line"), _get(span, "end_col")
+    line, col = span.line, span.col
+    end_line, end_col = span.end_line, span.end_col
     if not 1 <= line <= len(lines):
         return None
     end_line = min(end_line, len(lines))
@@ -59,12 +70,12 @@ def excerpt(files, span, context=1):
 
 
 def _contains(outer, inner):
-    if _get(outer, "source") != _get(inner, "source"):
+    outer, inner = _as_span(outer), _as_span(inner)
+    if outer.source != inner.source:
         return False
-    start = (_get(outer, "line"), _get(outer, "col"))
-    end = (_get(outer, "end_line"), _get(outer, "end_col"))
-    return start <= (_get(inner, "line"), _get(inner, "col")) and \
-        (_get(inner, "end_line"), _get(inner, "end_col")) <= end
+    start = (outer.line, outer.col)
+    end = (outer.end_line, outer.end_col)
+    return start <= (inner.line, inner.col) and (inner.end_line, inner.end_col) <= end
 
 
 def frames(trace):

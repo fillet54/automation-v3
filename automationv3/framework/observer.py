@@ -11,6 +11,13 @@ ones it cares about, taking keyword arguments.
 from functools import partial
 
 
+def notify(observer, event, **details):
+    """Tell an observer about an event, if it listens for it"""
+    handler = getattr(observer, "on_" + event, None)
+    if handler is not None:
+        handler(**details)
+
+
 class ObserverManager:
     """Passes each event on to several observers, in the order added"""
 
@@ -22,9 +29,7 @@ class ObserverManager:
 
     def notify(self, event, **details):
         for observer in self.observers:
-            handler = getattr(observer, "on_" + event, None)
-            if handler is not None:
-                handler(**details)
+            notify(observer, event, **details)
 
     def __getattr__(self, name):
         if name.startswith("on_"):

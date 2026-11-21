@@ -33,6 +33,7 @@ from pathlib import PurePosixPath
 from docutils import nodes
 
 from . import source
+from .language import ancestor_files
 
 SNIPPETS = "snippets.rst"
 FIELD = re.compile(r"#\{([^{}]*)\}")
@@ -81,30 +82,29 @@ def read(text, path=SNIPPETS):
     for block in source.walk(tree):
         if not isinstance(block, source.rvt_block):
             continue
-        if block["error"] is not None:
-            problems.append(block["error"])
-        name = block["title"]
+        if block.error is not None:
+            problems.append(block.error)
+        name = block.title
         if not name:
             problems.append(source.Problem(
                 "A snippet needs a name: give its block a title (.. rvt:: Name)",
-                source.edn.Span(block["line"], 0, block["line"], 1, path)))
+                source.edn.Span(block.line_start, 0, block.line_start, 1, path)))
             continue
         if name in names:
             problems.append(source.Problem(
                 f"Another snippet is already called {name} (line {names[name]})",
-                source.edn.Span(block["line"], 0, block["line"], 1, path)))
+                source.edn.Span(block.line_start, 0, block.line_start, 1, path)))
             continue
-        names[name] = block["line"]
-        found.append(Snippet(name, _description(block), block["code"].strip("\n"),
-                             path, block["line"]))
+        names[name] = block.line_start
+        found.append(Snippet(name, _description(block), block.code.strip("\n"),
+                             path, block.line_start))
     return found, problems
 
 
 def chain(path):
     """The snippets.rst paths from the root down to `path`'s folder (a
     file's, or `path` itself if `is_dir`)"""
-    folders = list(reversed(PurePosixPath(path).parents))
-    return [str(folder / SNIPPETS) if str(folder) != "." else SNIPPETS for folder in folders]
+    return ancestor_files(path, SNIPPETS)
 
 
 def collect(root, path, texts=None):

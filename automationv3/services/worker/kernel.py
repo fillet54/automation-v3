@@ -540,7 +540,7 @@ class Kernel:
                           f"{self.problem}")
             return
         self.env, self.problem = env, None
-        self.built = dict(dict.items(env))
+        self.built = dict(env.local_items())
         self.sources = self._sources(bound, values if self.variation is not None else {})
         if self.variation is not None:
             self.add_line(command, "note", f"variation {self.variation}")
@@ -570,9 +570,9 @@ class Kernel:
         if env is None:
             return []
         try:
-            items = list(dict.items(env))
+            items = env.local_items()
         except RuntimeError:  # changed while read: the kernel is running
-            items = list(dict.items(dict(env)))
+            items = list(dict(env).items())
         order = {path: n for n, path in enumerate(self.closure.load_order)}
         order.update({"variation": -2, "uut": -3, "console": -1})
         found = []

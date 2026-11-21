@@ -122,13 +122,56 @@ class UnknownSymbol(Exception):
     pass
 
 
-def symbols_in(form):
+def symbols_in(form, bound=frozenset()):
+    """Free symbols referenced by `form`, respecting quote, let, fn and defn"""
+    from .language import head, parse_fn_arities
     if isinstance(form, edn.Keyword):
         return set()
     if isinstance(form, edn.Symbol):
-        return {str(form)}
+        name = str(form)
+        return set() if name in bound else {name}
+    if isinstance(form, dict):
+        found = set()
+        for k, v in form.items():
+            found.update(symbols_in(k, bound))
+            found.update(symbols_in(v, bound))
+        return found
+    if isinstance(form, (set, frozenset)):
+        return set().union(*(symbols_in(item, bound) for item in form))
+    if isinstance(form, edn.Vector):
+        return set().union(*(symbols_in(item, bound) for item in form))
     if isinstance(form, list):
-        return set().union(*(symbols_in(item) for item in form))
+        if not form:
+            return set()
+        op = head(form)
+        if op == "quote":
+            return set()
+        if op == "let" and len(form) >= 2 and isinstance(form[1], edn.Vector):
+            local = set(bound)
+            found = set()
+            bindings = form[1]
+            for i in range(0, len(bindings) - 1, 2):
+                found.update(symbols_in(bindings[i + 1], frozenset(local)))
+                if isinstance(bindings[i], edn.Symbol) and not isinstance(bindings[i], edn.Keyword):
+                    local.add(str(bindings[i]))
+            for item in form[2:]:
+                found.update(symbols_in(item, frozenset(local)))
+            return found
+        if op in ("fn", "defn"):
+            _, signatures = parse_fn_arities(form)
+            found = set()
+            for sig in signatures:
+                if isinstance(sig, list) and sig and isinstance(sig[0], edn.Vector):
+                    params, *body = sig
+                    local = set(bound) | {
+                        str(p) for p in params
+                        if isinstance(p, edn.Symbol) and not isinstance(p, edn.Keyword)
+                    }
+                    for item in body:
+                        found.update(symbols_in(item, frozenset(local)))
+            return found
+        start = 1 if (op and op.startswith(".") and len(op) > 1) else 0
+        return set().union(*(symbols_in(item, bound) for item in form[start:]))
     return set()
 
 

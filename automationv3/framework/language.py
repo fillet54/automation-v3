@@ -52,6 +52,7 @@ rather than run as steps.
 """
 
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 from . import edn
 
@@ -85,6 +86,39 @@ def is_step(form):
 def name_of(value):
     """'sim' for :sim, sim or "sim" """
     return str(value).lstrip(":")
+
+
+def ancestor_files(path, filename):
+    """`filename` paths from the root down to `path`'s folder"""
+    folders = list(reversed(PurePosixPath(path).parents))
+    return [str(folder / filename) if str(folder) != "." else filename for folder in folders]
+
+
+def parse_fn_arities(form):
+    """(name_or_None, signatures) for a fn or defn form.
+
+    For ``(defn f [x] body)`` or ``(fn f? [x] body)`` returns ``(f, [[ [x], body ]])``.
+    For multi-arity ``(defn f ([x] ...) ([x y] ...))`` returns ``(f, [([x] ...), ([x y] ...)])``.
+    """
+    is_defn = head(form) == "defn"
+    if is_defn:
+        name = form[1] if len(form) >= 2 and isinstance(form[1], edn.Symbol) else None
+        rest = list(form[2:])
+    else:
+        rest = list(form[1:])
+        name = rest.pop(0) if rest and isinstance(rest[0], edn.Symbol) else None
+    if rest and isinstance(rest[0], edn.Vector):
+        signatures = [rest]
+    else:
+        signatures = rest
+    return name, signatures
+
+
+def fn_params(form):
+    """List of parameter vectors of a fn or defn form"""
+    _, signatures = parse_fn_arities(form)
+    return [sig[0] for sig in signatures
+            if isinstance(sig, list) and sig and isinstance(sig[0], edn.Vector)]
 
 
 @dataclass

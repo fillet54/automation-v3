@@ -92,8 +92,8 @@ def _cut(text, container, first, cols, titles):
     lines = text.splitlines(keepends=True)
     found, at = [], 0
     for block in source.blocks(container):
-        start = block["line"] - first
-        end = block["end"] - first + 1
+        start = block.line_start - first
+        end = block.line_end - first + 1
         while end < len(lines) and not lines[end].strip():
             end += 1
         if "".join(lines[at:start]).strip():
@@ -146,18 +146,17 @@ def _level(title):
 def _directive(block, text, line, cols, titles):
     """The card of one rvt or rvt-variant directive: its fields, or a
     source card when it has problems"""
-    if block["problems"]:
+    if block.problems:
         return Card(SOURCE, text, line, text=without_tail(text), indent=cols)
     if isinstance(block, source.rvt_variant):
-        children = _cut(block["content"], block, block["content_line"] or line, block["indent"],
+        children = _cut(block.content, block, block.content_line or line, block.indent,
                         titles)
-        return Card(VARIANT, text, line, variations=list(block["variations"]),
+        return Card(VARIANT, text, line, variations=list(block.variations),
                     children=children, count=len(children), indent=cols, node=block)
-    options = block["options"]
-    return Card(RVT, text, line, title=block["title"], definitions="definitions" in options,
-                table="table" in options, variations=list(options.get("variations") or []),
-                code=block["code"], code_line=block["content_offset"] + 1,
-                code_indent=block["indent"], indent=cols, node=block)
+    return Card(RVT, text, line, title=block.title, definitions=block.is_definitions,
+                table=block.is_table, variations=list(block.own_variations or []),
+                code=block.code, code_line=block.content_offset + 1,
+                code_indent=block.indent, indent=cols, node=block)
 
 
 def rvt_source(card):

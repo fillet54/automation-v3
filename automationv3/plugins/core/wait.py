@@ -2,7 +2,7 @@
 
 from automationv3.framework import clock, context, edn, markup
 from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
-from automationv3.framework.steps import current_runtime
+from automationv3.framework.steps import silently
 
 from .verify import parse, run_check, show
 
@@ -159,12 +159,11 @@ def shown_time(value):
 def poll(check, within, every):
     """Run `check` until it passes or `within` seconds pass; its block
     calls run silently, so polling doesn't flood the report"""
-    runtime = current_runtime()
     keeper = clock.current()
     started = keeper.now()
     deadline = started + within
     while True:
-        with runtime.within(silent=True):
+        with silently():
             passed, compared = check()
         now = keeper.now()
         waited = now - started

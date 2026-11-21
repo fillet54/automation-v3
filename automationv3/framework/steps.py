@@ -50,6 +50,7 @@ from .block import (
     ASSERTION, PLACEHOLDER, VALUE, AmbiguousBlock, BlockResult, NoBlock, block_names,
     resolve,
 )
+from .observer import notify
 
 
 class StepFailed(Exception):
@@ -117,7 +118,7 @@ class Runtime:
             result = run(None)
             if not result:
                 failed = StepFailed(form, result)
-                failed.lisp_trace = list(lisp.trace(getattr(result, "exception", None)))
+                failed.lisp_trace = list(lisp.trace(result.exception))
                 raise failed
             return result
         self.calls += 1
@@ -149,7 +150,7 @@ class Runtime:
         if not result:
             failed = StepFailed(form, result)
             # Where inside the block's arguments it raised, if it did
-            failed.lisp_trace = list(lisp.trace(getattr(result, "exception", None)))
+            failed.lisp_trace = list(lisp.trace(result.exception))
             raise failed
         return result
 
@@ -157,7 +158,7 @@ class Runtime:
         extra = {}
         if kind == VALUE and result:
             extra["value"] = text(result.value)
-        if getattr(result, "data", None) is not None:
+        if result.data is not None:
             extra["data"] = json_data(result.data)
         self.observer.on_call_end(
             passed=bool(result), error=result.error, stdout=result.stdout,
@@ -167,13 +168,6 @@ class Runtime:
 def json_data(data):
     """A block's result data as JSON: anything else becomes its text"""
     return json.loads(json.dumps(data, default=str))
-
-
-def notify(observer, event, **details):
-    """Tell an observer about an event, if it listens for it"""
-    handler = getattr(observer, "on_" + event, None)
-    if handler is not None:
-        handler(**details)
 
 
 def error_line(e):
@@ -212,11 +206,23 @@ def running_statement(runtime):
         _runtime.reset(token)
 
 
+def maybe_runtime():
+    """The current statement's Runtime, or None outside a step"""
+    return _runtime.get()
+
+
 def current_runtime():
     runtime = _runtime.get()
     if runtime is None:
         raise RuntimeError("Blocks can only run as part of a script")
     return runtime
+
+
+@contextmanager
+def silently():
+    """Run block calls without reporting them (e.g. Wait's polls)"""
+    with current_runtime().within(silent=True):
+        yield
 
 
 def text(form):
@@ -386,21 +392,21 @@ def run_statement(form, env, runtime):
     """
     result = _run_statement(form, env, runtime)
     if not result:
-        if not getattr(result, "trace", None):
-            result.trace = [edn.span_of(form)] if edn.span_of(form) else []
-        result.trace = [span._asdict() for span in result.trace if span is not None]
-        if not getattr(result, "message", None):
+        if not result.trace:
+            span = edn.span_of(form)
+            result.trace = [span] if span is not None else []
+        else:
+            result.trace = [span for span in result.trace if span is not None]
+        if not result.message:
             result.message = (result.stderr.strip().splitlines() or [""])[-1] \
                 if result.error else result.stdout
     return result
 
 
 def failure(message, stderr=None, error=True, stdout="", trace=()):
-    result = BlockResult(False, stdout=stdout, error=error,
-                         stderr=message if stderr is None else stderr)
-    result.message = message
-    result.trace = list(trace)
-    return result
+    return BlockResult(False, stdout=stdout, error=error,
+                       stderr=message if stderr is None else stderr,
+                       message=message, trace=list(trace))
 
 
 def _run_statement(form, env, runtime):
@@ -413,7 +419,7 @@ def _run_statement(form, env, runtime):
             if result:
                 result.value = call_value(block, result)
             elif result.error:
-                e = getattr(result, "exception", None)
+                e = result.exception
                 if isinstance(e, (NoBlock, AmbiguousBlock)):
                     result.message = str(e)
                 else:
@@ -436,7 +442,7 @@ def _run_statement(form, env, runtime):
             inner = failed.result
             stderr = f"{failed.form} failed\n{inner.stderr}".strip()
             if inner.error:
-                e = getattr(inner, "exception", None)
+                e = inner.exception
                 message = f"{failed.form} raised {error_line(e)}" if e else \
                     f"{failed.form} failed"
             else:

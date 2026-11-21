@@ -40,6 +40,12 @@ class Env(dict):
         super().__init__(zip(params, args))
         self.outer = outer
 
+    def has_local(self, key):
+        return super().__contains__(key)
+
+    def local_items(self):
+        return list(super().items())
+
     def __contains__(self, key):
         if super().__contains__(key):
             return True
@@ -270,12 +276,8 @@ def quote_form(x, env):
 @special_form("fn")
 def fn_form(x, env):
     """(fn name? [params] body...) or (fn name? ([params] body...) ...)"""
-    _, *rest = x
-    name = rest.pop(0) if rest and isinstance(rest[0], Symbol) else None
-    if rest and isinstance(rest[0], Vector):
-        signatures = [rest]  # one arity: [params] body...
-    else:
-        signatures = rest  # several: ([params] body...) ...
+    from .language import parse_fn_arities
+    name, signatures = parse_fn_arities(x)
     for signature in signatures:
         if not (isinstance(signature, list) and signature
                 and isinstance(signature[0], Vector)):

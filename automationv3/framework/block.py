@@ -31,7 +31,7 @@ it is never asked.
 """
 
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import edn
 from .context import calling, evaluate
@@ -60,6 +60,10 @@ class BlockResult:
     value: object = None
     error: bool = False
     data: object = None
+    message: str = ""
+    trace: list = field(default_factory=list)
+    placeholders: int = 0
+    exception: Exception = None
 
     def __bool__(self):
         return bool(self.passed)
@@ -289,6 +293,19 @@ def block_names():
     return {block.name() for block in all_blocks()}
 
 
+def placeholder_names():
+    """Names of placeholder blocks (steps still to be written, e.g. TBD)"""
+    return {block.name() for block in all_blocks() if block.kind == PLACEHOLDER}
+
+
+def is_placeholder(form):
+    """True if `form` calls a placeholder block"""
+    if not (isinstance(form, list) and form and isinstance(form[0], edn.Symbol)):
+        return False
+    doc = documented(str(form[0]))
+    return doc is not None and doc.kind == PLACEHOLDER
+
+
 def candidates(name):
     """The blocks a call of `name` may resolve to, in the order asked"""
     return [b for b in all_blocks() if b.name() == name and not is_abstract(b)]
@@ -312,7 +329,7 @@ def _type_names(values):
     return ", ".join(type(v).__name__ for v in values) or "no arguments"
 
 
-def _block_id(block):
+def block_id(block):
     return f"{type(block).__module__.rsplit('.', 1)[-1]}.{type(block).__qualname__}"
 
 
@@ -345,7 +362,7 @@ def resolve(form, env=None):
     if len(matches) > 1:
         raise AmbiguousBlock(
             f"{name} is accepted by {len(matches)} blocks "
-            f"({', '.join(_block_id(b) for b in matches)}), given "
+            f"({', '.join(block_id(b) for b in matches)}), given "
             f"{_type_names(values or [])}: only one may accept a call of {name}")
     block = matches[0]
     return BuildingBlockInst(block, forms, None if block.takes_forms() else values)

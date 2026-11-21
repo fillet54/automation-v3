@@ -29,8 +29,9 @@ from dataclasses import dataclass
 
 from ..framework import cards as card_model
 from ..framework import source as script_source
+from ..framework.block import is_placeholder
 from ..framework.language import (
-    DIRECTIVES, PRECONDITION, head, is_definition, parse_precondition,
+    PRECONDITION, head, is_definition, is_step, parse_precondition,
 )
 from ..framework.rst import repr_rst
 from . import core
@@ -65,10 +66,6 @@ def view(statement):
             "heal_rst": repr_rst(parsed.heal) if parsed.heal is not None else None,
         }
     return found
-
-
-def is_step(form):
-    return isinstance(form, list) and head(form) not in DIRECTIVES
 
 
 def defines(form):
@@ -107,13 +104,14 @@ class Writer:
         self.diagnostics, self.variations = diagnostics, variations
         self.of_block = {}
         for statement in statements:
-            self.of_block.setdefault(id(statement.block), []).append(statement)
+            self.of_block.setdefault(statement.block.key, []).append(statement)
         self.rolled = self.first = None
         if variation is not None:
             section = [s for s in statements if s.definitions and s.applies(variation)]
             last = {defines(s.form): s for s in section}
             self.rolled = [s for s in section if last[defines(s.form)] is s]
-            self.first = next((s.block for s in statements if s.definitions), None)
+            first_block = next((s.block for s in statements if s.definitions), None)
+            self.first = first_block.key if first_block is not None else None
 
     def cards(self, found):
         return "\n\n".join(p for p in (self.card(c) for c in found) if p)
@@ -126,7 +124,7 @@ class Writer:
         return card.text
 
     def variant(self, card):
-        names = card.node["variations"]
+        names = card.node.variations
         if not applies(names, self.variation):
             return ""
         body = self.cards(card.children)
@@ -134,12 +132,12 @@ class Writer:
         return block("scoped variant", f"*Only for* {only}", [body]) if body else ""
 
     def block(self, node):
-        if not applies(node["variations"], self.variation):
+        if not applies(node.variations, self.variation):
             return ""
-        found = self.of_block.get(id(node), [])
-        definitions = "definitions" in node["options"]
+        found = self.of_block.get(node.key, [])
+        definitions = node.is_definitions
         if definitions and self.rolled is not None:
-            if node is not self.first:
+            if node.key != self.first:
                 return ""
             found = self.rolled
         shown = [(s, self.item(s)) for s in found]
@@ -154,16 +152,16 @@ class Writer:
         else:
             entries = [self.definition(s, rst) if is_definition(s.form) else rst
                        for s, rst in shown]
-            if node["title"]:
+            if node.title:
                 covered = [s.index for s, _ in shown]
                 state = (f" :run-state:`{min(covered)}-{max(covered)}`" if self.results else "")
                 todo = (" :verdict:`tbd`" if not self.results
-                        and any(head(s.form) == "TBD" for s, _ in shown) else "")
+                        and any(is_placeholder(s.form) for s, _ in shown) else "")
                 written = block("block titled collapsible",
-                                f"**{text(node['title'])}**{state}{todo}", entries)
+                                f"**{text(node.title)}**{state}{todo}", entries)
             else:
                 written = block("block", None, entries)
-        own = node["options"].get("variations")
+        own = node.own_variations
         if own and not (definitions and self.rolled is not None):
             only = " ".join(literal(v) for v in own)
             written = block("scoped", f"*Only for* {only}", [written])
@@ -183,7 +181,7 @@ class Writer:
             return ""  # the rows' results show its steps
         shown = view(statement)
         parts = []
-        if not is_step(form) or is_definition(form):
+        if not is_step(form):
             parts.append(shown.rst)
             if self.results and is_definition(form):
                 parts.append(f".. step-result:: {index}\n   :ended-only:\n")

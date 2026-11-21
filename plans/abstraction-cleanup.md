@@ -133,22 +133,22 @@ and remove process-global docutils/RST side effects.
 Eliminate dynamic monkey-patching, private cross-module imports, and duplicated
 Lisp/core analyzers between `framework/` and `lsp/`.
 
-- [ ] **Make `BlockResult` and `lisp.Env` explicit**
+- [x] **Make `BlockResult` and `lisp.Env` explicit**
   - Add declared fields `message: str = ""`, `trace: list = field(default_factory=list)`, `placeholders: int = 0`, and `exception: Exception = None` to `BlockResult` (`framework/block.py:48-65`).
   - Keep `trace` as `list[edn.Span]` inside `framework/` and serialize with `span._asdict()` once at the observer/event boundary, removing `_get()` dict-vs-Span duck-typing in `framework/excerpt.py:11-12` and `getattr` probes in `framework/executor.py`.
   - Add `has_local(key)` and `local_items()` methods to `lisp.Env` (`framework/lisp.py:34`) and replace `dict.__contains__(env, ...)` (`executor.py:240`) and `dict.items(env)` (`kernel.py:543, 573`).
-- [ ] **Remove cross-module private (`_...`) imports**
+- [x] **Remove cross-module private (`_...`) imports**
   - Make `block_id(block)` public in `framework/block.py` (used by `framework/refs.py:191`).
   - Expose `maybe_runtime()` and a `silently()` context manager in `framework/steps.py` so `framework/refs.py:206` stops importing `_runtime` and `plugins/core/wait.py:162-167` stops reaching into `runtime.within(silent=True)`.
-- [ ] **Remove hardcoded `"TBD"` & deduplicate small framework helpers**
+- [x] **Remove hardcoded `"TBD"` & deduplicate small framework helpers**
   - Replace `head(form) == "TBD"` in `framework/analysis.py:189`, `documents/script.py:161`, and `lsp/service.py:555` with a helper checking `block.kind == PLACEHOLDER`.
   - Consolidate `is_step` (`framework/language.py:79` vs. `documents/script.py:70` vs. `documents/run.py:143`) and folder-ancestor walking (`framework/closure.py:189` vs. `framework/snippets.py:103`).
   - Consolidate `show`/`written`/`name_of` helpers (`value_blocks.py`, `verify.py`, `apollo/blocks.py`, `steps.py`, `markup.py`, `language.py`) and observer dispatch (`observer.py` vs. `steps.py:172`).
-- [ ] **Share one `fn`/`defn` arity parser & `core.rst` linter between `framework/` and `lsp/`**
+- [x] **Share one `fn`/`defn` arity parser & `core.rst` linter between `framework/` and `lsp/`**
   - Extract `parse_fn_arities(form)` in `framework/language.py` replacing the 4 copies in `lisp.py:271`, `analysis.py:97`, `analysis.py:607`, and `lsp/service.py:786`.
   - Have `framework/closure.py` linters emit `Diagnostic` objects and expose `check_core(path, text)`, so `lsp/service.py` removes its copy-pasted `core_problems()` (`L427-L440`) and string-prefix matching (`L399-L407`).
   - Share block candidate resolution between `block.py`, `refs.py`, and `analysis.py`, and align `planning.py:symbols_in` (`L125-L132`) with `analysis.py` so maps/sets/binders are handled properly.
-- [ ] **Tighten `source.parse` / `Card` boundary**
+- [x] **Tighten `source.parse` / `Card` boundary**
   - Replace raw docutils node dict indexing across `cards.py`, `closure.py`, `snippets.py`, `documents/script.py`, `lsp/service.py`, and `web/editor.py` with typed accessors/methods on `source.py` (and stop matching cards to statements by `id(statement.block) == id(card.node)` in `documents/script.py:109-110`).
 
 **Verify:** `test_lisp.py`, `test_lisp_control.py`, `test_analysis.py`, `test_blocks.py`, `test_refs.py`, `test_cards.py`, `test_snippets.py`, `test_lsp.py`, then full suite.

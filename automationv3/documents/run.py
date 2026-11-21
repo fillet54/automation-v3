@@ -23,7 +23,7 @@ from docutils.parsers.rst import directives, roles
 from ..framework import source
 from ..framework.block import BuildingBlock, all_blocks, find_block
 from ..framework.excerpt import failure_view
-from ..framework.language import DIRECTIVES, head, is_definition
+from ..framework.language import head, is_step
 from .core import directive, role
 from .template import Rst, filter, literal, text
 
@@ -141,14 +141,12 @@ class RunResults:
             ended=ended)
 
     def is_step(self, index):
-        form = self.statements[index].form
-        return isinstance(form, list) and head(form) not in DIRECTIVES
+        return is_step(self.statements[index].form)
 
     def span_state(self, first, last):
         """The state and duration of the steps from `first` to `last`"""
         results = [self.step(i) for i in range(first, last + 1)
-                   if i < len(self.statements) and self.is_step(i)
-                   and not is_definition(self.statements[i].form)]
+                   if i < len(self.statements) and self.is_step(i)]
         states = [r.state for r in results]
         state = min(states, key=STATE_ORDER.index) if states else None
         return state, total_duration(r.duration for r in results)

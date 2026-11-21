@@ -85,6 +85,70 @@ class rvt_block(nodes.Element):
     error        a Problem if the code stops reading, else None
     problems     [Problem]: what is wrong with its title and options"""
 
+    @property
+    def key(self):
+        return (self["line"], self["end"])
+
+    @property
+    def title(self):
+        return self["title"]
+
+    @property
+    def options(self):
+        return self["options"]
+
+    @property
+    def variations(self):
+        return self["variations"]
+
+    @property
+    def own_variations(self):
+        return self["options"].get("variations")
+
+    @property
+    def is_definitions(self):
+        return "definitions" in self["options"]
+
+    @property
+    def is_table(self):
+        return "table" in self["options"]
+
+    @property
+    def line_start(self):
+        return self["line"]
+
+    @property
+    def line_end(self):
+        return self["end"]
+
+    @property
+    def content_offset(self):
+        return self["content_offset"]
+
+    @property
+    def content_line(self):
+        return self["content_line"]
+
+    @property
+    def indent(self):
+        return self["indent"]
+
+    @property
+    def code(self):
+        return self["code"]
+
+    @property
+    def forms(self):
+        return self["forms"]
+
+    @property
+    def error(self):
+        return self["error"]
+
+    @property
+    def problems(self):
+        return self["problems"]
+
 
 class rvt_variant(nodes.Element):
     """An rvt-variant directive; its content parsed in place, as its
@@ -96,6 +160,42 @@ class rvt_variant(nodes.Element):
                  as for rvt_block
     content      its content, dedented, as text
     problems     [Problem]"""
+
+    @property
+    def key(self):
+        return (self["line"], self["end"])
+
+    @property
+    def variations(self):
+        return self["variations"]
+
+    @property
+    def line_start(self):
+        return self["line"]
+
+    @property
+    def line_end(self):
+        return self["end"]
+
+    @property
+    def content_offset(self):
+        return self["content_offset"]
+
+    @property
+    def content_line(self):
+        return self["content_line"]
+
+    @property
+    def indent(self):
+        return self["indent"]
+
+    @property
+    def content(self):
+        return self["content"]
+
+    @property
+    def problems(self):
+        return self["problems"]
 
 
 class requirement_reference(nodes.Inline, nodes.TextElement):

@@ -95,19 +95,9 @@ class Definition:
 
 
 def defn_arities(form):
-    """(set of parameter counts, takes any count?) of a fn or defn form"""
-    rest = list(form[2:] if head(form) == "defn" else form[1:])
-    if rest and isinstance(rest[0], edn.Symbol):
-        rest = rest[1:]  # fn's optional name
-    if rest and isinstance(rest[0], edn.Vector):
-        signatures = [rest]
-    else:
-        signatures = rest
-    counts = set()
-    for signature in signatures:
-        if isinstance(signature, list) and signature and isinstance(signature[0], edn.Vector):
-            counts.add(len(signature[0]))
-    return counts
+    """Set of parameter counts of a fn or defn form"""
+    from .language import fn_params
+    return {len(params) for params in fn_params(form)}
 
 
 class Names:
@@ -187,12 +177,13 @@ class Analyzer:
 
     def placeholders(self):
         """One warning for the steps of the script still to be written"""
+        from .block import is_placeholder
         count = 0
         stack = [statement.form for statement in self.statements[self.script]]
         while stack:
             form = stack.pop()
             if isinstance(form, list):
-                if head(form) == "TBD":
+                if is_placeholder(form):
                     count += 1
                 stack.extend(form)
         if not count:
@@ -606,17 +597,12 @@ class Analyzer:
 
     def fn_body(self, form, names, locals_, defn, core):
         """fn or defn: parameters are bound in the body, which runs later"""
+        from .language import parse_fn_arities
         kind = "defn" if defn else "fn"
-        rest = list(form[2:] if defn else form[1:])
         if defn and (len(form) < 2 or not isinstance(form[1], edn.Symbol)):
             self.error("defn needs a name: (defn name [params] body...)", form)
             return
-        if not defn and rest and isinstance(rest[0], edn.Symbol):
-            rest = rest[1:]
-        if rest and isinstance(rest[0], edn.Vector):
-            signatures = [rest]
-        else:
-            signatures = rest
+        _, signatures = parse_fn_arities(form)
         if not signatures:
             self.error(f"{kind} needs parameters: ({kind} {'name ' if defn else ''}"
                        "[params] body...)", form)
