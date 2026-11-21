@@ -179,8 +179,10 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 .ui-document :not(.ed-card__view) > :is(div, details).block { margin: 20px 0; }
 
 /* a step: the statement, then its result; tinted down the left edge by its outcome, the outcome at the right */
-.ui-document .step { --ui-tone: var(--ui-rule-strong); position: relative; margin: 10px 0; padding: 4px 190px 4px 14px; border-left: 2px solid var(--ui-tone); }
+.ui-document .step { --ui-tone: var(--ui-rule-strong); position: relative; margin: 10px 0; padding: 4px 0 4px 14px; border-left: 2px solid var(--ui-tone); }
 .ui-document .step > :first-child { margin-top: 0; }
+/* only the statement shares its line with the outcome (and duration); the result's body takes the full width */
+.ui-document .step:has(> .result) > :first-child { padding-right: 190px; }
 .ui-document .step:has(> .result.pass) { --ui-tone: var(--ui-success); }
 .ui-document .step:has(> .result:is(.fail, .error)) { --ui-tone: var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 4%, var(--ui-paper)); }
 .ui-document .step:has(> .result.running) { --ui-tone: var(--ui-info); }
