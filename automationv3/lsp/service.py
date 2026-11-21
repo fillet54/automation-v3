@@ -350,7 +350,7 @@ class Service:
                 walk(item, bound)
 
         for block in self.blocks(path, text):
-            for form, _ in block["forms"]:
+            for form, _ in block.forms:
                 walk(form, frozenset())
         return found
 
@@ -503,17 +503,17 @@ class Service:
         """The code of the block `line` is in, up to `col` of it, or None
         if the place isn't in a block's code"""
         for block in source.walk(source.parse(text)):
-            first, last = block["line"] - 1, block["end"] - 1
+            first, last = block.line_start - 1, block.line_end - 1
             while last + 1 < len(lines) and not lines[last + 1].strip():
                 last += 1  # the blank lines after it
             if not first <= line <= last:
                 continue
-            if block["problems"]:
+            if block.problems:
                 pass  # edited as the rst it is: all of it is code
             elif isinstance(block, source.rvt_variant):
                 continue  # what is inside it says
-            elif block["content_line"] and line >= block["content_line"] - 1:
-                first = block["content_line"] - 1
+            elif block.content_line and line >= block.content_line - 1:
+                first = block.content_line - 1
             else:
                 return None
             return "\n".join(lines[first:line] + [lines[line][:col]])
@@ -553,7 +553,7 @@ class Service:
             declared = [form for where in chain + [path]
                         for block in self.blocks(where, text if where == path
                                                  else self.text(where) or "")
-                        for form, _ in block["forms"] if head(form) == "uut"]
+                        for form, _ in block.forms if head(form) == "uut"]
             for name in ([name_of(v) for v in declared[-1][1:]] if declared else []):
                 add(Item(name, VARIABLE, "UUT handle"))
         else:
@@ -579,8 +579,8 @@ class Service:
         found = {}
         for where in self.sources(path):
             for block in self.blocks(where, self.text(where) or ""):
-                code, first = block["code"].splitlines(), block["content_line"]
-                for form, span in block["forms"]:  # of one being typed, what reads
+                code, first = block.code.splitlines(), block.content_line
+                for form, span in block.forms:  # of one being typed, what reads
                     if (head(form) in DEFINITIONS and len(form) >= 2
                             and isinstance(form[1], edn.Symbol) and span is not None):
                         written = "\n".join(code[span.line - first:span.end_line - first + 1])
@@ -592,7 +592,7 @@ class Service:
         """The rvt blocks of `text` that read as blocks (a block with a
         wrong option is rst to edit, not code), at any depth"""
         return [block for block in source.walk(source.parse(text, path))
-                if isinstance(block, source.rvt_block) and not block["problems"]]
+                if isinstance(block, source.rvt_block) and not block.problems]
 
     def static(self, name, definitions, seen=()):
         """What `name` is, if a literal, an alias of one, a ref or a
