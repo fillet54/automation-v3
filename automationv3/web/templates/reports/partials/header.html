@@ -1,5 +1,5 @@
 {#- A report page's header: its title (renamed in place unless frozen), what it covers, and its actions #}
-{% set labels = {"overview": "Overview", "runs": "Runs", "values": "Values touched", "history": "History"} %}
+{% set labels = {"overview": "Overview", "values": "Values touched", "history": "History"} %}
 {% set meta = [] %}
 {% if report.workspace %}{% set _ = meta.append("workspace " ~ report.workspace) %}{% endif %}
 {% for uut, id in uuts.items() %}{% set _ = meta.append(uut ~ " " ~ id) %}{% endfor %}

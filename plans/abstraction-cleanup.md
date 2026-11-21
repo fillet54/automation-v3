@@ -81,18 +81,18 @@ Eliminate divergent low-level helpers across `services/`.
 Remove double rollup computation, in-place mutation of cached data, and
 three parallel copies of state-ranking / failure-reason logic.
 
-- [ ] **Make `ReportData` genuinely read-only & reusable**
+- [x] **Make `ReportData` genuinely read-only & reusable**
   - Extract standalone `document_fields(report)` in `services/reports/data.py` and replace `ReportData.document.fget(SimpleNamespace(...))` in `services/reports/export.py:69-72`.
   - Expose `requirement_context` as a property on `ReportData` so `documents/report.py:309` stops indexing `data.report` directly.
   - Stop `documents/report.py` (`L112`, `L217`, `L236`, `L252`) from mutating `ReportData.combinations` / `ReportData.requirements` dicts in place; pass `links` / `changed` cleanly and replace `c is row` identity checks (`L170`) with combination keys.
-- [ ] **Single source of truth for state rankings, `why()`, `combination_name()`, and `duration()`**
+- [x] **Single source of truth for state rankings, `why()`, `combination_name()`, and `duration()`**
   - Consolidate `WORST` / `WORDS` / `worst()`, `combination_name()`, `duration()`, `UNASSIGNED`, and failure/outdated/incomplete reason formatting (`why`) across `services/reports/data.py`, `documents/report.py`, `documents/run.py`, `web/report_view.py`, and `web/reports.py:97`.
   - Remove the verbatim copy of `duration(seconds)` in `web/reports.py:96-107` (import from `documents/run.py` or a shared formatter) and duplicate `combination_name` in `documents/report.py:68`.
-- [ ] **Build `web/report_view.py` on one `ReportData` instance & drop double work**
+- [x] **Build `web/report_view.py` on one `ReportData` instance & drop double work**
   - Refactor `web/report_view.py:build()` to consume an existing `ReportData` instead of re-calling `rollup.combinations`/`rollup.requirement_rollup` and instantiating a new `ReportData(root, ...)` inside the per-row `why()` loop (`L192`).
   - Pass that single `ReportData` / `Context` into `documents.report_document(...)` in `web/reports.py:render_page` so `GET /reports/<id>` stops computing rollups and failures twice.
   - Remove orphaned `/<report_id>/runs` code from `web/reports.py:204`, `web/report_view.py`, and `web/static/js/report.js:14-17, 83-121`.
-- [ ] **Encapsulate `build/` & `exports/` paths and break `build.py` ↔ `export.py` cycle**
+- [x] **Encapsulate `build/` & `exports/` paths and break `build.py` ↔ `export.py` cycle**
   - Add `build.pdf_path()`, `build.log_path()`, and `export.exports_dir()` (or make `export.bundle` default `out_dir`) so `web/reports.py:448, 457, 475` stops constructing internal filenames directly.
   - Break the deferred circular imports between `services/reports/build.py` and `services/reports/export.py`.
 

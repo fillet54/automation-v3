@@ -30,17 +30,100 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import export, store
+from . import store
 from .data import ReportData
 from ..util import now_iso, write_json
 
-BUILD = "build"     # in a report folder: what freezing built
-SKIP = {BUILD, export.EXPORTS}  # never part of the report's own files
+BUILTIN_TEMPLATE = Path(__file__).parent / "template"
+TEMPLATE = "template"   # in a report folder: the template it renders with
+SOURCE = "report.rst"   # in a report folder: its document's source
+BUILD = "build"         # in a report folder: what freezing built
+EXPORTS = "exports"     # a report folder's exported bundles; never bundled
+SKIP = {BUILD, EXPORTS}  # never part of the report's own files
 LATEX_SKIP = {"latex.tex_t", "template.json", "report.rst", "snippets"}
+
+
+class ExportError(Exception):
+    pass
+
+
+def report_template(root, report_id):
+    """The template the report renders with: its own copy, else (reports
+    made before reports kept one) the built-in one"""
+    own = store.report_dir(root, report_id) / TEMPLATE
+    return own if (own / "template.json").is_file() else BUILTIN_TEMPLATE
+
+
+def template_settings(template):
+    settings = json.loads((Path(template) / "template.json").read_text())
+    settings.setdefault("roles", [])
+    return settings
+
+
+def source(root, report_id):
+    """The report's document source"""
+    own = store.report_dir(root, report_id) / SOURCE
+    if own.is_file():
+        return own.read_text()
+    found = report_template(root, report_id) / SOURCE
+    return (found if found.is_file() else BUILTIN_TEMPLATE / SOURCE).read_text()
+
+
+# Values for the PDF's template (latex.tex_t), escaped for LaTeX
+
+LATEX_SPECIAL = {
+    "\\": r"\textbackslash{}", "{": r"\{", "}": r"\}", "$": r"\$", "&": r"\&",
+    "#": r"\#", "^": r"\textasciicircum{}", "_": r"\_", "~": r"\textasciitilde{}",
+    "%": r"\%",
+}
+
+
+def latex(value):
+    return "".join(LATEX_SPECIAL.get(c, c) for c in str(value if value is not None else ""))
+
+
+def numbered(documents, kind, prefix):
+    of_kind = [d for d in documents if d["kind"] == kind]
+    return [{"id": f"{prefix}{n}",
+             **{k: latex(d.get(k, "")) for k in ("number", "revision", "title")}}
+            for n, d in enumerate(of_kind, 1)]
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_pdf(folder):
+    """report.pdf from report.tex in `folder`, with latexmk"""
+    if shutil.which("latexmk") is None:
+        raise ExportError("latexmk is needed to make the PDF: install a TeX "
+                          "distribution (e.g. TeX Live)")
+    result = subprocess.run(
+        ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error",
+         "-file-line-error", "report.tex"],
+        cwd=folder, capture_output=True, text=True)
+    if result.returncode != 0 or not (folder / "report.pdf").exists():
+        log = (folder / "report.log")
+        lines = log.read_text(errors="replace").splitlines() if log.exists() else []
+        errors = [line for line in lines if line.startswith("!") or ".tex:" in line]
+        raise ExportError("LaTeX couldn't make the PDF: "
+                          + ("; ".join(errors[:5]) or result.stdout[-500:]))
 
 
 def build_dir(root, report_id):
     return store.report_dir(root, report_id) / BUILD
+
+
+def pdf_path(root, report_id):
+    return build_dir(root, report_id) / "report.pdf"
+
+
+def log_path(root, report_id):
+    return build_dir(root, report_id) / "log.txt"
 
 
 def status(root, report_id):
@@ -76,7 +159,7 @@ def files(root, report_id):
 
 def manifest(root, report_id):
     folder = store.report_dir(root, report_id)
-    lines = [f"{export.sha256(p)}  report-{report_id}/{p.relative_to(folder).as_posix()}"
+    lines = [f"{sha256(p)}  report-{report_id}/{p.relative_to(folder).as_posix()}"
              for p in files(root, report_id)]
     return "\n".join(lines) + "\n"
 
@@ -97,33 +180,32 @@ def run_title(run):
 def project(root, report_id, out, target, base_url, exported, manifest_hash):
     """Write the Sphinx project for `target` ("html" or "latex") into `out`"""
     data = ReportData(root, report_id)
-    template = export.report_template(root, report_id)
+    template = report_template(root, report_id)
     out.mkdir(parents=True)
     (out / "runs").mkdir()
     for run in data.runs:
         (out / "runs" / f"{run['id']}.rst").write_text(
             heading(run_title(run))
             + f"\n.. run-summary::\n\n.. run-document:: {run['id']}\n")
-    source = export.source(root, report_id)
+    doc_source = source(root, report_id)
     failing = [r["latest"]["id"] for r in data.combinations
                if r["state"] in ("fail", "error") and r["latest"]]
     if target == "html":
         runs = "\n".join(f"   runs/{r['id']}" for r in data.runs)
-        source += f"\n\n.. toctree::\n   :hidden:\n   :caption: Runs\n\n{runs}\n" if runs else ""
+        doc_source += f"\n\n.. toctree::\n   :hidden:\n   :caption: Runs\n\n{runs}\n" if runs else ""
         exclude = []
     else:  # the failing runs' documents, as appendices
         exclude = [f"runs/{r['id']}.rst" for r in data.runs if r["id"] not in failing]
         if failing:
             runs = "\n".join(f"   runs/{i}" for i in failing)
-            source += f"\n\n.. raw:: latex\n\n   \\appendix\n\n.. toctree::\n\n{runs}\n"
-    title = f"{data.name}\n{'=' * len(data.name)}\n\n" if not source.lstrip().startswith(
+            doc_source += f"\n\n.. raw:: latex\n\n   \\appendix\n\n.. toctree::\n\n{runs}\n"
+    title = f"{data.name}\n{'=' * len(data.name)}\n\n" if not doc_source.lstrip().startswith(
         data.name) else ""
-    (out / "index.rst").write_text((title if target == "html" else "") + source)
+    (out / "index.rst").write_text((title if target == "html" else "") + doc_source)
     document = data.document
-    settings = export.template_settings(template)
+    settings = template_settings(template)
     names = document["signatures"]
     roles = list(settings["roles"]) + [r for r in names if r not in settings["roles"]]
-    latex = export.latex
     from ...framework.plugins import plugin_css, plugin_latex
     static = out / "_plugins"
     static.mkdir()
@@ -149,8 +231,8 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
             "report_id": latex(data.id),
             "manifest_hash": latex(manifest_hash),
             "signatures": [(latex(role), latex(names.get(role, ""))) for role in roles],
-            "applicable": export.numbered(document["documents"], "applicable", "AD"),
-            "reference": export.numbered(document["documents"], "reference", "RD"),
+            "applicable": numbered(document["documents"], "applicable", "AD"),
+            "reference": numbered(document["documents"], "reference", "RD"),
             "plugins": plugin_latex(),
         },
     }, indent=2))
@@ -167,8 +249,8 @@ def sphinx(srcdir, outdir, builder, log):
         capture_output=True, text=True)
     log.write(f"$ sphinx -b {builder}\n{result.stdout}{result.stderr}\n")
     if result.returncode != 0:
-        raise export.ExportError(f"Sphinx couldn't build the {builder}: "
-                                 + (result.stderr.strip().splitlines() or ["(no output)"])[-1])
+        raise ExportError(f"Sphinx couldn't build the {builder}: "
+                          + (result.stderr.strip().splitlines() or ["(no output)"])[-1])
 
 
 def build(root, report_id, base_url=""):
@@ -179,37 +261,37 @@ def build(root, report_id, base_url=""):
         path = folder / name
         shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink(
             missing_ok=True)
-    exported = store.now_iso()
+    exported = now_iso()
     from ...framework.plugins import plugin_versions
     set_status(root, report_id, state="building", started=exported, ended=None, error=None,
                framework=framework(), plugins=plugin_versions())
     manifest_text = manifest(root, report_id)
     (folder / "MANIFEST.sha256").write_text(manifest_text)
     manifest_hash = hashlib.sha256(manifest_text.encode()).hexdigest()
-    with tempfile.TemporaryDirectory() as tmp, open(folder / "log.txt", "w") as log:
+    with tempfile.TemporaryDirectory() as tmp, open(log_path(root, report_id), "w") as log:
         work = Path(tmp)
         try:
             html = project(root, report_id, work / "html", "html", base_url, exported,
                            manifest_hash)
             sphinx(html, work / "site", "html", log)
             shutil.copytree(work / "site", folder / "site")
-            latex = project(root, report_id, work / "latex", "latex", base_url, exported,
-                            manifest_hash)
-            sphinx(latex, work / "pdf", "latex", log)
-            export.build_pdf(work / "pdf")
-            shutil.copy(work / "pdf" / "report.pdf", folder / "report.pdf")
+            latex_src = project(root, report_id, work / "latex", "latex", base_url, exported,
+                                manifest_hash)
+            sphinx(latex_src, work / "pdf", "latex", log)
+            build_pdf(work / "pdf")
+            shutil.copy(work / "pdf" / "report.pdf", pdf_path(root, report_id))
             shutil.copy(work / "pdf" / "report.tex", folder / "report.tex")
         except Exception as e:
             log.write(f"\n{type(e).__name__}: {e}\n")
-            return set_status(root, report_id, state="failed", ended=store.now_iso(),
+            return set_status(root, report_id, state="failed", ended=now_iso(),
                               error=str(e))
-    return set_status(root, report_id, state="done", ended=store.now_iso(),
+    return set_status(root, report_id, state="done", ended=now_iso(),
                       exported=exported, manifest_hash=manifest_hash)
 
 
 def start(root, report_id, base_url=""):
     """Build the report in a process of its own; status() follows it"""
-    set_status(root, report_id, state="building", started=store.now_iso(), ended=None,
+    set_status(root, report_id, state="building", started=now_iso(), ended=None,
                error=None)
     subprocess.Popen(
         [sys.executable, "-m", "automationv3.services.reports.build", str(root), report_id,

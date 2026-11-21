@@ -40,37 +40,35 @@ without one, the built-in template is used. A report copies its
 workspace's template when it is created, so its look can't drift.
 """
 
-import hashlib
-import json
 import shutil
-import subprocess
 import zipfile
 from pathlib import Path
-from types import SimpleNamespace
 from urllib.parse import quote
 
 from docutils import nodes
 
 from ...documents import core
 from ...documents.template import Snippets
-from . import store
-from .data import KINDS, Links, ReportData  # noqa: F401
-
-BUILTIN_TEMPLATE = Path(__file__).parent / "template"
-EXPORTS = "exports"  # a report folder's exported bundles; never bundled
-
-
-class ExportError(Exception):
-    pass
+from . import build, store
+from .build import (  # noqa: F401
+    BUILTIN_TEMPLATE,
+    EXPORTS,
+    LATEX_SPECIAL,
+    SOURCE,
+    TEMPLATE,
+    ExportError,
+    build_pdf,
+    latex,
+    numbered,
+    report_template,
+    sha256,
+    source,
+    template_settings,
+)
+from .data import KINDS, Links, ReportData, document_fields  # noqa: F401
 
 
 # The report's document fields
-
-def document_fields(report):
-    """The report's document fields, with defaults for any not set"""
-    return ReportData.document.fget(SimpleNamespace(
-        report=report, name=report.get("name") or f"Report {report['id'][:8]}"))
-
 
 def missing_fields(report):
     """Names of the document fields a formal document needs and the
@@ -132,17 +130,7 @@ def find_template(workspace_root=None):
     return BUILTIN_TEMPLATE
 
 
-def template_settings(template):
-    settings = json.loads((Path(template) / "template.json").read_text())
-    settings.setdefault("roles", [])
-    return settings
-
-
 # A report's own template, and its document's source
-
-TEMPLATE = "template"   # in a report folder: the template it renders with
-SOURCE = "report.rst"   # in a report folder: its document's source
-
 
 def install_template(root, report_id, template=None, with_source=True):
     """Copy `template` (default: the built-in one) into the report, and,
@@ -161,22 +149,6 @@ def install_template(root, report_id, template=None, with_source=True):
     return target
 
 
-def report_template(root, report_id):
-    """The template the report renders with: its own copy, else (reports
-    made before reports kept one) the built-in one"""
-    own = store.report_dir(root, report_id) / TEMPLATE
-    return own if (own / "template.json").is_file() else BUILTIN_TEMPLATE
-
-
-def source(root, report_id):
-    """The report's document source"""
-    own = store.report_dir(root, report_id) / SOURCE
-    if own.is_file():
-        return own.read_text()
-    found = report_template(root, report_id) / SOURCE
-    return (found if found.is_file() else BUILTIN_TEMPLATE / SOURCE).read_text()
-
-
 def set_source(root, report_id, text):
     """Change the report's document source; a frozen report can't"""
     if store.is_frozen(store.load_report(root, report_id)):
@@ -184,12 +156,13 @@ def set_source(root, report_id, text):
     (store.report_dir(root, report_id) / SOURCE).write_text(text)
 
 
-def context(root, report_id, host=core.EXPORT, links=None, status=None, **extra):
+def context(root, report_id, host=core.EXPORT, links=None, status=None, data=None, **extra):
     """The Context a report's document is resolved with"""
     from ...framework.plugins import load_plugins
     load_plugins()  # their directives, roles, filters and snippets
-    data = ReportData(root, report_id, **({"status": status} if status else {}),
-                      links=links)
+    if data is None:
+        data = ReportData(root, report_id, **({"status": status} if status else {}),
+                          links=links)
     return core.Context(data=data, host=host,
                         snippets=Snippets([report_template(root, report_id) / "snippets"]),
                         **extra)
@@ -222,52 +195,11 @@ def render_document(context, text):
     return core.resolved(core.parse(text, source_path=SOURCE), context)
 
 
-# Values for the PDF's template (latex.tex_t), escaped for LaTeX
-
-LATEX_SPECIAL = {
-    "\\": r"\textbackslash{}", "{": r"\{", "}": r"\}", "$": r"\$", "&": r"\&",
-    "#": r"\#", "^": r"\textasciicircum{}", "_": r"\_", "~": r"\textasciitilde{}",
-    "%": r"\%",
-}
-
-
-def latex(value):
-    return "".join(LATEX_SPECIAL.get(c, c) for c in str(value if value is not None else ""))
-
-
-def numbered(documents, kind, prefix):
-    of_kind = [d for d in documents if d["kind"] == kind]
-    return [{"id": f"{prefix}{n}",
-             **{k: latex(d.get(k, "")) for k in ("number", "revision", "title")}}
-            for n, d in enumerate(of_kind, 1)]
-
-
-def sha256(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def build_pdf(folder):
-    """report.pdf from report.tex in `folder`, with latexmk"""
-    if shutil.which("latexmk") is None:
-        raise ExportError("latexmk is needed to make the PDF: install a TeX "
-                          "distribution (e.g. TeX Live)")
-    result = subprocess.run(
-        ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error",
-         "-file-line-error", "report.tex"],
-        cwd=folder, capture_output=True, text=True)
-    if result.returncode != 0 or not (folder / "report.pdf").exists():
-        log = (folder / "report.log")
-        lines = log.read_text(errors="replace").splitlines() if log.exists() else []
-        errors = [line for line in lines if line.startswith("!") or ".tex:" in line]
-        raise ExportError("LaTeX couldn't make the PDF: "
-                          + ("; ".join(errors[:5]) or result.stdout[-500:]))
-
-
 # Freezing, and the bundle
+
+def exports_dir(root, report_id):
+    return store.report_dir(root, report_id) / EXPORTS
+
 
 def unfinished(root, report_id):
     return [r for r in store.list_runs(root, report_id) if r.get("outcome") is None]
@@ -284,7 +216,6 @@ def freeze(root, report_id, snapshots=None, base_url="", template=None, wait=Fal
     Raises ExportError, leaving the report as it was, if it can't be
     frozen. A build that fails leaves it frozen, with the error in its
     status, to rebuild once fixed."""
-    from . import build
     report = store.load_report(root, report_id)
     if report is None:
         raise ExportError(f"No report {report_id} in {root}")
@@ -307,8 +238,9 @@ def freeze(root, report_id, snapshots=None, base_url="", template=None, wait=Fal
     return build.status(root, report_id)
 
 
-def bundle(root, report_id, out_dir):
-    """report-<id>.zip of a built report in `out_dir`; returns its path::
+def bundle(root, report_id, out_dir=None):
+    """report-<id>.zip of a built report in `out_dir` (default: the
+    report's exports/ folder); returns its path::
 
         report-<id>/
           report-<id>/      the report folder: data, document and template
@@ -316,14 +248,13 @@ def bundle(root, report_id, out_dir):
           report.pdf, report.tex
           site/             the static site
     """
-    from . import build
     found = build.status(root, report_id) or {}
     if found.get("state") != "done":
         raise ExportError("The report hasn't been built: freeze it, and wait for its build"
                           + (f" (it failed: {found['error']})" if found.get("error") else ""))
     folder, built = store.report_dir(root, report_id), build.build_dir(root, report_id)
     name = f"report-{report_id}"
-    out_dir = Path(out_dir)
+    out_dir = Path(out_dir) if out_dir is not None else exports_dir(root, report_id)
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / f"{name}.zip"
     partial = target.with_suffix(".zip.tmp")
@@ -347,11 +278,10 @@ def export(root, report_id, out_dir=None, template=None, snapshots=None, base_ur
     found = freeze(root, report_id, snapshots, base_url, template, wait=True)
     if found["state"] != "done":
         raise ExportError(found.get("error") or "The build failed")
-    return bundle(root, report_id, out_dir or store.report_dir(root, report_id) / EXPORTS)
+    return bundle(root, report_id, out_dir)
 
 
 def reopen(root, report_id):
-    from . import build
     if store.load_report(root, report_id) is None:
         raise ExportError(f"No report {report_id} in {root}")
     store.set_frozen(root, report_id, False)
@@ -360,7 +290,7 @@ def reopen(root, report_id):
 
 def exports(root, report_id):
     """The report's exported bundles, newest first"""
-    folder = store.report_dir(root, report_id) / EXPORTS
+    folder = exports_dir(root, report_id)
     if not folder.is_dir():
         return []
     return sorted(folder.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)

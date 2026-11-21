@@ -21,11 +21,13 @@ and ``:report:`name``` writes one value (see VALUES).
 
 import fnmatch
 
+import jinja2
 from docutils.parsers.rst import directives
 
 from .core import directive, role
 from .template import Rst, filter, link, literal, plural, text
 
+UNASSIGNED = "Unassigned"
 ROLLUP_STATES = ["pass", "fail", "error", "incomplete"]
 # Worst first: a group of combinations is as bad as its worst
 WORST = ["fail", "error", "outdated", "incomplete", "blocked", "not run",
@@ -33,6 +35,8 @@ WORST = ["fail", "error", "outdated", "incomplete", "blocked", "not run",
 WORDS = {"pass": "passed", "fail": "failed", "error": "stopped on an error",
          "incomplete": "incomplete", "not run": "not run", "outdated": "outdated",
          "blocked": "blocked", "pending": "pending", "running": "running"}
+OUTCOME_TITLES = {"pass": "Passed", "fail": "Failed", "error": "Error",
+                  "incomplete": "Incomplete", "blocked": "Blocked"}
 COLORS = ["red", "partial", "untested", "green"]
 
 
@@ -42,6 +46,45 @@ def rank(state):
 
 def worst(states):
     return min(states, key=rank) if states else "not run"
+
+
+def combination_key(row):
+    return (row["script"], row["environment"], row["variation"])
+
+
+def versions_text(versions):
+    return ", ".join(f"{name} {id}" for name, id in sorted(versions.items()))
+
+
+def outdated_label(row):
+    """'Passed on lm LUM131' for an outdated combination, else None"""
+    if row["state"] != "outdated":
+        return None
+    word = OUTCOME_TITLES.get((row.get("latest") or {}).get("outcome"), "Ran")
+    return f"{word} on {versions_text(row['outdated'])}"
+
+
+def failure_reason(row, uut_versions=None):
+    """Plain-text reason a combination didn't pass, or None"""
+    state = row["state"]
+    if state == "outdated":
+        current = uut_versions or {}
+        now = {name: current[name]["id"] for name in row["outdated"] if name in current}
+        if now:
+            return (f"{outdated_label(row)}; the report is on {versions_text(now)}. "
+                    "Rerun it, or Update tests, to bring it up to date.")
+        return f"{outdated_label(row)}, not the report's versions"
+    if state in ("fail", "error") and row.get("failure"):
+        found = row["failure"]
+        parts = [p for p in (found["step"], found["message"]) if p]
+        return ": ".join(parts) or None
+    if state == "incomplete":
+        return "Steps are still to be written (TBD)"
+    if state == "not run":
+        return "Not run in this report"
+    if state == "blocked":
+        return "A precondition couldn't be met"
+    return None
 
 
 # Filters for report snippets
@@ -69,14 +112,21 @@ def combination_name(row):
     return " / ".join(p for p in (row["script"], row["environment"], row["variation"]) if p)
 
 
-@filter
-def run_url(row):
-    """Where a combination's latest run is, if it has one"""
+def _run_url(row, links):
     latest = row.get("latest")
-    if not latest:
+    if not latest or not links:
         return None
-    links = row.get("links")
-    return links.run(latest["report_id"], latest["id"]) if links else None
+    return links.run(latest["report_id"], latest["id"])
+
+
+@filter
+@jinja2.pass_context
+def run_url(ctx, row, links=None):
+    """Where a combination's latest run is, if it has one"""
+    if links is None:
+        data = ctx.get("data")
+        links = data.links if data else None
+    return _run_url(row, links)
 
 
 @filter
@@ -89,7 +139,7 @@ def why(row):
     if row["state"] == "incomplete":
         return Rst(": steps are still to be written (TBD)")
     if row["state"] == "outdated":
-        ran = ", ".join(f"{n} {v}" for n, v in sorted(row["outdated"].items()))
+        ran = versions_text(row["outdated"])
         return Rst(f": {text((row['latest'] or {}).get('outcome'))} on {text(ran)}, "
                    "not the report's versions")
     return Rst("")
@@ -107,11 +157,14 @@ def by_script(cells):
     found = []
     for script, group in groups.items():
         environments = {c["environment"] for c in group}
-        for c in group:
-            parts = [c["environment"] if len(environments) > 1 else None, c["variation"]]
-            c["label"] = " / ".join(p for p in parts if p)
-        states = [c["state"] for c in group]
-        found.append({"script": script, "cells": group, "state": worst(states),
+        labeled = [
+            {**c, "label": " / ".join(p for p in (
+                c["environment"] if len(environments) > 1 else None,
+                c["variation"]) if p)}
+            for c in group
+        ]
+        states = [c["state"] for c in labeled]
+        found.append({"script": script, "cells": labeled, "state": worst(states),
                       "passed": states.count("pass"), "total": len(states)})
     return found
 
@@ -132,17 +185,21 @@ def tally(group):
 
 
 @filter
-def issue(cell):
+@jinja2.pass_context
+def issue(ctx, cell, links=None):
     """One combination that didn't pass, briefly: how it came out
     (linking its run) and, for a failure, at which step"""
-    said = link(WORDS.get(cell["state"], cell["state"]), run_url(cell))
+    if links is None:
+        data = ctx.get("data")
+        links = data.links if data else None
+    said = link(WORDS.get(cell["state"], cell["state"]), _run_url(cell, links))
     failure = cell.get("failure") or {}
     if failure.get("step"):
         said = Rst(f"{said} at {text(failure['step'])}")
     elif cell["state"] == "incomplete":
         said = Rst(f"{said} (steps still to be written)")
     elif cell["state"] == "outdated":
-        ran = ", ".join(f"{n} {v}" for n, v in sorted(cell["outdated"].items()))
+        ran = versions_text(cell["outdated"])
         said = Rst(f"{said}: {text((cell['latest'] or {}).get('outcome'))} on {text(ran)}, "
                    "not the report's versions")
     return said
@@ -167,7 +224,9 @@ def open_requirements(requirements):
 @filter
 def covers(row, requirements):
     """The requirements a combination counts toward"""
-    return [r for r in requirements if any(c is row for c in r["cells"])]
+    key = combination_key(row)
+    return [r for r in requirements
+            if any(combination_key(c) == key for c in r["cells"])]
 
 
 @filter
@@ -210,14 +269,6 @@ def summary_text(data):
 
 # The directives
 
-def rows_of(context):
-    """The report's combinations, each knowing where its runs link"""
-    rows = context.data.combinations
-    for row in rows:
-        row["links"] = context.data.links
-    return rows
-
-
 def snippet(name):
     def resolve(context, options):
         if context.data is None:
@@ -229,11 +280,11 @@ def snippet(name):
 def requirement_results(context, options):
     if context.data is None:
         return ""
-    rows_of(context)
-    requirements = context.data.requirements
     changed = context.extra.get("text_changed") or set()
-    for r in requirements:
-        r["changed"] = r["id"] in changed
+    requirements = [
+        {**r, "changed": r["id"] in changed}
+        for r in context.data.requirements
+    ]
     # A page may narrow every requirement-results to one subsystem
     subsystem = options.get("subsystem") or context.extra.get("subsystem")
     if subsystem:
@@ -246,17 +297,14 @@ def requirement_results(context, options):
         by = {}
         for r in requirements:
             by.setdefault(r["subsystem"], []).append(r)
-        groups = sorted(by.items(), key=lambda g: (g[0] == "Unassigned", g[0]))
-    for r in requirements:
-        for cell in r["cells"]:
-            cell["links"] = context.data.links
+        groups = sorted(by.items(), key=lambda g: (g[0] == UNASSIGNED, g[0]))
     return context.render("report/requirement-results.rst", groups=groups, options=options)
 
 
 def results(context, options):
     if context.data is None:
         return ""
-    rows = rows_of(context)
+    rows = context.data.combinations
     if options.get("script"):
         rows = [r for r in rows if fnmatch.fnmatch(r["script"], options["script"])]
     if options.get("state"):
@@ -264,26 +312,17 @@ def results(context, options):
     return context.render("report/results.rst", rows=rows, options=options)
 
 
-def with_rows(name):
-    def resolve(context, options):
-        if context.data is None:
-            return ""
-        rows_of(context)
-        return context.render(f"report/{name}.rst", options=options)
-    return resolve
-
-
 directive("report-identification", snippet("identification"))
 directive("report-summary", snippet("summary"))
-directive("open-issues", with_rows("open-issues"))
+directive("open-issues", snippet("open-issues"))
 directive("requirement-results", requirement_results, {
     "group-by": lambda v: directives.choice(v, ("subsystem", "none")),
     "subsystem": directives.unchanged, "color": directives.unchanged})
-directive("script-results", with_rows("script-results"))
+directive("script-results", snippet("script-results"))
 directive("results", results, {"script": directives.unchanged,
                                "state": directives.unchanged})
-directive("reruns", with_rows("reruns"))
-directive("failures", with_rows("failures"))
+directive("reruns", snippet("reruns"))
+directive("failures", snippet("failures"))
 directive("report-bundle", snippet("bundle"))
 
 
@@ -306,7 +345,7 @@ def value(context, name):
     if name == "id":
         return literal(data.id)
     if name == "context":
-        return text(data.report.get("requirement_context") or "trunk")
+        return text(data.requirement_context)
     if name == "runs":
         return text(len(data.runs))
     if name == "requirements":

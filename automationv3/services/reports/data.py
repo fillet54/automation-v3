@@ -13,11 +13,29 @@ URLs a document links to (see Links).
 import functools
 from datetime import datetime
 
+from ...documents.report import UNASSIGNED, combination_key, combination_name  # noqa: F401
 from ...framework import source
 from . import rollup, store
 
 KINDS = ("applicable", "reference")
-UNASSIGNED = "Unassigned"
+
+
+def report_name(report, fallback_id=""):
+    return report.get("name") or f"Report {(report.get('id') or fallback_id)[:8]}"
+
+
+def document_fields(report, fallback_id=""):
+    """The document's fields, with defaults for any not set. The
+    document's title is the report's name."""
+    fields = dict(report.get("document") or {})
+    return {
+        "title": report_name(report, fallback_id),
+        "number": fields.get("number") or "",
+        "revision": fields.get("revision") or "",
+        "author": fields.get("author") or "",
+        "signatures": dict(fields.get("signatures") or {}),
+        "documents": [d for d in fields.get("documents") or [] if d.get("kind") in KINDS],
+    }
 
 
 def unfinished(run):
@@ -39,13 +57,13 @@ class Links:
 
 
 class ReportData:
-    def __init__(self, root, folder, status=unfinished, links=None):
+    def __init__(self, root, folder, status=unfinished, links=None, report=None):
         """The report in `root`/`folder`: on the server the folder is its
         id; in a bundle, report-<id>"""
         self.root, self.folder = root, folder
         self.status = status
         self.links = links or Links()
-        self.report = store.load_report(root, folder)
+        self.report = report if report is not None else store.load_report(root, folder)
         if self.report is None:
             if not store.report_dir(root, folder).is_dir():
                 raise LookupError(f"No report {folder} in {root}")
@@ -56,7 +74,7 @@ class ReportData:
 
     @property
     def name(self):
-        return self.report.get("name") or f"Report {self.id[:8]}"
+        return report_name(self.report, self.id)
 
     @property
     def frozen(self):
@@ -66,15 +84,11 @@ class ReportData:
     def document(self):
         """The document's fields, with defaults for any not set. The
         document's title is the report's name."""
-        fields = dict(self.report.get("document") or {})
-        return {
-            "title": self.name,
-            "number": fields.get("number") or "",
-            "revision": fields.get("revision") or "",
-            "author": fields.get("author") or "",
-            "signatures": dict(fields.get("signatures") or {}),
-            "documents": [d for d in fields.get("documents") or [] if d.get("kind") in KINDS],
-        }
+        return document_fields(self.report, self.id)
+
+    @property
+    def requirement_context(self):
+        return self.report.get("requirement_context") or "trunk"
 
     @property
     def snapshots(self):
@@ -215,7 +229,3 @@ def duration(run):
         return None
     start, end = (datetime.fromisoformat(run[k]) for k in ("started", "ended"))
     return (end - start).total_seconds()
-
-
-def combination_name(row):
-    return " / ".join(p for p in (row["script"], row["environment"], row["variation"]) if p)

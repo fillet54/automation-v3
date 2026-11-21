@@ -17,9 +17,11 @@ from flask import (
 )
 from werkzeug.security import safe_join
 
+from ..documents.run import duration
 from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import access, build, export, rollup, store
+from ..services.reports.data import ReportData
 from .auth import can_change, mine_only, owner_email
 from .jobs import workspaces
 from .db import get_db
@@ -93,18 +95,7 @@ def flatten(fingerprint):
     return sorted(models.flatten(fingerprint).items())
 
 
-@reports.app_template_filter()
-def duration(seconds):
-    """A step's duration to the millisecond: 7 ms, 1.234 s, 2:05.012"""
-    if seconds is None:
-        return ""
-    ms = round(seconds * 1000)
-    if ms < 1000:
-        return f"{ms} ms"
-    if ms < 60_000:
-        return f"{ms / 1000:.3f} s"
-    minutes, ms = divmod(ms, 60_000)
-    return f"{minutes}:{ms / 1000:06.3f}"
+reports.app_template_filter()(duration)
 
 
 @reports.route("/", methods=["GET"])
@@ -147,12 +138,6 @@ def new():
             return redirect(url_for("reports.report", report_id=report_id))
     return render_template("reports/new.html", workspaces=branches,
                            form=request.form, errors=errors)
-
-
-def report_uuts(report, runs):
-    """uut -> the report's version id, for the UUTs its runs use"""
-    current = report.get("uut_versions") or {}
-    return {name: current[name]["id"] for name in rollup.used_uuts(runs) if name in current}
 
 
 @reports.route("/<report_id>/versions", methods=["GET", "POST"])
@@ -201,9 +186,6 @@ def versions(report_id):
     ), (409 if errors and request.method == "POST" else 200)
 
 
-PAGES = ("overview", "runs", "values", "history")
-
-
 @reports.route("/<report_id>", methods=["GET"])
 def report(report_id):
     """The report's document: live, or once frozen and built, its site"""
@@ -224,29 +206,29 @@ def report_page(report_id, page):
 
 
 def render_page(report_id, page, errors=(), status=200):
-    """One page of a report: its overview, its runs by subsystem and
-    requirement, the values its runs touched, or its history"""
+    """One page of a report: its overview, the values its runs touched,
+    or its history"""
     report = store.load_report(root(), report_id) or abort(404)
-    runs = store.list_runs(root(), report_id)
-    for run in runs:
-        run["status"] = run_status(run)
+    data = ReportData(root(), report_id, status=run_status,
+                      links=documents.LiveLinks(), report=report)
 
     def lookup(ids):
         return {r.id: (r.text, r.subsystem)
                 for r in models.known_requirements(get_db(), ids)}
 
-    view = report_view.build(root(), report, runs, lambda run: run["status"], lookup)
+    view = report_view.build(data, lookup)
     context = dict(
         page=page,
         report=report,
         view=view,
         rows=view["rows"],
+        run_status=run_status,
         subsystem=request.args.get("subsystem"),
         skipped=[s for s in report.get("scripts", [])
                  if isinstance(s, dict) and s["skipped"]],
-        in_progress=any(run.get("outcome") is None for run in runs),
-        uuts=report_uuts(report, runs),
-        document=export.document_fields(report),
+        in_progress=data.in_progress,
+        uuts={name: v["id"] for name, v in data.used_uut_versions().items()},
+        document=data.document,
         missing=export.missing_fields(report),
         bundles=[p.name for p in export.exports(root(), report_id)],
         errors=list(errors),
@@ -257,22 +239,20 @@ def render_page(report_id, page, errors=(), status=200):
         log=build_log(report_id),
     )
     if page == "overview":
-        live = report_context(report, context["in_progress"],
+        live = report_context(report, context["in_progress"], data=data,
                               subsystem=context["subsystem"],
                               text_changed=context["text_changed"])
         context["body"], context["problems"] = documents.report_document(
             export.source(root(), report_id), live, poll=block_poll(report_id, live))
     if page == "values":
-        touched = rollup.ref_rollup(
-            report, view["rows"],
-            lambda run: store.read_events(root(), report_id, run["id"]))
+        touched = rollup.ref_rollup(report, data.combinations, data.events)
         context["connectors"] = report_view.connectors(touched)
     return render_template(f"reports/{page}.html", **context), status
 
 
-def report_context(report, in_progress, **extra):
+def report_context(report, in_progress, data=None, **extra):
     """The Context the report's document is shown with, live"""
-    return documents.report_context(root(), report["id"], lambda run: run_status(run),
+    return documents.report_context(root(), report["id"], run_status, data=data,
                                     blocks=in_progress, **extra)
 
 
@@ -444,8 +424,7 @@ def make_bundle(report_id):
     """Write the frozen report's bundle (report-<id>.zip), and download it"""
     store.load_report(root(), report_id) or abort(404)
     try:
-        path = export.bundle(root(), report_id,
-                             store.report_dir(root(), report_id) / export.EXPORTS)
+        path = export.bundle(root(), report_id)
     except export.ExportError as e:
         return render_page(report_id, "overview", [str(e)], 409)
     return send_file(path, as_attachment=True)
@@ -454,7 +433,7 @@ def make_bundle(report_id):
 @reports.route("/<report_id>/report.pdf", methods=["GET"])
 def pdf(report_id):
     """The frozen report's PDF"""
-    found = build.build_dir(root(), report_id) / "report.pdf"
+    found = build.pdf_path(root(), report_id)
     return send_file(found) if found.is_file() else abort(404)
 
 
@@ -472,7 +451,7 @@ def build_status(report_id):
 
 
 def build_log(report_id):
-    path = build.build_dir(root(), report_id) / "log.txt"
+    path = build.log_path(root(), report_id)
     return path.read_text(errors="replace")[-4000:] if path.is_file() else ""
 
 

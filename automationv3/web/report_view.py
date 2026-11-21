@@ -1,8 +1,8 @@
-"""What a report's pages show: its runs rolled up by subsystem,
-requirement and script, with a status for each, and why each one that
-didn't pass didn't
+"""What a report's pages show: its navigation tree by subsystem,
+requirement and script, with a status dot for each, and why each one
+that didn't pass didn't
 
-The Runs page and its navigation share one tree::
+The navigation builds one tree::
 
     subsystem -> requirement -> script
 
@@ -13,11 +13,15 @@ requirement no script references yet is "untested": it has no scripts.
 
 import re
 
+from ..documents.report import (
+    UNASSIGNED,
+    failure_reason,
+    outdated_label,
+    versions_text,  # noqa: F401
+)
 from ..framework import source
-from ..services.reports import rollup, store
-from ..services.reports.data import ReportData, duration
+from ..services.reports import rollup
 
-UNASSIGNED = "Unassigned"
 OTHER = "Other tests"
 
 # A dot's tone for each state: what a reader should do about it
@@ -30,9 +34,6 @@ DOTS = {
     "pending": "none", "not run": "none", "untested": "none",
     "outdated": "partial",
 }
-
-WORDS = {"pass": "Passed", "fail": "Failed", "error": "Error", "incomplete": "Incomplete",
-         "blocked": "Blocked"}
 
 # Worst first: a group takes the worst state of what it holds
 WORST = ["fail", "running", "partial", "none", "pass"]
@@ -55,30 +56,26 @@ def script_anchor(requirement, script):
     return f"{slug(requirement or 'other')}--{slug(script)}"
 
 
-def build(root, report, runs, status, lookup=None):
-    """Everything a report's pages show. `status(run)` is a run's state
-    while it has no outcome; `lookup(ids)` gives {id: (text, subsystem)}
-    for requirements the report didn't record."""
-    rows = rollup.combinations(report, runs, status)
-    requirements = rollup.requirement_rollup(report, rows)
-    snapshots = report.get("requirement_snapshots") or {}
-    texts = {id: s["text"] for id, s in snapshots.items() if s.get("text")}
-    subsystems = {id: s["subsystem"] for id, s in snapshots.items() if s.get("subsystem")}
+def build(data, lookup=None):
+    """Everything a report's pages show, from a `ReportData`.
+    `lookup(ids)` gives {id: (text, subsystem)} for requirements the
+    report didn't record."""
+    requirements = data.requirements
     missing = [r["id"] for r in requirements
-               if r["id"] not in texts or r["id"] not in subsystems]
-    for id, (text, subsystem) in (lookup(missing) if lookup and missing else {}).items():
-        texts.setdefault(id, text)
-        if subsystem:
-            subsystems.setdefault(id, subsystem)
+               if not r["text"] or not r["snapshot"].get("subsystem")]
+    looked_up = lookup(missing) if lookup and missing else {}
 
     titles = {}
-    for row in rows:
-        row["title"] = script_title(root, report["id"], row, titles)
-        row["dot"] = dot(row["state"])
-        row["attempts"] = len(row["earlier"]) + (1 if row["latest"] else 0)
-        row["duration"] = duration(row["latest"])
-        row["why"] = why(root, row, report)
-        row["label"] = outdated_label(row)
+    rows = [
+        {
+            **row,
+            "title": script_title(data, row, titles),
+            "dot": dot(row["state"]),
+            "why": why(row, data.uut_versions),
+            "label": outdated_label(row),
+        }
+        for row in data.combinations
+    ]
 
     by_script = {}
     for row in rows:
@@ -86,16 +83,21 @@ def build(root, report, runs, status, lookup=None):
 
     tree, tracked = {}, set()
     for requirement in requirements:
-        scripts = report.get("requirements", {}).get(requirement["id"], [])
+        req_id = requirement["id"]
+        scripts = requirement["scripts"]
         tracked.update(scripts)
+        extra_text, extra_subsystem = looked_up.get(req_id, ("", None))
+        req_text = requirement["text"] or extra_text
+        subsystem = (requirement["snapshot"].get("subsystem")
+                     or extra_subsystem or UNASSIGNED)
         entry = {
-            "id": requirement["id"],
-            "text": texts.get(requirement["id"], ""),
-            "subsystem": subsystems.get(requirement["id"]) or UNASSIGNED,
+            "id": req_id,
+            "text": req_text,
+            "subsystem": subsystem,
             "color": requirement["color"],
             "passed": requirement["passed"],
             "total": requirement["total"],
-            "scripts": [script_entry(requirement["id"], script, by_script.get(script), titles)
+            "scripts": [script_entry(req_id, script, by_script.get(script), titles)
                         for script in scripts],
         }
         script_dots = [s["dot"] for s in entry["scripts"]]
@@ -156,49 +158,19 @@ def script_entry(requirement, script, rows, titles):
     }
 
 
-def script_title(root, report_id, row, titles):
+def script_title(data, row, titles):
     """The script's title (its document's first heading), from the
     closure its latest run executed; else its file name"""
     script = row["script"]
     if script not in titles:
-        text = None
-        if row["latest"]:
-            text = store.read_closure_file(root, report_id, row["latest"]["id"], script)
+        text = data.script_text(row["latest"]) if row["latest"] else ""
         titles[script] = (text and source.title(source.parse(text))) or None
     return titles[script] or script.rsplit("/", 1)[-1]
 
 
-def versions_text(versions):
-    return ", ".join(f"{name} {id}" for name, id in sorted(versions.items()))
-
-
-def outdated_label(row):
-    """'Passed on lm LUM131' for an outdated combination, else None"""
-    if row["state"] != "outdated":
-        return None
-    word = WORDS.get(row["latest"].get("outcome"), "Ran")
-    return f"{word} on {versions_text(row['outdated'])}"
-
-
-def why(root, row, report=None):
+def why(row, uut_versions=None):
     """A short reason a combination didn't pass, or None"""
-    state, run = row["state"], row["latest"]
-    if state == "outdated":
-        current = (report or {}).get("uut_versions") or {}
-        now = {name: current[name]["id"] for name in row["outdated"] if name in current}
-        return (f"{outdated_label(row)}; the report is on {versions_text(now)}. "
-                "Rerun it, or Update tests, to bring it up to date.")
-    if state in ("fail", "error") and run:
-        found = ReportData(root, run["report_id"]).failure(run)
-        parts = [p for p in (found["step"], found["message"]) if p]
-        return ": ".join(parts) or None
-    if state == "incomplete":
-        return "Steps are still to be written (TBD)"
-    if state == "not run":
-        return "Not run in this report"
-    if state == "blocked":
-        return "A precondition couldn't be met"
-    return None
+    return failure_reason(row, uut_versions)
 
 
 def connector_group(path):

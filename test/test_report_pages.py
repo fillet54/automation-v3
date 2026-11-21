@@ -9,6 +9,7 @@ from pathlib import Path
 from automationv3.framework import source
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import export, store
+from automationv3.services.reports.data import ReportData
 from automationv3.services.worker import Host
 from automationv3.services.worker.local import run_locally
 from automationv3.web import report_view
@@ -60,9 +61,8 @@ class ReportPagesTestCase(unittest.TestCase):
         shutil.rmtree(self.tmp)
 
     def view(self, lookup=None):
-        report = store.load_report(self.root, self.report_id)
-        runs = store.list_runs(self.root, self.report_id)
-        return report_view.build(self.root, report, runs, lambda run: "pending", lookup)
+        data = ReportData(self.root, self.report_id, status=lambda run: "pending")
+        return report_view.build(data, lookup)
 
 
 class TestTree(ReportPagesTestCase):

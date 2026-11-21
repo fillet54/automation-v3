@@ -105,10 +105,10 @@ def parsed_report(text):
     return core.parse(text, source_path="report.rst")
 
 
-def report_context(root, report_id, status, **extra):
+def report_context(root, report_id, status=None, data=None, **extra):
     from ..services.reports import export
     return export.context(root, report_id, host=core.LIVE, links=LiveLinks(),
-                          status=status, extra=extra)
+                          status=status, data=data, extra=extra)
 
 
 def report_document(text, context, poll=None):

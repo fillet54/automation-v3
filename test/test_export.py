@@ -196,6 +196,21 @@ class TestDocument(ReportTestCase):
         (mine / "report.rst").write_text("Changed later\n")  # the report kept its copy
         self.assertIn("Ours", export.source(self.root, report_id))
 
+    def test_rendering_does_not_mutate_report_data(self):
+        data = ReportData(self.root, self.report_id,
+                          links=export.ServerLinks("http://server:8000"))
+        context = export.context(self.root, self.report_id, data=data,
+                                 extra={"text_changed": {"REQ-1"}})
+        export.render_document(context, export.source(self.root, self.report_id))
+        for row in data.combinations:
+            self.assertNotIn("links", row)
+            self.assertNotIn("label", row)
+        for req in data.requirements:
+            self.assertNotIn("changed", req)
+            for cell in req["cells"]:
+                self.assertNotIn("links", cell)
+                self.assertNotIn("label", cell)
+
     def test_document_fields_default_from_the_report(self):
         self.assertEqual(export.document_fields(self.report())["title"],
                          self.report()["name"])
