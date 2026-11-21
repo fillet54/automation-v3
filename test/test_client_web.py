@@ -1,8 +1,10 @@
+import os
 import shutil
 import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest import mock
 
 from automationv3.framework.requirement import Requirement
 from automationv3.services import client
@@ -24,6 +26,11 @@ class TestLocalClient(unittest.TestCase):
     requirements and workers"""
 
     def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        # what the client remembers (builds used...) stays out of ~/.config
+        home = mock.patch.dict(os.environ, {"AUTOMATION_CONFIG_HOME": str(self.tmp / "home")})
+        home.start()
+        self.addCleanup(home.stop)
         self.central = Central(scripts=SCRIPTS)
         with self.central.conn() as conn:
             requirement_models.insert(conn, [Requirement("R1", "The brake shall hold.")])
@@ -32,7 +39,6 @@ class TestLocalClient(unittest.TestCase):
             "http://server", token, session=HttpSession(self.central.app.test_client()))
 
         # Ann's own clone, with an edit nobody has seen
-        self.tmp = Path(tempfile.mkdtemp())
         repo = self.tmp / "clone"
         for path, text in SCRIPTS.items():
             (repo / "rvts" / path).parent.mkdir(parents=True, exist_ok=True)
