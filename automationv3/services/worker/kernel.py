@@ -103,6 +103,21 @@ def newest(uut):
     return versions[-1] if versions else None
 
 
+def hosted_environments(host, closure, script):
+    """The environments of `closure` this host offers, in its order (the
+    host's own, if it declares none). KernelError if a UUT it uses has no
+    plugin here, or none of its environments is hosted."""
+    missing = [u for u in closure.uuts if u not in host.uuts]
+    if missing:
+        raise KernelError(f"No UUT plugin for {', '.join(missing)}")
+    hosted = [e for e in (closure.environments or host.environments)
+              if e in host.environments]
+    if not hosted:
+        raise KernelError(f"This machine hosts none of {script}'s environments "
+                          f"({', '.join(closure.environments) or 'none declared'})")
+    return hosted
+
+
 class Command:
     _ids = itertools.count(1)
 
@@ -264,15 +279,8 @@ class Kernel:
         self._env_lock = threading.RLock()
         self.closure = self._resolve()
         found = self.closure
-        if found.uuts and any(u not in host.uuts for u in found.uuts):
-            missing = [u for u in found.uuts if u not in host.uuts]
-            raise KernelError(f"No UUT plugin for {', '.join(missing)}")
-        hosted = [e for e in (found.environments or host.environments)
-                  if e in host.environments]
+        hosted = hosted_environments(host, found, script)
         if environment is None:
-            if not hosted:
-                raise KernelError(f"This machine hosts none of {script}'s environments "
-                                  f"({', '.join(found.environments) or 'none declared'})")
             environment = hosted[0]
         if environment not in host.environments:
             raise KernelError(f"This machine doesn't host {environment}")

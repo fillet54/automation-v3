@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from ...framework import closure as closures
-from .kernel import Kernel, KernelError, newest
+from .kernel import Kernel, KernelError, hosted_environments, newest
 
 IDLE = 30 * 60  # seconds an idle console is kept open
 BORROW_WAIT = 30  # seconds to wait for the worker's running job
@@ -88,20 +88,17 @@ def choices(host, root, script):
         found = closures.resolve(root, script)
     except (OSError, ValueError) as e:
         return {"error": f"Can't read {script}: {e}"}
-    environments = [e for e in (found.environments or host.environments)
-                    if e in host.environments]
+    try:
+        environments = hosted_environments(host, found, script)
+    except KernelError as e:
+        return {"error": str(e)}
     versions, defaults = {}, {}
     for name in found.uuts:
-        uut = host.uuts.get(name)
-        if uut is None:
-            return {"error": f"No UUT plugin for {name}"}
+        uut = host.uuts[name]
         versions[name] = [v.id for v in uut.list_versions()]
         default = newest(uut)
         if default is not None:
             defaults[name] = default.id
-    if not environments:
-        return {"error": f"This machine hosts none of {script}'s environments "
-                         f"({', '.join(found.environments) or 'none declared'})"}
     return {
         "script": script,
         "environments": environments,

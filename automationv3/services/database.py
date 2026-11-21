@@ -59,6 +59,14 @@ def toggle_expanded_node(conn, workspace_id, path):
             )
 
 
+def expand_nodes(conn, workspace_id, paths):
+    """Open each of `paths` in the tree (those open already stay open)"""
+    with conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO expanded_nodes(workspace_id, path) VALUES (?, ?)",
+            [(workspace_id, path) for path in paths])
+
+
 def open_tabs(conn, workspace_id):
     """([path], the active path or None), in tab order"""
     rows = conn.execute("SELECT path, active FROM open_tabs WHERE workspace_id = ? "

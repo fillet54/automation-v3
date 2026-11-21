@@ -40,7 +40,9 @@ without one, the built-in template is used. A report copies its
 workspace's template when it is created, so its look can't drift.
 """
 
+import os
 import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 from urllib.parse import quote
@@ -257,16 +259,24 @@ def bundle(root, report_id, out_dir=None):
     out_dir = Path(out_dir) if out_dir is not None else exports_dir(root, report_id)
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / f"{name}.zip"
-    partial = target.with_suffix(".zip.tmp")
-    with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as zf:
-        for item in ("MANIFEST.sha256", "report.pdf", "report.tex"):
-            zf.write(built / item, f"{name}/{item}")
-        for path in build.files(root, report_id):
-            zf.write(path, f"{name}/{name}/{path.relative_to(folder).as_posix()}")
-        for path in sorted((built / "site").rglob("*")):
-            if path.is_file():
-                zf.write(path, f"{name}/site/{path.relative_to(built / 'site').as_posix()}")
-    partial.replace(target)
+    # a temporary name of its own, so two exports at once can't mix
+    fd, partial = tempfile.mkstemp(dir=out_dir, prefix=f".{name}.", suffix=".zip.tmp")
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as zf:
+            for item in ("MANIFEST.sha256", "report.pdf", "report.tex"):
+                zf.write(built / item, f"{name}/{item}")
+            for path in build.files(root, report_id):
+                zf.write(path, f"{name}/{name}/{path.relative_to(folder).as_posix()}")
+            for path in sorted((built / "site").rglob("*")):
+                if path.is_file():
+                    zf.write(path,
+                             f"{name}/site/{path.relative_to(built / 'site').as_posix()}")
+        os.chmod(partial, 0o644)
+        os.replace(partial, target)
+    except BaseException:
+        Path(partial).unlink(missing_ok=True)
+        raise
     return target
 
 

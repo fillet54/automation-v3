@@ -277,12 +277,11 @@ def folders(root):
 
 def expand_to(conn, workspace_id, relative, itself=False):
     """Open the tree down to `relative` (and the folder `itself`)"""
+    from ..services.database import expand_nodes
     parts = PurePosixPath(relative).parts
     parts = parts if itself else parts[:-1]
-    with conn:
-        conn.executemany(
-            "INSERT OR IGNORE INTO expanded_nodes(workspace_id, path) VALUES (?, ?)",
-            [(workspace_id, str(PurePosixPath(*parts[:n]))) for n in range(1, len(parts) + 1)])
+    expand_nodes(conn, workspace_id,
+                 [str(PurePosixPath(*parts[:n])) for n in range(1, len(parts) + 1)])
 
 
 # Open tabs, per workspace

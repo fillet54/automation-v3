@@ -5,7 +5,6 @@ from flask import Flask, current_app, g, has_app_context, redirect, url_for
 from ..services.requirements import models as requirements
 from ..services.settings import Settings
 import tempfile
-from pathlib import Path
 
 from ..services.workspace import LocalWorktrees
 from . import api, auth, client_mode, docs as documentation, hooks, jobs, reports, requirements as requirement_pages, scratch, ui, workspace
@@ -49,10 +48,9 @@ def workspace_source(config):
     git = config["SETTINGS"].git if config.get("SETTINGS") else None
     if git is not None:
         from ..services.mirror import MirrorWorkspaces
-        db = config.get("DB_PATH")
-        base = Path(db).resolve().parent if db and str(db) != ":memory:" else Path.cwd()
-        return MirrorWorkspaces(git.remote, base / git.mirror_path, checked_in_cache(config),
-                                git.scripts)
+        from .context import cache_dir
+        mirror = cache_dir(config, "MIRROR_PATH", git.mirror_path, prefix="mirror-")
+        return MirrorWorkspaces(git.remote, mirror, checked_in_cache(config), git.scripts)
     path = config.get("WORKSPACE_PATH")
     return LocalWorktrees(path, checked_in_cache(config)) if path else None
 

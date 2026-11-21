@@ -301,7 +301,7 @@ def finish(conn, root, job, outcome, **fields):
         job.id,
         outcome=outcome,
         worker=job.worker_url,
-        ended=store.now_iso(),
+        ended=now_iso(),
         **fields,
     )
     with conn:
@@ -516,7 +516,7 @@ def claim_job(conn, root, id, worker_url):
 def start_job(conn, root, id, worker_url):
     job = held_job(conn, id, worker_url)
     start(conn, id, worker_url)
-    store.update_run(root, job.report_id, job.id, started=store.now_iso())
+    store.update_run(root, job.report_id, job.id, started=now_iso())
 
 
 def release_job(conn, root, id, worker_url):
