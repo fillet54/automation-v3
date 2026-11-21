@@ -285,15 +285,18 @@ def fn_form(x, env):
                 and isinstance(signature[0], Vector)):
             raise ValueError(f"Parameter declaration {signature} should be a Vector")
     by_arity = {len(params): (params, body) for params, *body in signatures}
+    scope = env
 
     def fn(*args):
         if len(args) not in by_arity:
             raise RuntimeError(f"Cannot call {name} with {len(args)} arguments")
         params, body = by_arity[len(args)]
-        return _do(body, Env(params, args, outer=env))
+        return _do(body, Env(params, args, outer=scope))
 
     if name is not None:
         fn.__name__ = str(name)
+        if x[0] == "fn":  # (fn f [x] ... (f ...)): its body may call it by name
+            scope = Env([name], [fn], outer=env)
     fn.signatures = [params for params, _ in by_arity.values()]  # for showing it
     return fn
 

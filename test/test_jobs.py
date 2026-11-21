@@ -1483,6 +1483,12 @@ class TestPlanning(unittest.TestCase):
         plan, _ = self.runs(filter_source="(= nope 1)")
         self.assertEqual(plan.errors, ["Variation filter uses unknown symbol nope"])
 
+    def test_a_filter_function_may_call_itself(self):
+        plan, runs = self.runs(environments=["sim"],
+                               filter_source="((fn f [m] (if (= m :x) (f :y) (= m mode))) :x)")
+        self.assertEqual(plan.errors, [])
+        self.assertEqual(runs, [("a.rst", "sim", "y")])
+
 
 class TestRollupColor(unittest.TestCase):
     def test_color(self):

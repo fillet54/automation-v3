@@ -40,6 +40,11 @@ class TestLisp(unittest.TestCase):
         with self.assertRaises(ValueError):
             run("(fn x y)")
 
+    def test_a_named_fn_can_call_itself(self):
+        self.assertEqual(run("((fn fact [n] (if (< n 2) 1 (* n (fact (- n 1))))) 5)"), 120)
+        with self.assertRaises(lisp.UnboundName):
+            run("(fn fact [n] n) (fact 1)")  # the name is the fn's own, not bound outside
+
     def test_vectors_maps_and_sets_evaluate_their_items(self):
         self.assertEqual(run("[(+ 1 2) :k]"), [3, edn.Keyword("k")])
         self.assertEqual(run("(def x 2) {:a x}"), {edn.Keyword("a"): 2})

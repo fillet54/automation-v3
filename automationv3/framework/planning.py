@@ -158,19 +158,22 @@ def symbols_in(form, bound=frozenset()):
                 found.update(symbols_in(item, frozenset(local)))
             return found
         if op in ("fn", "defn"):
-            _, signatures = parse_fn_arities(form)
+            name, signatures = parse_fn_arities(form)
+            own = {str(name)} if name is not None else set()  # it may call itself
             found = set()
             for sig in signatures:
                 if isinstance(sig, list) and sig and isinstance(sig[0], edn.Vector):
                     params, *body = sig
-                    local = set(bound) | {
+                    local = set(bound) | own | {
                         str(p) for p in params
                         if isinstance(p, edn.Symbol) and not isinstance(p, edn.Keyword)
                     }
                     for item in body:
                         found.update(symbols_in(item, frozenset(local)))
             return found
-        start = 1 if (op and op.startswith(".") and len(op) > 1) else 0
+        # a method call's or special form's (if, do...) head isn't a symbol to look up
+        special = op in lisp.special_forms and op not in bound
+        start = 1 if (op and op.startswith(".") and len(op) > 1) or special else 0
         return set().union(*(symbols_in(item, bound) for item in form[start:]))
     return set()
 
