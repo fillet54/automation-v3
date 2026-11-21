@@ -35,7 +35,7 @@ import difflib
 import inspect
 from dataclasses import dataclass, field
 
-from . import edn, lisp, source
+from . import edn, lisp, source, steps
 from .block import all_blocks, block_names, candidates, documented
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, head, is_text, name_of,
@@ -50,7 +50,7 @@ WARNING = "warning"
 KNOWN_FORMS = {"if", "do", "and", "or", "def", "defn", "let", "quote", "fn", "step", "try-ok?",
                "try", "quietly"}
 # Builtins with an effect: a step calling one isn't thrown away
-EFFECTFUL = {"print"}
+EFFECTFUL = {"print", "println"}
 
 
 @dataclass

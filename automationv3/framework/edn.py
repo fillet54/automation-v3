@@ -114,7 +114,9 @@ class Symbol(str):
         return f"{self.namespace}/{name}" if self.namespace else name
 
     def __eq__(self, other):
-        if isinstance(other, type(self)):
+        if isinstance(other, Keyword):
+            return False
+        if isinstance(other, Symbol):
             return str.__eq__(self, other) and self.namespace == other.namespace
         if isinstance(other, str):
             return self.qualified == str.__str__(other)
@@ -135,6 +137,18 @@ class Symbol(str):
 
 class Keyword(Symbol):
     """:name or :ns/name"""
+
+    def __eq__(self, other):
+        if isinstance(other, Keyword):
+            return str.__eq__(self, other) and self.namespace == other.namespace
+        if isinstance(other, Symbol):
+            return False
+        if isinstance(other, str):
+            return str(self) == str.__str__(other)
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(str(self))
 
     def __str__(self):
         return ":" + self.qualified

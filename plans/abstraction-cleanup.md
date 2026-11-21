@@ -36,10 +36,10 @@ Small, self-contained wins with minimal blast radius.
   - Delete stale bytecode directory `plugins/vm/__pycache__/` (no `.py` sources remain).
   - Delete unused re-export shim `plugins/core/value_blocks.py`.
   - Fix `__all__` in `plugins/core/__init__.py` and `plugins/apollo/__init__.py` to contain string names instead of class objects.
-- [ ] **Fix `edn.Keyword` equality/hash contract** (`framework/edn.py:99-143`)
+- [x] **Fix `edn.Keyword` equality/hash contract** (`framework/edn.py:99-143`)
   - Fix `Keyword.__eq__` so `Keyword("a") == Symbol("a")` no longer returns `True` with mismatched hashes (`hash(":a") != hash("a")`).
   - Add regression tests in `test/test_edn_reader.py` (dict/set lookups mixing `Symbol`, `Keyword`, and `str`).
-- [ ] **Fix `println` analysis & `steps.py` import-order hazard**
+- [x] **Fix `println` analysis & `steps.py` import-order hazard**
   - Add `"println"` to `EFFECTFUL` in `framework/analysis.py:53`.
   - Explicitly ensure `steps` special forms/builtins are initialized by `framework/analysis.py` instead of relying on `load_plugins()` transitively importing `plugins/core/wait.py`.
 - [ ] **Fix minor service/web/CLI bugs**

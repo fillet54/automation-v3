@@ -138,7 +138,7 @@ class TestWarnings(unittest.TestCase):
         self.assertIn("Did you mean (Verify ...)?", warning)
 
     def test_function_calls_are_not_discarded(self):
-        self.assertEqual(check(rvt("(check 1) (two 1) (print 1)"))[1], [])
+        self.assertEqual(check(rvt("(check 1) (two 1) (print 1) (println 1)"))[1], [])
 
     def test_shadowing(self):
         _, (warning,) = check(rvt("(def Wait 1)"))
