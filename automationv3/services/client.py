@@ -170,6 +170,12 @@ class CentralClient:
         params = [("id", id) for id in ids] + ([("context", context)] if context else [])
         return self.call("GET", "/requirements", params=params).json()
 
+    def import_requirements(self, content, name, **options):
+        """Upload a zipped export folder or flat requirements file (admins only)"""
+        import base64
+        payload = {"file": base64.b64encode(content).decode(), "name": name, **options}
+        return self.call("POST", "/requirements/import", payload).json()
+
     def uuts(self):
         return self.call("GET", "/uuts").json()
 

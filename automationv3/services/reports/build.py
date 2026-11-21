@@ -126,12 +126,17 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
     names = document["signatures"]
     roles = list(settings["roles"]) + [r for r in names if r not in settings["roles"]]
     latex = export.latex
+    from ...framework.plugins import plugin_css, plugin_latex
+    static = out / "_plugins"
+    static.mkdir()
+    (static / "plugins.css").write_text(plugin_css())
     (out / "build.json").write_text(json.dumps({
         "title": data.name, "author": document["author"] or "",
         "root": str(Path(root).resolve()), "folder": report_id,
         "template": str(template), "snippets": str(template / "snippets"),
         "server_url": base_url, "exported": exported, "manifest_hash": manifest_hash,
         "exclude": exclude,
+        "plugin_static": str(static),
         "latex_files": [str(p) for p in template.iterdir()
                         if p.is_file() and p.name not in LATEX_SKIP],
         "latex": {
@@ -148,17 +153,9 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
             "signatures": [(latex(role), latex(names.get(role, ""))) for role in roles],
             "applicable": export.numbered(document["documents"], "applicable", "AD"),
             "reference": export.numbered(document["documents"], "reference", "RD"),
+            "plugins": plugin_latex(),
         },
     }, indent=2))
-    from ...framework.plugins import plugin_css, plugin_latex
-    static = out / "_plugins"
-    static.mkdir()
-    (static / "plugins.css").write_text(plugin_css())
-    settings_file = out / "build.json"
-    found = json.loads(settings_file.read_text())
-    found["plugin_static"] = str(static)
-    found["latex"]["plugins"] = plugin_latex()
-    settings_file.write_text(json.dumps(found, indent=2))
     (out / "conf.py").write_text(
         "from automationv3.services.reports.sphinx_conf import configure\n"
         "configure(globals(), __file__.replace('conf.py', 'build.json'))\n")

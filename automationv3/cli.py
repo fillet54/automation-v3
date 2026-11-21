@@ -375,6 +375,7 @@ def start_local_worker(db_path, reports_path, config):
 def start_worker(args):
     from .services.worker import Host, Worker
     from .services.worker.client import ServerClient
+    from .services.worker.host import read_config
 
     if not args["--central-server"]:
         sys.exit("--central-server=URL is required")
@@ -382,9 +383,10 @@ def start_worker(args):
     server = args["--central-server"]
     if "://" not in server:
         server = f"http://{server}"
+    config = read_config(args["--config"])
     worker = Worker(
-        ServerClient(server, self_url, token=worker_token(args["--config"])),
-        Host.from_file(args["--config"]),
+        ServerClient(server, self_url, token=worker_token(config)),
+        Host.from_config(config),
     )
     try:
         registered = worker.check_in(started=True)
@@ -408,12 +410,14 @@ def start_worker(args):
 
 def worker_token(config):
     """The worker token: AUTOMATION_WORKER_TOKEN, else "token" in the
-    worker's config file, else None"""
-    import json
+    worker's config dict (or config file path), else None"""
     if os.environ.get("AUTOMATION_WORKER_TOKEN"):
         return os.environ["AUTOMATION_WORKER_TOKEN"]
+    if isinstance(config, dict):
+        return config.get("token")
     if config:
-        return json.loads(Path(config).read_text()).get("token")
+        from .services.worker.host import read_config
+        return read_config(config).get("token")
     return None
 
 
@@ -751,8 +755,6 @@ def flat_options(args):
 
 def import_to_server(args):
     """requirements import --server: upload each export folder, zipped"""
-    import base64
-
     from .services import client
     from .services.requirements import export
 
@@ -764,15 +766,14 @@ def import_to_server(args):
                 if not (path / "manifest.json").is_file():
                     print(f"{source}: no manifest.json")
                     return 1
-                upload = {"file": base64.b64encode(export.zip_folder(path)).decode(),
-                          "name": path.resolve().name + ".zip"}
+                got = central.import_requirements(
+                    export.zip_folder(path), path.resolve().name + ".zip")
             elif path.is_file():
-                upload = {"file": base64.b64encode(path.read_bytes()).decode(),
-                          "name": path.name, **flat_options(args)}
+                got = central.import_requirements(
+                    path.read_bytes(), path.name, **flat_options(args))
             else:
                 print(f"{source}: no such file or folder")
                 return 1
-            got = central.call("POST", "/requirements/import", upload).json()
             print(f"Import {got['import']}: {source}")
             for label, outcome in got["outcomes"]:
                 print(f"  {label}: {outcome}")

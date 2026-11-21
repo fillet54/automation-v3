@@ -725,8 +725,8 @@ class NotHeld(PermissionError):
 def job_json(job):
     return {
         **asdict(job),
-        "queued_at": str(job.queued_at),
-        "claimed_at": str(job.claimed_at),
+        "queued_at": str(job.queued_at) if job.queued_at is not None else None,
+        "claimed_at": str(job.claimed_at) if job.claimed_at is not None else None,
     }
 
 

@@ -40,6 +40,11 @@ def framework_fingerprint():
     return {"version": __version__, "git": head.stdout.strip(), "dev": bool(dirty)}
 
 
+def read_config(path):
+    """Parse a worker's JSON config file, or {} when no path is given"""
+    return json.loads(Path(path).read_text()) if path else {}
+
+
 class Host:
     def __init__(self, environments=None):
         self.environments = environments or {}
@@ -57,7 +62,7 @@ class Host:
 
     @classmethod
     def from_file(cls, path):
-        return cls.from_config(json.loads(open(path).read()) if path else {})
+        return cls.from_config(read_config(path))
 
     def fingerprint(self, name):
         """Environment `name`'s fingerprint, with the framework's"""

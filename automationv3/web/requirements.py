@@ -14,7 +14,7 @@ from markupsafe import Markup
 from . import editor
 from ..services import jobs
 from ..services.requirements import links, models, render, rst_source, suspects, textdiff
-from .auth import admin_required, owner_email
+from .auth import admin_required, can_change, owner_email
 from .db import get_db
 
 requirements = Blueprint("requirements", __name__)
@@ -127,7 +127,8 @@ def list():
         suspect=script_suspects(conn, state),
         workspaces=state.workspaces,
         hx_request=request.headers.get("HX-Request", False),
-        reports=jobs.reports_for(current_app.config.get("REPORTS_PATH"), state.workspace),
+        reports=[r for r in jobs.reports_for(current_app.config.get("REPORTS_PATH"),
+                                             state.workspace) if can_change(r)],
         target=request.args.get("report", ""),
         **nav(conn, state, spec=spec, subsystem=subsystem),
     )

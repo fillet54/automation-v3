@@ -333,5 +333,7 @@ def create_worker_token():
 @auth.route("/admin/workers/<int:id>/revoke", methods=["POST"])
 @admin_required
 def revoke_worker_token(id):
+    if not central():
+        abort(404)
     accounts.revoke_token(get_db(), id)
     return redirect(url_for("auth.admin"))

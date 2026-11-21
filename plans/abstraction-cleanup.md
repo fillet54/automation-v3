@@ -42,7 +42,7 @@ Small, self-contained wins with minimal blast radius.
 - [x] **Fix `println` analysis & `steps.py` import-order hazard**
   - Add `"println"` to `EFFECTFUL` in `framework/analysis.py:53`.
   - Explicitly ensure `steps` special forms/builtins are initialized by `framework/analysis.py` instead of relying on `load_plugins()` transitively importing `plugins/core/wait.py`.
-- [ ] **Fix minor service/web/CLI bugs**
+- [x] **Fix minor service/web/CLI bugs**
   - `services/jobs.py:729`: serialize `claimed_at` as `str(job.claimed_at) if job.claimed_at else None` instead of `"None"`.
   - `services/worker/host.py:60`: replace `open(path).read()` with `Path(path).read_text()` and expose a single worker-config reader (stop `cli.py:409-417` from re-parsing `--config` separately for `"token"`).
   - `services/reports/build.py:129-161`: construct `build.json` once instead of writing, reading back, mutating, and writing again.
