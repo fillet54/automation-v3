@@ -25,6 +25,7 @@ import jinja2
 from docutils.parsers.rst import directives
 
 from .core import directive, role
+from ..framework.markup import written
 from .template import Rst, filter, link, literal, plural, text
 
 UNASSIGNED = "Unassigned"
@@ -64,6 +65,17 @@ def outdated_label(row):
     return f"{word} on {versions_text(row['outdated'])}"
 
 
+def ran_on(row):
+    """'fail on lm LUM131': how an outdated combination's latest run came
+    out, and on what"""
+    outcome = (row.get("latest") or {}).get("outcome")
+    return f"{written(outcome)} on {versions_text(row['outdated'])}"
+
+
+NOT_CURRENT = "not the report's versions"
+TBD = "steps are still to be written (TBD)"
+
+
 def failure_reason(row, uut_versions=None):
     """Plain-text reason a combination didn't pass, or None"""
     state = row["state"]
@@ -73,13 +85,13 @@ def failure_reason(row, uut_versions=None):
         if now:
             return (f"{outdated_label(row)}; the report is on {versions_text(now)}. "
                     "Rerun it, or Update tests, to bring it up to date.")
-        return f"{outdated_label(row)}, not the report's versions"
+        return f"{outdated_label(row)}, {NOT_CURRENT}"
     if state in ("fail", "error") and row.get("failure"):
         found = row["failure"]
         parts = [p for p in (found["step"], found["message"]) if p]
         return ": ".join(parts) or None
     if state == "incomplete":
-        return "Steps are still to be written (TBD)"
+        return TBD[0].upper() + TBD[1:]
     if state == "not run":
         return "Not run in this report"
     if state == "blocked":
@@ -137,11 +149,9 @@ def why(row):
         return Rst((f" at {text(failure['step'])}" if failure["step"] else "")
                    + (f": {text(failure['message'])}" if failure["message"] else ""))
     if row["state"] == "incomplete":
-        return Rst(": steps are still to be written (TBD)")
+        return Rst(f": {TBD}")
     if row["state"] == "outdated":
-        ran = versions_text(row["outdated"])
-        return Rst(f": {text((row['latest'] or {}).get('outcome'))} on {text(ran)}, "
-                   "not the report's versions")
+        return Rst(f": {text(ran_on(row))}, {NOT_CURRENT}")
     return Rst("")
 
 
@@ -199,9 +209,7 @@ def issue(ctx, cell, links=None):
     elif cell["state"] == "incomplete":
         said = Rst(f"{said} (steps still to be written)")
     elif cell["state"] == "outdated":
-        ran = versions_text(cell["outdated"])
-        said = Rst(f"{said}: {text((cell['latest'] or {}).get('outcome'))} on {text(ran)}, "
-                   "not the report's versions")
+        said = Rst(f"{said}: {text(ran_on(cell))}, {NOT_CURRENT}")
     return said
 
 
