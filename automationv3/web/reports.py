@@ -22,11 +22,11 @@ from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import access, build, export, rollup, store
 from ..services.reports.data import ReportData
-from .auth import can_change, mine_only, owner_email
-from .jobs import workspaces
+from .auth import base_url as server_url, can_change, mine_only, owner_email, safe_next
+from .context import reports_root as root, workspaces
 from .db import get_db
 from . import documents, report_view
-from .docs import in_shell
+from .docs import serve_in_shell
 
 reports = Blueprint("reports", __name__)
 
@@ -68,10 +68,6 @@ def change_buttons():
 
 def is_mine(report, email):
     return email is None or access.is_member(report, email)
-
-
-def root():
-    return current_app.config["REPORTS_PATH"]
 
 
 def run_status(run):
@@ -338,16 +334,9 @@ def rename(report_id):
         export.rename(root(), report_id, request.form.get("name", ""))
     except export.ExportError as e:
         return render_page(report_id, "overview", [str(e)], 409)
-    target = request.form.get("next", "")
-    if not target.startswith("/") or target.startswith("//"):  # only back to this site
-        target = url_for("reports.report", report_id=report_id)
+    target = safe_next(request.form.get("next"),
+                       fallback=url_for("reports.report", report_id=report_id))
     return redirect(target)
-
-
-def server_url():
-    """The server's base URL, for links from exported documents: the
-    SERVER_URL setting, else the URL this request came in on"""
-    return current_app.config.get("SERVER_URL") or request.host_url
 
 
 def workspace_template(name):
@@ -464,13 +453,8 @@ def site(report_id, filename):
     folder = build.site(root(), report_id)
     if folder is None:
         return redirect(url_for("reports.report", report_id=report_id))
-    if not filename.endswith(".html"):
-        return send_from_directory(folder, filename)
-    path = safe_join(str(folder), filename)
-    if path is None or not Path(path).is_file():
-        abort(404)
-    return in_shell(Path(path).read_text(encoding="utf-8"), "reports/site_shell.html",
-                    report=report, bundles=[p.name for p in export.exports(root(), report_id)])
+    return serve_in_shell(folder, filename, "reports/site_shell.html",
+                          report=report, bundles=[p.name for p in export.exports(root(), report_id)])
 
 
 @reports.route("/<report_id>/reopen", methods=["POST"])

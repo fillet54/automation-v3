@@ -286,17 +286,25 @@ def trace_issues(conn, context=None):
 WORKSPACE_CONFIG = "automation.json"
 
 
+def read_workspace_context(root):
+    """(context_or_None, error_or_None) from automation.json at `root`."""
+    path = Path(root) / WORKSPACE_CONFIG
+    if not path.is_file():
+        return None, None
+    try:
+        return json.loads(path.read_text()).get("requirements") or None, None
+    except (OSError, ValueError, AttributeError) as e:
+        return None, f"{WORKSPACE_CONFIG} can't be read ({e}); showing trunk"
+
+
 def workspace_context(conn, root):
     """(context, problem): the context a workspace verifies, from
     "requirements" in automation.json at its root (trunk if it says
     nothing), and why it fell back to trunk, if it did"""
-    path = Path(root) / WORKSPACE_CONFIG
-    if not path.is_file():
-        return "trunk", None
-    try:
-        context = json.loads(path.read_text()).get("requirements") or "trunk"
-    except (ValueError, AttributeError) as e:
-        return "trunk", f"{WORKSPACE_CONFIG} can't be read ({e}); showing trunk"
+    configured, problem = read_workspace_context(root)
+    if problem is not None:
+        return "trunk", problem
+    context = configured or "trunk"
     try:
         resolve(conn, context)
     except ContextError as e:

@@ -602,7 +602,6 @@ def scratch(args, central):
 def local_versions(central, versions):
     """`versions` with each NAME=local replaced by the version of your
     local build, uploaded first if it isn't yet"""
-    from .framework.uut import uut_types
     from .services import builds, client
 
     server = None
@@ -614,15 +613,13 @@ def local_versions(central, versions):
             raise client.ClientError(f"No local {uut} build: set where they land in "
                                      f"{client.config_home() / 'client.json'}")
         server = server or central.uuts()
-        uploaded = next((v["id"] for v in server.get(uut, [])
-                         if v["digest"] == build.digest), None)
-        if uploaded is None:
-            print(f"Uploading your {uut} build {build.id}...")
-            try:
-                uploaded = uut_types()[uut]().upload_build(build).id
-            except (RuntimeError, NotImplementedError, OSError) as e:
-                raise client.ClientError(f"Couldn't upload the build: {e}") from None
-        versions[uut] = uploaded
+        try:
+            versions[uut] = builds.ensure_uploaded(
+                uut, build, server,
+                on_upload=lambda b, u=uut: print(f"Uploading your {u} build {b.id}..."),
+            )
+        except (RuntimeError, NotImplementedError, OSError) as e:
+            raise client.ClientError(f"Couldn't upload the build: {e}") from None
     builds.remember_used(versions)
     return versions
 
@@ -642,8 +639,7 @@ def list_builds(central):
         if build is None:
             print(f"{uut}: no build in {folder}")
             continue
-        uploaded = next((v["id"] for v in server.get(uut, [])
-                         if v["digest"] == build.digest), None)
+        uploaded = builds.matched_version(uut, build, server)
         state = f"uploaded as {uploaded}" if uploaded else "not uploaded yet"
         print(f"{uut}: {build.id} in {folder}, {state}")
     return 0

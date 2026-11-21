@@ -39,12 +39,8 @@ def requirement_key():
 def checked_in_cache(config):
     """Where checked-in files are extracted: CHECKED_IN_PATH, else
     checked-in/ beside the database"""
-    if config.get("CHECKED_IN_PATH"):
-        return Path(config["CHECKED_IN_PATH"])
-    db = config.get("DB_PATH")
-    if db and str(db) != ":memory:":
-        return Path(db).resolve().parent / "checked-in"
-    return Path(tempfile.mkdtemp(prefix="checked-in-"))
+    from .context import cache_dir
+    return cache_dir(config, "CHECKED_IN_PATH", "checked-in")
 
 
 def workspace_source(config):

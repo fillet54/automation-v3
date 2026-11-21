@@ -191,13 +191,13 @@ and clean up `Kernel` ↔ `executor` ↔ `worker` coupling.
 Eliminate duplicated workflows, naming collisions, and scattered client-mode
 logic across the HTTP/CLI adapters.
 
-- [ ] **Fix the `central()` naming collision & tighten `client_mode` boundaries**
+- [x] **Fix the `central()` naming collision & tighten `client_mode` boundaries**
   - Rename `web/auth.py:central()` → `accounts_enabled()` (or `is_central_server()`) and `web/client_mode.py:central()` → `central_client()`.
   - Add a lock around `web/client_mode.py`'s TTL caches (`_CENTRAL_ENVIRONMENTS`, `_CENTRAL_UUTS`).
   - Split `services/requirements/models.py:workspace_context` into `read_workspace_context(root)` + validation so `web/workspace.py:79-87` (`configured_context`) stops duplicating `automation.json` parsing.
-- [ ] **Unify local UUT build upload & listing across CLI and Web**
+- [x] **Unify local UUT build upload & listing across CLI and Web**
   - Fold `cli.py:601-648` (`local_versions`, `list_builds`) onto `services/builds.py` so both CLI (`--uut name=local`) and Web (`builds.UPLOAD`) go through one digest-matching + upload + `remember_used` implementation.
-- [ ] **Consolidate duplicated web helpers**
+- [x] **Consolidate duplicated web helpers**
   - **Base URL**: have `web/reports.py:367-370` (`server_url`) reuse `web/auth.py:external_url` / `settings().base_url` instead of the unset `SERVER_URL` config key.
   - **Open-redirect guard**: reuse `web/auth.py:safe_next` in `web/reports.py:361` and `web/requirements.py:227`.
   - **Worker endpoint list**: keep one `WORKER_API` definition shared by `web/auth.py:46-48` and `web/jobs.py:433-435`.

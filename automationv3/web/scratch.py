@@ -20,16 +20,12 @@ from ..services import jobs as models
 from ..services.reports import store
 from ..services import client
 from .auth import mine_only, owner_email
-from .client_mode import CENTRAL, central, central_url, resolve_versions
+from .client_mode import CENTRAL, central_client, central_url, resolve_versions
+from .context import checked_in_root, reports_root as root, workspace_root
 from .db import get_db
-from .jobs import checked_in_root, workspace_root
 from .reports import run_status
 
 scratch = Blueprint("scratch", __name__)
-
-
-def root():
-    return current_app.config["REPORTS_PATH"]
 
 
 def files_root(workspace, files):
@@ -44,7 +40,7 @@ def render_page(errors=(), status=200):
     for run in runs:
         run["status"] = run_status(run)
     return render_template("scratch.html", runs=runs, errors=errors,
-                           central_scratch=central_url("/scratch/") if central() else None), status
+                           central_scratch=central_url("/scratch/") if central_client() else None), status
 
 
 @scratch.route("/", methods=["GET"])
@@ -69,7 +65,7 @@ def run():
     environment = form.get("environment")
     versions = {uut: form.get(f"version-{uut}") for uut in uut_types()
                 if form.get(f"version-{uut}")}
-    if central() is not None:
+    if central_client() is not None:
         try:
             versions = resolve_versions(versions)
         except client.ClientError as e:
@@ -95,8 +91,8 @@ def run_on_central(workspace, source, scripts, environment, variation, versions)
     go to the run there, or to its scratch page when there are several"""
     try:
         files = client.upload_files(source, scripts)
-        runs = central().scratch(workspace, files, scripts, environment=environment,
-                                 variation=variation, uut_versions=versions)
+        runs = central_client().scratch(workspace, files, scripts, environment=environment,
+                                        variation=variation, uut_versions=versions)
     except client.ClientError as e:
         return render_page(str(e).splitlines(), 400)
     if len(runs) == 1:

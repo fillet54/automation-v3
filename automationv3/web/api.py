@@ -36,10 +36,11 @@ from ..services import accounts
 from ..services import jobs as models
 from ..services.reports import store
 from ..services.requirements import models as requirement_models
-from .auth import (central, current_user, external_url, is_admin, owner_email,
+from ..services.workspace import safe_relative_path as safe_path
+from .auth import (accounts_enabled, current_user, external_url, is_admin, owner_email,
                    send_link, settings)
+from .context import live_environments
 from .db import get_db
-from .jobs import live_environments
 
 api = Blueprint("api", __name__)
 
@@ -62,7 +63,7 @@ def error(message, status=400):
 
 @api.route("/login/start", methods=["POST"])
 def login_start():
-    if not central():
+    if not accounts_enabled():
         return error("This server is single-user: it needs no sign-in", 404)
     data = body()
     device = (data.get("device") or "").strip() or "a client"
@@ -78,7 +79,7 @@ def login_start():
 
 @api.route("/login/poll", methods=["POST"])
 def login_poll():
-    if not central():
+    if not accounts_enabled():
         return error("This server is single-user: it needs no sign-in", 404)
     try:
         token = accounts.poll_device_login(get_db(), body().get("code"))
@@ -103,8 +104,8 @@ def logout():
 @api.route("/whoami", methods=["GET"])
 def whoami():
     user = current_user()
-    return jsonify({"email": user.email if central() else None, "admin": is_admin(),
-                    "central": central(), "server": socket.gethostname()})
+    return jsonify({"email": user.email if accounts_enabled() else None, "admin": is_admin(),
+                    "central": accounts_enabled(), "server": socket.gethostname()})
 
 
 # What the client shows and offers
@@ -172,14 +173,6 @@ def import_requirements():
 
 
 # Scratch runs from the client's worktree
-
-
-def safe_path(path):
-    """`path` if it is a relative path inside a folder, else None"""
-    parts = PurePosixPath(path or "")
-    if not path or parts.is_absolute() or ".." in parts.parts or "\\" in path:
-        return None
-    return str(parts)
 
 
 def write_files(folder, files):

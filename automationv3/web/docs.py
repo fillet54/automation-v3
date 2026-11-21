@@ -18,17 +18,23 @@ from werkzeug.security import safe_join
 REGIONS = ("top", "bottom")
 
 
-def serve(filename):
-    """A file of the docs build: an HTML page in the site's shell, anything else as it is"""
-    root = current_app.config.get("DOCS_PATH")
-    if not root:
-        abort(404)
+def serve_in_shell(root, filename, template="docs_shell.html", **values):
+    """Serve `filename` from `root`: HTML pages inside the site's shell,
+    everything else as-is."""
     if not filename.endswith(".html"):
         return send_from_directory(root, filename)
     path = safe_join(str(root), filename)
     if path is None or not Path(path).is_file():
         abort(404)
-    return in_shell(Path(path).read_text(encoding="utf-8"))
+    return in_shell(Path(path).read_text(encoding="utf-8"), template, **values)
+
+
+def serve(filename):
+    """A file of the docs build: an HTML page in the site's shell, anything else as it is"""
+    root = current_app.config.get("DOCS_PATH")
+    if not root:
+        abort(404)
+    return serve_in_shell(root, filename)
 
 
 def in_shell(page, template="docs_shell.html", **values):

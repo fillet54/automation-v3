@@ -27,35 +27,17 @@ from ..services.reports import export, store
 from ..services.requirements import links
 from ..services.requirements import models as requirement_models
 from ..services.reports import access
-from .auth import can_change, mine_only, owner_email
+from .auth import WORKER_API, can_change, mine_only, owner_email
+from .context import (  # noqa: F401
+    checked_in_root,
+    live_environments,
+    reports_root,
+    workspace_root,
+    workspaces,
+)
 from .db import get_db
 
 jobqueue = Blueprint("jobqueue", __name__)
-
-
-def reports_root():
-    return current_app.config["REPORTS_PATH"]
-
-
-def workspaces():
-    """The app's workspace source (services/workspace.py): WORKSPACES, else
-    the worktrees of WORKSPACE_PATH"""
-    config = current_app.config
-    if config.get("WORKSPACES") is None:
-        from .app import workspace_source
-        config["WORKSPACES"] = workspace_source(config)
-    return config["WORKSPACES"]
-
-
-def workspace_root(name):
-    """The scripts folder of branch `name` as the workspace shows it, or None"""
-    return workspaces().root(name) if name else None
-
-
-def checked_in_root(name):
-    """The scripts folder of branch `name` as checked in, which reports run; None
-    for an unknown branch or one with nothing committed"""
-    return workspaces().checked_in(name) if name else None
 
 
 def in_work(plan):
@@ -102,21 +84,6 @@ def list():
 
 
 # Pages
-
-
-def live_environments():
-    """environment -> the live workers offering it: this server's, and on
-    the local client the central server's too"""
-    since = models.utcnow() - models.MISSING_AFTER
-    live = {}
-    for worker in models.find_workers(get_db(), since=since):
-        for name in worker.environments:
-            live.setdefault(name, []).append(worker.url)
-    from .client_mode import central, central_environments
-    if central() is not None:
-        for name, urls in central_environments().items():
-            live.setdefault(name, []).extend(urls)
-    return live
 
 
 def target_report(args):
@@ -325,7 +292,7 @@ def foreign_worker(url):
 
 @jobqueue.before_request
 def check_worker():
-    if request.endpoint in WORKER_OPERATIONS:
+    if request.endpoint in WORKER_API:
         url = (request.args.get("worker_url") if request.method == "GET"
                else (request.get_json(silent=True) or {}).get("worker_url")
                or (request.get_json(silent=True) or {}).get("url"))
@@ -428,11 +395,6 @@ def complete_job(id):
         worker_token=token_name(),
     )
     return error or jsonify({"status": "done", "outcome": outcome})
-
-
-WORKER_OPERATIONS = {f"jobqueue.{f.__name__}" for f in (
-    register_worker, list_jobs, claim_job, start_job, release_job, post_events,
-    attach_file, complete_job)}
 
 
 @jobqueue.app_template_filter()

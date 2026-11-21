@@ -16,12 +16,12 @@ from ..framework.excerpt import excerpt
 from ..services import jobs
 from ..services.reports import store
 from ..services.requirements import models as requirement_models
-from ..services.workspace import FileNode, is_binary
+from ..services.workspace import FileNode, is_binary, safe_relative_path
 from .db import get_db
 from . import console, documents, editor
 from .auth import can_change
-from .client_mode import build_choices, central
-from .jobs import checked_in_root, live_environments, workspaces
+from .client_mode import build_choices, central_client
+from .context import checked_in_root, live_environments, workspaces
 
 
 def expanded_nodes(conn, workspace_id, root):
@@ -70,12 +70,8 @@ def requirement_context():
 def configured_context(root):
     """The requirements context named in the workspace's automation.json,
     unchecked; None for trunk"""
-    import json
-    path = Path(root) / requirement_models.WORKSPACE_CONFIG
-    try:
-        return json.loads(path.read_text()).get("requirements") or None
-    except (OSError, ValueError, AttributeError):
-        return None
+    context, _ = requirement_models.read_workspace_context(root)
+    return context
 
 
 def worktrees():
@@ -285,7 +281,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
                                  if not closure.diagnostics or e not in diagnostic_errors(closure)],
         diagnostics=diagnostics,
         builds=build_choices(closure.uuts)
-        if central() is not None and closure and not closure.errors else [],
+        if central_client() is not None and closure and not closure.errors else [],
     )
 
 
@@ -316,7 +312,7 @@ def snippet_list(id):
     snippets.rst from the root down to its folder"""
     ws = workspace_or_404(id)
     path = request.args.get("path") or ""
-    if ".." in path.split("/") or path.startswith("/"):
+    if path and safe_relative_path(path) is None:
         abort(400)
     # a file's folder: a new file need not be on disk yet
     return jsonify(snippets=[s.as_dict() for s in snippets.collect(ws.root, path or "x")])

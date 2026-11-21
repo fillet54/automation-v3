@@ -89,6 +89,25 @@ class BuildChoice:
         return self.build is not None and self.uploaded_as is None
 
 
+def matched_version(uut, build, server_versions):
+    """The server version id whose digest matches `build`, or None"""
+    if build is None:
+        return None
+    return next((v["id"] for v in server_versions.get(uut, [])
+                 if v["digest"] == build.digest), None)
+
+
+def ensure_uploaded(uut, build, server_versions=None, upload=None, on_upload=None):
+    """Return `build`'s version id on the server, uploading it first if needed"""
+    uploaded = matched_version(uut, build, server_versions or {})
+    if uploaded is not None:
+        return uploaded
+    if on_upload is not None:
+        on_upload(build)
+    version = (upload or uut_types()[uut]().upload_build)(build)
+    return version.id
+
+
 def choices(uuts, server_versions, config=None):
     """A BuildChoice for each of `uuts`, given the server's versions
     (uut -> [{id, digest}], oldest first). The options are: upload the
@@ -99,8 +118,7 @@ def choices(uuts, server_versions, config=None):
     for uut in uuts:
         versions = list(reversed(server_versions.get(uut, [])))
         build = find_local_build(uut, config)
-        uploaded = next((v["id"] for v in versions if build and v["digest"] == build.digest),
-                        None)
+        uploaded = matched_version(uut, build, server_versions)
         previous = last_used(uut)
         ids = [v["id"] for v in versions]
 
@@ -129,6 +147,5 @@ def resolve_versions(chosen, config=None, upload=None):
         build = find_local_build(uut, config)
         if build is None:
             raise ValueError(f"There's no local {uut} build to upload")
-        version = (upload or uut_types()[uut]().upload_build)(build)
-        resolved[uut] = version.id
+        resolved[uut] = ensure_uploaded(uut, build, upload=upload)
     return resolved

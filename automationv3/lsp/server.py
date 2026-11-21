@@ -56,6 +56,13 @@ class Server:
         self.scheme = "file"
         self.published = {}  # path -> the diagnostics last sent
 
+    def is_open(self, uri):
+        """True if `uri` is currently open in this language server session"""
+        if self.service is None:
+            return False
+        path = self.path(uri)
+        return path is not None and path in self.service.texts
+
     # Messages
 
     def handle(self, message):

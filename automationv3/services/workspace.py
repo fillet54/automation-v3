@@ -204,3 +204,39 @@ class LocalWorktrees:
     def refresh(self, name=None):
         """Worktrees are always current"""
         return None
+
+
+# File name validation and workspace mutations
+
+
+def valid_entry_name(name):
+    """True if `name` is a single non-hidden file or folder name"""
+    return bool(name) and "/" not in name and "\\" not in name and not name.startswith(".")
+
+
+def safe_relative_path(path):
+    """Normalized POSIX relative path inside a workspace, or None if invalid."""
+    if not path or "\\" in path:
+        return None
+    parts = PurePosixPath(path)
+    if parts.is_absolute() or ".." in parts.parts:
+        return None
+    return str(parts)
+
+
+def write_file(path, text):
+    """Write `text` atomically to `path`."""
+    from .util import atomic_write
+    atomic_write(path, text)
+
+
+def move_file(source, target):
+    Path(source).rename(target)
+
+
+def delete_file(path):
+    Path(path).unlink()
+
+
+def create_folder(path):
+    Path(path).mkdir()

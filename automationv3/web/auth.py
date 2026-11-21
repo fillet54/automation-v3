@@ -52,7 +52,7 @@ def settings():
     return current_app.config["SETTINGS"]
 
 
-def central():
+def accounts_enabled():
     """Accounts are on: the settings have [auth]"""
     return settings().central
 
@@ -66,7 +66,7 @@ def is_admin(user=None):
     user = user or current_user()
     if user is None:
         return False
-    if not central():
+    if not accounts_enabled():
         return True
     return settings().auth.is_admin(user.email)
 
@@ -75,13 +75,13 @@ def owner_email():
     """What to record as the owner of something made now: the user's
     email, or None in single-user mode (nobody owns anything)"""
     user = current_user()
-    return user.email if central() and user is not None else None
+    return user.email if accounts_enabled() and user is not None else None
 
 
 def can_change(report):
     """May the current user change `report`? (see services/reports/access.py)"""
     from ..services.reports import access
-    if not central():
+    if not accounts_enabled():
         return True
     user = current_user()
     return user is not None and access.can_change(report, user.email, is_admin(user))
@@ -90,7 +90,7 @@ def can_change(report):
 def everyone():
     """Is the page showing everyone's things (?who=everyone), not just the
     current user's? Always, on a single-user server."""
-    return not central() or request.args.get("who") == "everyone"
+    return not accounts_enabled() or request.args.get("who") == "everyone"
 
 
 def mine_only():
@@ -113,7 +113,7 @@ def wants_json():
 def load_user():
     """Before each request: who is asking, and may they?"""
     g.user, g.api_token, g.worker_token = None, None, None
-    if not central():
+    if not accounts_enabled():
         g.user = LOCAL_USER
         return None
     conn = get_db()
@@ -146,7 +146,7 @@ def load_user():
 def keep_cookie(response):
     """After each request: a used session's cookie lives as long again"""
     token = g.get("session_token")
-    if central() and token and g.get("user") is not None:
+    if accounts_enabled() and token and g.get("user") is not None:
         set_cookie(response, token)
     return response
 
@@ -171,13 +171,18 @@ def admin_required(view):
     return check
 
 
-def safe_next(target):
-    """`target` if it is a path on this site, else the home page"""
+def safe_next(target, fallback=None):
+    """`target` if it is a path on this site, else `fallback` (default: home page)"""
     parts = urlsplit(target or "")
     if not target or parts.scheme or parts.netloc or not target.startswith("/") \
             or target.startswith("//"):
-        return url_for("index")
+        return fallback if fallback is not None else url_for("index")
     return target
+
+
+def base_url():
+    """The server's external base URL: settings().base_url, else this request's host URL"""
+    return settings().base_url or request.host_url.rstrip("/")
 
 
 def external_url(endpoint, **values):
@@ -206,10 +211,10 @@ def init_app(app):
     def who():
         user = current_user()
         shown = None
-        if central() and user is not None:
+        if accounts_enabled() and user is not None:
             shown = {"name": user.email, "role": "Admin" if is_admin(user) else None,
                      "initials": user.email[:2].upper()}
-        return {"current_user": user, "ui_user": shown, "central": central(),
+        return {"current_user": user, "ui_user": shown, "central": accounts_enabled(),
                 "is_admin": is_admin(user) if user else False}
 
 
@@ -218,7 +223,7 @@ def init_app(app):
 
 @auth.route("/auth/login", methods=["GET", "POST"])
 def login():
-    if not central():
+    if not accounts_enabled():
         return redirect(url_for("index"))
     next = safe_next(request.values.get("next"))
     if request.method == "GET":
@@ -240,7 +245,7 @@ def link(token):
     """A sign-in link. Opening it only shows a button (mail scanners open
     links; they don't press buttons); pressing it signs in or approves
     the device."""
-    if not central():
+    if not accounts_enabled():
         return redirect(url_for("index"))
     conn = get_db()
     next = safe_next(request.values.get("next"))
@@ -264,7 +269,7 @@ def link(token):
 
 @auth.route("/auth/logout", methods=["POST"])
 def logout():
-    if central():
+    if accounts_enabled():
         accounts.end_session(get_db(), request.cookies.get(COOKIE))
     g.session_token = None
     response = redirect(url_for("auth.signed_out"))
@@ -283,14 +288,14 @@ def signed_out():
 def account():
     user = current_user()
     devices = accounts.find_tokens(get_db(), accounts.USER_TOKEN, user=user) \
-        if central() else []
+        if accounts_enabled() else []
     return render_template("auth/account.html", user=user, devices=devices,
                            hostname=socket.gethostname())
 
 
 @auth.route("/account/devices/<int:id>/revoke", methods=["POST"])
 def revoke_device(id):
-    if not central():
+    if not accounts_enabled():
         abort(404)
     accounts.revoke_token(get_db(), id, user=current_user())
     return redirect(url_for("auth.account"))
@@ -298,11 +303,11 @@ def revoke_device(id):
 
 def render_admin(new_token=None, error=None, status=200):
     conn = get_db()
-    users = accounts.find_users(conn) if central() else []
+    users = accounts.find_users(conn) if accounts_enabled() else []
     return render_template(
         "auth/admin.html",
         users=[(u, is_admin(u)) for u in users],
-        admins=settings().auth.admins if central() else (),
+        admins=settings().auth.admins if accounts_enabled() else (),
         workers=accounts.find_tokens(conn, accounts.WORKER_TOKEN),
         new_token=new_token,
         error=error,
@@ -319,7 +324,7 @@ def admin():
 @admin_required
 def create_worker_token():
     """A new worker token, shown once"""
-    if not central():
+    if not accounts_enabled():
         abort(404)
     name = request.form.get("name", "")
     try:
@@ -333,7 +338,7 @@ def create_worker_token():
 @auth.route("/admin/workers/<int:id>/revoke", methods=["POST"])
 @admin_required
 def revoke_worker_token(id):
-    if not central():
+    if not accounts_enabled():
         abort(404)
     accounts.revoke_token(get_db(), id)
     return redirect(url_for("auth.admin"))

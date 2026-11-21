@@ -14,7 +14,8 @@ from markupsafe import Markup
 from . import editor
 from ..services import jobs
 from ..services.requirements import links, models, render, rst_source, suspects, textdiff
-from .auth import admin_required, can_change, owner_email
+from .auth import admin_required, can_change, owner_email, safe_next
+from .context import cache_dir
 from .db import get_db
 
 requirements = Blueprint("requirements", __name__)
@@ -24,10 +25,11 @@ requirements = Blueprint("requirements", __name__)
 def on_the_central_server():
     """The local client keeps no requirements of its own: its
     requirement pages are the central server's"""
-    from .client_mode import central
-    if central() is not None:
+    from .client_mode import central_client
+    client = central_client()
+    if client is not None:
         query = request.query_string.decode()
-        return redirect(central().server + request.path + (f"?{query}" if query else ""))
+        return redirect(client.server + request.path + (f"?{query}" if query else ""))
 
 FACET_LABELS = {"text": "text", "metadata": "attributes", "links": "links",
                 "section": "moved", "spec": "spec", "added": "added", "removed": "removed"}
@@ -225,9 +227,8 @@ def review():
             suspects.review_trace(conn, form["child"], form["parent"], by=owner_email())
     except (KeyError, models.ContextError):
         abort(400)
-    back = form.get("next") or ""
-    return redirect(back if back.startswith("/") and not back.startswith("//")
-                    else url_for("requirements.suspect_links"))
+    return redirect(safe_next(form.get("next"),
+                              fallback=url_for("requirements.suspect_links")))
 
 
 @requirements.route("/changes", methods=["GET"])
@@ -300,13 +301,7 @@ def upload_import():
 def staging_root():
     """Where uploads wait to be imported: STAGING_PATH, else uploads/
     beside the database"""
-    config = current_app.config
-    if not config.get("STAGING_PATH"):
-        db = config.get("DB_PATH")
-        config["STAGING_PATH"] = (Path(db).resolve().parent / "uploads"
-                                  if db and str(db) != ":memory:"
-                                  else Path(tempfile.mkdtemp(prefix="uploads-")))
-    return config["STAGING_PATH"]
+    return cache_dir(current_app.config, "STAGING_PATH", "uploads")
 
 
 ROLE_CHOICES = [("", "Ignore"), ("id", "Id"), ("text", "Text"), ("satisfies", "Satisfies"),
@@ -474,13 +469,7 @@ def sheet_import_commit(token):
 def spec_cache():
     """Where built specs are kept: SPEC_CACHE_PATH, else spec-builds/ beside
     the database"""
-    config = current_app.config
-    if not config.get("SPEC_CACHE_PATH"):
-        db = config.get("DB_PATH")
-        config["SPEC_CACHE_PATH"] = (Path(db).resolve().parent / "spec-builds"
-                                     if db and db != ":memory:"
-                                     else Path(tempfile.mkdtemp(prefix="spec-builds-")))
-    return config["SPEC_CACHE_PATH"]
+    return cache_dir(current_app.config, "SPEC_CACHE_PATH", "spec-builds")
 
 
 REQ_LINK = re.compile(r'href="@req/([^"#]+)"')

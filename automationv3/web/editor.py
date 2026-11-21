@@ -33,9 +33,11 @@ from flask import abort, current_app, jsonify, request
 from ..framework import cards as card_model
 from ..framework import source
 from ..framework.cards import Card, PROSE, RVT, SOURCE, VARIANT
+from ..services.workspace import (create_folder, delete_file, move_file,
+                                  valid_entry_name, write_file)
 from . import documents
+from .context import workspaces
 from .db import get_db
-from .jobs import workspaces
 
 FIELDS = ("kind", "source", "index", "text", "title", "definitions", "table",
           "variations", "code")
@@ -56,7 +58,7 @@ def editable():
     """Files are edited where they are worktrees on this machine, and
     never on the central server"""
     from . import auth
-    return bool(getattr(workspaces(), "editable", True)) and not auth.central()
+    return bool(getattr(workspaces(), "editable", True)) and not auth.accounts_enabled()
 
 
 def read(path):
@@ -221,8 +223,7 @@ def sent_text(body):
 
 def write(path, text):
     """Replace the file at `path` with `text`, all or nothing"""
-    from ..services.util import atomic_write
-    atomic_write(path, text)
+    write_file(path, text)
 
 
 # New files
@@ -375,7 +376,7 @@ class PageSession:
         top = {id(card) for card in sent}
         self.places[path] = [(place, id(card) in top)
                              for card, place in zip(card_model.walk(sent), places)]
-        method = "textDocument/didChange" if path in self.server.service.texts else "textDocument/didOpen"
+        method = "textDocument/didChange" if self.server.is_open(self.uri(path)) else "textDocument/didOpen"
         params = ({"textDocument": {"uri": self.uri(path)}, "contentChanges": [{"text": text}]}
                   if method.endswith("didChange")
                   else {"textDocument": {"uri": self.uri(path), "languageId": "rst", "text": text}})
@@ -548,7 +549,7 @@ def register(bp, workspace_or_404, node_or_404):
         if not title:
             refuse("Give it a title.", 400)
         name = str(data.get("name") or "").strip() or file_name(title)
-        if "/" in name or "\\" in name or name.startswith("."):
+        if not valid_entry_name(name):
             refuse("A file name can't have a folder in it, or start with a dot.", 400)
         if not name.endswith(".rst"):
             name += ".rst"
@@ -602,7 +603,7 @@ def register(bp, workspace_or_404, node_or_404):
         if source.is_root or not source.is_file():
             abort(404)
         name = str(data.get("name") or "").strip()
-        if not name or "/" in name or "\\" in name or name.startswith("."):
+        if not valid_entry_name(name):
             refuse("Give it a file name, without a folder in it.", 400)
         folder = node_or_404(ws, str(data.get("folder") or ""))
         if not folder.is_dir():
@@ -610,7 +611,7 @@ def register(bp, workspace_or_404, node_or_404):
         node = node_or_404(ws, str(folder.relative_path / name))
         if node.path.exists():
             refuse(f"{node.relative_path} is already there.")
-        source.path.rename(node.path)
+        move_file(source.path, node.path)
         expand_to(get_db(), ws.id, node.relative_path)
         current_app.logger.info("moved %s to %s", source.path, node.path)
         return jsonify(path=str(node.relative_path))
@@ -621,7 +622,7 @@ def register(bp, workspace_or_404, node_or_404):
         node = node_or_404(ws, str(body().get("path") or ""))
         if node.is_root or not node.is_file():
             abort(404)
-        node.path.unlink()
+        delete_file(node.path)
         current_app.logger.info("deleted %s", node.path)
         return jsonify(ok=True)
 
@@ -630,7 +631,7 @@ def register(bp, workspace_or_404, node_or_404):
         """A new folder, with a core.rst of its own if asked"""
         ws, data = workspace(id), body()
         name = str(data.get("name") or "").strip()
-        if not name or "/" in name or "\\" in name or name.startswith("."):
+        if not valid_entry_name(name):
             refuse("Give the folder a name, without a folder in it.", 400)
         parent = node_or_404(ws, str(data.get("folder") or ""))
         if not parent.is_dir():
@@ -638,7 +639,7 @@ def register(bp, workspace_or_404, node_or_404):
         node = node_or_404(ws, str(parent.relative_path / name))
         if node.path.exists():
             refuse(f"{node.relative_path} is already there.")
-        node.path.mkdir()
+        create_folder(node.path)
         if data.get("core"):
             write(node.path / "core.rst",
                   titled(f"{name} definitions", over=False) + "\n\n.. rvt::\n   :definitions:\n")

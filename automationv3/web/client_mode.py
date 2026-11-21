@@ -10,6 +10,7 @@ results stay here. Queue opens the central server's dialog for the
 branch, which runs what was pushed.
 """
 
+import threading
 import time
 from urllib.parse import urlencode
 
@@ -19,6 +20,7 @@ from ..services.client import ClientError
 
 # How long the central server's live environments are kept
 ENVIRONMENTS_TTL = 15
+_cache_lock = threading.Lock()
 
 CENTRAL_NAV = {"requirements": "/requirements/", "queue": "/runner/",
                "reports": "/reports/", "workers": "/runner/workers"}
@@ -26,7 +28,7 @@ CENTRAL_NAV = {"requirements": "/requirements/", "queue": "/runner/",
 HERE, CENTRAL = "local", "central"
 
 
-def central():
+def central_client():
     """The CentralClient, when this app is the local client"""
     return current_app.config.get("CENTRAL")
 
@@ -34,7 +36,7 @@ def central():
 def central_url(path, **params):
     query = urlencode([(k, v) for k, v in params.items() if v not in (None, "")],
                       doseq=True)
-    return central().server + path + (f"?{query}" if query else "")
+    return central_client().server + path + (f"?{query}" if query else "")
 
 
 def local_worker():
@@ -44,14 +46,16 @@ def local_worker():
 def central_environments():
     """environment -> live worker urls on the central server ({} if it
     can't be reached), kept for a few seconds"""
-    cached = current_app.config.get("_CENTRAL_ENVIRONMENTS")
-    if cached and time.monotonic() - cached[0] < ENVIRONMENTS_TTL:
-        return cached[1]
+    with _cache_lock:
+        cached = current_app.config.get("_CENTRAL_ENVIRONMENTS")
+        if cached and time.monotonic() - cached[0] < ENVIRONMENTS_TTL:
+            return cached[1]
     try:
-        found = central().environments()
+        found = central_client().environments()
     except ClientError:
         found = {}
-    current_app.config["_CENTRAL_ENVIRONMENTS"] = (time.monotonic(), found)
+    with _cache_lock:
+        current_app.config["_CENTRAL_ENVIRONMENTS"] = (time.monotonic(), found)
     return found
 
 
@@ -67,14 +71,17 @@ def init_app(app):
 def central_uuts(fresh=False):
     """uut -> the central server's versions ([{id, digest}], oldest
     first; {} if it can't be reached), kept for a few seconds"""
-    cached = current_app.config.get("_CENTRAL_UUTS")
-    if not fresh and cached and time.monotonic() - cached[0] < ENVIRONMENTS_TTL:
-        return cached[1]
+    if not fresh:
+        with _cache_lock:
+            cached = current_app.config.get("_CENTRAL_UUTS")
+            if cached and time.monotonic() - cached[0] < ENVIRONMENTS_TTL:
+                return cached[1]
     try:
-        found = central().uuts()
+        found = central_client().uuts()
     except ClientError:
         found = {}
-    current_app.config["_CENTRAL_UUTS"] = (time.monotonic(), found)
+    with _cache_lock:
+        current_app.config["_CENTRAL_UUTS"] = (time.monotonic(), found)
     return found
 
 
