@@ -48,7 +48,14 @@ _directives_lock = threading.RLock()
 @contextlib.contextmanager
 def local_directives(found):
     """Parse with the directives `found` (name -> Directive) for the
-    duration, then put docutils' own registry back as it was"""
+    duration, then put docutils' own registry back as it was.
+
+    docutils has one registry per process, so a parse on another thread
+    meanwhile (one not in local_directives: the lock only orders these)
+    sees these names too. Accepted: the window is one short parse, the
+    names are spec-only ones nothing else uses, and seeing one just parses
+    it instead of reporting "Unknown directive". Revisit with a
+    per-thread overlay if a race ever shows up."""
     with _directives_lock:
         saved = {name: directives._directives.get(name) for name in found}
         directives._directives.update(found)
