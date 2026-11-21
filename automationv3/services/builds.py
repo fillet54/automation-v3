@@ -90,10 +90,11 @@ class BuildChoice:
 
 
 def matched_version(uut, build, server_versions):
-    """The server version id whose digest matches `build`, or None"""
+    """The server version id whose digest matches `build`, or None. The
+    newest, if the same build was uploaded more than once."""
     if build is None:
         return None
-    return next((v["id"] for v in server_versions.get(uut, [])
+    return next((v["id"] for v in reversed(server_versions.get(uut, []))
                  if v["digest"] == build.digest), None)
 
 

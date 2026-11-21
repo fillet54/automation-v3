@@ -163,3 +163,13 @@ class TestUploadedBuildsAreForScratch(BuildsTest):
                              scratch=True)
         self.assertEqual(scratch.errors, [])
         self.assertEqual(scratch.uut_versions["lm"]["id"], build.id)
+
+
+class TestMatchedVersion(unittest.TestCase):
+    def test_the_newest_upload_of_the_same_bits_wins(self):
+        from automationv3.framework.uut import LocalBuild
+        build = LocalBuild("lm", Path("/b"), "LUM100", "d1")
+        server = {"lm": [{"id": "LUM098", "digest": "d1"}, {"id": "LUM099", "digest": "d0"},
+                         {"id": "LUM100", "digest": "d1"}]}  # oldest first
+        self.assertEqual(builds.matched_version("lm", build, server), "LUM100")
+        self.assertIsNone(builds.matched_version("lm", None, server))
