@@ -39,6 +39,13 @@ class TestCentralSignIn(unittest.TestCase):
         self.assertEqual(api.status_code, 401)
         self.assertEqual(self.http.get("/auth/login").status_code, 200)
 
+    def test_the_login_page_is_styled_signed_out(self):
+        page = self.http.get("/auth/login").get_data(as_text=True)
+        self.assertIn('href="/static/css/automation.css"', page)
+        css = self.http.get("/static/css/automation.css")
+        self.assertEqual(css.status_code, 200)
+        css.close()
+
     def test_sign_in_by_link(self):
         with sent_links() as sent:
             page = self.http.post("/auth/login", data={"email": "Ann@Example.com",
