@@ -64,6 +64,7 @@ class BlockResult:
     trace: list = field(default_factory=list)
     placeholders: int = 0
     exception: Exception = None
+    returned: bool = False
 
     def __bool__(self):
         return bool(self.passed)

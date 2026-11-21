@@ -1,5 +1,6 @@
 """Shared service primitives: UTC timestamps, atomic writes, and git helpers."""
 
+import functools
 import io
 import json
 import os
@@ -9,6 +10,10 @@ import tarfile
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .. import __version__
+
+PACKAGE = Path(__file__).resolve().parents[1]
 
 
 # UTC timestamps
@@ -100,3 +105,18 @@ def extract_tar_atomic(archive, out, cache, prefix="extract-"):
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return out
+
+
+@functools.lru_cache(maxsize=1)
+def framework_fingerprint():
+    """The framework's version; for a git checkout, its commit and
+    whether it has uncommitted changes (a dev install)"""
+    try:
+        head = git(PACKAGE, "rev-parse", "HEAD", timeout=10).strip()
+    except (OSError, subprocess.SubprocessError):
+        return {"version": __version__, "git": None, "dev": False}
+    try:
+        dirty = git(PACKAGE, "status", "--porcelain", "--untracked-files=no", timeout=10).strip()
+    except (OSError, subprocess.SubprocessError):
+        dirty = ""
+    return {"version": __version__, "git": head, "dev": bool(dirty)}

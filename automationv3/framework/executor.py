@@ -263,8 +263,15 @@ def failure_details(result):
     """What a failed step's report says about why and where"""
     if result:
         return {}
-    return {"message": result.message or "",
-            "trace": serialize_trace(result.trace)}
+    from .block import AmbiguousBlock, NoBlock
+    exc = result.exception
+    details = {"message": result.message or "",
+               "trace": serialize_trace(result.trace)}
+    if isinstance(exc, context.Stopped):
+        details["stopped"] = True
+    if isinstance(exc, (lisp.UnboundName, NoBlock, AmbiguousBlock)):
+        details["plain"] = True
+    return details
 
 
 def define(form, env, observer, index):
@@ -346,8 +353,10 @@ def run_step(form, env, observer, index, row=None):
         result.stdout = output + ("\n" + result.stdout if result.stdout else "")
     if runtime.placeholders:
         details["placeholders"] = runtime.placeholders
-    if getattr(result, "data", None) is not None:
+    if result.data is not None:
         details["data"] = json_data(result.data)
+    if result.returned:
+        details["returned"] = True
     observer.on_step_end(passed=bool(result), error=result.error,
                          stdout=result.stdout, stderr=result.stderr,
                          duration=elapsed(started), **failure_details(result),

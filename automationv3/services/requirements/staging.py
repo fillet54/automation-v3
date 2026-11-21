@@ -14,8 +14,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 
-from ...framework.requirement import Requirement
-from . import models
+from . import models, store
 
 KEEP_SECONDS = 24 * 3600
 TOKEN = re.compile(r"\A[A-Za-z0-9_-]{8,64}\Z")
@@ -100,20 +99,17 @@ class Preview:
 
 def as_requirement(spec, r):
     """A framework Requirement for one of an export.Spec's requirements"""
-    subsystem = r.attributes.get("subsystem")
-    return Requirement(id=r.id, text=r.text, spec=spec,
-                       subsystem=", ".join(subsystem) if isinstance(subsystem, list)
-                       else subsystem,
-                       attributes=dict(r.attributes), satisfies=tuple(r.satisfies),
-                       section=tuple(r.section))
+    return models.build_requirement(spec, r.id, r.text, r.attributes, r.satisfies, r.section,
+                                    version=r.hash, text_hash=r.text_hash)
 
 
-def same(before, after):
-    from .rst_source import plain_text
-    return (plain_text(before.text) == plain_text(after.text)
-            and before.attributes == after.attributes
-            and tuple(before.satisfies) == tuple(after.satisfies)
-            and tuple(before.section) == tuple(after.section))
+def _hashed_facets(r):
+    return {
+        "text_hash": r.text_hash,
+        "metadata_hash": r.metadata_hash,
+        "links_hash": r.links_hash,
+        "section_hash": r.section_hash,
+    }
 
 
 def preview(conn, found):
@@ -122,27 +118,28 @@ def preview(conn, found):
     out = Preview(spec.label)
     context = f"{spec.key}@{spec.baseline}" if spec.baseline else "trunk"
     try:
-        known = spec.key in models.resolve(conn, context)
+        resolved = models.resolve(conn, context)
+        known = spec.key in resolved
     except models.ContextError:
-        known = False  # a new baseline
+        resolved, known = {}, False  # a new baseline
     if spec.baseline and not known:
-        trunk = spec.key in models.resolve(conn, "trunk")
-        context, known = ("trunk", True) if trunk else (context, False)
-    incoming = [as_requirement(spec.key, r) for r in spec.requirements]
+        resolved = models.resolve(conn, "trunk")
+        context, known = ("trunk", True) if spec.key in resolved else (context, False)
+    incoming = [(r, as_requirement(spec.key, r)) for r in spec.requirements]
     if not known:
-        out.added = incoming
+        out.added = [req for _, req in incoming]
         return out
     out.against = context
-    current = {r.id: r for r in models.find_all(conn, context=context, spec=spec.key)}
-    for r in incoming:
-        before = current.pop(r.id, None)
-        if before is None:
-            out.added.append(r)
-        elif same(before, r):
+    current_rows = store.contents(conn, resolved[spec.key])
+    for raw, req in incoming:
+        before_row = current_rows.pop(req.id, None)
+        if before_row is None:
+            out.added.append(req)
+        elif not store.facet_changes(before_row, _hashed_facets(raw)):
             out.unchanged += 1
         else:
-            out.changed.append((before, r))
-    out.removed = list(current.values())
+            out.changed.append((models.as_requirement(spec.key, before_row), req))
+    out.removed = [models.as_requirement(spec.key, row) for row in current_rows.values()]
     if spec.baseline and context != "trunk" and out.changes:
         out.refused = (f"{spec.label} is already imported with other content: a baseline "
                        "never changes. Import it as a new baseline, or as trunk")

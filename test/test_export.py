@@ -11,6 +11,7 @@ from io import StringIO
 from pathlib import Path
 
 from automationv3 import cli
+from automationv3.framework.planning import build_plan
 from automationv3.framework.requirement import Requirement
 from automationv3.services import jobs as models
 from automationv3.documents import core, template
@@ -363,7 +364,7 @@ class TestFrozenQueue(QueueTestCase):
         with self.assertRaises(models.QueueError) as e:
             models.rerun(self.conn, self.root, report_id, run_id)
         self.assertIn("frozen", e.exception.errors[0])
-        plan = models.build_plan("", self.rvts, ["b.rst"])
+        plan = build_plan("", self.rvts, ["b.rst"])
         with self.assertRaises(models.QueueError):
             models.add_plan(self.conn, self.root, report_id, plan)
         self.assertEqual(len(store.list_runs(self.root, report_id)), 1)
@@ -376,7 +377,7 @@ class TestFrozenQueue(QueueTestCase):
     def test_adding_requirements_keeps_their_text(self):
         requirement_models.insert(self.conn, [Requirement("R-1", "Shall pass.", "X")])
         report_id = models.create_report(self.root, "")
-        plan = models.build_plan("", self.rvts, ["a.rst"])
+        plan = build_plan("", self.rvts, ["a.rst"])
         models.add_plan(self.conn, self.root, report_id, plan,
                         {"R-1": ["a.rst"], "R-2": ["a.rst"]})
         snapshots = store.load_report(self.root, report_id)["requirement_snapshots"]

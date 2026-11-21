@@ -239,13 +239,10 @@ def read(data, name, spec, baseline=None, title=None, level="software", parents=
 
 
 def check_spec(name, spec, level, parents):
-    if not spec or not export.KEY.match(spec):
-        raise ExportError(f"{name}: name the spec it is, e.g. SRS "
-                          f"(letters, digits, '-', '_' and '.')")
-    if level not in export.LEVELS:
-        raise ExportError(f"{name}: level {level!r} is not one of {', '.join(export.LEVELS)}")
-    if level == "system" and any(p and p.strip() for p in parents):
-        raise ExportError(f"{name}: a system spec has no parents")
+    export.validate_spec(
+        name, spec, level, parents,
+        key_error=f"{name}: name the spec it is, e.g. SRS (letters, digits, '-', '_' and '.')",
+    )
 
 
 def as_export(name, rows, attributes, spec, baseline, title, level, parents, source):

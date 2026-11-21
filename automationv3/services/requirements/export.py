@@ -145,17 +145,22 @@ def read(path):
     return Export(path, manifest, specs, sets, when)
 
 
-def read_spec(path, entry):
-    key = entry.get("key") or ""
-    if not KEY.match(key):
-        raise ExportError(f"spec key {key!r}: letters, digits, '-', '_' and '.' only")
-    label = f"{key}@{entry['baseline']}" if entry.get("baseline") else key
-    level = entry.get("level")
+def validate_spec(label, key, level, parents, key_error=None):
+    """Validate a spec's key, level and parents. Raises ExportError."""
+    if not key or not KEY.match(key):
+        raise ExportError(key_error or f"spec key {key!r}: letters, digits, '-', '_' and '.' only")
     if level not in LEVELS:
         raise ExportError(f"{label}: level {level!r} is not one of {', '.join(LEVELS)}")
-    parents = entry.get("parents") or []
-    if level == "system" and parents:
+    if level == "system" and any(p and p.strip() for p in (parents or ())):
         raise ExportError(f"{label}: a system spec has no parents")
+
+
+def read_spec(path, entry):
+    key = entry.get("key") or ""
+    label = f"{key}@{entry['baseline']}" if entry.get("baseline") else key
+    level = entry.get("level")
+    parents = entry.get("parents") or []
+    validate_spec(label, key, level, parents)
     attributes = check_schema(label, entry.get("attributes") or {})
     root = path / (entry.get("root") or key)
     if not (root / "index.rst").is_file():
@@ -241,15 +246,20 @@ def hashed(p, schema):
                      "satisfies": list(p.satisfies), "section": list(p.section)}))
 
 
+def find_duplicate_ids(labeled_ids):
+    """Problems for ids appearing in more than one (label, ids) pair"""
+    owner, problems = {}, []
+    for label, ids in labeled_ids:
+        for id in ids:
+            if id in owner and owner[id] != label:
+                problems.append(f"requirement {id} is in both {owner[id]} and {label}")
+            owner.setdefault(id, label)
+    return problems
+
+
 def duplicate_ids(specs):
     """Problems for ids in more than one of `specs`"""
-    owner, problems = {}, []
-    for spec in specs:
-        for r in spec.requirements:
-            if r.id in owner and owner[r.id] != spec.label:
-                problems.append(f"requirement {r.id} is in both {owner[r.id]} and {spec.label}")
-            owner.setdefault(r.id, spec.label)
-    return problems
+    return find_duplicate_ids([(spec.label, (r.id for r in spec.requirements)) for spec in specs])
 
 
 def read_zip(data, name="upload.zip"):

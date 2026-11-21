@@ -144,45 +144,66 @@ def request_sign_in(conn, auth, email, now=None):
     return create_link(conn, check_allowed(auth, email), auth.link_minutes, now=now)
 
 
+@dataclass(frozen=True)
+class LoginLink:
+    token_hash: str
+    email: str
+    expires_at: str
+    used_at: str = None
+    device_code_hash: str = None
+
+
+@dataclass(frozen=True)
+class DeviceLogin:
+    code_hash: str
+    name: str
+    approved_user: int = None
+    expires_at: str = ""
+
+
 def pending_link(conn, token, now=None):
-    """The link's row if it can still be used, else None"""
+    """The pending LoginLink if it can still be used, else None"""
     now = now or utcnow()
     row = conn.execute("SELECT * FROM login_links WHERE token_hash = ?",
                        (digest(token or ""),)).fetchone()
     if row is None or row["used_at"] or parse(row["expires_at"]) <= now:
         return None
-    return row
+    return LoginLink(row["token_hash"], row["email"], row["expires_at"],
+                     row["used_at"], row["device_code_hash"])
 
 
-def link_device(conn, row):
-    """The device login a link approves (its row), or None"""
-    if not row["device_code_hash"]:
+def link_device(conn, link):
+    """The DeviceLogin a link approves, or None"""
+    if not link.device_code_hash:
         return None
-    return conn.execute("SELECT * FROM device_logins WHERE code_hash = ?",
-                        (row["device_code_hash"],)).fetchone()
+    row = conn.execute("SELECT * FROM device_logins WHERE code_hash = ?",
+                       (link.device_code_hash,)).fetchone()
+    if row is None:
+        return None
+    return DeviceLogin(row["code_hash"], row["name"], row["approved_user"], row["expires_at"])
 
 
 def use_link(conn, token, now=None):
     """Use a link once. Returns (user, device name or None). Raises
     AccountError if it is unknown, used or expired."""
     now = now or utcnow()
-    row = pending_link(conn, token, now)
-    if row is None:
+    link = pending_link(conn, token, now)
+    if link is None:
         raise AccountError("That sign-in link has expired or was already used: "
                            "ask for a new one")
     with conn:
         used = conn.execute("UPDATE login_links SET used_at = ? "
                             "WHERE token_hash = ? AND used_at IS NULL",
-                            (iso(now), row["token_hash"])).rowcount
+                            (iso(now), link.token_hash)).rowcount
     if not used:  # someone else used it in between
         raise AccountError("That sign-in link was already used: ask for a new one")
-    user = ensure_user(conn, row["email"], now)
-    device = link_device(conn, row)
+    user = ensure_user(conn, link.email, now)
+    device = link_device(conn, link)
     if device is not None:
         with conn:
             conn.execute("UPDATE device_logins SET approved_user = ? WHERE code_hash = ?",
-                         (user.id, device["code_hash"]))
-        return user, device["name"]
+                         (user.id, device.code_hash))
+        return user, device.name
     return user, None
 
 

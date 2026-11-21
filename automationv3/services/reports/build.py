@@ -298,7 +298,7 @@ def start(root, report_id, base_url=""):
 def framework():
     """What built it: automation-v3's version (and git commit, when it
     runs from a checkout)"""
-    from ..worker.host import framework_fingerprint
+    from ..util import framework_fingerprint
     try:
         return framework_fingerprint()
     except Exception:

@@ -289,18 +289,13 @@ def expand_to(conn, workspace_id, relative, itself=False):
 
 def open_tabs(conn, workspace_id):
     """([path], the active path or None), in tab order"""
-    rows = conn.execute("SELECT path, active FROM open_tabs WHERE workspace_id = ? "
-                        "ORDER BY position", (workspace_id,)).fetchall()
-    return [r[0] for r in rows], next((r[0] for r in rows if r[1]), None)
+    from ..services.database import open_tabs as _open_tabs
+    return _open_tabs(conn, workspace_id)
 
 
 def set_open_tabs(conn, workspace_id, paths, active):
-    paths = list(dict.fromkeys(p for p in paths if isinstance(p, str) and p))[:MAX_TABS]
-    with conn:
-        conn.execute("DELETE FROM open_tabs WHERE workspace_id = ?", (workspace_id,))
-        conn.executemany(
-            "INSERT INTO open_tabs(workspace_id, path, position, active) VALUES (?, ?, ?, ?)",
-            [(workspace_id, p, n, int(p == active)) for n, p in enumerate(paths)])
+    from ..services.database import set_open_tabs as _set_open_tabs
+    _set_open_tabs(conn, workspace_id, paths, active, max_tabs=MAX_TABS)
 
 
 # The language server's sessions: one per page showing a workspace

@@ -451,7 +451,7 @@ def _run_statement(form, env, runtime):
             return failure(message, stderr, inner.error, inner.stdout,
                            lisp.trace(failed))
         stdout = f"returned {text(value)}" if value is not None else ""
-        return BlockResult(True, stdout=stdout, value=value)
+        return BlockResult(True, stdout=stdout, value=value, returned=value is not None)
     except Exception as e:
         result = failure(error_line(e), traceback.format_exc(), trace=lisp.trace(e))
         result.exception = e

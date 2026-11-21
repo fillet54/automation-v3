@@ -42,8 +42,8 @@ from pathlib import Path
 
 from ...framework import clock as clocks
 from ...framework import closure as closures
-from ...framework import context, edn, executor
-from ...framework.language import is_definition, is_step
+from ...framework import context, edn, executor, source
+from ...framework.language import PRECONDITION, head, is_definition, is_step, parse_precondition
 from .worker import handles, install_uuts, versions_installed
 
 CARD = "<card>"  # the path a card's statements are read as
@@ -63,13 +63,17 @@ def short(text, width=SHORT):
     return one if len(one) <= width else one[:width - 1] + "…"
 
 
-PRECONDITION_TEXT = re.compile(r'^\(Precondition\s+"((?:[^"\\]|\\.)*)"')
-
-
 def label(text):
     """How a form is named on one line: a Precondition by its description"""
-    found = PRECONDITION_TEXT.match(text.strip())
-    return f"Precondition: {found.group(1)}" if found else text
+    try:
+        form = edn.read(text)
+    except Exception:
+        return text
+    if head(form) == PRECONDITION:
+        parsed = parse_precondition(form)
+        if parsed is not None:
+            return f"Precondition: {parsed.name}"
+    return text
 
 
 def described(value, source=None):
@@ -176,7 +180,8 @@ class Transcript:
 
     def on_step_end(self, passed, stdout="", stderr="", duration=0,
                     message="", trace=(), placeholders=0, definition=False,
-                    precondition=False, error=False, printed="", **kw):
+                    precondition=False, error=False, printed="",
+                    returned=False, stopped=False, plain=False, **kw):
         self.kernel.running = None
         if definition:  # only a definition that failed is reported
             self.add("fail", message or "the definition failed", **self.where(trace))
@@ -194,7 +199,7 @@ class Transcript:
                      passed=bool(ok), duration=took)
             self.output(out, depth + 1)
         if not self.calls or not passed:
-            self.output(stdout if not stdout.startswith("returned ") else "", 0)
+            self.output("" if returned else stdout, 0)
         operations = {}
         for operation, name in self.refs:
             operations.setdefault(operation, []).append(name)
@@ -202,11 +207,10 @@ class Transcript:
             self.add("ref", f"{operation}: {', '.join(names)}")
         if placeholders:
             self.add("note", "not written yet (TBD)")
-        if not passed and self.kernel.stop_event.is_set() and "Stopped" in (message or ""):
+        if not passed and self.kernel.stop_event.is_set() and stopped:
             return  # the kernel says it stopped
         if not passed:
             self.add("fail", message or "failed", **self.where(trace))
-            plain = "unknown name" in message or message.startswith("No BuildingBlock")
             if error and stderr and "Traceback" in stderr and not plain:
                 self.add("error", stderr.strip())
 
@@ -255,6 +259,7 @@ class Kernel:
         self.host, self.root, self.script = host, Path(root), script
         self.text = text
         self.files_dir = Path(files_dir) if files_dir else None
+        self._env_lock = threading.RLock()
         self.closure = self._resolve()
         found = self.closure
         if found.uuts and any(u not in host.uuts for u in found.uuts):
@@ -496,21 +501,15 @@ class Kernel:
             self.text = text
         self.closure = self._resolve()
 
-    def _job(self):
-        return {"environment": self.environment,
-                "uut_versions": {name: {"id": v.id, "digest": v.digest}
-                                 for name, v in self.versions.items()}}
-
     def _start_uuts(self, fresh, command):
-        job = self._job()
         env = self.host.environments.get(self.environment)
-        if not fresh and versions_installed(self.host, job):
+        if not fresh and versions_installed(self.host, self.environment, self.versions):
             self.start = "warm"
             shown = ", ".join(f"{n} {v.id}" for n, v in self.versions.items())
             self.add_line(command, "note", f"attached to {shown or 'the environment'} "
                           f"as it is, in {self.environment}")
             return
-        installed = install_uuts(self.host, job)
+        installed = install_uuts(self.host, self.environment, self.versions)
         for name, version in self.versions.items():
             self.host.uuts[name].start(version, env)
         self.start = "fresh"
@@ -525,7 +524,7 @@ class Kernel:
         try:
             env = executor.build_env(found.files, found.load_order, found.imports,
                                      self.variation)
-            bound = handles(self.host, self._job())
+            bound = handles(self.host, self.environment, self.versions)
             env.update({edn.Symbol(name): value for name, value in bound.items()})
             values = {}
             if self.variation is not None:
@@ -535,13 +534,15 @@ class Kernel:
             environment = self.host.environments.get(self.environment)
             self.clock = environment.clock(bound) if environment is not None else None
         except Exception as e:
-            self.env, self.problem = None, f"{executor.error_line(e)}"
+            with self._env_lock:
+                self.env, self.problem = None, f"{executor.error_line(e)}"
             self.add_line(command, "fail", f"Couldn't load {self.script}'s definitions: "
                           f"{self.problem}")
             return
-        self.env, self.problem = env, None
-        self.built = dict(env.local_items())
-        self.sources = self._sources(bound, values if self.variation is not None else {})
+        with self._env_lock:
+            self.env, self.problem = env, None
+            self.built = dict(env.local_items())
+            self.sources = self._sources(bound, values if self.variation is not None else {})
         if self.variation is not None:
             self.add_line(command, "note", f"variation {self.variation}")
 
@@ -566,22 +567,22 @@ class Kernel:
         name with its kind, its value shown short, and where it came from
         ("console" for what was defined or changed since the env was
         built). Script and core.rst names first, in order of the files."""
-        env = self.env
-        if env is None:
-            return []
-        try:
+        with self._env_lock:
+            env = self.env
+            if env is None:
+                return []
             items = env.local_items()
-        except RuntimeError:  # changed while read: the kernel is running
-            items = list(dict(env).items())
+            built = dict(self.built)
+            sources = dict(self.sources)
         order = {path: n for n, path in enumerate(self.closure.load_order)}
         order.update({"variation": -2, "uut": -3, "console": -1})
         found = []
         for name, value in items:
             name = str(name)
-            source = self.sources.get(name, "console")
-            if name not in self.built or self.built[name] is not value:
-                source = "console"
-            found.append({"name": name, "source": source, **described(value, source)})
+            src = sources.get(name, "console")
+            if name not in built or built[name] is not value:
+                src = "console"
+            found.append({"name": name, "source": src, **described(value, src)})
         found.sort(key=lambda n: (order.get(n["source"], len(order)), n["name"]))
         return found
 
@@ -637,26 +638,31 @@ class Kernel:
         self.add_line(command, "command", f"▶ {short(title or label(d['code']) or '(empty)')}")
         if not self._ready(command) or self._limited(command, d.get("variations", ())):
             return
-        from ...framework.cards import RVT, Card, rvt_source
         code = d["code"]
-        text = rvt_source(Card(RVT, title=title, definitions=bool(d.get("definitions")),
-                               table=bool(d.get("table")), code=code))
-        # The file line (1-based) of the card's first line of code: rvt_source
-        # drops leading blank lines
-        blank = len(code) - len(code.lstrip("\n"))
-        first = text.split("\n\n", 1)[0].count("\n") + 3
         try:
-            statements = executor.read(text, CARD)
-        except ValueError as e:
+            forms_with_spans = edn.read_all_with_spans(code)
+        except edn.ParseError as e:
             self.add_line(command, "fail", str(e))
             command.outcome = "error"
             return
+        is_table = bool(d.get("table"))
+        is_defs = bool(d.get("definitions"))
+        block = source.rvt_block(
+            title=title,
+            options={**({"definitions": ""} if is_defs else {}),
+                     **({"table": ""} if is_table else {})},
+            variations=None,
+            line=1,
+        )
+        statements = [
+            source.Statement(form, span, block, index, table_rows=is_table and index == 0)
+            for index, (form, span) in enumerate(forms_with_spans)
+        ]
 
         def place(span):
-            if span.get("source") != CARD:
+            if span.get("source") is not None:
                 return None
-            return {"line": span["line"] - first + blank,
-                    "character": max(0, span["col"] - len("   "))}
+            return {"line": span["line"], "character": span["col"]}
 
         self._run(command, statements, place)
 

@@ -32,7 +32,7 @@ def requirement_key():
     remote = current_app.config.get("REMOTE_REQUIREMENTS")
     if remote is not None:
         return remote.key(g.get("requirement_context"))
-    latest = get_db().execute("SELECT MAX(id) FROM imports").fetchone()[0]
+    latest = requirements.latest_import_id(get_db())
     return g.get("requirement_context") or "trunk", latest
 
 

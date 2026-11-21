@@ -160,21 +160,21 @@ Lisp/core analyzers between `framework/` and `lsp/`.
 Break up the 881-line `jobs.py` god module, stop raw SQL outside stores,
 and clean up `Kernel` ↔ `executor` ↔ `worker` coupling.
 
-- [ ] **Split `services/jobs.py` by domain**
+- [x] **Split `services/jobs.py` by domain**
   - Separate into focused modules:
     1. Queue & worker registry (`services/jobs.py` or `services/queue.py`)
     2. Report creation, plan additions & reruns (`services/reports/queue.py` or `services/reports/runs.py`), removing deferred circular imports with `reports/{export,rollup}`
     3. Scratch run lifecycle (`services/scratch.py`), isolating `SCRATCH` folder special-casing
   - Deduplicate the plan-to-`enqueue` loop shared by `add_plan` (`L258-L279`) and `queue_scratch` (`L836-L846`), and replace `passed_combinations`'s manual latest-run scan (`L330-L340`) with `rollup.history()`.
-- [ ] **Close raw SQL & `sqlite3.Row` leaks**
+- [x] **Close raw SQL & `sqlite3.Row` leaks**
   - Add `latest_import_id(conn)` to `services/requirements/models.py` and replace the 3 raw `SELECT MAX(id) FROM imports` queries in `services/jobs.py:143`, `web/app.py:36`, and `web/api.py:126`.
   - Add dataclasses for `accounts.pending_link` / `link_device` (`services/accounts.py:153-168`) and stop leaking raw `sqlite3.Row` from `services/requirements/store.py:141-149`.
   - Move `expanded_nodes` / `open_tabs` SQL out of `web/workspace.py:27-44` and `web/editor.py:291-318` into a small service/store helper.
   - Move `PRAGMA journal_mode=WAL` configuration into `services/database.py` (e.g. `connect(..., wal=True)` or `init_db`) instead of repeating it in `cli.py:264, 299`.
-- [ ] **Clean up `services/requirements/` internal duplication**
+- [x] **Clean up `services/requirements/` internal duplication**
   - Make `staging.py:same()` / `preview()` reuse `store.facet_changes` so `hashed: false` attributes behave identically in staging preview and import.
   - Deduplicate `as_requirement` (`models.py:65` vs. `staging.py:101`), spec validation (`export.py:149` vs. `flat.py:240`), duplicate-ID detection (`export.py:244` vs. `store.py:181`), and `dirhtml` page path (`render.py:79` vs. `sphinx/__init__.py:87`).
-- [ ] **Clean up `services/worker/kernel.py` & `worker.py`**
+- [x] **Clean up `services/worker/kernel.py` & `worker.py`**
   - Refactor `worker.versions_installed` / `install_uuts` / `handles` to take `(host, environment, uut_versions: dict[str, Version])` and delete `Kernel._job()` (`kernel.py:499-502`).
   - Move `framework_fingerprint()` out of `services/worker/host.py` so `services/reports/build.py:228` doesn't depend on `worker.host`.
   - Stop `Kernel._run_card` (`kernel.py:640-660`) from round-tripping through `cards.rvt_source` and reversing its 3-space indent; construct statements directly from parsed forms + spans.

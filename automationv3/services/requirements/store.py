@@ -139,14 +139,14 @@ FACETS = ("text", "metadata", "links", "section")
 
 
 def contents(conn, spec_version):
-    """id -> requirement_versions row of a spec version"""
+    """id -> requirement_versions dict of a spec version"""
     if spec_version is None:
         return {}
     rows = conn.execute(
         "SELECT r.* FROM spec_contents c JOIN requirement_versions r "
         "ON r.hash = c.requirement_version WHERE c.spec_version = ? ORDER BY c.position",
         (spec_version,))
-    return {row["id"]: row for row in rows}
+    return {row["id"]: dict(row) for row in rows}
 
 
 def facet_changes(before, after):
@@ -178,16 +178,16 @@ def summary(changes):
     return ", ".join(f"{n} {k}" for k, n in counts.items())
 
 
+from . import export
+
+
 def clashing_ids(conn, spec_versions):
     """Problems for ids in more than one of the spec versions"""
-    owner, problems = {}, []
+    labeled = []
     for v in spec_versions:
         spec = conn.execute("SELECT spec FROM spec_versions WHERE hash = ?", (v,)).fetchone()[0]
-        for id in contents(conn, v):
-            if id in owner and owner[id] != spec:
-                problems.append(f"requirement {id} is in both {owner[id]} and {spec}")
-            owner.setdefault(id, spec)
-    return problems
+        labeled.append((spec, contents(conn, v)))
+    return export.find_duplicate_ids(labeled)
 
 
 def check_unique_ids(conn):

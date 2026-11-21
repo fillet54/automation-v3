@@ -123,7 +123,7 @@ def requirements():
                  for id in request.args.getlist("id")}
     except requirement_models.ContextError as e:
         return error(str(e))
-    latest = get_db().execute("SELECT MAX(id) FROM imports").fetchone()[0]
+    latest = requirement_models.latest_import_id(get_db())
     return jsonify({"requirements": found, "import": latest})
 
 

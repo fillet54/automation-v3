@@ -62,15 +62,28 @@ def resolve(conn, context=None):
     raise ContextError(f"{context!r}: a context is trunk, trunk@N, set:NAME or SPEC@BASELINE")
 
 
-def as_requirement(spec, row):
-    attributes = json.loads(row["attributes"])
+def latest_import_id(conn):
+    """The id of the newest requirement import, or None"""
+    return conn.execute("SELECT MAX(id) FROM imports").fetchone()[0]
+
+
+def build_requirement(spec, id, text, attributes, satisfies, section, version=None, text_hash=None):
     subsystem = attributes.get("subsystem")
-    return Requirement(id=row["id"], text=row["text"],
-                       subsystem=", ".join(subsystem) if isinstance(subsystem, list) else subsystem,
-                       spec=spec, attributes=attributes,
-                       satisfies=tuple(json.loads(row["satisfies"])),
-                       section=tuple(json.loads(row["section"])), version=row["hash"],
-                       text_hash=row["text_hash"])
+    return Requirement(
+        id=id, text=text,
+        subsystem=", ".join(subsystem) if isinstance(subsystem, list) else subsystem,
+        spec=spec, attributes=dict(attributes),
+        satisfies=tuple(satisfies), section=tuple(section),
+        version=version, text_hash=text_hash,
+    )
+
+
+def as_requirement(spec, row):
+    return build_requirement(
+        spec, row["id"], row["text"], json.loads(row["attributes"]),
+        json.loads(row["satisfies"]), json.loads(row["section"]),
+        version=row["hash"], text_hash=row["text_hash"],
+    )
 
 
 def _in_context(conn, context, spec=None):

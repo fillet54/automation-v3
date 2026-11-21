@@ -260,8 +260,7 @@ def start_client(args):
     data = Path(args["--data-path"] or data_home() / "client").resolve()
     (data / "reports").mkdir(parents=True, exist_ok=True)
     db_path = data / "client.db"
-    with closing(connect(db_path)) as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
+    with closing(connect(db_path, wal=True)) as conn:
         init_db(conn)
     app = create_app(DB_PATH=db_path, WORKSPACE_PATH=workspace_path,
                      REPORTS_PATH=data / "reports", CENTRAL=central,
@@ -295,8 +294,7 @@ def start_server(args):
         check_workspace(workspace_path)
     reports_path.mkdir(exist_ok=True)
 
-    with closing(connect(db_path)) as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
+    with closing(connect(db_path, wal=True)) as conn:
         init_db(conn)
         cleanup_finished(conn, reports_path)
 

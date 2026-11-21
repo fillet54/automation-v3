@@ -26,22 +26,13 @@ from .jobs import checked_in_root, live_environments, workspaces
 
 def expanded_nodes(conn, workspace_id, root):
     """The set of nodes under `root` that are expanded in the tree view"""
-    rows = conn.execute(
-        "SELECT path FROM expanded_nodes WHERE workspace_id = ?", (workspace_id,)
-    )
-    return {FileNode(row[0], root) for row in rows}
+    from ..services.database import expanded_node_paths
+    return {FileNode(path, root) for path in expanded_node_paths(conn, workspace_id)}
 
 
 def toggle_expanded(conn, workspace_id, node):
-    params = (workspace_id, str(node.relative_path))
-    with conn:
-        deleted = conn.execute(
-            "DELETE FROM expanded_nodes WHERE workspace_id = ? AND path = ?", params
-        ).rowcount
-        if not deleted:
-            conn.execute(
-                "INSERT INTO expanded_nodes(workspace_id, path) VALUES (?, ?)", params
-            )
+    from ..services.database import toggle_expanded_node
+    toggle_expanded_node(conn, workspace_id, str(node.relative_path))
 
 
 @dataclass

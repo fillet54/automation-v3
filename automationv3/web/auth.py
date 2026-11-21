@@ -244,13 +244,13 @@ def link(token):
         return redirect(url_for("index"))
     conn = get_db()
     next = safe_next(request.values.get("next"))
-    row = accounts.pending_link(conn, token)
+    link = accounts.pending_link(conn, token)
     if request.method == "GET":
-        if row is None:
+        if link is None:
             return render_template("auth/link.html", error=True), 410
-        device = accounts.link_device(conn, row)
-        return render_template("auth/link.html", error=False, email=row["email"],
-                               device=device["name"] if device else None, next=next)
+        device = accounts.link_device(conn, link)
+        return render_template("auth/link.html", error=False, email=link.email,
+                               device=device.name if device else None, next=next)
     try:
         user, device = accounts.use_link(conn, token)
     except accounts.AccountError:

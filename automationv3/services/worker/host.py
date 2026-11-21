@@ -12,31 +12,11 @@ checkout with uncommitted changes): runs are only identical when all of
 it matches.
 """
 
-import functools
 import json
-import subprocess
 from pathlib import Path
 
-from ... import __version__
 from ...framework.uut import environment_types, uut_types
-from ..util import git
-
-PACKAGE = Path(__file__).resolve().parents[2]
-
-
-@functools.lru_cache(maxsize=1)
-def framework_fingerprint():
-    """The framework's version; for a git checkout, its commit and
-    whether it has uncommitted changes (a dev install)"""
-    try:
-        head = git(PACKAGE, "rev-parse", "HEAD", timeout=10).strip()
-    except (OSError, subprocess.SubprocessError):
-        return {"version": __version__, "git": None, "dev": False}
-    try:
-        dirty = git(PACKAGE, "status", "--porcelain", "--untracked-files=no", timeout=10).strip()
-    except (OSError, subprocess.SubprocessError):
-        dirty = ""
-    return {"version": __version__, "git": head, "dev": bool(dirty)}
+from ..util import framework_fingerprint  # noqa: F401
 
 
 def read_config(path):

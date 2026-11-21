@@ -96,16 +96,19 @@ class ReportObserver:
         self.send("error", **kw)
 
 
-def install_uuts(host, job):
+def _job_versions(job):
+    return {name: Version(**wanted) for name, wanted in job["uut_versions"].items()}
+
+
+def install_uuts(host, environment, uut_versions):
     """Install each requested UUT version unless it is already installed.
 
     Returns what is installed afterwards: uut -> {id, digest, action}.
     """
-    env = host.environments.get(job["environment"])
+    env = host.environments.get(environment)
     installed = {}
-    for name, wanted in job["uut_versions"].items():
+    for name, version in uut_versions.items():
         uut = host.uuts[name]
-        version = Version(**wanted)
         action = "kept"
         if uut.installed_version(env) != version:
             uut.install(version, env)
@@ -116,21 +119,21 @@ def install_uuts(host, job):
     return installed
 
 
-def versions_installed(host, job):
-    """True if every UUT the job needs is already at the right version"""
-    env = host.environments.get(job["environment"])
+def versions_installed(host, environment, uut_versions):
+    """True if every UUT is already at the right version"""
+    env = host.environments.get(environment)
     return all(
-        host.uuts[name].installed_version(env) == Version(**wanted)
-        for name, wanted in job["uut_versions"].items()
+        host.uuts[name].installed_version(env) == version
+        for name, version in uut_versions.items()
     )
 
 
-def handles(host, job):
-    """name -> handle for each of the job's UUTs that offers one"""
-    env = host.environments.get(job["environment"])
+def handles(host, environment, uut_versions):
+    """name -> handle for each UUT that offers one"""
+    env = host.environments.get(environment)
     found = {}
-    for name, wanted in job["uut_versions"].items():
-        handle = host.uuts[name].handle(Version(**wanted), env)
+    for name, version in uut_versions.items():
+        handle = host.uuts[name].handle(version, env)
         if handle is not None:
             found[name] = handle
     return found
@@ -164,7 +167,9 @@ class Worker:
         the run "blocked".
         """
         server, host = self.server, self.host
-        if mode == "probe" and not versions_installed(host, job):
+        environment = job["environment"]
+        uut_versions = _job_versions(job)
+        if mode == "probe" and not versions_installed(host, environment, uut_versions):
             server.release(job["id"])
             return "released"
 
@@ -175,24 +180,24 @@ class Worker:
         details = {"mode": "precondition" if mode == "probe" else "force"}
         observer.on_job(
             script=job["script"],
-            environment=job["environment"],
+            environment=environment,
             variation=job.get("variation"),
             mode=details["mode"],
         )
-        env = host.environments.get(job["environment"])
+        env = host.environments.get(environment)
         if env is not None:
-            details["fingerprint"] = host.fingerprint(job["environment"])
+            details["fingerprint"] = host.fingerprint(environment)
         try:
             if mode == "force":
-                details["installed"] = install_uuts(host, job)
-                for name, wanted in job["uut_versions"].items():
-                    host.uuts[name].start(Version(**wanted), env)
+                details["installed"] = install_uuts(host, environment, uut_versions)
+                for name, version in uut_versions.items():
+                    host.uuts[name].start(version, env)
             else:
                 details["installed"] = {
                     name: {**wanted, "action": "kept"}
                     for name, wanted in job["uut_versions"].items()
                 }
-            bound = handles(host, job)
+            bound = handles(host, environment, uut_versions)
             outcome = execute_closure(
                 job["closure"],
                 job["load_order"],
