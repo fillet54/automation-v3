@@ -19,6 +19,7 @@ from pathlib import Path
 
 from ... import __version__
 from ...framework.uut import environment_types, uut_types
+from ..util import git
 
 PACKAGE = Path(__file__).resolve().parents[2]
 
@@ -27,17 +28,15 @@ PACKAGE = Path(__file__).resolve().parents[2]
 def framework_fingerprint():
     """The framework's version; for a git checkout, its commit and
     whether it has uncommitted changes (a dev install)"""
-    def git(*args):
-        return subprocess.run(["git", *args], cwd=PACKAGE, capture_output=True,
-                              text=True, timeout=10)
     try:
-        head = git("rev-parse", "HEAD")
+        head = git(PACKAGE, "rev-parse", "HEAD", timeout=10).strip()
     except (OSError, subprocess.SubprocessError):
-        head = None
-    if head is None or head.returncode != 0:
         return {"version": __version__, "git": None, "dev": False}
-    dirty = git("status", "--porcelain", "--untracked-files=no").stdout.strip()
-    return {"version": __version__, "git": head.stdout.strip(), "dev": bool(dirty)}
+    try:
+        dirty = git(PACKAGE, "status", "--porcelain", "--untracked-files=no", timeout=10).strip()
+    except (OSError, subprocess.SubprocessError):
+        dirty = ""
+    return {"version": __version__, "git": head, "dev": bool(dirty)}
 
 
 def read_config(path):

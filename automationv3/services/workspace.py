@@ -5,13 +5,10 @@ the repository (its top, or a folder below it). Every other worktree of
 the repository has its workspace in the same folder: git finds them.
 """
 
-import io
-import os
-import shutil
 import subprocess
-import tarfile
-import tempfile
 from pathlib import Path, PurePosixPath
+
+from .util import extract_tar_atomic, git
 
 
 class FileNode:
@@ -109,12 +106,6 @@ def is_binary(path, sample_length=8000):
 # is checked in (the branch's HEAD).
 
 
-def git(root, *args, binary=False):
-    """The output of git, run in `root`"""
-    result = subprocess.run(["git", *args], cwd=root, capture_output=True, check=True)
-    return result.stdout if binary else result.stdout.decode("utf-8")
-
-
 def head_commit(root):
     """The commit checked out at `root`, or None if there is none yet"""
     try:
@@ -154,24 +145,9 @@ def checked_in(root, cache):
     out = Path(cache) / f"{commit}-{prefix.strip('/').replace('/', '_') or 'root'}"
     if out.is_dir():
         return out
-    Path(cache).mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix="checkout-", dir=cache))
-    try:
-        # Run in `root`, archive holds just its folder, paths relative to it
-        archive = git(root, "archive", "--format=tar", commit, binary=True)
-        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-            if hasattr(tarfile, "data_filter"):  # Python 3.12, and fixes back to 3.8
-                tar.extractall(work, filter="data")
-            else:
-                tar.extractall(work)
-        try:
-            os.replace(work, out)
-        except OSError:
-            if not out.is_dir():  # not another request writing it first
-                raise
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
-    return out
+    # Run in `root`, archive holds just its folder, paths relative to it
+    archive = git(root, "archive", "--format=tar", commit, binary=True)
+    return extract_tar_atomic(archive, out, cache, prefix="checkout-")
 
 
 # Workspace sources: where a server's branches and their files come from.

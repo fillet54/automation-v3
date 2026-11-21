@@ -19,7 +19,7 @@ from pathlib import Path
 import requests
 
 from ..framework.closure import resolve
-from .util import write_json
+from .util import git, write_json
 
 
 class ClientError(Exception):
@@ -229,11 +229,9 @@ def upload_files(root, scripts):
 def current_branch(root):
     """The git branch checked out at `root`, or "" """
     try:
-        out = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=root,
-                             capture_output=True, text=True, timeout=10)
+        return git(root, "rev-parse", "--abbrev-ref", "HEAD", timeout=10).strip()
     except (OSError, subprocess.SubprocessError):
         return ""
-    return out.stdout.strip() if out.returncode == 0 else ""
 
 
 def replay(observer, event):

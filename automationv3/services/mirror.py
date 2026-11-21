@@ -11,14 +11,12 @@ report never runs a stale commit (see web/hooks.py and web/jobs.py).
 Same interface as services.workspace.LocalWorktrees.
 """
 
-import io
-import os
 import shutil
 import subprocess
-import tarfile
-import tempfile
 import threading
 from pathlib import Path, PurePosixPath
+
+from .util import extract_tar_atomic, git as run_git
 
 class MirrorError(RuntimeError):
     pass
@@ -35,12 +33,16 @@ class MirrorWorkspaces:
         self.lock = threading.Lock()
 
     def git(self, *args, binary=False, check=True):
-        result = subprocess.run(["git", *args], cwd=self.path, capture_output=True,
-                                timeout=300)
-        if check and result.returncode != 0:
-            raise MirrorError(f"git {' '.join(args)}: "
-                              f"{result.stderr.decode(errors='replace').strip()}")
-        return result.stdout if binary else result.stdout.decode()
+        try:
+            return run_git(self.path, *args, binary=binary, timeout=300)
+        except subprocess.CalledProcessError as e:
+            if not check:
+                return e.stdout if binary else e.stdout.decode(errors="replace")
+            raise MirrorError(
+                f"git {' '.join(args)}: {e.stderr.decode(errors='replace').strip()}"
+            ) from None
+        except subprocess.TimeoutExpired:
+            raise MirrorError(f"git {' '.join(args)}: timed out") from None
 
     def ensure(self):
         """Clone the remote if there is no mirror yet"""
@@ -101,7 +103,8 @@ class MirrorWorkspaces:
     def extract(self, commit):
         """The scripts folder of `commit`, extracted once under the cache;
         None if the commit has none"""
-        out = self.cache / f"{commit}-mirror"
+        suffix = self.scripts.replace("/", "_") or "root"
+        out = self.cache / f"{commit}-mirror-{suffix}"
         scripts = out / self.scripts if self.scripts else out
         if out.is_dir():
             return scripts if scripts.is_dir() else None
@@ -110,17 +113,5 @@ class MirrorWorkspaces:
                                *([self.scripts] if self.scripts else []), binary=True)
         except MirrorError:  # no scripts folder in that commit
             archive = None
-        self.cache.mkdir(parents=True, exist_ok=True)
-        work = Path(tempfile.mkdtemp(prefix="mirror-", dir=self.cache))
-        try:
-            if archive:
-                with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-                    tar.extractall(work, filter="data")
-            try:
-                os.replace(work, out)
-            except OSError:
-                if not out.is_dir():  # not another request writing it first
-                    raise
-        finally:
-            shutil.rmtree(work, ignore_errors=True)
+        extract_tar_atomic(archive, out, self.cache, prefix="mirror-")
         return scripts if scripts.is_dir() else None

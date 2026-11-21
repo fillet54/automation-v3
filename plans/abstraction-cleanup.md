@@ -64,7 +64,7 @@ Eliminate divergent low-level helpers across `services/`.
 - [x] **Consolidate atomic file & JSON writes**
   - Extract one `atomic_write(path, data, mode=None)` / `write_json(path, obj, mode=None)` helper using `tempfile.mkstemp(dir=path.parent)` + `os.replace` (fixing concurrent `.tmp` collisions).
   - Use it in `services/client.py:56`, `services/builds.py:65` (currently non-atomic), `services/reports/store.py:60`, `services/reports/build.py:51`, and `web/editor.py:222`.
-- [ ] **Unify git subprocess & `git archive` extraction**
+- [x] **Unify git subprocess & `git archive` extraction**
   - Extract a shared git helper and atomic `extract_archive(archive_bytes, target_dir, cache_dir)` helper used by both `services/workspace.py:112-174` and `services/mirror.py:37-126`.
   - Fix `services/mirror.py:104` to include `self.scripts` in its cache directory key (preventing stale cache hits if `[git] scripts` changes) and keep the `hasattr(tarfile, "data_filter")` guard.
   - Reuse the git helper in `services/client.py:228` and `services/worker/host.py:30`.
