@@ -22,6 +22,10 @@ class MirrorError(RuntimeError):
     pass
 
 
+class MirrorTimeout(MirrorError):
+    """git took too long: says nothing about what the repository holds"""
+
+
 class MirrorWorkspaces:
     editable = False  # what the server shows is what was pushed
 
@@ -42,7 +46,7 @@ class MirrorWorkspaces:
                 f"git {' '.join(args)}: {e.stderr.decode(errors='replace').strip()}"
             ) from None
         except subprocess.TimeoutExpired:
-            raise MirrorError(f"git {' '.join(args)}: timed out") from None
+            raise MirrorTimeout(f"git {' '.join(args)}: timed out") from None
 
     def ensure(self):
         """Clone the remote if there is no mirror yet"""
@@ -111,6 +115,8 @@ class MirrorWorkspaces:
         try:
             archive = self.git("archive", "--format=tar", commit,
                                *([self.scripts] if self.scripts else []), binary=True)
+        except MirrorTimeout:
+            raise  # says nothing about the commit: never cache it as empty
         except MirrorError:  # no scripts folder in that commit
             archive = None
         extract_tar_atomic(archive, out, self.cache, prefix="mirror-")
