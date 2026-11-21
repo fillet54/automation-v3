@@ -837,10 +837,10 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertTrue(snapshot.get_data(True).startswith("t_s,downrange_m,altitude_m"))
         self.assertEqual(self.http.get(f"{base}/files/../run.json").status_code, 404)
 
-    def failing_worker(self, suffix, status, **kw):
+    def failing_worker(self, suffix, status, observers=(), **kw):
         session = FailingSession(self.http, "http://server", suffix, status, **kw)
         worker = Worker(ServerClient("http://server", "http://w1", session=session),
-                        self.worker.host)
+                        self.worker.host, observers)
         return worker, session
 
     def worker_status(self):
@@ -859,6 +859,14 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(self.worker_status(), "available")
         self.assertIsNone(store.load_run(self.root, ids["report_id"], ids["run_id"])
                           .get("outcome"))
+
+    def test_a_job_the_server_took_back_runs_no_more_steps(self):
+        self.queue("plain/fail.rst")  # (Wait 1) (Verify 1 = 2) (Wait 2)
+        seen = Recorder()
+        worker, _ = self.failing_worker("/events", 409, times=99, after=1, observers=[seen])
+        self.assertEqual(worker.work_once(), LOST)
+        # taken back at the first event after procedure_begin: no step runs
+        self.assertEqual([kind for kind, _ in seen.events].count("step_start"), 0)
 
     def test_events_the_server_missed_are_sent_again(self):
         ids = self.queue("plain/pass.rst")
