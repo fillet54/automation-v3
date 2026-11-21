@@ -12,7 +12,9 @@ from . import edn
 
 
 def _as_span(span):
-    """Normalize a serialized span dict (from events.jsonl) to edn.Span"""
+    """Normalize a serialized span dict (from events.jsonl) to edn.Span.
+    Both kinds are expected, for good: a live trace holds Spans, a run's
+    stored events hold dicts (see executor.serialize_trace)."""
     if isinstance(span, dict):
         return edn.Span(
             span["line"], span["col"], span["end_line"], span["end_col"],
