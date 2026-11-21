@@ -294,11 +294,6 @@ def block_names():
     return {block.name() for block in all_blocks()}
 
 
-def placeholder_names():
-    """Names of placeholder blocks (steps still to be written, e.g. TBD)"""
-    return {block.name() for block in all_blocks() if block.kind == PLACEHOLDER}
-
-
 def is_placeholder(form):
     """True if `form` calls a placeholder block"""
     if not (isinstance(form, list) and form and isinstance(form[0], edn.Symbol)):

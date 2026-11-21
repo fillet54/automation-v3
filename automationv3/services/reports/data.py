@@ -13,7 +13,7 @@ URLs a document links to (see Links).
 import functools
 from datetime import datetime
 
-from ...documents.report import UNASSIGNED, combination_key, combination_name  # noqa: F401
+from ...documents.report import UNASSIGNED, combination_name
 from ...framework import source
 from . import rollup, store
 

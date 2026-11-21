@@ -13,12 +13,7 @@ requirement no script references yet is "untested": it has no scripts.
 
 import re
 
-from ..documents.report import (
-    UNASSIGNED,
-    failure_reason,
-    outdated_label,
-    versions_text,  # noqa: F401
-)
+from ..documents.report import UNASSIGNED, failure_reason, outdated_label
 from ..framework import source
 from ..services.reports import rollup
 
