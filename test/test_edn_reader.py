@@ -126,26 +126,21 @@ class TestEdnReader(unittest.TestCase):
         with self.assertRaises(Exception) as c:
             read(r'::alias/my-keyword')
 
-    def test_keyword_symbol_equality_and_hash_agree(self):
+    def test_keywords_symbols_and_strings_are_the_same_name(self):
         kw, sym = Keyword('abc'), Symbol('abc')
         ns_kw, ns_sym = Keyword('abc', namespace='ns'), Symbol('abc', namespace='ns')
-        self.assertNotEqual(kw, sym)
-        self.assertNotEqual(sym, kw)
-        self.assertNotEqual(kw, 'abc')
-        self.assertNotEqual('abc', kw)
-        self.assertEqual(kw, ':abc')
-        self.assertEqual(':abc', kw)
-        self.assertEqual(hash(kw), hash(':abc'))
-        self.assertEqual(ns_kw, ':ns/abc')
-        self.assertEqual(hash(ns_kw), hash(':ns/abc'))
-        self.assertNotEqual(ns_kw, ns_sym)
-        self.assertEqual(sym, 'abc')
-        self.assertEqual(hash(sym), hash('abc'))
-        d = {sym: 1, kw: 2}
-        self.assertEqual(d[sym], 1)
-        self.assertEqual(d['abc'], 1)
-        self.assertEqual(d[kw], 2)
-        self.assertEqual(d[':abc'], 2)
+        for a, b in [(kw, 'abc'), ('abc', kw), (kw, sym), (sym, kw), (sym, 'abc'),
+                     (ns_kw, 'ns/abc'), (ns_kw, ns_sym)]:
+            self.assertEqual(a, b)
+            self.assertEqual(hash(a), hash(b))
+        self.assertNotEqual(kw, ':abc')
+        self.assertNotEqual(kw, Keyword('abd'))
+        self.assertNotEqual(ns_kw, kw)
+        self.assertEqual(str(kw), ':abc')  # still written as a keyword
+        self.assertEqual({kw: 1}['abc'], 1)
+        self.assertEqual({'abc': 1}[kw], 1)
+        self.assertIn(kw, {'abc', 'x'})
+        self.assertEqual(read('{:mission :standard}')['mission'], 'standard')
 
     # Integers
     def test_integer_basic(self):

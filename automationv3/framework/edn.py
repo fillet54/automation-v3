@@ -99,8 +99,10 @@ def move_spans(form, line_of, col_shift, source=None):
 class Symbol(str):
     """A name, optionally qualified by a namespace (ns/name).
 
-    A symbol equals the string of its qualified name, so it can be
-    looked up in, or compared with, plain strings.
+    A symbol equals the string of its qualified name, and hashes like
+    it, so it can be looked up in, or compared with, plain strings. A
+    Keyword is the same name in another syntax: :a, a and "a" are all
+    equal (script writers shouldn't have to care which one they hold).
     """
 
     def __new__(cls, name, namespace=None):
@@ -114,8 +116,6 @@ class Symbol(str):
         return f"{self.namespace}/{name}" if self.namespace else name
 
     def __eq__(self, other):
-        if isinstance(other, Keyword):
-            return False
         if isinstance(other, Symbol):
             return str.__eq__(self, other) and self.namespace == other.namespace
         if isinstance(other, str):
@@ -127,7 +127,7 @@ class Symbol(str):
         return equal if equal is NotImplemented else not equal
 
     def __hash__(self):
-        return hash(str(self))
+        return hash(self.qualified)
 
     def __str__(self):
         return self.qualified
@@ -136,19 +136,7 @@ class Symbol(str):
 
 
 class Keyword(Symbol):
-    """:name or :ns/name"""
-
-    def __eq__(self, other):
-        if isinstance(other, Keyword):
-            return str.__eq__(self, other) and self.namespace == other.namespace
-        if isinstance(other, Symbol):
-            return False
-        if isinstance(other, str):
-            return str(self) == str.__str__(other)
-        return NotImplemented
-
-    def __hash__(self):
-        return hash(str(self))
+    """:name or :ns/name: equal to, and hashed like, its name (see Symbol)"""
 
     def __str__(self):
         return ":" + self.qualified

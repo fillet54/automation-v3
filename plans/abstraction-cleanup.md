@@ -21,7 +21,7 @@ or `plans/`.
 
 | Step | Topic | Recommendation |
 | --- | --- | --- |
-| 1 | `edn.Keyword` equality vs. `Symbol`/`str` (`framework/edn.py`) | Make `Keyword` only equal another `Keyword` (or `":name"`), so `a == b => hash(a) == hash(b)` holds. Check callers that rely on `Keyword("a") == "a"` first. |
+| 1 | `edn.Keyword` equality vs. `Symbol`/`str` (`framework/edn.py`) | **Settled (revised 2026-11-21):** keywords are syntax only. `:a`, `a` and `"a"` are all equal and hash like `"a"`; `:a != ":a"`. (The first fix made `:a == ":a"`; reverted, since script writers would trip over `(= :a "a")` being false.) |
 | 4 | `test/test_layers.py` boundary for `framework` vs. `documents` | Add `automationv3.documents` to `FORBIDDEN["framework"]` once `framework/markup.py` and `framework/plugins.py` stop importing upward. |
 | 6 | Splitting `services/jobs.py` | Keep thin re-exports in `services/jobs.py` only if tests/callers benefit during transition, then delete once migrated. |
 | 7 | Renaming colliding `central()` functions | Rename `web/auth.py:central()` → `accounts_enabled()` (or `is_central_server()`) and `web/client_mode.py:central()` → `central_client()`. |
