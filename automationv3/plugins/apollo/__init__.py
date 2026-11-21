@@ -16,9 +16,9 @@ from . import documents
 from .environments import Lms, Sim
 from .uut import LunarModule
 
-__all__ = [AttachTrajectory, ClearFixedValue, ClickROD, Connector, FlyTo, Keys, Proceed,
-           PushMasterAlarm, Read, RunFor, SetFixedValue, SetValue, StartLM, Lms, Sim,
-           LunarModule]
+__all__ = ["AttachTrajectory", "ClearFixedValue", "ClickROD", "Connector", "FlyTo",
+           "Keys", "Proceed", "PushMasterAlarm", "Read", "RunFor", "SetFixedValue",
+           "SetValue", "StartLM", "Lms", "Sim", "LunarModule"]
 
 
 def register(registry):

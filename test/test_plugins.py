@@ -12,7 +12,6 @@ from automationv3.framework import edn, lisp, plugins, value_blocks
 from automationv3.framework.closure import resolve
 from automationv3.framework.executor import execute_closure, new_env
 from automationv3.framework.block import all_blocks, is_abstract
-from automationv3.plugins.core import value_blocks as old_value_blocks
 from .rvt import rvt
 
 
@@ -158,9 +157,9 @@ class TestPluginFunctions(unittest.TestCase):
                                  "load_plugins; load_plugins()"], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_value_contract_compatibility_imports_are_identical(self):
+    def test_framework_value_blocks_are_abstract(self):
         for name in ["Read", "SetValue", "SetFixedValue", "ClearFixedValue"]:
-            self.assertIs(getattr(value_blocks, name), getattr(old_value_blocks, name))
+            self.assertTrue(is_abstract(getattr(value_blocks, name)))
         self.assertTrue(all(is_abstract(b) for b in all_blocks()
                             if type(b).__module__.startswith("automationv3.framework.")))
 
