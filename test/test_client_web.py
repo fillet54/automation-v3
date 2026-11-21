@@ -57,6 +57,17 @@ class TestLocalClient(unittest.TestCase):
         self.assertEqual(response.status_code, 200, path)
         return response.get_data(as_text=True)
 
+    def test_environments_are_this_machines_and_the_central_servers(self):
+        from automationv3.web.context import live_environments
+        with closing(connect(self.tmp / "client.db")) as conn:
+            models.save_worker(conn, "http://here", "available", [], {"bench": {}})
+        with self.central.conn() as conn:
+            models.save_worker(conn, "http://there", "available", [], {"sim": {}})
+        with self.app.test_request_context():
+            found = live_environments()
+        self.assertEqual(found.get("bench"), ["http://here"])
+        self.assertIn("http://there", found.get("sim", []))
+
     def test_team_pages_are_on_the_central_server(self):
         page = self.page(f"/workspace/{self.branch}")
         self.assertIn('href="http://server/reports/"', page)

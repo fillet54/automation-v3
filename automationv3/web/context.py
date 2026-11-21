@@ -50,12 +50,14 @@ def checked_in_root(name):
 
 
 def live_environments():
-    """environment -> live worker urls. In client mode, the central server's."""
-    if central_client() is not None:
-        return central_environments()
+    """environment -> live worker urls: this server's, and in client mode
+    the central server's too"""
     since = models.utcnow() - models.MISSING_AFTER
     found = {}
     for worker in models.find_workers(get_db(), since=since):
         for env in worker.environments:
             found.setdefault(env, []).append(worker.url)
+    if central_client() is not None:
+        for env, urls in central_environments().items():
+            found.setdefault(env, []).extend(urls)
     return found
