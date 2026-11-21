@@ -20,16 +20,15 @@ importer. Everything else in a document (headings, prose, figures) is
 documentation; headings give each requirement its section.
 """
 
-import contextlib
+import functools
 import re
-import threading
 from dataclasses import dataclass
 
 import docutils.core
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 
-from ...framework.rst import plain_text  # noqa: F401
+from ...framework.rst import IGNORED, local_directives, words_of
 from ...framework.source import AnyOption
 
 
@@ -51,40 +50,12 @@ class RequirementDirective(Directive):
         return [node]
 
 
-class Ignored(Directive):
-    """Sphinx directives (toctree, ...) a spec's documents may use, which
-    hold no requirements"""
-    optional_arguments = 1
-    final_argument_whitespace = True
-    has_content = True
-    option_spec = AnyOption()
-
-    def run(self):
-        return []
+LOCAL_DIRECTIVES = {"requirement": RequirementDirective, **IGNORED}
 
 
-LOCAL_DIRECTIVES = {
-    "requirement": RequirementDirective,
-    **{name: Ignored for name in ("toctree", "only", "index", "tabularcolumns", "highlight")},
-}
-_DIRECTIVE_LOCK = threading.RLock()
-
-
-@contextlib.contextmanager
 def _spec_directives():
-    """Register spec-only directives for one parse without polluting
-    docutils' global directive registry."""
-    with _DIRECTIVE_LOCK:
-        saved = {name: directives._directives.get(name) for name in LOCAL_DIRECTIVES}
-        directives._directives.update(LOCAL_DIRECTIVES)
-        try:
-            yield
-        finally:
-            for name, previous in saved.items():
-                if previous is None:
-                    directives._directives.pop(name, None)
-                else:
-                    directives._directives[name] = previous
+    """Spec-only directives, for one parse (see framework.rst.local_directives)"""
+    return local_directives(LOCAL_DIRECTIVES)
 
 
 class RequirementsError(ValueError):
@@ -163,3 +134,12 @@ def parse(text, source="<string>"):
         seen.add(id)
         found.append(Parsed(id, node["text"], node["options"], section_of(node)))
     return found
+
+
+@functools.lru_cache(maxsize=1024)
+def plain_text(text):
+    """A requirement's rst text as plain words, markup and line breaks
+    gone: what its text hash is of (see export.py). What this returns for
+    a text must never change, or every requirement reads as changed."""
+    with _spec_directives():
+        return words_of(text)

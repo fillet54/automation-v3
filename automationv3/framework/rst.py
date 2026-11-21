@@ -6,10 +6,13 @@ document). Scripts may reference requirements with the :req:`ID` role
 (source.py reads it; RequirementReferences here writes it).
 """
 
+import contextlib
 import functools
+import threading
 
 import docutils.core
 from docutils import nodes
+from docutils.parsers.rst import Directive, directives
 from docutils.transforms import Transform
 
 from . import edn, markup
@@ -19,19 +22,64 @@ from .language import (
     parse_variations,
 )
 from .requirement import SHALL, Requirement
-from .source import requirement_reference
+from .source import AnyOption, requirement_reference
 
-@functools.lru_cache(maxsize=1024)
-def plain_text(text):
-    """A requirement's rst text as plain words, markup and line breaks
-    gone"""
+# Sphinx directives requirement text and spec documents may use, which
+# hold no words of their own: plain docutils doesn't know them, and would
+# write its error message into the text
+SPHINX_ONLY = ("toctree", "only", "index", "tabularcolumns", "highlight")
+
+
+class Ignored(Directive):
+    """A directive read and dropped (see SPHINX_ONLY)"""
+    optional_arguments = 1
+    final_argument_whitespace = True
+    has_content = True
+    option_spec = AnyOption()
+
+    def run(self):
+        return []
+
+
+IGNORED = {name: Ignored for name in SPHINX_ONLY}
+_directives_lock = threading.RLock()
+
+
+@contextlib.contextmanager
+def local_directives(found):
+    """Parse with the directives `found` (name -> Directive) for the
+    duration, then put docutils' own registry back as it was"""
+    with _directives_lock:
+        saved = {name: directives._directives.get(name) for name in found}
+        directives._directives.update(found)
+        try:
+            yield
+        finally:
+            for name, previous in saved.items():
+                if previous is None:
+                    directives._directives.pop(name, None)
+                else:
+                    directives._directives[name] = previous
+
+
+def words_of(text):
+    """rst text as plain words, markup and line breaks gone (uncached;
+    run it within local_directives to parse with more directives)"""
     try:
-        tree = docutils.core.publish_doctree(text, settings_overrides={
-            "report_level": 5, "halt_level": 5, "doctitle_xform": False,
-            "file_insertion_enabled": False})
+        with local_directives(IGNORED):
+            tree = docutils.core.publish_doctree(text, settings_overrides={
+                "report_level": 5, "halt_level": 5, "doctitle_xform": False,
+                "file_insertion_enabled": False})
         return " ".join(tree.astext().split())
     except Exception:
         return " ".join(str(text).split())
+
+
+@functools.lru_cache(maxsize=1024)
+def plain_text(text):
+    """A requirement's rst text as plain words, to show. (Its text hash
+    is of rst_source.plain_text, which also knows spec directives.)"""
+    return words_of(text)
 
 
 def mark_shall(root, req_id, classes=("shall",)):

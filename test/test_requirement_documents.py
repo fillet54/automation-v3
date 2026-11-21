@@ -55,6 +55,17 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(plain_text("The *LGC*  shall\nshow:\n\n- one;\n- two."),
                          "The LGC shall show: one; two.")
 
+    def test_plain_text_drops_sphinx_directives(self):
+        # what text hashes are of: docutils' "Unknown directive" message
+        # must never get into it (nor into the text shown)
+        from automationv3.framework.rst import plain_text as shown
+        for directive in ("toctree::", "only:: html", "index:: x", "tabularcolumns:: |l|",
+                          "highlight:: c", "requirement:: X-1"):
+            text = f".. {directive}\n\n   inside\n\nThe LGC shall land."
+            self.assertEqual(plain_text(text), "The LGC shall land.", directive)
+            if not directive.startswith("requirement"):
+                self.assertEqual(shown(text), "The LGC shall land.", directive)
+
     def test_repeated_ids_and_empty_text_are_errors(self):
         with self.assertRaises(RequirementsError):
             parse(".. requirement:: A-1\n\n   x\n\n.. requirement:: A-1\n\n   y\n")
