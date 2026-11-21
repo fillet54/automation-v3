@@ -72,3 +72,29 @@ class TestLisp(unittest.TestCase):
         run("(def m {:a 1}) (def n (assoc m :b 2))", env)
         self.assertEqual(len(env[edn.Symbol("m")]), 1)
         self.assertEqual(len(env[edn.Symbol("n")]), 2)
+
+
+class TestEnvSnapshot(unittest.TestCase):
+    def test_local_items_while_another_thread_binds(self):
+        import threading
+        env, done, errors = lisp.Env(), threading.Event(), []
+
+        def bind():
+            n = 0
+            while not done.is_set():
+                env[edn.Symbol(f"x{n}")] = n
+                env.pop(edn.Symbol(f"x{n - 50}"), None)
+                n += 1
+
+        thread = threading.Thread(target=bind)
+        thread.start()
+        try:
+            for _ in range(2000):
+                try:
+                    env.local_items()
+                except RuntimeError as e:
+                    errors.append(e)
+        finally:
+            done.set()
+            thread.join()
+        self.assertEqual(errors, [])

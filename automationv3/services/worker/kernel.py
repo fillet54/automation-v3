@@ -259,6 +259,8 @@ class Kernel:
         self.host, self.root, self.script = host, Path(root), script
         self.text = text
         self.files_dir = Path(files_dir) if files_dir else None
+        # guards swapping env/built/sources, not the env's bindings: the
+        # kernel thread binds names unlocked (see lisp.Env.local_items)
         self._env_lock = threading.RLock()
         self.closure = self._resolve()
         found = self.closure

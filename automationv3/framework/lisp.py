@@ -44,7 +44,9 @@ class Env(dict):
         return super().__contains__(key)
 
     def local_items(self):
-        return list(super().items())
+        """(name, value) pairs bound here, as of one moment: safe to call
+        while another thread binds names (dict.copy takes the dict whole)"""
+        return list(dict.copy(self).items())
 
     def __contains__(self, key):
         if super().__contains__(key):
