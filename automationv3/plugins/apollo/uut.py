@@ -138,9 +138,7 @@ class LunarModule(UUT):
             if c["start"] != "pdi":
                 cache.parent.mkdir(parents=True, exist_ok=True)
                 cache.write_text(json.dumps(flight, separators=(",", ":")))
-        flight["config"]["crew"] = c["crew"]
-        flight["crew"] = sim.C.fresh(c["crew"])
-        return flight
+        return sim.with_crew(flight, c["crew"])
 
     def handle(self, version, env):
         from .handle import LunarModuleHandle

@@ -9,12 +9,12 @@ and Wait read them through its Read.
 import csv
 import io
 
-from automationv3.framework import context, edn, markup, refs, value_blocks
+from automationv3.framework import context, edn, language, markup, refs, value_blocks
 from automationv3.framework.block import ACTION, BlockResult, BuildingBlock
-from automationv3.framework.refs import Ref
 from automationv3.framework.steps import attach
 
 from . import connectors
+from .connectors import Connector
 from .handle import PHASES
 from .model import sim
 from .plot import trajectory_svg
@@ -63,7 +63,7 @@ class StartLM(BuildingBlock):
         try:
             result = lm().boot(config)
         except (ValueError, sim.StartUnreachable) as e:
-            return BlockResult(False, stderr=str(e))
+            return BlockResult(False, stderr=str(e), error=True)
         if result == edn.Keyword("rejected-load"):
             return BlockResult(False, value=result,
                                stdout=f"{lm().version()} rejected the erasable load")
@@ -96,12 +96,12 @@ class Keys(BuildingBlock):
         return '(Keys "V16N68E")'
 
     def check_syntax(self, *args):
-        return len(args) == 1 and isinstance(args[0], str)
+        return len(args) == 1 and language.is_text(args[0])
 
     def execute(self, text):
         bad = set(str(text).upper().replace(" ", "")) - set("VN0123456789+-EPRKC")
         if bad:
-            return BlockResult(False, stderr=f"no DSKY key {''.join(sorted(bad))}")
+            return BlockResult(False, stderr=f"no DSKY key {''.join(sorted(bad))}", error=True)
         shown = lm().keys(text)
         return BlockResult(True, value=shown, stdout=f"{text} -> {show(shown)}")
 
@@ -206,7 +206,7 @@ class FlyTo(BuildingBlock):
     def execute(self, phase, _within=None, limit=1500):
         if connectors.name(phase) not in PHASES:
             return BlockResult(False, stderr=f"no phase {show(phase)}: "
-                               + ", ".join(f":{p}" for p in PHASES))
+                               + ", ".join(f":{p}" for p in PHASES), error=True)
         if not lm().fly_to(phase, limit):
             return BlockResult(False, stderr=f"didn't reach {show(phase)} within {show(limit)} s")
         now = lm().read_point("lm.time.sim")
@@ -251,7 +251,7 @@ class AttachTrajectory(BuildingBlock):
         return '(AttachTrajectory "label")'
 
     def check_syntax(self, *args):
-        return len(args) == 1 and isinstance(args[0], str)
+        return len(args) == 1 and language.is_text(args[0])
 
     def execute(self, label):
         rows = lm().trajectory_rows()
@@ -271,15 +271,6 @@ class AttachTrajectory(BuildingBlock):
 
 
 # Connectors: the LM's kind of ref, and the blocks that reach them
-
-
-class Connector(Ref):
-    """A point of the lunar module, its panel or the bench, by path
-    (e.g. "lm.dsky.verb"). Scripts make one with (connector "path")."""
-
-    @classmethod
-    def children(cls, path):
-        return connectors.children(path)
 
 
 @refs.constructs(Connector)

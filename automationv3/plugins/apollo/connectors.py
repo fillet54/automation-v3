@@ -11,11 +11,12 @@ booleans and vectors.
 """
 
 from automationv3.framework import edn
-from automationv3.framework.refs import Child
+from automationv3.framework.refs import Child, Ref
 
 from .model import lgc as L
 from .model import missions as M
 from .model import sim
+from .model import vehicle as V
 
 
 def keyword(value):
@@ -126,14 +127,11 @@ CONNECTORS = {
     "lm.staged": Point(lambda s: s["staged"]),
     "lm.prop.descent-kg": Point(lambda s: round(s["prop_d"], 1)),
     "lm.prop.ascent-kg": Point(lambda s: round(s["prop_a"], 1)),
-    "lm.prop.low-level": Point(
-        lambda s: s["prop_d"] < M.LOW_LEVEL_FRACTION * M.VEHICLES[s["vehicle"]]["descent_propellant"],
-        doc="The descent tanks' low-level sensor"),
+    "lm.prop.low-level": Point(V.descent_propellant_low,
+                               doc="The descent tanks' low-level sensor"),
     "lm.cwea.master-alarm": Point(lambda s: s["cwea"]["master_alarm"]),
-    "lm.cwea.caution": Point(lambda s: any(c != "bus-warning" for c in s["cwea"]["active"]),
-                             doc="Any caution light is lit"),
-    "lm.cwea.warning": Point(lambda s: "bus-warning" in s["cwea"]["active"],
-                             doc="Any warning light is lit"),
+    "lm.cwea.caution": Point(V.has_caution, doc="Any caution light is lit"),
+    "lm.cwea.warning": Point(V.has_warning, doc="Any warning light is lit"),
     "lm.eps.bus-volts": Point(lambda s: s["eps"]["volts"]),
     "lm.eps.amps": Point(lambda s: s["eps"]["amps"]),
     "lm.eps.ah": Point(lambda s: round(sum(b["ah"] for b in s["eps"]["batteries"]), 1),
@@ -169,7 +167,7 @@ CONNECTORS = {
 }
 for _name in L.LIGHTS:
     CONNECTORS[f"lm.dsky.light.{_name}"] = Point(_light(_name))
-for _name in ("prog", "des-qty", "prplnt-low", "battery", "ecs", "ldg-rdr"):
+for _name in V.CAUTION_LIGHTS:
     CONNECTORS[f"lm.cwea.light.{_name}"] = Point(_caution(_name))
 for _n in range(1, 6):
     CONNECTORS[f"lm.eps.battery.{_n}.ah"] = Point(
@@ -217,7 +215,16 @@ def _apply(s, value, path):
 
 for _path, _point in CONNECTORS.items():
     if _point.write_fn is not None:
-        sim._fixers[_path] = (lambda path: lambda s, value: _apply(s, value, path))(_path)
+        sim.register_fixer(_path, (lambda path: lambda s, value: _apply(s, value, path))(_path))
+
+
+class Connector(Ref):
+    """A point of the lunar module, its panel or the bench, by path
+    (e.g. "lm.dsky.verb"). Scripts make one with (connector "path")."""
+
+    @classmethod
+    def children(cls, path):
+        return children(path)
 
 
 def children(path):

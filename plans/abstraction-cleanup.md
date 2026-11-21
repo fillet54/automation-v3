@@ -217,14 +217,14 @@ logic across the HTTP/CLI adapters.
 Tighten the Apollo plugin's boundary with `apollo/model/` and align it with
 `plugins/core/` conventions.
 
-- [ ] **Encapsulate `model/sim.py` mutations**
+- [x] **Encapsulate `model/sim.py` mutations**
   - Add a public fixer registration function on `model/sim.py` (removing `connectors.py:220` mutating `sim._fixers` at import time).
   - Add a `sim.with_crew(flight, crew)` helper (removing `apollo/uut.py:141-142` reaching into `sim.C.fresh` and mutating cached flight dicts).
-- [ ] **Reconcile duplicated domain definitions**
+- [x] **Reconcile duplicated domain definitions**
   - Unify `high-gate` / `low-gate` phase predicates between `model/sim.py:80-85` (`REACHED`) and `apollo/handle.py:19-28` (`PHASES`).
   - Reuse `model/vehicle.py` constants/helpers for caution lights and propellant-low checks inside `apollo/connectors.py:130-136`.
   - Consolidate `to_edn` and `edn_config` in `apollo/handle.py:35-48`.
-- [ ] **Align block conventions & break circular import**
+- [x] **Align block conventions & break circular import**
   - In `apollo/blocks.py`: use `error=True` (or raise) for invalid arguments/exceptions in `ACTION` blocks instead of returning `BlockResult(False)` (`error=False`), and use `language.is_text` instead of `isinstance(args[0], str)` (`L99, L254`).
   - Break the `apollo/blocks.py` ↔ `apollo/handle.py` circular import (`C_REF` inline import at `handle.py:247`).
 

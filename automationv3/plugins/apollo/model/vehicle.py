@@ -198,6 +198,25 @@ def environment(s, dt):
     ecs["water"] = max(0.0, ecs["water"] - water * hours)
 
 
+CAUTION_LIGHTS = ("prog", "des-qty", "prplnt-low", "battery", "ecs", "ldg-rdr")
+WARNING_LIGHT = "bus-warning"
+
+
+def descent_propellant_low(s):
+    """True when the descent tanks' low-level sensor is active."""
+    return s["prop_d"] < M.LOW_LEVEL_FRACTION * M.VEHICLES[s["vehicle"]]["descent_propellant"]
+
+
+def has_caution(s):
+    """True if any caution light is currently lit."""
+    return any(c != WARNING_LIGHT for c in s["cwea"]["active"])
+
+
+def has_warning(s):
+    """True if any warning light is currently lit."""
+    return WARNING_LIGHT in s["cwea"]["active"]
+
+
 def caution_and_warning(s):
     v = M.VEHICLES[s["vehicle"]]
     lgc = s["lgc"]
@@ -205,7 +224,7 @@ def caution_and_warning(s):
     active = []
     if lgc["lights"]["prog"]:
         active.append("prog")
-    if not s["staged"] and s["prop_d"] < M.LOW_LEVEL_FRACTION * v["descent_propellant"]:
+    if not s["staged"] and descent_propellant_low(s):
         active.append("des-qty")
     if (lgc["program"] in (63, 64, 65, 66) and lgc["ignited"] is not None
             and L.prop_percent(s) < M.PROPELLANT_LOW_PERCENT):
@@ -217,12 +236,12 @@ def caution_and_warning(s):
     if s["bench"]["lr_failed"] and not s["landed"] and not s["staged"]:
         active.append("ldg-rdr")
     if eps["volts"] < M.BUS_MIN_V:
-        active.append("bus-warning")
+        active.append(WARNING_LIGHT)
     cwea = s["cwea"]
     for name in active:
         if name not in cwea["active"]:
             cwea["master_alarm"] = True
-            L.event(s, "warning" if name == "bus-warning" else "caution", light=name)
+            L.event(s, "warning" if name == WARNING_LIGHT else "caution", light=name)
     cwea["active"] = active
 
 

@@ -77,10 +77,20 @@ def at_pdi(rope, config, env=None):
     return s
 
 
+def reached_high_gate(s):
+    return (s["lgc"]["program"] == 64
+            or any(e["kind"] == "program" and e["program"] == 64 for e in s["events"]))
+
+
+def reached_low_gate(s):
+    return ((s["lgc"]["program"] == 64 and s["lgc"]["phase_tgo"] <= 10.0)
+            or s["lgc"]["program"] in (65, 66, 68) or s["landed"])
+
+
 REACHED = {
     "pdi": lambda s: True,
-    "high-gate": lambda s: s["lgc"]["program"] == 64,
-    "low-gate": lambda s: s["lgc"]["program"] == 64 and s["lgc"]["phase_tgo"] <= 10.0,
+    "high-gate": reached_high_gate,
+    "low-gate": reached_low_gate,
     "surface": lambda s: s["landed"] and s["touchdown"] and s["tick"] >= s["touchdown"]["t"] * 10 + 600,
 }
 
@@ -157,6 +167,11 @@ def run_until(s, condition, limit_s):
 _fixers = {}
 
 
+def register_fixer(path, fn):
+    """Register the write callback used to hold `path` fixed each step."""
+    _fixers[path] = fn
+
+
 def apply_fixed(s):
     for path, value in s["fixed"].items():
         fixer = _fixers.get(path)
@@ -166,3 +181,11 @@ def apply_fixed(s):
 
 def copy_state(s):
     return copy.deepcopy(s)
+
+
+def with_crew(flight, crew):
+    """Return a copy of `flight` handed over to `crew`."""
+    s = copy_state(flight)
+    s["config"]["crew"] = crew
+    s["crew"] = C.fresh(crew)
+    return s

@@ -19,9 +19,8 @@ from .model import sim
 PHASES = {
     "ignition": lambda s: s["lgc"]["ignited"] is not None,
     "throttle-down": lambda s: any(e["kind"] == "throttle-down" for e in s["events"]),
-    "high-gate": lambda s: any(e["kind"] == "program" and e["program"] == 64 for e in s["events"]),
-    "low-gate": lambda s: (s["lgc"]["program"] == 64 and s["lgc"]["phase_tgo"] <= 10.0)
-    or s["lgc"]["program"] in (65, 66, 68) or s["landed"],
+    "high-gate": sim.reached_high_gate,
+    "low-gate": sim.reached_low_gate,
     "p66": lambda s: s["lgc"]["program"] == 66,
     "contact": lambda s: s["contact"],
     "touchdown": lambda s: s["landed"],
@@ -32,20 +31,20 @@ def name(value):
     return C.name(value)
 
 
-def to_edn(value):
-    if isinstance(value, dict):
-        return edn.Map({edn.Keyword(str(k).replace("_", "-")): to_edn(v) for k, v in value.items()})
-    if isinstance(value, (list, tuple)):
-        return edn.Vector(to_edn(v) for v in value)
-    return value
-
-
 ENUMERATED = {"mission", "vehicle", "start", "crew", "kind", "light"}
 
 
-def edn_config(config):
-    return edn.Map({edn.Keyword(k): (edn.Keyword(v) if k in ENUMERATED and isinstance(v, str)
-                                     else v) for k, v in config.items()})
+def to_edn(value, enumerated=()):
+    if isinstance(value, dict):
+        return edn.Map({
+            edn.Keyword(str(k).replace("_", "-")): (
+                edn.Keyword(v) if k in enumerated and isinstance(v, str) else to_edn(v, enumerated)
+            )
+            for k, v in value.items()
+        })
+    if isinstance(value, (list, tuple)):
+        return edn.Vector(to_edn(v, enumerated) for v in value)
+    return value
 
 
 class LunarModuleHandle:
@@ -103,7 +102,7 @@ class LunarModuleHandle:
         return self.uut.load(self.env)["flight"] is not None
 
     def config(self):
-        return edn_config(self._read(lambda s: s["config"]))
+        return to_edn(self._read(lambda s: s["config"]), ENUMERATED)
 
     def mission(self):
         return edn.Keyword(self._read(lambda s: s["lgc"]["load"]))
@@ -149,8 +148,7 @@ class LunarModuleHandle:
         self._run(lambda s: sim.advance(s, float(seconds)))
 
     def clock(self):
-        time_ref = C_REF("lm.time.sim")
-        return SimClock(time_ref, step=None if self.pace else self.advance)
+        return SimClock(C.Connector("lm.time.sim"), step=None if self.pace else self.advance)
 
     def fly_to(self, phase, limit=1500):
         """Run until a phase of the flight (see PHASES); true if it got there"""
@@ -220,7 +218,7 @@ class LunarModuleHandle:
     def events(self, kind=None):
         def look(s):
             return [e for e in s["events"] if kind is None or e["kind"] == name(kind)]
-        return edn.Vector(edn_config(e) for e in self._read(look))
+        return edn.Vector(to_edn(e, ENUMERATED) for e in self._read(look))
 
     def touchdown(self):
         found = self._read(lambda s: s["touchdown"])
@@ -242,8 +240,3 @@ class LunarModuleHandle:
 
     def release_point(self, path):
         return self._run(lambda s: C.release(s, path))
-
-
-def C_REF(path):
-    from .blocks import Connector
-    return Connector(path)
