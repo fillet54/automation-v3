@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 import uuid
 from datetime import datetime, timedelta
 from dataclasses import asdict
@@ -19,7 +20,9 @@ from automationv3.services import jobs as models
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import rollup, store
 from automationv3.services.worker import Host, Worker
+from automationv3.services.worker import worker as worker_module
 from automationv3.services.worker.client import ServerClient
+from automationv3.services.worker.worker import LOST, JobLost
 from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
 
@@ -534,6 +537,37 @@ class Response:
         assert self.status_code < 400, self.status_code
 
 
+class FailingSession(FlaskSession):
+    """A FlaskSession whose posts to paths ending in `suffix` answer
+    `status` instead: after the first `after` of them, `times` times"""
+
+    def __init__(self, client, server_url, suffix, status, times=1, after=0):
+        super().__init__(client, server_url)
+        self.suffix, self.status, self.times, self.after = suffix, status, times, after
+        self.seen = self.failed = 0
+        self.posted = []  # the paths posted to (answered by the server)
+
+    def post(self, url, json=None, headers=None):
+        if url.endswith(self.suffix):
+            self.seen += 1
+            if self.seen > self.after and self.failed < self.times:
+                self.failed += 1
+                return Failed(self.status)
+        self.posted.append(url[len(self.server_url):])
+        return super().post(url, json=json, headers=headers)
+
+
+class Failed:
+    def __init__(self, status_code):
+        self.status_code = status_code
+
+    def json(self):
+        return {"error": f"failed with {self.status_code}"}
+
+    def raise_for_status(self):
+        assert self.status_code < 400, self.status_code
+
+
 class TestWorkerAgainstServer(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -803,11 +837,61 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertTrue(snapshot.get_data(True).startswith("t_s,downrange_m,altitude_m"))
         self.assertEqual(self.http.get(f"{base}/files/../run.json").status_code, 404)
 
+    def failing_worker(self, suffix, status, **kw):
+        session = FailingSession(self.http, "http://server", suffix, status, **kw)
+        worker = Worker(ServerClient("http://server", "http://w1", session=session),
+                        self.worker.host)
+        return worker, session
+
+    def worker_status(self):
+        with connect(self.tmp / "test.db") as conn:
+            return models.get_worker(conn, "http://w1").status
+
+    def job_status(self, job_id):
+        with connect(self.tmp / "test.db") as conn:
+            return models.get_job(conn, job_id).status
+
+    def test_a_job_the_server_took_back_is_abandoned(self):
+        ids = self.queue("plain/pass.rst")
+        worker, session = self.failing_worker("/events", 409, times=99, after=1)
+        self.assertEqual(worker.work_once(), LOST)
+        self.assertFalse([p for p in session.posted if p.endswith("/complete")])
+        self.assertEqual(self.worker_status(), "available")
+        self.assertIsNone(store.load_run(self.root, ids["report_id"], ids["run_id"])
+                          .get("outcome"))
+
+    def test_events_the_server_missed_are_sent_again(self):
+        ids = self.queue("plain/pass.rst")
+        worker, session = self.failing_worker("/events", 500, after=1)
+        self.assertEqual(worker.work_once(), "pass")
+        self.assertEqual(session.failed, 1)
+        events = store.read_events(self.root, ids["report_id"], ids["run_id"])
+        self.assertEqual([e["seq"] for e in events], list(range(1, len(events) + 1)))
+        self.assertEqual(events[-1]["kind"], "procedure_end")
+
+    def test_a_job_that_cannot_start_goes_back_to_the_queue(self):
+        ids = self.queue("plain/pass.rst")
+        worker, _ = self.failing_worker("/start", 500)
+        with self.assertRaises(AssertionError):  # the test session's HTTP error
+            worker.work_once()
+        self.assertEqual(self.job_status(ids["run_id"]), "pending")
+        self.assertEqual(self.worker_status(), "available")
+        self.assertEqual(worker.work_once(), "pass")
+
+    def test_completing_is_retried(self):
+        ids = self.queue("plain/pass.rst")
+        worker, session = self.failing_worker("/complete", 500, times=2)
+        with mock.patch.object(worker_module, "RETRY_DELAYS", (0, 0, 0)):
+            self.assertEqual(worker.work_once(), "pass")
+        self.assertEqual(session.failed, 2)
+        run = store.load_run(self.root, ids["report_id"], ids["run_id"])
+        self.assertEqual(run["outcome"], "pass")
+
     def test_only_the_worker_holding_a_job_attaches_to_it(self):
         ids = self.queue("plain/pass.rst")
         other = ServerClient("http://server", "http://w2",
                              session=FlaskSession(self.http, "http://server"))
-        with self.assertRaises(AssertionError):  # the test session's HTTP error
+        with self.assertRaises(JobLost):
             other.attach(ids["run_id"], "x.txt", b"x")
         self.assertEqual(store.list_files(self.root, ids["report_id"], ids["run_id"]), [])
 

@@ -11,6 +11,11 @@ interface (the HTTP client, or an in-process LocalServer)::
     post_events(job_id, events)
     complete(job_id, outcome, **details)
 
+Those taking a job_id raise JobLost when the server no longer has this
+worker holding the job (it was reaped, rerun or deleted): the worker
+stops working on it, and the job's outcome is LOST. Any other failure
+to post events keeps them to send again; completing is retried.
+
 Scheduling is warm-first: every pending job is probed against the
 environment as it is, and the first whose preconditions hold (or heal)
 runs. If none does, the first (a scratch run, else the oldest) runs in
@@ -34,6 +39,19 @@ from ..util import now_iso
 # Seconds between polls for work while idle, and between keepalives
 POLL_INTERVAL = 2
 KEEPALIVE_INTERVAL = 60
+# Seconds to wait before each retry of finishing a job
+RETRY_DELAYS = (1, 2, 5)
+
+LOST = "lost"  # the outcome of a job the server took back while it ran
+
+
+class JobLost(Exception):
+    """The server no longer has this worker holding the job"""
+
+    def __init__(self, job_id, reason=""):
+        super().__init__(f"job {job_id} is no longer this worker's"
+                         + (f": {reason}" if reason else ""))
+        self.job_id = job_id
 
 
 class ReportObserver:
@@ -43,11 +61,32 @@ class ReportObserver:
         self.server = server
         self.job_id = job_id
         self.seq = 0
+        self.unsent = []  # events the server hasn't taken yet, in order
+        self.lost = None  # the JobLost, once the server has taken the job back
 
     def send(self, kind, **payload):
         self.seq += 1
-        event = {"seq": self.seq, "ts": now_iso(), "kind": kind, **payload}
-        self.server.post_events(self.job_id, [event])
+        self.unsent.append({"seq": self.seq, "ts": now_iso(), "kind": kind, **payload})
+        self.flush(required=False)
+
+    def flush(self, required=True):
+        """Send the events not sent yet. A failure other than JobLost
+        keeps them for the next try, raised only if `required`."""
+        if self.lost is not None:
+            raise self.lost
+        if not self.unsent:
+            return
+        try:
+            self.server.post_events(self.job_id, list(self.unsent))
+        except JobLost as e:
+            self.lost = e
+            raise
+        except Exception as e:  # e.g. unreachable for a moment
+            if required:
+                raise
+            print(f"Job {self.job_id}: couldn't send events (will retry): {e}")
+            return
+        self.unsent.clear()
 
     def on_procedure_begin(self, **kw):
         self.send("procedure_begin", **kw)
@@ -164,20 +203,44 @@ class Worker:
         precondition fails, the job is released back to the queue and
         "released" is returned. "force" mode installs the UUTs, starts
         them fresh and runs the script; a failing precondition then makes
-        the run "blocked".
+        the run "blocked". LOST if the server took the job back.
         """
         server, host = self.server, self.host
         environment = job["environment"]
         uut_versions = _job_versions(job)
         if mode == "probe" and not versions_installed(host, environment, uut_versions):
-            server.release(job["id"])
+            try:
+                server.release(job["id"])
+            except JobLost:
+                return LOST
             return "released"
 
-        server.start(job["id"])
+        try:
+            server.start(job["id"])
+        except JobLost:
+            return LOST
+        except Exception:
+            self.give_up(job["id"])  # don't leave it claimed: queue it again
+            raise
+        report = ReportObserver(server, job["id"])
         observer = ObserverManager()
-        for each in (ReportObserver(server, job["id"]), *self.observers):
+        for each in (report, *self.observers):
             observer.add_observer(each)
         details = {"mode": "precondition" if mode == "probe" else "force"}
+        try:
+            outcome = self.execute(job, mode, observer, details)
+            if report.lost is not None:  # an observer's JobLost the run swallowed
+                return LOST
+            self.finish(job["id"], report, outcome, details)
+        except JobLost:
+            return LOST
+        return outcome
+
+    def execute(self, job, mode, observer, details):
+        """Run the job's script; its outcome ("error" if it raised). A
+        JobLost from the observers is raised: the run is abandoned."""
+        host, environment = self.host, job["environment"]
+        uut_versions = _job_versions(job)
         observer.on_job(
             script=job["script"],
             environment=environment,
@@ -198,7 +261,7 @@ class Worker:
                     for name, wanted in job["uut_versions"].items()
                 }
             bound = handles(host, environment, uut_versions)
-            outcome = execute_closure(
+            return execute_closure(
                 job["closure"],
                 job["load_order"],
                 observer,
@@ -208,21 +271,45 @@ class Worker:
                 mode=mode,
                 clock=env.clock(bound) if env is not None else None,
             )
+        except JobLost:
+            raise
         except Exception:
             observer.on_error(traceback=traceback.format_exc())
-            outcome = "error"
+            return "error"
 
-        if outcome == "released":
-            server.release(job["id"])
-        else:
-            server.complete(job["id"], outcome, **details)
-        return outcome
+    def finish(self, job_id, report, outcome, details):
+        """Send the events left, then release or complete the job,
+        retrying (see RETRY_DELAYS) while the server can't be reached"""
+        def done():
+            report.flush()
+            if outcome == "released":
+                self.server.release(job_id)
+            else:
+                self.server.complete(job_id, outcome, **details)
+
+        for delay in RETRY_DELAYS:
+            try:
+                return done()
+            except JobLost:
+                raise
+            except Exception as e:
+                print(f"Job {job_id}: couldn't report {outcome} (retrying): {e}")
+                time.sleep(delay)
+        return done()
+
+    def give_up(self, job_id):
+        """Hand a job back to the queue, if the server will take it"""
+        try:
+            self.server.release(job_id)
+        except Exception as e:
+            print(f"Job {job_id}: couldn't release it: {e}")
 
     def run_claimed(self, job, mode):
         self.set_status("busy")
-        outcome = self.run_job(job, mode)
-        self.set_status("available")
-        return outcome
+        try:
+            return self.run_job(job, mode)
+        finally:
+            self.set_status("available")
 
     def borrow(self, timeout=60):
         """Take the worker off the queue (for the console): waits for the

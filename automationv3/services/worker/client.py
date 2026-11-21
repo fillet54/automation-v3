@@ -5,6 +5,7 @@ import base64
 import requests
 
 from ..client import normal_server
+from .worker import JobLost
 
 
 class ServerClient:
@@ -19,6 +20,18 @@ class ServerClient:
 
     def _auth(self):
         return {"headers": {"Authorization": f"Bearer {self.token}"}} if self.token else {}
+
+    def _held(self, job_id, response):
+        """`response`, unless it failed: JobLost if the server says the
+        job is gone or not this worker's (404, 409)"""
+        if response.status_code in (404, 409):
+            try:
+                reason = (response.json() or {}).get("error", "")
+            except ValueError:
+                reason = ""
+            raise JobLost(job_id, reason)
+        response.raise_for_status()
+        return response
 
     def _post(self, path, **data):
         return self.session.post(
@@ -57,20 +70,19 @@ class ServerClient:
         return response.json() if response.status_code == 200 else None
 
     def start(self, job_id):
-        self._post(f"/jobs/{job_id}/start").raise_for_status()
+        self._held(job_id, self._post(f"/jobs/{job_id}/start"))
 
     def release(self, job_id):
-        self._post(f"/jobs/{job_id}/release").raise_for_status()
+        self._held(job_id, self._post(f"/jobs/{job_id}/release"))
 
     def post_events(self, job_id, events):
-        self._post(f"/jobs/{job_id}/events", events=events).raise_for_status()
+        self._held(job_id, self._post(f"/jobs/{job_id}/events", events=events))
 
     def attach(self, job_id, name, data):
         """Store a file with the job's run; returns the name it was stored as"""
         response = self._post(f"/jobs/{job_id}/files", name=name,
                               data=base64.b64encode(data).decode())
-        response.raise_for_status()
-        return response.json()["name"]
+        return self._held(job_id, response).json()["name"]
 
     def complete(self, job_id, outcome, **details):
-        self._post(f"/jobs/{job_id}/complete", outcome=outcome, **details).raise_for_status()
+        self._held(job_id, self._post(f"/jobs/{job_id}/complete", outcome=outcome, **details))

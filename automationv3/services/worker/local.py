@@ -8,13 +8,23 @@ scripts on this machine, writing an ordinary report.
 
 import sqlite3
 import threading
+from contextlib import contextmanager
 
 from ...framework.planning import build_plan
 from .. import jobs
 from ..reports import export
 from ..database import connect, init_db
 from .host import Host
-from .worker import Worker
+from .worker import JobLost, Worker
+
+
+@contextmanager
+def held(job_id):
+    """jobs' NoSuchJob and NotHeld, as the JobLost a Worker expects"""
+    try:
+        yield
+    except (jobs.NoSuchJob, jobs.NotHeld) as e:
+        raise JobLost(job_id, type(e).__name__) from e
 
 
 class LocalServer:
@@ -50,21 +60,26 @@ class LocalServer:
         return jobs.claim_job(self.conn, self.root, job_id, self.worker_url)
 
     def start(self, job_id):
-        jobs.start_job(self.conn, self.root, job_id, self.worker_url)
+        with held(job_id):
+            jobs.start_job(self.conn, self.root, job_id, self.worker_url)
 
     def release(self, job_id):
-        jobs.release_job(self.conn, self.root, job_id, self.worker_url)
+        with held(job_id):
+            jobs.release_job(self.conn, self.root, job_id, self.worker_url)
 
     def post_events(self, job_id, events):
-        jobs.record_events(self.conn, self.root, job_id, self.worker_url, events)
+        with held(job_id):
+            jobs.record_events(self.conn, self.root, job_id, self.worker_url, events)
 
     def attach(self, job_id, name, data):
-        return jobs.attach_file(self.conn, self.root, job_id, self.worker_url,
-                                name, data)
+        with held(job_id):
+            return jobs.attach_file(self.conn, self.root, job_id, self.worker_url,
+                                    name, data)
 
     def complete(self, job_id, outcome, **details):
-        jobs.complete_job(self.conn, self.root, job_id, self.worker_url, outcome,
-                          **details)
+        with held(job_id):
+            jobs.complete_job(self.conn, self.root, job_id, self.worker_url, outcome,
+                              **details)
 
 
 def run_locally(root, scripts, reports_root, host=None, environments=None,
