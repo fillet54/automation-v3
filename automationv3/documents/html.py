@@ -37,6 +37,7 @@ def _render_requirement(req_id, text):
             text, settings_overrides={
                 "report_level": 5, "halt_level": 5,
                 "doctitle_xform": False, "file_insertion_enabled": False,
+                "raw_enabled": False,  # text comes from imports: never raw HTML
             })
         mark_shall(tree, req_id, classes=())
         html = core.write(tree, "html5", {"initial_header_level": 4})["fragment"]

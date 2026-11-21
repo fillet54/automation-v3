@@ -98,6 +98,11 @@ class TestRendering(unittest.TestCase):
         html = requirement_html(Requirement("R", "Small (<3 degree) shall be"))
         self.assertIn("(&lt;3 degree)", html)
 
+    def test_raw_html_is_never_rendered(self):
+        text = "The LGC shall land.\n\n.. raw:: html\n\n   <script>alert(1)</script>\n"
+        html = requirement_html(Requirement("R-1", text))
+        self.assertNotIn("<script>", html)
+
 
 if __name__ == "__main__":
     unittest.main()
