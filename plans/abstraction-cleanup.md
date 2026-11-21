@@ -17,6 +17,10 @@ or `plans/`.
 - Update checkboxes (`[ ]` → `[x]`) and add brief notes/commit refs as
   steps complete.
 
+The 2026-11-21 audit of Steps 1–8 found regressions and items only partly
+done; its fixes are in `plans/abstraction-cleanup-followup.md`, and each
+item below it touched carries a *Follow-up* note.
+
 ## Decisions to Settle Before Starting Relevant Steps
 
 | Step | Topic | Recommendation |
@@ -39,6 +43,7 @@ Small, self-contained wins with minimal blast radius.
 - [x] **Fix `edn.Keyword` equality/hash contract** (`framework/edn.py:99-143`)
   - Fix `Keyword.__eq__` so `Keyword("a") == Symbol("a")` no longer returns `True` with mismatched hashes (`hash(":a") != hash("a")`).
   - Add regression tests in `test/test_edn_reader.py` (dict/set lookups mixing `Symbol`, `Keyword`, and `str`).
+  - *Follow-up:* the first fix made `:a == ":a"`; reverted to keywords being their names (`572ff45`), and symbols now equal by qualified name (`d32e9b8`).
 - [x] **Fix `println` analysis & `steps.py` import-order hazard**
   - Add `"println"` to `EFFECTFUL` in `framework/analysis.py:53`.
   - Explicitly ensure `steps` special forms/builtins are initialized by `framework/analysis.py` instead of relying on `load_plugins()` transitively importing `plugins/core/wait.py`.
@@ -71,6 +76,7 @@ Eliminate divergent low-level helpers across `services/`.
 - [x] **Align `ServerClient` with `CentralClient`**
   - In `services/worker/client.py:8-69`: reuse `services/client.py:normal_server`, pass `params={"worker_url": self.worker_url}` in `pending_jobs` instead of string interpolation, guard `response.json()` on 401/403 in `check_in`, and check HTTP error status on `start`/`release`/`post_events`/`complete`.
   - Reuse `normal_server` in `cli.py:382-384`.
+  - *Follow-up:* the HTTP status checks raised without the worker handling them, so a worker stuck after an HTTP error; fixed by `JobLost`, resent events and retried completion (`a4e74e0`).
 
 **Verify:** `test_workspace_handler.py`, `test_mirror.py`, `test_worker_tokens.py`, `test_client_cli.py`, `test_jobs.py`, then full suite.
 
@@ -88,6 +94,7 @@ three parallel copies of state-ranking / failure-reason logic.
 - [x] **Single source of truth for state rankings, `why()`, `combination_name()`, and `duration()`**
   - Consolidate `WORST` / `WORDS` / `worst()`, `combination_name()`, `duration()`, `UNASSIGNED`, and failure/outdated/incomplete reason formatting (`why`) across `services/reports/data.py`, `documents/report.py`, `documents/run.py`, `web/report_view.py`, and `web/reports.py:97`.
   - Remove the verbatim copy of `duration(seconds)` in `web/reports.py:96-107` (import from `documents/run.py` or a shared formatter) and duplicate `combination_name` in `documents/report.py:68`.
+  - *Follow-up:* `web/report_view.py`'s `WORST` ranks dot tones and `documents/report.py`'s ranks combination states: keeping them apart was right. `why`/`issue` now share wording with `failure_reason` (`274cbf9`).
 - [x] **Build `web/report_view.py` on one `ReportData` instance & drop double work**
   - Refactor `web/report_view.py:build()` to consume an existing `ReportData` instead of re-calling `rollup.combinations`/`rollup.requirement_rollup` and instantiating a new `ReportData(root, ...)` inside the per-row `why()` loop (`L192`).
   - Pass that single `ReportData` / `Context` into `documents.report_document(...)` in `web/reports.py:render_page` so `GET /reports/<id>` stops computing rollups and failures twice.
@@ -115,14 +122,17 @@ and remove process-global docutils/RST side effects.
 - [x] **Unify requirement rendering & RST→plain-text**
   - Move HTML rendering out of `framework/requirement.py:19-35` (`Requirement.__repr_html__` using legacy `html4css1` + regex on raw HTML) into `documents/` (or `web/documents.py`), sharing the docutils `shall`-marking logic with `framework/rst.py:59-74`.
   - Consolidate `_plain()` (`framework/rst.py:50-56`) and `plain_text()` (`services/requirements/rst_source.py:153-157`).
+  - *Follow-up:* the consolidated `plain_text` changed requirement text hashes (Sphinx directives' error text got in); fixed in `3e67a6b`. Requirement HTML now also parses with `raw_enabled` off (`2650c67`, a pre-existing XSS).
 - [x] **Stop global docutils directive pollution in `services/requirements/rst_source.py`**
   - Replace import-time `directives.register_directive("toctree"|"only"|"index"|..., Ignored)` (`rst_source.py:71-73`) with a scoped parser/directive lookup (or local `directives._directives` context/parser subclass) so importing `rst_source` never breaks Sphinx or other docutils parsers in the same process.
   - Deduplicate `AnyOption` (currently 3 copies: `framework/source.py:117`, `services/requirements/rst_source.py:35`, `services/requirements/sphinx/__init__.py:25`).
   - In `services/requirements/sphinx/__init__.py:78-92`, record `(docname, req_id)` on `self.env` in `RequirementDirective.run()` instead of regex-scraping rendered HTML files in `write_nav`.
+  - *Follow-up:* `local_directives` still swaps docutils' process-wide registry for one parse; accepted and documented (`a12ab56`).
 - [x] **Clean up `services/reports/sphinx_ext.py` & `sphinx_conf.py`**
   - Store build `Context` on `app.env` instead of module-global `_contexts[id(env.app)]`.
   - Register `run-document` with `app.add_directive("run-document", RunDocument)` instead of global `directives.register_directive`.
   - Move shared report CSS (`automation.css` or its document rules) so `services/reports/sphinx_conf.py:14` does not reach into `automationv3/web/static/css`.
+  - *Follow-up:* "store the Context on `app.env`" was wrong: Sphinx pickles the env and the Context won't pickle, so every freeze failed at the HTML step. It is kept in a weak map keyed by the env (`f8c58ad`), and an HTML-only build test runs without latexmk. `automation.css` also needed adding to `auth.OPEN` (`eebc6eb`).
 
 **Verify:** `test_layers.py`, `test_docutils_facts.py`, `test_requirement_documents.py`, `test_export.py`, `test_report_pages.py`, then full suite.
 
@@ -137,19 +147,23 @@ Lisp/core analyzers between `framework/` and `lsp/`.
   - Add declared fields `message: str = ""`, `trace: list = field(default_factory=list)`, `placeholders: int = 0`, and `exception: Exception = None` to `BlockResult` (`framework/block.py:48-65`).
   - Keep `trace` as `list[edn.Span]` inside `framework/` and serialize with `span._asdict()` once at the observer/event boundary, removing `_get()` dict-vs-Span duck-typing in `framework/excerpt.py:11-12` and `getattr` probes in `framework/executor.py`.
   - Add `has_local(key)` and `local_items()` methods to `lisp.Env` (`framework/lisp.py:34`) and replace `dict.__contains__(env, ...)` (`executor.py:240`) and `dict.items(env)` (`kernel.py:543, 573`).
+  - *Follow-up:* removing excerpt.py's dict-vs-Span handling was wrong (stored events hold dicts); kept and documented (`ce675ad`). `Env.local_items` snapshots with `dict.copy` (`f05a5ac`).
 - [x] **Remove cross-module private (`_...`) imports**
   - Make `block_id(block)` public in `framework/block.py` (used by `framework/refs.py:191`).
   - Expose `maybe_runtime()` and a `silently()` context manager in `framework/steps.py` so `framework/refs.py:206` stops importing `_runtime` and `plugins/core/wait.py:162-167` stops reaching into `runtime.within(silent=True)`.
-- [x] **Remove hardcoded `"TBD"` & deduplicate small framework helpers**
+- [x] *(partial; finished in the follow-up)* **Remove hardcoded `"TBD"` & deduplicate small framework helpers**
   - Replace `head(form) == "TBD"` in `framework/analysis.py:189`, `documents/script.py:161`, and `lsp/service.py:555` with a helper checking `block.kind == PLACEHOLDER`.
   - Consolidate `is_step` (`framework/language.py:79` vs. `documents/script.py:70` vs. `documents/run.py:143`) and folder-ancestor walking (`framework/closure.py:189` vs. `framework/snippets.py:103`).
   - Consolidate `show`/`written`/`name_of` helpers (`value_blocks.py`, `verify.py`, `apollo/blocks.py`, `steps.py`, `markup.py`, `language.py`) and observer dispatch (`observer.py` vs. `steps.py:172`).
-- [x] **Share one `fn`/`defn` arity parser & `core.rst` linter between `framework/` and `lsp/`**
+  - *Follow-up:* `show`/`shown` were still duplicated; done in `ba68953`.
+- [x] *(partial; finished in the follow-up)* **Share one `fn`/`defn` arity parser & `core.rst` linter between `framework/` and `lsp/`**
   - Extract `parse_fn_arities(form)` in `framework/language.py` replacing the 4 copies in `lisp.py:271`, `analysis.py:97`, `analysis.py:607`, and `lsp/service.py:786`.
   - Have `framework/closure.py` linters emit `Diagnostic` objects and expose `check_core(path, text)`, so `lsp/service.py` removes its copy-pasted `core_problems()` (`L427-L440`) and string-prefix matching (`L399-L407`).
   - Share block candidate resolution between `block.py`, `refs.py`, and `analysis.py`, and align `planning.py:symbols_in` (`L125-L132`) with `analysis.py` so maps/sets/binders are handled properly.
-- [x] **Tighten `source.parse` / `Card` boundary**
+  - *Follow-up:* the arity parsers already shared `fn_params`; block resolution shares its messages only (`e9521e7`: runtime, refs and analysis match differently on purpose); `symbols_in` now binds a named fn's own name and skips special forms, and the runtime binds it too (`b47d7a8`).
+- [x] *(partial; finished in the follow-up)* **Tighten `source.parse` / `Card` boundary**
   - Replace raw docutils node dict indexing across `cards.py`, `closure.py`, `snippets.py`, `documents/script.py`, `lsp/service.py`, and `web/editor.py` with typed accessors/methods on `source.py` (and stop matching cards to statements by `id(statement.block) == id(card.node)` in `documents/script.py:109-110`).
+  - *Follow-up:* `lsp/service.py` still indexed node fields; done in `2b5c92d`.
 
 **Verify:** `test_lisp.py`, `test_lisp_control.py`, `test_analysis.py`, `test_blocks.py`, `test_refs.py`, `test_cards.py`, `test_snippets.py`, `test_lsp.py`, then full suite.
 
@@ -160,27 +174,31 @@ Lisp/core analyzers between `framework/` and `lsp/`.
 Break up the 881-line `jobs.py` god module, stop raw SQL outside stores,
 and clean up `Kernel` ↔ `executor` ↔ `worker` coupling.
 
-- [x] **Split `services/jobs.py` by domain**
+- [x] *(partial; finished in the follow-up)* **Split `services/jobs.py` by domain**
   - Separate into focused modules:
     1. Queue & worker registry (`services/jobs.py` or `services/queue.py`)
     2. Report creation, plan additions & reruns (`services/reports/queue.py` or `services/reports/runs.py`), removing deferred circular imports with `reports/{export,rollup}`
     3. Scratch run lifecycle (`services/scratch.py`), isolating `SCRATCH` folder special-casing
   - Deduplicate the plan-to-`enqueue` loop shared by `add_plan` (`L258-L279`) and `queue_scratch` (`L836-L846`), and replace `passed_combinations`'s manual latest-run scan (`L330-L340`) with `rollup.history()`.
-- [x] **Close raw SQL & `sqlite3.Row` leaks**
+  - *Follow-up:* callers still went through 22 re-exports, so the cycle had moved, not gone; re-exports dropped and `SCRATCH` moved to `reports.store` (`8bebbaf`). The scratch-first queue order stays in `jobs.find_jobs`.
+- [x] *(partial; finished in the follow-up)* **Close raw SQL & `sqlite3.Row` leaks**
   - Add `latest_import_id(conn)` to `services/requirements/models.py` and replace the 3 raw `SELECT MAX(id) FROM imports` queries in `services/jobs.py:143`, `web/app.py:36`, and `web/api.py:126`.
   - Add dataclasses for `accounts.pending_link` / `link_device` (`services/accounts.py:153-168`) and stop leaking raw `sqlite3.Row` from `services/requirements/store.py:141-149`.
   - Move `expanded_nodes` / `open_tabs` SQL out of `web/workspace.py:27-44` and `web/editor.py:291-318` into a small service/store helper.
   - Move `PRAGMA journal_mode=WAL` configuration into `services/database.py` (e.g. `connect(..., wal=True)` or `init_db`) instead of repeating it in `cli.py:264, 299`.
-- [x] **Clean up `services/requirements/` internal duplication**
+  - *Follow-up:* `web/editor.py:expand_to` still ran SQL; moved to `services/database.expand_nodes` (`d89fcd5`).
+- [x] *(partial; finished in the follow-up)* **Clean up `services/requirements/` internal duplication**
   - Make `staging.py:same()` / `preview()` reuse `store.facet_changes` so `hashed: false` attributes behave identically in staging preview and import.
   - Deduplicate `as_requirement` (`models.py:65` vs. `staging.py:101`), spec validation (`export.py:149` vs. `flat.py:240`), duplicate-ID detection (`export.py:244` vs. `store.py:181`), and `dirhtml` page path (`render.py:79` vs. `sphinx/__init__.py:87`).
-- [x] **Clean up `services/worker/kernel.py` & `worker.py`**
+  - *Follow-up:* the `dirhtml` page path dedupe was made moot by Step 4 recording pages on the env.
+- [x] *(partial; finished in the follow-up)* **Clean up `services/worker/kernel.py` & `worker.py`**
   - Refactor `worker.versions_installed` / `install_uuts` / `handles` to take `(host, environment, uut_versions: dict[str, Version])` and delete `Kernel._job()` (`kernel.py:499-502`).
   - Move `framework_fingerprint()` out of `services/worker/host.py` so `services/reports/build.py:228` doesn't depend on `worker.host`.
   - Stop `Kernel._run_card` (`kernel.py:640-660`) from round-tripping through `cards.rvt_source` and reversing its 3-space indent; construct statements directly from parsed forms + spans.
   - Replace string-matching in `Transcript.on_step_end` (`"returned "`, `"Stopped"`, `"unknown name"`, `PRECONDITION_TEXT` regex) with structured fields from `executor.py` / `language.parse_precondition`.
   - Synchronize `Kernel.names()` with a lock instead of catching `RuntimeError` (`kernel.py:573-575`).
   - Move `Console` lifecycle manager and `choices()` out of `web/console.py:47-156` into `services/worker/console.py` (sharing validation with `Kernel.__init__`).
+  - *Follow-up:* the lock in `names()` can't guard bindings the kernel thread makes unlocked; `Env.local_items` snapshots instead (`f05a5ac`). `choices()` and `Kernel` now share `hosted_environments` (`d89fcd5`).
 
 **Verify:** `test_jobs.py`, `test_kernel.py`, `test_console.py`, `test_accounts.py`, `test_requirement_store.py`, `test_requirement_flat.py`, `test_requirement_uploads.py`, then full suite.
 
@@ -195,8 +213,10 @@ logic across the HTTP/CLI adapters.
   - Rename `web/auth.py:central()` → `accounts_enabled()` (or `is_central_server()`) and `web/client_mode.py:central()` → `central_client()`.
   - Add a lock around `web/client_mode.py`'s TTL caches (`_CENTRAL_ENVIRONMENTS`, `_CENTRAL_UUTS`).
   - Split `services/requirements/models.py:workspace_context` into `read_workspace_context(root)` + validation so `web/workspace.py:79-87` (`configured_context`) stops duplicating `automation.json` parsing.
+  - *Follow-up:* `live_environments` dropped this machine's workers in client mode; restored (`13445db`).
 - [x] **Unify local UUT build upload & listing across CLI and Web**
   - Fold `cli.py:601-648` (`local_versions`, `list_builds`) onto `services/builds.py` so both CLI (`--uut name=local`) and Web (`builds.UPLOAD`) go through one digest-matching + upload + `remember_used` implementation.
+  - *Follow-up:* `matched_version` scanned oldest-first where the web had scanned newest-first; newest-first now (`0950c7f`).
 - [x] **Consolidate duplicated web helpers**
   - **Base URL**: have `web/reports.py:367-370` (`server_url`) reuse `web/auth.py:external_url` / `settings().base_url` instead of the unset `SERVER_URL` config key.
   - **Open-redirect guard**: reuse `web/auth.py:safe_next` in `web/reports.py:361` and `web/requirements.py:227`.
@@ -207,6 +227,7 @@ logic across the HTTP/CLI adapters.
   - **LSP session encapsulation**: add `Server.is_open(uri)` on `lsp/server.py` so `web/editor.py:397` stops inspecting `self.server.service.texts`.
   - **Move `web/editor.py` file mutations** (`write`, `rename`, `unlink`, `mkdir`) into `services/workspace.py`.
   - **Untangle `web/jobs.py` utility exports**: move shared `workspaces()`, `reports_root()`, and `live_environments()` helpers to a neutral `web/` module so 5 other blueprints don't import from `web/jobs.py`.
+  - *Follow-up:* the mirror path in `web/app.py` still computed "beside DB_PATH" itself; uses `context.cache_dir` now (`d89fcd5`).
 
 **Verify:** `test_api.py`, `test_client_cli.py`, `test_client_web.py`, `test_editor.py`, `test_scratch_first.py`, `test_sign_in.py`, `test_builds.py`, `test_requirement_handlers.py`, then full suite.
 
