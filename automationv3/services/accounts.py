@@ -15,7 +15,9 @@ import hashlib
 import re
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+
+from .util import iso, utcnow
 
 USER_TOKEN, WORKER_TOKEN = "user", "worker"
 TOKEN_PREFIX = {USER_TOKEN: "av3u_", WORKER_TOKEN: "av3w_"}
@@ -53,14 +55,6 @@ class Token:
     last_used_at: str = None
     revoked_at: str = None
     created_by: str = None  # email
-
-
-def utcnow():
-    return datetime.now(timezone.utc).replace(microsecond=0)
-
-
-def iso(when):
-    return when.astimezone(timezone.utc).isoformat()
 
 
 def parse(text):

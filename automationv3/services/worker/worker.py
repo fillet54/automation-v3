@@ -29,7 +29,7 @@ from dataclasses import asdict
 from ...framework.executor import execute_closure
 from ...framework.observer import ObserverManager
 from ...framework.uut import Version
-from ..reports.store import now_iso
+from ..util import now_iso
 
 # Seconds between polls for work while idle, and between keepalives
 POLL_INTERVAL = 2

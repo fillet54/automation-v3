@@ -1,23 +1,19 @@
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from ..framework.closure import Closure, resolve
 from ..framework.planning import build_plan
 from .reports import store
 from .requirements import models as requirement_models
+from .util import now_iso, utcnow_naive as utcnow
 
 ALLOWED_STATUS = ["available", "busy", "console", "missing"]
 
 # Keepalives are sent every 60 seconds; a worker silent for longer
 # than this is considered missing
 MISSING_AFTER = timedelta(minutes=5)
-
-
-def utcnow():
-    """Now, in UTC, as the queue keeps times: without a zone"""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @dataclass

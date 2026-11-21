@@ -18,6 +18,7 @@ from pathlib import Path
 
 from ..framework.uut import uut_types
 from .client import config_home
+from .util import write_json
 
 UPLOAD = "upload"  # the version choice meaning: upload the local build, use it
 
@@ -70,8 +71,7 @@ def remember_used(versions):
     except (OSError, ValueError):
         state = {}
     state.setdefault("last_used", {}).update(versions)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, indent=2))
+    write_json(path, state)
 
 
 @dataclass

@@ -15,10 +15,10 @@ A context is where requirements are read from:
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 from ...framework.requirement import Requirement
+from ..util import iso
 from . import export, store
 
 __all__ = ["Requirement", "find_by_id", "find_all", "subsystems", "insert",
@@ -294,10 +294,6 @@ def workspace_context(conn, root):
 LOCAL = "LOCAL"
 
 
-def now():
-    return datetime.now(timezone.utc).isoformat()
-
-
 def insert(conn, requirements, spec=LOCAL):
     """Add `requirements` (framework Requirements) to trunk spec `spec`,
     through an import like any other: for tests and hand-made data"""
@@ -314,4 +310,4 @@ def insert(conn, requirements, spec=LOCAL):
                     files={"index.rst": "\n".join(lines).encode()})
     s.requirements = export.spec_requirements(s)
     store.import_export(conn, export.Export("<insert>", {"format": 1}, [s], [],
-                                            export.exported_at(now())))
+                                            export.exported_at(iso(timespec="microseconds"))))

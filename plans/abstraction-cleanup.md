@@ -58,10 +58,10 @@ Small, self-contained wins with minimal blast radius.
 
 Eliminate divergent low-level helpers across `services/`.
 
-- [ ] **Consolidate UTC timestamp helpers**
+- [x] **Consolidate UTC timestamp helpers**
   - Define one canonical timestamp module/helper (e.g. `services/database.py` or a small `services/util.py`) covering ISO-8601 UTC (`now_iso`) and SQLite `CURRENT_TIMESTAMP` comparison timestamps.
   - Replace duplicates in `services/accounts.py:58`, `services/jobs.py:18`, `services/reports/store.py:56`, `services/requirements/models.py:297`, `services/requirements/flat.py:268`, and remove `services/worker/worker.py:32` importing `now_iso` from `reports.store`.
-- [ ] **Consolidate atomic file & JSON writes**
+- [x] **Consolidate atomic file & JSON writes**
   - Extract one `atomic_write(path, data, mode=None)` / `write_json(path, obj, mode=None)` helper using `tempfile.mkstemp(dir=path.parent)` + `os.replace` (fixing concurrent `.tmp` collisions).
   - Use it in `services/client.py:56`, `services/builds.py:65` (currently non-atomic), `services/reports/store.py:60`, `services/reports/build.py:51`, and `web/editor.py:222`.
 - [ ] **Unify git subprocess & `git archive` extraction**

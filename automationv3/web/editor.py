@@ -221,22 +221,8 @@ def sent_text(body):
 
 def write(path, text):
     """Replace the file at `path` with `text`, all or nothing"""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    try:
-        with os.fdopen(handle, "wb") as f:
-            f.write(text.encode("utf-8"))
-        if path.exists():
-            os.chmod(temporary, path.stat().st_mode & 0o777)
-        else:
-            os.chmod(temporary, 0o644)
-        os.replace(temporary, path)
-    except BaseException:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
-        raise
+    from ..services.util import atomic_write
+    atomic_write(path, text)
 
 
 # New files

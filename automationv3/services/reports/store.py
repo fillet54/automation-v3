@@ -26,8 +26,9 @@ import shutil
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
+
+from ..util import now_iso, write_json as _write_json
 
 _uuid7_lock = threading.Lock()
 _uuid7_last = (0, 0)
@@ -51,17 +52,6 @@ def uuid7():
     rand_b = int.from_bytes(os.urandom(8), "big") & ((1 << 62) - 1)
     value = (ms & ((1 << 48) - 1)) << 80 | 0x7 << 76 | seq << 64 | 0b10 << 62 | rand_b
     return str(uuid.UUID(int=value))
-
-
-def now_iso():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def _write_json(path, data):
-    """Write atomically so readers never see a partial file"""
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2))
-    os.replace(tmp, path)
 
 
 def _read_json(path):

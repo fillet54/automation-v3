@@ -28,9 +28,10 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import PurePath
 
+from ..util import iso
 from . import export
 from .export import ExportError
 
@@ -261,12 +262,8 @@ def as_export(name, rows, attributes, spec, baseline, title, level, parents, sou
     except ExportError as e:
         raise ExportError(f"{name}: {e}") from None
     manifest = {"format": export.FORMAT, "exporter": {"name": "flat"},
-                "exported_at": now(), "specs": [entry]}
+                "exported_at": iso(timespec="microseconds"), "specs": [entry]}
     return export.Export(name, manifest, [s], [], export.exported_at(manifest["exported_at"]))
-
-
-def now():
-    return datetime.now(timezone.utc).isoformat()
 
 
 def check_columns(found, columns, name):

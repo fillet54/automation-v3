@@ -32,6 +32,7 @@ from pathlib import Path
 
 from . import export, store
 from .data import ReportData
+from ..util import now_iso, write_json
 
 BUILD = "build"     # in a report folder: what freezing built
 SKIP = {BUILD, export.EXPORTS}  # never part of the report's own files
@@ -50,11 +51,8 @@ def status(root, report_id):
 
 def set_status(root, report_id, **fields):
     folder = build_dir(root, report_id)
-    folder.mkdir(parents=True, exist_ok=True)
     found = {**(status(root, report_id) or {}), **fields}
-    tmp = folder / "status.json.tmp"
-    tmp.write_text(json.dumps(found, indent=2))
-    os.replace(tmp, folder / "status.json")
+    write_json(folder / "status.json", found)
     return found
 
 
