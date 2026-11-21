@@ -46,6 +46,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 
 from . import context, edn, lisp
+from .markup import written
 from .block import (
     ASSERTION, PLACEHOLDER, VALUE, AmbiguousBlock, BlockResult, NoBlock, block_names,
     resolve,
@@ -346,17 +347,10 @@ def quietly_special_form(x, env):
 # Printing
 
 
-def shown(value):
-    """A value as print writes it: a string as it is, anything else as edn"""
-    if isinstance(value, str) and not isinstance(value, edn.Symbol):
-        return value
-    return edn.writes(value)
-
-
 def _printer(end):
     def printer(*values):
         runtime = _runtime.get()
-        text = " ".join(shown(v) for v in values) + end
+        text = " ".join(written(v) for v in values) + end
         if runtime is None:
             print(text, end="")  # outside a step: the process's own output
         elif not runtime.frame.silent:

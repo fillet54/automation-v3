@@ -59,9 +59,9 @@ def heading(title, char="="):
 
 
 def written(value):
-    """A value as written in a script: strings as they are, everything
-    else (keywords, symbols, numbers, collections) as edn"""
-    if isinstance(value, str) and not isinstance(value, (edn.Symbol, edn.Keyword)):
+    """A value as written in a script, and as print writes it: strings as
+    they are, everything else (keywords, symbols, numbers, collections) as edn"""
+    if isinstance(value, str) and not isinstance(value, edn.Symbol):  # Keyword too
         return value
     return edn.writes(value)
 

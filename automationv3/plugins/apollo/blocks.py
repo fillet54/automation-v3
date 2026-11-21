@@ -27,10 +27,6 @@ def lm():
     return context.lookup("lm")
 
 
-def show(value):
-    return edn.writes(value)
-
-
 class StartLM(BuildingBlock):
     """Boot the lunar module from a configuration map.
 
@@ -67,7 +63,7 @@ class StartLM(BuildingBlock):
         if result == edn.Keyword("rejected-load"):
             return BlockResult(False, value=result,
                                stdout=f"{lm().version()} rejected the erasable load")
-        settings = ", ".join(f"{show(k)} {show(v)}" for k, v in lm().config().items())
+        settings = ", ".join(f"{edn.writes(k)} {edn.writes(v)}" for k, v in lm().config().items())
         return BlockResult(True, value=result, stdout=f"booted: {settings}")
 
     def as_rst(self, config):
@@ -103,7 +99,7 @@ class Keys(BuildingBlock):
         if bad:
             return BlockResult(False, stderr=f"no DSKY key {''.join(sorted(bad))}", error=True)
         shown = lm().keys(text)
-        return BlockResult(True, value=shown, stdout=f"{text} -> {show(shown)}")
+        return BlockResult(True, value=shown, stdout=f"{text} -> {edn.writes(shown)}")
 
     def as_rst(self, text):
         caps = [KEY_NAMES.get(k, k) for k in str(text).upper().replace(" ", "")]
@@ -155,7 +151,7 @@ class ClickROD(BuildingBlock):
         if not lm().click_rod(clicks):
             return BlockResult(False, stderr="the ROD switch does nothing outside P64, P65 and P66")
         rate = connectors.name(lm().read_point("lm.lgc.program"))
-        return BlockResult(True, stdout=f"{show(clicks)} click(s); P{rate}")
+        return BlockResult(True, stdout=f"{edn.writes(clicks)} click(s); P{rate}")
 
     def as_rst(self, clicks):
         return markup.line(markup.strong("Click the ROD switch"), markup.text(clicks), "time(s)")
@@ -176,7 +172,7 @@ class RunFor(BuildingBlock):
 
     def execute(self, seconds):
         now = lm().run_for(seconds)
-        return BlockResult(True, stdout=f"ran {show(seconds)} s; flight time {now:g} s")
+        return BlockResult(True, stdout=f"ran {edn.writes(seconds)} s; flight time {now:g} s")
 
     def as_rst(self, seconds):
         return markup.line(markup.strong("Run for"), markup.text(seconds) + " s")
@@ -205,12 +201,12 @@ class FlyTo(BuildingBlock):
 
     def execute(self, phase, _within=None, limit=1500):
         if connectors.name(phase) not in PHASES:
-            return BlockResult(False, stderr=f"no phase {show(phase)}: "
+            return BlockResult(False, stderr=f"no phase {edn.writes(phase)}: "
                                + ", ".join(f":{p}" for p in PHASES), error=True)
         if not lm().fly_to(phase, limit):
-            return BlockResult(False, stderr=f"didn't reach {show(phase)} within {show(limit)} s")
+            return BlockResult(False, stderr=f"didn't reach {edn.writes(phase)} within {edn.writes(limit)} s")
         now = lm().read_point("lm.time.sim")
-        return BlockResult(True, stdout=f"reached {show(phase)} at {now:g} s")
+        return BlockResult(True, stdout=f"reached {edn.writes(phase)} at {now:g} s")
 
     def as_rst(self, phase, *rest):
         return markup.line(markup.strong("Fly to"), markup.code(phase))

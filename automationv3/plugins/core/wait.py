@@ -4,7 +4,7 @@ from automationv3.framework import clock, context, edn, markup
 from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
 from automationv3.framework.steps import silently
 
-from .verify import parse, run_check, show
+from .verify import parse, run_check
 
 
 class Wait(BuildingBlock):
@@ -55,9 +55,9 @@ class Wait(BuildingBlock):
             value = context.evaluate(check.actual)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 clock.current().sleep(value)
-                return BlockResult(True, stdout=f"waited {show(value)} s"
+                return BlockResult(True, stdout=f"waited {edn.writes(value)} s"
                                    if not isinstance(value, edn.Duration)
-                                   else f"waited {show(value)}")
+                                   else f"waited {edn.writes(value)}")
         within = options.get("within", default("wait-timeout", DEFAULT_TIMEOUT))
         every = options.get("every", default("wait-every", DEFAULT_EVERY))
         return poll(lambda: run_check(check, self.mode), within, every)
@@ -140,7 +140,7 @@ DEFAULT_EVERY = edn.Duration(0.1, "100ms")
 
 def seconds(value, name):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
-        raise TypeError(f":{name} takes a time, e.g. 5s or 500ms, not {show(value)}")
+        raise TypeError(f":{name} takes a time, e.g. 5s or 500ms, not {edn.writes(value)}")
     return value
 
 
@@ -153,7 +153,7 @@ def default(name, fallback):
 
 
 def shown_time(value):
-    return show(value) if isinstance(value, edn.Duration) else f"{value:g}s"
+    return edn.writes(value) if isinstance(value, edn.Duration) else f"{value:g}s"
 
 
 def poll(check, within, every):

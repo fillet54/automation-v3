@@ -26,10 +26,6 @@ from .block import ACTION, VALUE, BlockResult, BuildingBlock
 from .refs import Ref, accepts, members
 
 
-def show(value):
-    return edn.writes(value)
-
-
 class ValueBlock:
     """What the four blocks share: a ref as the first argument (a mixin,
     so it isn't a block of its own)"""
@@ -69,7 +65,7 @@ class Read(ValueBlock, BuildingBlock):
             for name, member in members(ref):
                 refs.record(member, "read")
                 value[edn.Keyword(name)] = self.read(member)
-        return BlockResult(True, stdout=f"{ref.label} is {show(value)}", value=value)
+        return BlockResult(True, stdout=f"{ref.label} is {edn.writes(value)}", value=value)
 
     def read(self, ref):
         """The value at one ref (of `ref_type`)"""
@@ -98,7 +94,7 @@ class SetValue(ValueBlock, BuildingBlock):
         for _, member in members(ref):
             refs.record(member, "set")
             self.write(member, value)
-        return BlockResult(True, stdout=f"{ref.label} set to {show(value)}")
+        return BlockResult(True, stdout=f"{ref.label} set to {edn.writes(value)}")
 
     def write(self, ref, value):
         """Write `value` to one ref"""
@@ -141,7 +137,7 @@ class SetFixedValue(ValueBlock, BuildingBlock):
             self.fix(member, value)
             context.add_cleanup(cleanup_key(member), f"ClearFixedValue {member.label}",
                                 lambda member=member: release(member))
-        return BlockResult(True, stdout=f"{ref.label} fixed at {show(value)}")
+        return BlockResult(True, stdout=f"{ref.label} fixed at {edn.writes(value)}")
 
     def fix(self, ref, value):
         """Hold one ref at `value`"""

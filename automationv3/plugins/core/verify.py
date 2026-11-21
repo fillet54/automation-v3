@@ -20,10 +20,6 @@ from automationv3.framework.block import ASSERTION, BlockResult, BuildingBlock
 from automationv3.framework.refs import is_ref, members
 
 
-def show(value):
-    return edn.writes(value)
-
-
 @dataclass
 class Check:
     """A check as written: `actual predicate args...`, or `actual` alone
@@ -79,7 +75,7 @@ def _side(value):
 
 
 def _shown(label, value):
-    return f"{label} ({show(value)})" if label is not None else show(value)
+    return f"{label} ({edn.writes(value)})" if label is not None else edn.writes(value)
 
 
 def _paired(values):
@@ -103,7 +99,7 @@ def compare(actual, predicate=None, args=(), mode="all", written=None, name=None
     are the actual and the predicate as the script wrote them."""
     if mode == "same":
         if not is_ref(actual):
-            raise TypeError(f"{show(written or actual)} isn't a group of refs")
+            raise TypeError(f"{edn.writes(written or actual)} isn't a group of refs")
         left = _side(actual)
         values = [value for _, value in left]
         passed = all(v == values[0] for v in values[1:])
@@ -112,9 +108,9 @@ def compare(actual, predicate=None, args=(), mode="all", written=None, name=None
         rows = _paired([actual])
         results = [bool(value) for ((_, value),) in rows]
     else:
-        name = show(name) if name is not None else getattr(predicate, "__name__", "?")
+        name = edn.writes(name) if name is not None else getattr(predicate, "__name__", "?")
         if not callable(predicate):
-            raise TypeError(f"{name} isn't a predicate: it is {show(predicate)}, "
+            raise TypeError(f"{name} isn't a predicate: it is {edn.writes(predicate)}, "
                             "not a function")
         rows = _paired([actual, *args])
         results = [bool(predicate(*[value for _, value in row])) for row in rows]
@@ -123,7 +119,7 @@ def compare(actual, predicate=None, args=(), mode="all", written=None, name=None
         (label, value), rest = row[0], row[1:]
         if predicate is None:
             line = _shown(label, value) if label is not None else \
-                f"{show(written)} is {show(value)}"
+                f"{edn.writes(written)} is {edn.writes(value)}"
         else:
             line = " ".join([_shown(label, value), name, *[_shown(*side) for side in rest]])
         if len(rows) > 1:
