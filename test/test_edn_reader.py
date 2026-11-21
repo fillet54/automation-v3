@@ -130,7 +130,8 @@ class TestEdnReader(unittest.TestCase):
         kw, sym = Keyword('abc'), Symbol('abc')
         ns_kw, ns_sym = Keyword('abc', namespace='ns'), Symbol('abc', namespace='ns')
         for a, b in [(kw, 'abc'), ('abc', kw), (kw, sym), (sym, kw), (sym, 'abc'),
-                     (ns_kw, 'ns/abc'), (ns_kw, ns_sym)]:
+                     (ns_kw, 'ns/abc'), (ns_kw, ns_sym), (ns_sym, Symbol('ns/abc')),
+                     (Symbol('ns/abc'), ns_kw)]:
             self.assertEqual(a, b)
             self.assertEqual(hash(a), hash(b))
         self.assertNotEqual(kw, ':abc')

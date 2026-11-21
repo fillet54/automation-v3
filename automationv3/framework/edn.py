@@ -116,8 +116,8 @@ class Symbol(str):
         return f"{self.namespace}/{name}" if self.namespace else name
 
     def __eq__(self, other):
-        if isinstance(other, Symbol):
-            return str.__eq__(self, other) and self.namespace == other.namespace
+        if isinstance(other, Symbol):  # ns/a however it was written
+            return self.qualified == other.qualified
         if isinstance(other, str):
             return self.qualified == str.__str__(other)
         return NotImplemented
