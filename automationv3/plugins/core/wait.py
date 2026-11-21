@@ -162,13 +162,16 @@ def poll(check, within, every):
     runtime = current_runtime()
     keeper = clock.current()
     started = keeper.now()
+    deadline = started + within
     while True:
         with runtime.within(silent=True):
             passed, compared = check()
-        waited = keeper.now() - started
+        now = keeper.now()
+        waited = now - started
         if passed:
             return BlockResult(True, stdout=f"after {waited:g}s: {compared}")
-        if waited >= within:
+        if now >= deadline:
             return BlockResult(False, stdout=f"not within {shown_time(within)}: "
                                              f"{compared}")
-        keeper.sleep(min(every, within - waited) if every > 0 else within - waited)
+        remaining = deadline - now
+        keeper.sleep(min(every, remaining) if every > 0 else remaining)
