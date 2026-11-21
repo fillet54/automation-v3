@@ -1,5 +1,7 @@
 """Rendering registry adapter between framework.plugins and documents/"""
 
+from docutils.parsers.rst import directives, roles
+
 from ..framework import plugins
 from . import core, template
 
@@ -39,11 +41,14 @@ class DocumentRegistry:
         )
 
     def restore(self, snap):
-        resolvers, roles, filters, folders = snap
+        resolvers, role_names, filters, folders = snap
+        # out of docutils too, or the name still parses and then has no resolver
         for name in set(core.RESOLVERS) - resolvers:
             core.RESOLVERS.pop(name, None)
-        for name in set(core.ROLE_VALUES) - roles:
+            directives._directives.pop(name, None)
+        for name in set(core.ROLE_VALUES) - role_names:
             core.ROLE_VALUES.pop(name, None)
+            roles._roles.pop(name, None)
         for name in set(template.FILTERS) - filters:
             template.FILTERS.pop(name, None)
         template.Snippets.plugin_folders[:] = folders

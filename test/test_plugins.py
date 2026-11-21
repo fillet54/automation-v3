@@ -164,6 +164,27 @@ class TestPluginFunctions(unittest.TestCase):
                             if type(b).__module__.startswith("automationv3.framework.")))
 
 
+class Backend:
+    """A rendering registry that records what it's asked"""
+
+    def __init__(self):
+        self.registered, self.restored = [], []
+
+    def builtins(self, kind):
+        return {"results"} if kind == "directive" else ()
+
+    def register_directive(self, name, *args):
+        self.registered.append(name)
+
+    register_role = register_filter = register_snippets = register_directive
+
+    def snapshot(self):
+        return "baseline"
+
+    def restore(self, snap):
+        self.restored.append(snap)
+
+
 class TestPluginRendering(unittest.TestCase):
     """What plugins add to documents (see plugins/apollo/documents.py)"""
 
@@ -174,14 +195,54 @@ class TestPluginRendering(unittest.TestCase):
                                     {k: dict(v) for k, v in plugins._rendering.items()})
         self.rendering.start()
         self.addCleanup(self.rendering.stop)
+        for kept in (plugins._directives, plugins._roles, plugins._filters):
+            patcher = patch.dict(kept, dict(kept))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        backend = plugins._rendering_backend
+        self.addCleanup(backend.restore, backend.snapshot())
         self.registry = plugins.PluginRegistry("test-plugin")
 
     def test_a_plugin_directive_renders_in_documents(self):
         from automationv3.documents import core
         self.registry.directive("test-hello", lambda context, options: "Hello *there*.")
-        self.addCleanup(core.RESOLVERS.pop, "test-hello", None)
         document = core.resolved(core.parse(".. test-hello::\n"), core.Context())
         self.assertIn("<em>there</em>", core.write(document)["body"])
+
+    def test_rolled_back_directives_and_roles_are_gone_from_docutils(self):
+        from docutils.parsers.rst import directives, roles
+        from automationv3.documents import core
+        backend = plugins._rendering_backend
+        before = backend.snapshot()
+        self.registry.directive("test-gone", lambda context, options: "x")
+        self.registry.role("test-gone", lambda context, what: "x")
+        backend.restore(before)
+        self.assertNotIn("test-gone", directives._directives)
+        self.assertNotIn("test-gone", roles._roles)
+        document = core.resolved(core.parse(".. test-gone::\n"), core.Context())
+        self.assertIn("Unknown directive", core.write(document)["body"])
+
+    def test_replaying_into_documents_registers_nothing_on_a_clash(self):
+        backend = Backend()
+        plugins._directives["test-first"] = (lambda c, o: "", None, False)
+        plugins._directives["results"] = (lambda c, o: "", None, False)  # built-in
+        with patch.object(plugins, "_rendering_backend", None), \
+                patch.object(plugins, "_backend_baseline", None):
+            with self.assertRaisesRegex(ValueError, "results"):
+                plugins.set_rendering_registry(backend)
+        self.assertEqual(backend.registered, [])
+
+    def test_a_load_that_began_before_documents_rolls_back_into_documents(self):
+        backend = Backend()
+        with patch.object(plugins, "_rendering_backend", None), \
+                patch.object(plugins, "_backend_baseline", None):
+            before = ({k: dict(v) for k, v in plugins._rendering.items()},
+                      dict(plugins._directives), dict(plugins._roles),
+                      dict(plugins._filters), list(plugins._snippet_folders),
+                      {k: list(v) for k, v in plugins._styles.items()}, None)
+            plugins.set_rendering_registry(backend)  # a plugin imports documents
+            plugins.forget_rendering(before)  # a later one fails
+        self.assertEqual(backend.restored, ["baseline"])
 
     def test_names_are_claimed_once(self):
         with self.assertRaisesRegex(ValueError, "built-in"):

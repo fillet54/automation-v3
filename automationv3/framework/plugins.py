@@ -52,6 +52,7 @@ _roles = {}        # name -> value
 _filters = {}      # name -> fn
 _snippet_folders = []  # [Path]
 _rendering_backend = None  # registered by documents/registry.py
+_backend_baseline = None  # its snapshot before plugins' items were replayed into it
 _styles = {"css": [], "latex": []}  # (plugin, text)
 _versions = {}  # plugin -> its version
 _loaded = False
@@ -64,22 +65,24 @@ def set_rendering_registry(backend):
     """Attach the document rendering registry (called by documents/).
     Any directives, roles, filters and snippet folders plugins registered
     before documents/ was imported are replayed into `backend`."""
-    global _rendering_backend
+    global _rendering_backend, _backend_baseline
     with _lock:
         _rendering_backend = backend
+        _backend_baseline = None
         if backend is None:
             return
+        # every name first, so a clash registers nothing
+        for kind, names in (("directive", _directives), ("role", _roles),
+                            ("filter", _filters)):
+            for name in names:
+                if name in backend.builtins(kind):
+                    raise ValueError(f"the {kind} {name} is a built-in one")
+        _backend_baseline = backend.snapshot()
         for name, (resolver, option_spec, arguments) in _directives.items():
-            if name in backend.builtins("directive"):
-                raise ValueError(f"the directive {name} is a built-in one")
             backend.register_directive(name, resolver, option_spec, arguments)
         for name, value in _roles.items():
-            if name in backend.builtins("role"):
-                raise ValueError(f"the role {name} is a built-in one")
             backend.register_role(name, value)
         for name, fn in _filters.items():
-            if name in backend.builtins("filter"):
-                raise ValueError(f"the filter {name} is a built-in one")
             backend.register_filter(name, fn)
         for folder in _snippet_folders:
             backend.register_snippets(folder)
@@ -304,6 +307,8 @@ def forget_rendering(before):
     _snippet_folders[:] = folders
     for kind, texts in styles.items():
         _styles[kind][:] = texts
+    if backend_snap is None:  # documents/ came in during the load
+        backend_snap = _backend_baseline
     if _rendering_backend is not None and backend_snap is not None:
         _rendering_backend.restore(backend_snap)
 
