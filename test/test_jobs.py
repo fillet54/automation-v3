@@ -989,7 +989,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         (r9,) = rollup.requirement_rollup(report, [])
         self.assertEqual(r9["color"], "untested")
         overview = self.http.get(f"/reports/{report_id}").get_data(True)
-        self.assertIn("R9</a>: untested, no script references it yet", overview)
+        self.assertIn("No script covers it yet.", overview)
         self.assertIn("Update tests", overview)
         self.assertIn("<em>no tests yet</em>", overview)
 

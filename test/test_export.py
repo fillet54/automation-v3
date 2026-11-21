@@ -88,20 +88,49 @@ class TestDocument(ReportTestCase):
     def test_the_default_document_has_every_section_and_renders_cleanly(self):
         html = body(self.root, self.report_id)
         for heading in ("Identification", "Summary", "Open issues", "Requirements",
-                        "Results", "Failures", "Bundle"):
+                        "Scripts", "Bundle"):
             self.assertIn(f">{heading}</h", html)
         self.assertIn("The brakes shall hold.", html)
         self.assertIn("<em>text not recorded</em>", html)  # REQ-2 has no text
 
     def test_the_directives_stay_in_the_source(self):
         source = export.source(self.root, self.report_id)
-        self.assertIn(".. results::", source)
+        self.assertIn(".. script-results::", source)
         self.assertNotIn("list-table", source)
 
     def test_runs_are_named_by_their_whole_id(self):
-        html = body(self.root, self.report_id)
+        html = body(self.root, self.report_id, ".. results::\n")
         for run in store.list_runs(self.root, self.report_id):
             self.assertIn(run["id"], html)
+        failed = [r for r in store.list_runs(self.root, self.report_id) if r["outcome"] == "fail"]
+        self.assertTrue(failed)
+        default = body(self.root, self.report_id)  # names only the runs that failed
+        for run in failed:
+            self.assertIn(run["id"], default)
+
+    def test_the_summary_says_how_the_requirements_came_out(self):
+        html = body(self.root, self.report_id, ".. report-summary::\n")
+        self.assertIn("Of 2 requirements, 1 fails; the other one passes.", html)
+        self.assertIn("It has 2 scripts, run 3 times on lm LUM099.", html)
+        self.assertIn("Of those scripts, 1 failed; the rest passed.", html)
+        self.assertNotIn("Combinations", html)
+
+    def test_open_issues_name_each_failing_requirement_and_the_script_failing_it(self):
+        html = body(self.root, self.report_id, ".. open-issues::\n")
+        self.assertIn("REQ-2", html)
+        self.assertNotIn("REQ-1", html.split("Failures")[0])  # green: not an issue
+        self.assertIn("CFG/tc_cfg_002.rst: ", html)
+        self.assertIn("It fails REQ-2.", html)  # the failure once, with what it fails
+
+    def test_requirements_list_each_script_once(self):
+        html = body(self.root, self.report_id, ".. requirement-results::\n")
+        self.assertEqual(html.count("ALM/tc_alm_001.rst"), 1)  # two variations, one line
+        self.assertIn("CFG/tc_cfg_002.rst: failed", html)
+
+    def test_scripts_are_one_row_each(self):
+        html = body(self.root, self.report_id, ".. script-results::\n")
+        self.assertEqual(html.count("ALM/tc_alm_001.rst"), 1)
+        self.assertIn("verdict-fail", html)
 
     def test_an_empty_report_renders(self):
         report_id = models.create_report(self.root, "", "Empty")

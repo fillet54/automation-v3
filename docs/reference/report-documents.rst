@@ -24,15 +24,21 @@ name (below):
    exported document adds when it was exported and its bundle.
 
 ``.. report-summary::``
-   The requirements and combinations by state, with how they're judged.
+   The outcome in a sentence (how many requirements fail, aren't fully
+   verified, have no tests and pass, and how many scripts ran on which
+   versions), the requirements by verdict, and how a verdict is judged.
 
 ``.. open-issues::``
-   Requirements no script tests yet, and each combination that didn't pass,
-   with why.
+   Each requirement that isn't green, red first, with the scripts (and
+   variations) keeping it so: failed at which step, incomplete, not run or
+   outdated. Then each failure once: its run, the step, the message and
+   the requirements it fails. Scripts that didn't pass but cover no
+   requirement come last.
 
 ``.. requirement-results::``
    Each requirement the report tests: its text as the report kept it, its
-   verdict, and the combinations covering it.
+   verdict, and the scripts covering it, one line each, saying how its
+   variations came out when they didn't all pass.
 
    ``:group-by:``
       ``subsystem`` (the default) or ``none``.
@@ -42,8 +48,14 @@ name (below):
       Only requirements with this verdict: ``green``, ``red``, ``partial``
       or ``untested``.
 
+``.. script-results::``
+   Each script once: its verdict (the worst of its variations' latest runs)
+   and how many variations it has, with how they came out when not alike.
+
 ``.. results::``
-   The latest run of each combination, its outcome and duration.
+   The latest run of each combination, its run, outcome and duration. The
+   default template leaves it, ``reruns`` and ``failures`` out; add them for
+   a run-by-run log.
 
    ``:script:``
       Only scripts matching this pattern, e.g. ``LND/*``.

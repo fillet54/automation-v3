@@ -23,22 +23,13 @@ Requirements
 
 .. requirement-results::
 
-Results
+Scripts
 =======
 
-The latest run of each combination of script, environment and variation.
+Each script's verdict, from the latest run of each of its variations.
+Every run, with its events and attached files, is in the bundle.
 
-.. results::
-
-Reruns
-------
-
-.. reruns::
-
-Failures
---------
-
-.. failures::
+.. script-results::
 
 Bundle
 ======

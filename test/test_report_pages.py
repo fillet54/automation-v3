@@ -106,7 +106,7 @@ class TestTree(ReportPagesTestCase):
         context = export.context(self.root, self.report_id)
         document = export.render_document(context, export.source(self.root, self.report_id))
         html = core.write(document, "html5")["body"]
-        self.assertIn("untested, no script references it yet", html)
+        self.assertIn("No script covers it yet.", html)
         self.assertIn("<em>no tests yet</em>", html)
 
     def test_a_failure_says_where_and_why(self):

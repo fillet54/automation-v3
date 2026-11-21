@@ -1,25 +1,20 @@
-%# .. report-summary::  counts of requirements and combinations by state
+%# .. report-summary::  the outcome in a sentence, and the requirements by verdict
 % set requirements = data.requirements
-% set rows = data.combinations
-The report covers {{ requirements | length | plural("requirement") }} with
-{{ rows | length | plural("combination") }} of script, environment and variation.
-Each combination is judged on its latest run; a requirement is green when every
-combination linked to it passed, red when any failed, untested when no script
-references it yet, and partial otherwise.
+{{ data | summary_text }}
+% if requirements
 
-.. list-table:: Summary
+.. list-table:: Requirements by verdict
    :header-rows: 1
    :widths: 70 30
 
-   * - Item
-     - Count
-% if requirements
-% for color in ["green", "red", "partial", "untested"]
-   * - Requirements {{ color | verdict }}
+   * - Verdict
+     - Requirements
+% for color in ["red", "partial", "untested", "green"]
+   * - {{ color | verdict }}
      - {{ requirements | selectattr("color", "equalto", color) | list | length }}
 % endfor
+
+A requirement is green when the latest run of every script variation
+covering it passed, red when any failed, partial when some haven't run or
+aren't finished, and untested when no script covers it yet.
 % endif
-% for state in rows | states
-   * - Combinations {{ state | verdict }}
-     - {{ rows | selectattr("state", "equalto", state) | list | length }}
-% endfor

@@ -10,6 +10,7 @@ report's data (a services.reports.data.ReportData)::
     .. open-issues::
     .. requirement-results::      :group-by: subsystem|none
                                   :subsystem: NAME   :color: green|red|...
+    .. script-results::
     .. results::                  :script: PATTERN   :state: pass|fail|...
     .. reruns::
     .. failures::
@@ -23,9 +24,24 @@ import fnmatch
 from docutils.parsers.rst import directives
 
 from .core import directive, role
-from .template import Rst, filter, literal, text
+from .template import Rst, filter, link, literal, plural, text
 
 ROLLUP_STATES = ["pass", "fail", "error", "incomplete"]
+# Worst first: a group of combinations is as bad as its worst
+WORST = ["fail", "error", "outdated", "incomplete", "blocked", "not run",
+         "pending", "running", "unfinished", "pass"]
+WORDS = {"pass": "passed", "fail": "failed", "error": "stopped on an error",
+         "incomplete": "incomplete", "not run": "not run", "outdated": "outdated",
+         "blocked": "blocked", "pending": "pending", "running": "running"}
+COLORS = ["red", "partial", "untested", "green"]
+
+
+def rank(state):
+    return WORST.index(state) if state in WORST else WORST.index("pass") - 0.5
+
+
+def worst(states):
+    return min(states, key=rank) if states else "not run"
 
 
 # Filters for report snippets
@@ -77,6 +93,119 @@ def why(row):
         return Rst(f": {text((row['latest'] or {}).get('outcome'))} on {text(ran)}, "
                    "not the report's versions")
     return Rst("")
+
+
+@filter
+def by_script(cells):
+    """Combinations grouped by script, in order: [{"script", "cells",
+    "state" (the worst of them), "passed", "total"}]. Each cell gets a
+    "label": its variation, after its environment when the script ran in
+    more than one."""
+    groups = {}
+    for cell in cells:
+        groups.setdefault(cell["script"], []).append(cell)
+    found = []
+    for script, group in groups.items():
+        environments = {c["environment"] for c in group}
+        for c in group:
+            parts = [c["environment"] if len(environments) > 1 else None, c["variation"]]
+            c["label"] = " / ".join(p for p in parts if p)
+        states = [c["state"] for c in group]
+        found.append({"script": script, "cells": group, "state": worst(states),
+                      "passed": states.count("pass"), "total": len(states)})
+    return found
+
+
+@filter
+def tally(group):
+    """How a script's combinations came out, in words: "passed", "all 4
+    passed", "1 failed, 1 passed" """
+    counts = {}
+    for cell in group["cells"]:
+        counts[cell["state"]] = counts.get(cell["state"], 0) + 1
+    if list(counts) == ["pass"]:
+        return "passed" if group["total"] == 1 else f"all {group['total']} passed"
+    if len(counts) == 1 and group["total"] == 1:
+        return WORDS.get(group["state"], group["state"])
+    return ", ".join(f"{n} {WORDS.get(state, state)}"
+                     for state, n in sorted(counts.items(), key=lambda kv: rank(kv[0])))
+
+
+@filter
+def issue(cell):
+    """One combination that didn't pass, briefly: how it came out
+    (linking its run) and, for a failure, at which step"""
+    said = link(WORDS.get(cell["state"], cell["state"]), run_url(cell))
+    failure = cell.get("failure") or {}
+    if failure.get("step"):
+        said = Rst(f"{said} at {text(failure['step'])}")
+    elif cell["state"] == "incomplete":
+        said = Rst(f"{said} (steps still to be written)")
+    elif cell["state"] == "outdated":
+        ran = ", ".join(f"{n} {v}" for n, v in sorted(cell["outdated"].items()))
+        said = Rst(f"{said}: {text((cell['latest'] or {}).get('outcome'))} on {text(ran)}, "
+                   "not the report's versions")
+    return said
+
+
+@filter
+def variations(group):
+    """A script's variations for the scripts table: how many, and how they
+    came out when not all alike"""
+    if len({c["state"] for c in group["cells"]}) == 1:
+        return str(group["total"])
+    return f"{group['total']}: {tally(group)}"
+
+
+@filter
+def open_requirements(requirements):
+    """The requirements that aren't green, red first"""
+    return sorted((r for r in requirements if r["color"] != "green"),
+                  key=lambda r: COLORS.index(r["color"]) if r["color"] in COLORS else 0)
+
+
+@filter
+def covers(row, requirements):
+    """The requirements a combination counts toward"""
+    return [r for r in requirements if any(c is row for c in r["cells"])]
+
+
+@filter
+def summary_text(data):
+    """The report's outcome in a sentence or two"""
+    requirements, rows = data.requirements, data.combinations
+    n = {color: sum(1 for r in requirements if r["color"] == color) for color in COLORS}
+    if not requirements:
+        said = "The report tracks no requirements."
+    elif n["green"] == len(requirements):
+        said = f"All {plural(len(requirements), 'requirement')} pass."
+    else:
+        parts = []
+        if n["red"]:
+            parts.append(f"{n['red']} fail" if n["red"] > 1 else "1 fails")
+        if n["partial"]:
+            parts.append(f"{n['partial']} {'are' if n['partial'] > 1 else 'is'} not fully verified")
+        if n["untested"]:
+            parts.append(f"{n['untested']} {'have' if n['untested'] > 1 else 'has'} no tests")
+        listed = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+        said = (f"Of {plural(len(requirements), 'requirement')}, {listed}"
+                + ("; none pass." if not n["green"] else "; the other one passes."
+                   if n["green"] == 1 else f"; the other {n['green']} pass."))
+    scripts = by_script(rows)
+    ran = sum(1 for run in data.runs if run.get("outcome"))
+    versions = ", ".join(f"{name} {v['id']}" for name, v in data.used_uut_versions().items())
+    said += (f" It has {plural(len(scripts), 'script')}, run {plural(ran, 'time')}"
+             + (f" on {versions}" if versions else "") + ".")
+    counts = {}
+    for g in scripts:
+        if g["state"] != "pass":
+            counts[g["state"]] = counts.get(g["state"], 0) + 1
+    if counts:
+        parts = [f"{n} {WORDS.get(state, state)}"
+                 for state, n in sorted(counts.items(), key=lambda kv: rank(kv[0]))]
+        listed = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+        said += f" Of those scripts, {listed}; the rest passed."
+    return text(said)
 
 
 # The directives
@@ -150,6 +279,7 @@ directive("open-issues", with_rows("open-issues"))
 directive("requirement-results", requirement_results, {
     "group-by": lambda v: directives.choice(v, ("subsystem", "none")),
     "subsystem": directives.unchanged, "color": directives.unchanged})
+directive("script-results", with_rows("script-results"))
 directive("results", results, {"script": directives.unchanged,
                                "state": directives.unchanged})
 directive("reruns", with_rows("reruns"))

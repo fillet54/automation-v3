@@ -152,10 +152,12 @@ A report's pages share a navigation column on the left:
 
 **Document**
    The report's document, ``report.rst``, shown with the report's data as it
-   is now: by default its identification, summary, open issues (each
-   combination whose latest run didn't pass, and why), every tracked
-   requirement with the combinations covering it, the results, reruns and
-   failures. While runs are in progress each part refreshes itself.
+   is now: by default its identification; a summary saying how many
+   requirements fail, aren't fully verified and pass; the open issues
+   (each requirement that isn't green, with the scripts keeping it so,
+   then each failure once with its step, message and the requirements it
+   fails); every tracked requirement with the scripts covering it; and one
+   line per script. While runs are in progress each part refreshes itself.
    **Edit document…** opens its source beside a live preview: write what the
    report is for in prose, and move, filter or drop the parts (see
    :doc:`../reference/report-documents`). Below it are the fields of the
