@@ -249,6 +249,20 @@ class TestDocument(ReportTestCase):
         self.assertEqual(export.find_template(workspace), self.tmp / "repo" / "report")
 
 
+class TestSite(ReportTestCase):
+    """The HTML half of a build, which needs no LaTeX"""
+
+    def test_the_site_builds(self):
+        work = self.tmp / "work"
+        html = build.project(self.root, self.report_id, work / "html", "html", "",
+                             "2026-01-01T00:00:00", "0" * 64)
+        with open(self.tmp / "log", "w") as log:
+            build.sphinx(html, work / "site", "html", log)
+        self.assertTrue((work / "site" / "index.html").exists())
+        runs = list((work / "site" / "runs").glob("*.html"))
+        self.assertEqual(len(runs), len(ReportData(self.root, self.report_id).runs))
+
+
 @unittest.skipUnless(HAS_LATEX, "needs latexmk")
 class TestExport(ReportTestCase):
     def test_the_site_is_the_document_and_a_page_per_run(self):

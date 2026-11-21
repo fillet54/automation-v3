@@ -16,6 +16,7 @@ the output: a relative link in the site, plain text in the PDF.
 """
 
 import shutil
+import weakref
 from pathlib import Path
 
 from docutils import nodes
@@ -49,17 +50,22 @@ class SiteLinks:
         return ServerLinks(self.base).requirement(id, snapshot)
 
 
+# A build's Context, by its env. Never on the env itself: Sphinx pickles
+# the env, and a Context (its snippets' Jinja environment) won't pickle.
+_contexts = weakref.WeakKeyDictionary()
+
+
 def build_context(env):
-    """The Context a build's documents resolve with: one per build, stored
-    on `env`, and the run a run page is about (see document_context)"""
-    found = getattr(env, "automation_context", None)
+    """The Context a build's documents resolve with: one per build, kept
+    beside `env`, and the run a run page is about (see document_context)"""
+    found = _contexts.get(env)
     if found is None:
         from .data import ReportData
         config = env.config
         data = ReportData(config.automation_root, config.automation_folder,
                           links=SiteLinks(config.automation_server_url))
         snapshots = data.snapshots
-        found = env.automation_context = core.Context(
+        found = _contexts[env] = core.Context(
             data=data, host=core.EXPORT,
             snippets=Snippets([config.automation_snippets]),
             exported=config.automation_exported,
