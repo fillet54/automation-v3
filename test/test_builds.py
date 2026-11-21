@@ -9,7 +9,7 @@ from unittest import mock
 
 from automationv3.plugins.apollo import LunarModule
 from automationv3.services import builds, client
-from automationv3.services import jobs as models
+from automationv3.services import scratch as scratch_service
 from automationv3.services.database import connect, init_db
 from automationv3.services.workspace import find_worktrees
 from automationv3.web.app import create_app
@@ -116,7 +116,7 @@ class TestBuildsInTheClient(BuildsTest):
             "workspace": self.branch, "script": "lm/tc.rst", "version-lm": "upload"})
         self.assertEqual(response.status_code, 302, response.get_data(True))
         self.assertTrue((self.build_repo / build.id / "luminary.json").is_file())
-        (run,) = models.scratch_runs(self.central.reports)
+        (run,) = scratch_service.scratch_runs(self.central.reports)
         self.assertEqual(run["uut_versions"]["lm"]["id"], build.id)
         self.assertEqual(builds.last_used("lm"), build.id)
 

@@ -12,7 +12,7 @@ from flask import (Blueprint, current_app, render_template, request, abort, redi
 from markupsafe import Markup
 
 from . import editor
-from ..services import jobs
+from ..services.reports import runs as report_runs
 from ..services.requirements import links, models, render, rst_source, suspects, textdiff
 from .auth import admin_required, can_change, owner_email, safe_next
 from .context import cache_dir
@@ -129,7 +129,7 @@ def list():
         suspect=script_suspects(conn, state),
         workspaces=state.workspaces,
         hx_request=request.headers.get("HX-Request", False),
-        reports=[r for r in jobs.reports_for(current_app.config.get("REPORTS_PATH"),
+        reports=[r for r in report_runs.reports_for(current_app.config.get("REPORTS_PATH"),
                                              state.workspace) if can_change(r)],
         target=request.args.get("report", ""),
         **nav(conn, state, spec=spec, subsystem=subsystem),

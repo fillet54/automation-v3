@@ -13,7 +13,8 @@ from ..framework import edn, snippets
 from ..framework.closure import is_script, resolve
 from ..framework.source import has_rvt
 from ..framework.excerpt import excerpt
-from ..services import jobs
+from ..services.reports import runs as report_runs
+from ..services import scratch as scratch_service
 from ..services.reports import store
 from ..services.requirements import models as requirement_models
 from ..services.workspace import FileNode, is_binary, safe_relative_path
@@ -195,7 +196,7 @@ def written_values(variation):
     return [edn.writes(form) for form in variation.forms]
 
 
-VIEWS = (jobs.IN_WORK, jobs.CHECKED_IN, "changes")
+VIEWS = (scratch_service.IN_WORK, scratch_service.CHECKED_IN, "changes")
 
 
 def changes(ws, files):
@@ -217,7 +218,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
     in, or the changes between them, when it or a file it loads has edits
     that aren't checked in."""
     relpath = str(node.relative_path)
-    files = files if files in VIEWS else jobs.IN_WORK
+    files = files if files in VIEWS else scratch_service.IN_WORK
     closure = None
     if not is_binary(node.path) and is_script(relpath, node.path.read_text()):
         closure = resolve(ws.root, relpath)
@@ -225,7 +226,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
     in_work = [f for f in dict.fromkeys([relpath, *(closure.load_order if closure else [])])
                if f in edited]
     source, path = ws.root, node.path
-    if files == jobs.CHECKED_IN and in_work:
+    if files == scratch_service.CHECKED_IN and in_work:
         source = checked_in_root(ws.id)
         path = source / relpath if source else None
         if path is None or not path.is_file():
@@ -241,7 +242,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
     text = None
     diagnostics = diagnostic_views(closure, relpath) if closure else []
     cards = file_hash = document = None
-    if files == jobs.IN_WORK and selected is None and not is_binary(path):
+    if files == scratch_service.IN_WORK and selected is None and not is_binary(path):
         # The file as it is on disk, whole: its cards, which a worktree can edit
         documents.ready()
         raw = editor.read(path)
@@ -259,7 +260,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         "partials/script_view.html",
         workspace=ws,
         path=relpath,
-        files=files if in_work else jobs.IN_WORK,
+        files=files if in_work else scratch_service.IN_WORK,
         in_work=in_work,
         changes=changes(ws, in_work) if files == "changes" and in_work else None,
         live=sorted(live_environments()),
@@ -273,7 +274,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         variation_names=names,
         variation_rows=[(v.name, written_values(v))
                         for v in (closure.variations if closure else [])],
-        reports=[r for r in jobs.reports_for(current_app.config["REPORTS_PATH"], ws.id)
+        reports=[r for r in report_runs.reports_for(current_app.config["REPORTS_PATH"], ws.id)
                  if can_change(r)]
         if closure and not closure.errors else [],
         target=request.args.get("report", ""),
@@ -299,7 +300,7 @@ def view(id):
         # A file the editor made that isn't saved yet: the page fills it in
         return render_template(
             "partials/script_view.html", workspace=ws, path=str(node.relative_path),
-            files=jobs.IN_WORK, in_work=[], closure=None, document=None, text=None,
+            files=scratch_service.IN_WORK, in_work=[], closure=None, document=None, text=None,
             errors=[], diagnostics=[], live=[], variation=None, cards=[], file_hash="",
             editable=True, unsaved=True)
     return render_view(ws, node, variation=request.args.get("variation"),

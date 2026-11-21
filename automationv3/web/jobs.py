@@ -23,6 +23,7 @@ from flask import (
 
 from ..framework.planning import build_plan
 from ..services import jobs as models
+from ..services.reports import runs as report_runs
 from ..services.reports import export, store
 from ..services.requirements import links
 from ..services.requirements import models as requirement_models
@@ -131,7 +132,7 @@ def plan_from(args):
         variations=set(args.getlist("variation")) if configured else None,
         filter_source=args.get("filter", ""),
         links=links.scripts_by_requirement(conn, workspace),
-        passed=(models.passed_combinations(reports_root(), report["id"])
+        passed=(report_runs.passed_combinations(reports_root(), report["id"])
                 if report else None),
         rerun_passed=set(args.getlist("rerun")),
     )
@@ -186,14 +187,14 @@ def queue():
     context, _ = requirement_models.workspace_context(get_db(), workspace_root(plan.workspace))
     try:
         if report is None:
-            report_id, _ = models.queue_plan(
+            report_id, _ = report_runs.queue_plan(
                 get_db(), reports_root(), plan, context=context,
                 template=export.find_template(workspace_root(plan.workspace)),
                 owner=owner_email(), commit=commit)
         else:
             report_id = report["id"]
             tracked = plan.requirements if request.form.getlist("requirement") else {}
-            models.add_plan(get_db(), reports_root(), report_id, plan, tracked, context,
+            report_runs.add_plan(get_db(), reports_root(), report_id, plan, tracked, context,
                             owner=owner_email(), commit=commit)
     except models.QueueError as e:
         return render_dialog(plan, report, e.errors)
@@ -222,7 +223,7 @@ def queue_job():
     if root is None or not data.get("script"):
         return jsonify({"errors": ["a known workspace and a script are required"]}), 400
     try:
-        report_id, run_id = models.queue_script(
+        report_id, run_id = report_runs.queue_script(
             get_db(),
             reports_root(),
             root,

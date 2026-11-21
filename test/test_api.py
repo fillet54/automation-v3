@@ -1,6 +1,6 @@
 import unittest
 
-from automationv3.services import jobs as models
+from automationv3.services import scratch as scratch_service
 from automationv3.services.requirements import models as requirement_models
 from automationv3.services.worker import Host, Worker
 from automationv3.services.worker.local import LocalServer
@@ -77,7 +77,7 @@ class TestClientApi(unittest.TestCase):
         self.assertEqual(run["status"], "pending")
         self.assertTrue(run["url"].endswith(f"/reports/scratch/runs/{run['id']}"))
 
-        stored = models.scratch_runs(self.server.reports)[0]
+        stored = scratch_service.scratch_runs(self.server.reports)[0]
         self.assertEqual((stored["source"], stored["queued_by"], stored["device"],
                           stored["workspace"]),
                          ("uploaded", "ann@example.com", "laptop", "feature"))

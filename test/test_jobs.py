@@ -17,6 +17,8 @@ from automationv3.framework.uut import Version, uut_types
 from automationv3.plugins.apollo import Sim
 from automationv3.plugins.apollo import LunarModule
 from automationv3.services import jobs as models
+from automationv3.services.reports import runs as report_runs
+from automationv3.services import scratch as scratch_service
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import rollup, store
 from automationv3.services.worker import Host, Worker
@@ -410,7 +412,7 @@ class QueueTestCase(unittest.TestCase):
         shutil.rmtree(self.tmp)
 
     def queue(self, script="a.rst", **kw):
-        return models.queue_script(self.conn, self.root, self.rvts, script, **kw)
+        return report_runs.queue_script(self.conn, self.root, self.rvts, script, **kw)
 
 
 class TestJobModels(QueueTestCase):
@@ -1246,7 +1248,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         page = self.http.get(f"/reports/{report_id}").get_data(True)
         self.assertIn(": pass on lm LUM099, not the report's versions", page)
         self.assertIn("1 outdated", page)
-        self.assertEqual(models.passed_combinations(self.root, report_id), set())
+        self.assertEqual(report_runs.passed_combinations(self.root, report_id), set())
         dialog = self.http.get("/runner/new", query_string={
             "report": report_id, "script": "BRA/tc.rst"}).get_data(True)
         self.assertIn("Add 1 run to the report", dialog)
@@ -1298,7 +1300,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def test_scratch_runs_stay_out_of_reports(self):
         self.scratch("BRA/modes.rst", "plain/pass.rst")
-        runs = models.scratch_runs(self.root)
+        runs = scratch_service.scratch_runs(self.root)
         self.assertEqual(sorted((r["script"], (r["variation"] or {}).get("name"))
                                 for r in runs),
                          [("BRA/modes.rst", "high"), ("BRA/modes.rst", "low"),
@@ -1319,14 +1321,14 @@ class TestWorkerAgainstServer(unittest.TestCase):
 
     def test_run_again_uses_the_script_as_it_is_now(self):
         self.scratch("plain/pass.rst")
-        (first,) = models.scratch_runs(self.root)
+        (first,) = scratch_service.scratch_runs(self.root)
         self.assertEqual(self.worker.work_once(), "pass")
 
         script = find_worktrees(self.gitdir / "rvts")[self.branch] / "plain/pass.rst"
         script.write_text(FAILING)  # an uncommitted edit
         response = self.http.post(f"/scratch/runs/{first['id']}/again")
         self.assertEqual(response.status_code, 302)
-        again, _ = models.scratch_runs(self.root)
+        again, _ = scratch_service.scratch_runs(self.root)
         self.assertNotEqual(again["closure_hash"], first["closure_hash"])
         self.assertEqual(self.worker.work_once(), "fail")
 
@@ -1335,7 +1337,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.worker.work_once()
         self.scratch("plain/fail.rst")
         self.http.post("/scratch/clear", data={"workspace": self.branch})
-        (left,) = models.scratch_runs(self.root)
+        (left,) = scratch_service.scratch_runs(self.root)
         self.assertEqual((left["script"], left["outcome"]), ("plain/fail.rst", None))
 
     def edit(self, path, text):
@@ -1367,14 +1369,14 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertEqual(self.worker.work_once(), "fail")
         self.scratch("plain/pass.rst", files="checked in")
         self.assertEqual(self.worker.work_once(), "pass")
-        checked_in, in_work = models.scratch_runs(self.root)
+        checked_in, in_work = scratch_service.scratch_runs(self.root)
         self.assertEqual((checked_in["source"], in_work["source"]), ("checked in", "in work"))
         self.http.post(f"/scratch/runs/{checked_in['id']}/again")
         self.assertEqual(self.worker.work_once(), "pass")  # still as checked in
 
     def test_scratch_runs_one_variation(self):
         self.scratch("BRA/modes.rst", variation="low")
-        (run,) = models.scratch_runs(self.root)
+        (run,) = scratch_service.scratch_runs(self.root)
         self.assertEqual(run["variation"]["name"], "low")
 
     def test_reports_run_what_is_checked_in(self):
@@ -1398,7 +1400,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
             '("a"\n  ["one" [1]\n   "two" [2]])\n(Verify a > 0)', "table"))
         self.scratch("plain/rows.rst")
         self.assertEqual(self.worker.work_once(), "pass")
-        (run,) = models.scratch_runs(self.root)
+        (run,) = scratch_service.scratch_runs(self.root)
         page = self.http.get(f"/reports/scratch/runs/{run['id']}").get_data(True)
         self.assertRegex(page, r'<strong>Row</strong> one · a = 1 <span class="duration">')
         self.assertRegex(page, r'2 rows <span class="duration">\d+ ms')  # the table

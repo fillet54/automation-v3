@@ -14,6 +14,7 @@ from automationv3 import cli
 from automationv3.framework.planning import build_plan
 from automationv3.framework.requirement import Requirement
 from automationv3.services import jobs as models
+from automationv3.services.reports import runs as report_runs
 from automationv3.documents import core, template
 from automationv3.services.reports import build, export, store
 from automationv3.services.reports.data import ReportData
@@ -134,7 +135,7 @@ class TestDocument(ReportTestCase):
         self.assertIn("verdict-fail", html)
 
     def test_an_empty_report_renders(self):
-        report_id = models.create_report(self.root, "", "Empty")
+        report_id = report_runs.create_report(self.root, "", "Empty")
         self.assertIn("None", body(self.root, report_id))
 
     def test_prose_and_report_values_mix(self):
@@ -191,7 +192,7 @@ class TestDocument(ReportTestCase):
         (mine / "snippets" / "report").mkdir(parents=True)
         (mine / "snippets" / "report" / "summary.rst").write_text(
             "We ran {{ data.runs | length }} runs.\n")
-        report_id = models.create_report(self.root, "", "Mine", template=mine)
+        report_id = report_runs.create_report(self.root, "", "Mine", template=mine)
         self.assertIn("Ours", export.source(self.root, report_id))
         self.assertIn("We ran 0 runs.", body(self.root, report_id))
         (mine / "report.rst").write_text("Changed later\n")  # the report kept its copy
@@ -376,23 +377,23 @@ class TestFrozenQueue(QueueTestCase):
         store.set_frozen(self.root, report_id, True)
 
         with self.assertRaises(models.QueueError) as e:
-            models.rerun(self.conn, self.root, report_id, run_id)
+            report_runs.rerun(self.conn, self.root, report_id, run_id)
         self.assertIn("frozen", e.exception.errors[0])
         plan = build_plan("", self.rvts, ["b.rst"])
         with self.assertRaises(models.QueueError):
-            models.add_plan(self.conn, self.root, report_id, plan)
+            report_runs.add_plan(self.conn, self.root, report_id, plan)
         self.assertEqual(len(store.list_runs(self.root, report_id)), 1)
-        self.assertEqual(models.reports_for(self.root, ""), [])
+        self.assertEqual(report_runs.reports_for(self.root, ""), [])
 
         export.reopen(self.root, report_id)
-        models.rerun(self.conn, self.root, report_id, run_id)
+        report_runs.rerun(self.conn, self.root, report_id, run_id)
         self.assertEqual(len(store.list_runs(self.root, report_id)), 2)
 
     def test_adding_requirements_keeps_their_text(self):
         requirement_models.insert(self.conn, [Requirement("R-1", "Shall pass.", "X")])
-        report_id = models.create_report(self.root, "")
+        report_id = report_runs.create_report(self.root, "")
         plan = build_plan("", self.rvts, ["a.rst"])
-        models.add_plan(self.conn, self.root, report_id, plan,
+        report_runs.add_plan(self.conn, self.root, report_id, plan,
                         {"R-1": ["a.rst"], "R-2": ["a.rst"]})
         snapshots = store.load_report(self.root, report_id)["requirement_snapshots"]
         self.assertEqual({k: v["text"] for k, v in snapshots.items()}, {"R-1": "Shall pass."})
@@ -455,7 +456,7 @@ class TestWeb(unittest.TestCase):
         with connect(self.tmp / "test.db") as conn:
             init_db(conn)
         self.http = app.test_client()
-        self.report_id = models.create_report(self.root, self.branch, "Nightly")
+        self.report_id = report_runs.create_report(self.root, self.branch, "Nightly")
 
     def tearDown(self):
         shutil.rmtree(self.tmp)

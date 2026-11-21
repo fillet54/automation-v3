@@ -17,6 +17,8 @@ from flask import (
 from ..framework.planning import build_plan
 from ..framework.uut import uut_types
 from ..services import jobs as models
+from ..services.reports import runs as report_runs
+from ..services import scratch as scratch_service
 from ..services.reports import store
 from ..services import client
 from .auth import mine_only, owner_email
@@ -30,13 +32,13 @@ scratch = Blueprint("scratch", __name__)
 
 def files_root(workspace, files):
     """The folder to build from: the workspace on disk, or as checked in"""
-    if files == models.CHECKED_IN:
+    if files == scratch_service.CHECKED_IN:
         return checked_in_root(workspace)
     return workspace_root(workspace)
 
 
 def render_page(errors=(), status=200):
-    runs = models.scratch_runs(root(), owner=mine_only())
+    runs = scratch_service.scratch_runs(root(), owner=mine_only())
     for run in runs:
         run["status"] = run_status(run)
     return render_template("scratch.html", runs=runs, errors=errors,
@@ -56,7 +58,7 @@ def run():
     several. The local client sends them to the central server's workers
     unless `where` is this machine."""
     form = request.form
-    files = form.get("files") or models.IN_WORK
+    files = form.get("files") or scratch_service.IN_WORK
     workspace = form.get("workspace", "")
     source = files_root(workspace, files)
     if source is None:
@@ -78,11 +80,11 @@ def run():
                       versions=versions,
                       variations={f"{s}::{variation}" for s in scripts} if variation else None)
     try:
-        run_ids = models.queue_scratch(get_db(), root(), plan, files, owner=owner_email())
+        run_ids = scratch_service.queue_scratch(get_db(), root(), plan, files, owner=owner_email())
     except models.QueueError as e:
         return render_page(e.errors, 400)
     if len(run_ids) == 1:
-        return redirect(url_for("reports.run", report_id=models.SCRATCH, run_id=run_ids[0]))
+        return redirect(url_for("reports.run", report_id=scratch_service.SCRATCH, run_id=run_ids[0]))
     return redirect(url_for("scratch.index"))
 
 
@@ -104,23 +106,23 @@ def run_on_central(workspace, source, scripts, environment, variation, versions)
 def again(run_id):
     """Run a scratch run's script again, as it is now; an uploaded one
     (whose worktree is on someone's machine) with the same files"""
-    previous = store.load_run(root(), models.SCRATCH, run_id) or {}
-    if previous.get("source") == models.UPLOADED:
-        new_id = models.rerun(get_db(), root(), models.SCRATCH, run_id, force=True,
+    previous = store.load_run(root(), scratch_service.SCRATCH, run_id) or {}
+    if previous.get("source") == scratch_service.UPLOADED:
+        new_id = report_runs.rerun(get_db(), root(), scratch_service.SCRATCH, run_id, force=True,
                               owner=owner_email())
-        return redirect(url_for("reports.run", report_id=models.SCRATCH, run_id=new_id))
-    source = files_root(previous.get("workspace"), previous.get("source", models.IN_WORK))
+        return redirect(url_for("reports.run", report_id=scratch_service.SCRATCH, run_id=new_id))
+    source = files_root(previous.get("workspace"), previous.get("source", scratch_service.IN_WORK))
     if source is None:
         return render_page(["That run's workspace is gone"], 404)
     try:
-        new_id = models.run_again(get_db(), root(), source, run_id, owner=owner_email())
+        new_id = scratch_service.run_again(get_db(), root(), source, run_id, owner=owner_email())
     except models.QueueError as e:
         return render_page(e.errors, 400)
-    return redirect(url_for("reports.run", report_id=models.SCRATCH, run_id=new_id))
+    return redirect(url_for("reports.run", report_id=scratch_service.SCRATCH, run_id=new_id))
 
 
 @scratch.route("/clear", methods=["POST"])
 def clear():
     """Delete the finished scratch runs: on a central server, only yours"""
-    models.clear_scratch(root(), owner=owner_email())
+    scratch_service.clear_scratch(root(), owner=owner_email())
     return redirect(url_for("scratch.index"))

@@ -30,6 +30,10 @@ from pathlib import Path
 
 from ..util import now_iso, write_json as _write_json
 
+# The reserved folder scratch runs go in: it has no report.json, so it is
+# never a report (see services/scratch.py); workers take its runs first
+SCRATCH = "scratch"
+
 _uuid7_lock = threading.Lock()
 _uuid7_last = (0, 0)
 

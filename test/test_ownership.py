@@ -1,6 +1,7 @@
 import unittest
 
-from automationv3.services import jobs as models
+from automationv3.services.reports import runs as report_runs
+from automationv3.services import scratch as scratch_service
 from automationv3.services.reports import store
 from automationv3.services.settings import Settings
 
@@ -95,7 +96,7 @@ class TestOwnership(unittest.TestCase):
         self.assertEqual(self.queue_into(self.bob, report_id).status_code, 403)
 
     def test_reports_from_before_accounts_are_for_admins(self):
-        report_id = models.create_report(self.server.reports, self.server.branch, "Old")
+        report_id = report_runs.create_report(self.server.reports, self.server.branch, "Old")
         self.assertEqual(self.queue_into(self.ann, report_id).status_code, 403)
         self.assertEqual(self.queue_into(self.lead, report_id).status_code, 302)
 
@@ -111,10 +112,10 @@ class TestOwnership(unittest.TestCase):
         self.assertIn("plain/fail.rst", self.ann.get("/runner/?who=everyone").get_data(True))
 
         # Clearing only clears your own
-        for run in models.scratch_runs(self.server.reports):
-            store.update_run(self.server.reports, models.SCRATCH, run["id"], outcome="pass")
+        for run in scratch_service.scratch_runs(self.server.reports):
+            store.update_run(self.server.reports, scratch_service.SCRATCH, run["id"], outcome="pass")
         self.ann.post("/scratch/clear")
-        left = models.scratch_runs(self.server.reports)
+        left = scratch_service.scratch_runs(self.server.reports)
         self.assertEqual([r["queued_by"] for r in left], ["bob@example.com"])
 
     def test_queued_jobs_in_my_reports_show_as_mine(self):

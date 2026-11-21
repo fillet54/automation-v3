@@ -7,9 +7,9 @@ uncommitted changes included, or as checked in, and can be cleared.
 """
 
 from ..framework.planning import build_plan
+from . import jobs
 from .reports import store
-
-SCRATCH = "scratch"
+from .reports.store import SCRATCH
 IN_WORK, CHECKED_IN, UPLOADED = "in work", "checked in", "uploaded"
 
 
@@ -18,8 +18,6 @@ def queue_scratch(conn, root, plan, files=IN_WORK, owner=None, **run_fields):
     of the workspace's files the plan was built from: IN_WORK (on disk),
     CHECKED_IN or UPLOADED (from a client's worktree). `owner` is who
     runs them. Returns the run ids."""
-    from . import jobs
-
     jobs.check_runnable(plan)
     return jobs.enqueue_plan(
         conn, root, SCRATCH, plan, owner=owner,

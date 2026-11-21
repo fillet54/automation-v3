@@ -7,6 +7,7 @@ from pathlib import Path
 from automationv3.framework.requirement import Requirement
 from automationv3.services import client
 from automationv3.services import jobs as models
+from automationv3.services import scratch as scratch_service
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import store
 from automationv3.services.requirements import models as requirement_models
@@ -86,30 +87,30 @@ class TestLocalClient(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         # The central server's own address for the run (here, its test client's)
         self.assertRegex(response.headers["Location"], r"^http://[^/]+/reports/scratch/runs/")
-        (run,) = models.scratch_runs(self.central.reports)
+        (run,) = scratch_service.scratch_runs(self.central.reports)
         self.assertEqual((run["source"], run["queued_by"], run["workspace"]),
                          ("uploaded", "ann@example.com", self.branch))
-        closure = store.read_closure(self.central.reports, models.SCRATCH, run["id"])
+        closure = store.read_closure(self.central.reports, scratch_service.SCRATCH, run["id"])
         self.assertIn("(Wait 3)", closure["plain/pass.rst"])  # the edit went
-        self.assertEqual(models.scratch_runs(self.tmp / "reports"), [])
+        self.assertEqual(scratch_service.scratch_runs(self.tmp / "reports"), [])
 
         # On the central server, Run again runs the same uploaded files
-        store.update_run(self.central.reports, models.SCRATCH, run["id"], outcome="pass")
+        store.update_run(self.central.reports, scratch_service.SCRATCH, run["id"], outcome="pass")
         again = self.central.client("ann@example.com").post(
             f"/scratch/runs/{run['id']}/again")
         self.assertEqual(again.status_code, 302)
-        newest = models.scratch_runs(self.central.reports)[0]
+        newest = scratch_service.scratch_runs(self.central.reports)[0]
         self.assertNotEqual(newest["id"], run["id"])
         self.assertIn("(Wait 3)", store.read_closure(
-            self.central.reports, models.SCRATCH, newest["id"])["plain/pass.rst"])
+            self.central.reports, scratch_service.SCRATCH, newest["id"])["plain/pass.rst"])
 
     def test_run_in_scratch_on_this_machine_stays_here(self):
         response = self.http.post("/scratch/run", data={
             "workspace": self.branch, "script": "plain/pass.rst", "where": "local"})
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].startswith("/reports/scratch/runs/"))
-        self.assertEqual(len(models.scratch_runs(self.tmp / "reports")), 1)
-        self.assertEqual(models.scratch_runs(self.central.reports), [])
+        self.assertEqual(len(scratch_service.scratch_runs(self.tmp / "reports")), 1)
+        self.assertEqual(scratch_service.scratch_runs(self.central.reports), [])
         page = self.page("/scratch/")
         self.assertIn("http://server/scratch/", page)
 
@@ -119,4 +120,4 @@ class TestLocalClient(unittest.TestCase):
         response = self.http.post("/scratch/run", data={
             "workspace": self.branch, "script": "plain/bad.rst"})
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(models.scratch_runs(self.central.reports), [])
+        self.assertEqual(scratch_service.scratch_runs(self.central.reports), [])

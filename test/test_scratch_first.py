@@ -1,6 +1,7 @@
 import unittest
 
 from automationv3.services import jobs as models
+from automationv3.services import scratch as scratch_service
 from automationv3.services.settings import Settings
 from automationv3.services.worker import Host, Worker
 from automationv3.services.worker.local import LocalServer
@@ -32,4 +33,4 @@ class TestScratchFirst(unittest.TestCase):
                         Host())
         worker.check_in(started=True)
         self.assertEqual(worker.work_once(), "pass")
-        self.assertEqual(models.scratch_runs(self.server.reports)[0]["outcome"], "pass")
+        self.assertEqual(scratch_service.scratch_runs(self.server.reports)[0]["outcome"], "pass")

@@ -2,6 +2,7 @@
 
 from ...framework.closure import resolve
 from ...framework.planning import build_plan
+from .. import jobs
 from ..util import now_iso
 from . import export, rollup, store
 from ..requirements import models as requirement_models
@@ -79,7 +80,6 @@ def add_plan(conn, root, report_id, plan, requirements=None, context=None, owner
     are no requirements to track: requirements without tests yet are
     tracked all the same.
     """
-    from .. import jobs
 
     jobs.check_runnable(plan, track=bool(requirements))
     jobs.check_open(root, report_id)
@@ -146,7 +146,6 @@ def queue_plan(conn, root, plan, name=None, context=None, template=None, owner=N
     Returns (report_id, run_ids). Raises QueueError if the plan has
     errors, or nothing to run and no requirements to track.
     """
-    from .. import jobs
 
     jobs.check_runnable(plan, track=True)
     report_id = create_report(root, plan.workspace, name or default_name(plan),
@@ -183,7 +182,6 @@ def queue_script(conn, root, workspace_root, script, text=None,
     variation is queued. `text` overrides the script's content on disk.
     Returns (report_id, first run id).
     """
-    from .. import jobs
 
     closure = resolve(workspace_root, script, text)
     if closure.errors:
@@ -227,7 +225,6 @@ def rerun(conn, root, report_id, run_id, force=False, owner=None):
     a worker whose environment still has it; if no live worker does,
     Drift is raised. `force` queues it anyway, marked non_identical.
     """
-    from .. import jobs
 
     run = store.load_run(root, report_id, run_id)
     files = store.read_closure(root, report_id, run_id)

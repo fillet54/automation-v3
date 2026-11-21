@@ -11,7 +11,7 @@ from pathlib import Path
 from automationv3.documents import core as document_core
 from automationv3.documents import script as document_script
 from automationv3.framework.planning import build_plan
-from automationv3.services import jobs
+from automationv3.services.reports import runs as report_runs
 from automationv3.services.database import connect, init_db
 from automationv3.services.reports import store as report_store
 from automationv3.services.requirements import models, render, suspects, textdiff
@@ -261,7 +261,7 @@ class TestReportsRecordVersions(ExportCase):
     def queue(self, context):
         plan = build_plan("", self.rvts, [], requirements=["SW-1"],
                           links={"SW-1": ["a.rst"]})
-        return jobs.queue_plan(self.conn, self.reports, plan, context=context)
+        return report_runs.queue_plan(self.conn, self.reports, plan, context=context)
 
     def test_a_report_records_its_context_and_versions(self):
         report_id, (run_id, *_) = self.queue("set:R1")

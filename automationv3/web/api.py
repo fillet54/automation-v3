@@ -34,6 +34,7 @@ from ..framework.planning import build_plan
 from ..framework.uut import uut_types
 from ..services import accounts
 from ..services import jobs as models
+from ..services import scratch as scratch_service
 from ..services.reports import store
 from ..services.requirements import models as requirement_models
 from ..services.workspace import safe_relative_path as safe_path
@@ -192,7 +193,7 @@ def run_json(run):
         "outcome": run.get("outcome"),
         "status": run_status(run),
         "queued_by": run.get("queued_by"),
-        "url": external_url("reports.run", report_id=models.SCRATCH, run_id=run["id"]),
+        "url": external_url("reports.run", report_id=scratch_service.SCRATCH, run_id=run["id"]),
     }
 
 
@@ -223,8 +224,8 @@ def scratch():
             versions=data.get("uut_versions") or {},
             variations={f"{s}::{variation}" for s in scripts} if variation else None)
         try:
-            run_ids = models.queue_scratch(
-                get_db(), current_app.config["REPORTS_PATH"], plan, models.UPLOADED,
+            run_ids = scratch_service.queue_scratch(
+                get_db(), current_app.config["REPORTS_PATH"], plan, scratch_service.UPLOADED,
                 owner=owner_email(),
                 **({"device": data["device"]} if data.get("device") else {}))
         except models.QueueError as e:
@@ -232,12 +233,12 @@ def scratch():
     finally:
         shutil.rmtree(folder, ignore_errors=True)
     root = current_app.config["REPORTS_PATH"]
-    runs = [store.load_run(root, models.SCRATCH, id) for id in run_ids]
+    runs = [store.load_run(root, scratch_service.SCRATCH, id) for id in run_ids]
     return jsonify({"runs": [run_json(r) for r in runs]}), 201
 
 
 def scratch_run(run_id):
-    return store.load_run(current_app.config["REPORTS_PATH"], models.SCRATCH, run_id) \
+    return store.load_run(current_app.config["REPORTS_PATH"], scratch_service.SCRATCH, run_id) \
         or abort(404)
 
 
@@ -250,7 +251,7 @@ def scratch_status(run_id):
 def scratch_events(run_id):
     """The run's events after the first `after`, to follow it as it runs"""
     run = scratch_run(run_id)
-    events = store.read_events(current_app.config["REPORTS_PATH"], models.SCRATCH, run_id)
+    events = store.read_events(current_app.config["REPORTS_PATH"], scratch_service.SCRATCH, run_id)
     after = request.args.get("after", 0, type=int)
     return jsonify({"events": events[after:], "finished": run.get("outcome") is not None,
                     "outcome": run.get("outcome")})

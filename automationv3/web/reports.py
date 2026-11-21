@@ -20,6 +20,8 @@ from werkzeug.security import safe_join
 from ..documents.run import duration
 from ..framework.uut import uut_types
 from ..services import jobs as models
+from ..services.reports import runs as report_runs
+from ..services import scratch as scratch_service
 from ..services.reports import access, build, export, rollup, store
 from ..services.reports.data import ReportData
 from .auth import base_url as server_url, can_change, mine_only, owner_email, safe_next
@@ -43,7 +45,7 @@ def may_change_this():
     when it's about no report, or scratch (whose runs are each their own)."""
     if "may_change" not in g:
         report_id = (request.view_args or {}).get("report_id")
-        if not report_id or report_id == models.SCRATCH:
+        if not report_id or report_id == scratch_service.SCRATCH:
             g.may_change = True
         else:
             report = store.load_report(root(), report_id) or abort(404)
@@ -128,7 +130,7 @@ def new():
         if workspace not in branches:
             errors.append("Pick a workspace")
         if not errors:
-            report_id = models.create_report(root(), workspace, name,
+            report_id = report_runs.create_report(root(), workspace, name,
                                              template=workspace_template(workspace),
                                              owner=owner_email())
             return redirect(url_for("reports.report", report_id=report_id))
@@ -185,7 +187,7 @@ def versions(report_id):
 @reports.route("/<report_id>", methods=["GET"])
 def report(report_id):
     """The report's document: live, or once frozen and built, its site"""
-    if report_id == models.SCRATCH:
+    if report_id == scratch_service.SCRATCH:
         return redirect(url_for("scratch.index"))
     report = store.load_report(root(), report_id) or abort(404)
     if store.is_frozen(report) and build.site(root(), report_id) is not None and \
@@ -210,7 +212,7 @@ def render_page(report_id, page, errors=(), status=200):
 
     def lookup(ids):
         return {r.id: (r.text, r.subsystem)
-                for r in models.known_requirements(get_db(), ids)}
+                for r in report_runs.known_requirements(get_db(), ids)}
 
     view = report_view.build(data, lookup)
     context = dict(
@@ -320,7 +322,7 @@ def text_changed(report):
     """The tracked requirements whose text in the report's context is no
     longer the text the report recorded when it took them on"""
     recorded = report.get("requirement_snapshots") or {}
-    current = models.requirement_versions(get_db(), recorded,
+    current = report_runs.requirement_versions(get_db(), recorded,
                                           report.get("requirement_context"))
     return {id for id, v in recorded.items()
             if id in current and current[id]["text_hash"] != v.get("text_hash")}
@@ -389,7 +391,7 @@ def export_report(report_id):
     try:
         # BUILD_WAIT builds before answering (tests); else in the background
         export.freeze(root(), report_id, base_url=server_url(),
-                      snapshots=models.requirement_snapshots(
+                      snapshots=report_runs.requirement_snapshots(
                           get_db(), report.get("requirements", {}),
                           report.get("requirement_context")),
                       wait=bool(current_app.config.get("BUILD_WAIT")))
@@ -515,9 +517,9 @@ def rerun(report_id, run_id):
     run = store.load_run(root(), report_id, run_id) or abort(404)
     force = request.form.get("force") == "1"
     try:
-        new_id = models.rerun(get_db(), root(), report_id, run_id, force=force,
+        new_id = report_runs.rerun(get_db(), root(), report_id, run_id, force=force,
                               owner=owner_email())
-    except models.Drift as drift:
+    except report_runs.Drift as drift:
         return render_template("reports/drift.html", run=run, drift=drift), 409
     except models.QueueError as e:
         return render_page(report_id, "overview", e.errors, 409)

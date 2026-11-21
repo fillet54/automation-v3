@@ -5,32 +5,6 @@ from datetime import datetime, timedelta
 
 from ..framework.closure import Closure
 from .reports import store
-from .reports.runs import (  # noqa: F401
-    Drift,
-    add_plan,
-    create_report,
-    default_name,
-    known_requirements,
-    merge_scripts,
-    passed_combinations,
-    pinned_context,
-    queue_plan,
-    queue_script,
-    reports_for,
-    requirement_snapshots,
-    requirement_versions,
-    rerun,
-)
-from .scratch import (  # noqa: F401
-    CHECKED_IN,
-    IN_WORK,
-    SCRATCH,
-    UPLOADED,
-    clear_scratch,
-    queue_scratch,
-    run_again,
-    scratch_runs,
-)
 from .util import now_iso, utcnow_naive as utcnow
 
 ALLOWED_STATUS = ["available", "busy", "console", "missing"]
@@ -57,7 +31,7 @@ class Job:
 
     @property
     def scratch(self):
-        return self.report_id == SCRATCH
+        return self.report_id == store.SCRATCH
 
 
 def _job(row):
@@ -267,10 +241,10 @@ def find_jobs(conn, status=None):
     trying a script stays quick while long reports queue), then reports'
     runs, each oldest first. Optionally only those with `status`."""
     query = f"SELECT {JOB_COLUMNS} FROM jobs"
-    params = (SCRATCH,)
+    params = (store.SCRATCH,)
     if status is not None:
         query += " WHERE status = ?"
-        params = (status, SCRATCH)
+        params = (status, store.SCRATCH)
     query += " ORDER BY report_id = ? DESC, id"
     return [_job(row) for row in conn.execute(query, params)]
 
