@@ -1491,6 +1491,14 @@ class TestPlanning(unittest.TestCase):
         self.assertEqual(plan.errors, [])
         self.assertEqual(runs, [("a.rst", "sim", "y")])
 
+    def test_a_filter_may_destructure(self):
+        plan, runs = self.runs(environments=["sim"],
+                               filter_source="(let [[m & _] [mode] {:keys [want] :or {want :y}} {}] (= m want))")
+        self.assertEqual(plan.errors, [])
+        self.assertEqual(runs, [("a.rst", "sim", "y")])
+        plan, _ = self.runs(filter_source="(let [{:keys [a] :or {a nope}} {}] a)")
+        self.assertEqual(plan.errors, ["Variation filter uses unknown symbol nope"])
+
 
 class TestRollupColor(unittest.TestCase):
     def test_color(self):

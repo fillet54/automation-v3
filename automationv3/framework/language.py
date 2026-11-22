@@ -207,3 +207,163 @@ def parse_precondition(form):
             or (len(form) == 6 and not is_text(heal_name))):
         return None
     return PreconditionParts(form[1], form[2], form[-1], heal_name)
+
+
+# Binding patterns: what let, fn and defn bind names with
+#
+# A pattern is a name, or destructures a value as in Clojure:
+#
+# - [a b & more :as all] takes a sequence apart: items by position,
+#   `& p` the rest (a list, empty when nothing is left), `:as n` the
+#   whole. Missing items are nil.
+# - {a :a, [x y] :pos, :keys [b c], :or {c 0}, :as m} takes a map apart:
+#   each pattern key gets the value under its key, :keys (or :strs,
+#   :syms, all the same here as keywords equal strings) binds names to
+#   the values under their own names, :or gives defaults for keys that
+#   are missing, :as the whole. A sequence is read as key value pairs,
+#   so `& {:keys [a]}` takes keyword arguments.
+#
+# Patterns nest. A fn's parameter vector is a sequence pattern over its
+# arguments, without :as.
+
+MAP_NAMES = ("keys", "strs", "syms")
+
+
+def is_name(form):
+    """A symbol a pattern can bind (not a keyword, not &)"""
+    return (isinstance(form, edn.Symbol) and not isinstance(form, edn.Keyword)
+            and str(form) != "&")
+
+
+def is_option(form, name):
+    """`form` is the keyword :name (not the symbol name, which equals it)"""
+    return isinstance(form, edn.Keyword) and str(form) == ":" + name
+
+
+def sequence_parts(pattern):
+    """(items, rest, whole) of a sequence pattern: the positional
+    patterns, the pattern after &, the name after :as (None if absent).
+    Raises ValueError for a malformed one."""
+    items, rest, whole = [], None, None
+    parts, i = list(pattern), 0
+    while i < len(parts):
+        part = parts[i]
+        if isinstance(part, edn.Symbol) and str(part) == "&" \
+                and not isinstance(part, edn.Keyword):
+            if rest is not None or whole is not None or i + 1 >= len(parts):
+                raise ValueError(f"& takes one pattern for the rest, in {edn.writes(pattern)}")
+            rest, i = parts[i + 1], i + 2
+        elif is_option(part, "as"):
+            if whole is not None or i + 2 != len(parts) or not is_name(parts[i + 1]):
+                raise ValueError(f":as takes a name, last, in {edn.writes(pattern)}")
+            whole, i = parts[i + 1], i + 2
+        else:
+            if rest is not None:
+                raise ValueError(f"only :as can follow & rest, in {edn.writes(pattern)}")
+            items.append(part)
+            i += 1
+    return items, rest, whole
+
+
+def map_parts(pattern):
+    """([(pattern, key)], defaults {name: form}, whole) of a map
+    pattern; :keys, :strs and :syms names come as (name, name).
+    Raises ValueError for a malformed one."""
+    pairs, defaults, whole = [], {}, None
+    for target, key in pattern.items():
+        option = next((n for n in MAP_NAMES + ("or", "as") if is_option(target, n)), None)
+        if option in MAP_NAMES:
+            if not isinstance(key, edn.Vector):
+                raise ValueError(f"{target} takes a vector of names, in {edn.writes(pattern)}")
+            for name in key:
+                if not isinstance(name, edn.Symbol):  # :keys [:a] is :keys [a]
+                    raise ValueError(f"{target} takes names, not {edn.writes(name)}")
+                name = edn.Symbol(str(name).lstrip(":"))
+                pairs.append((name, name))
+        elif option == "or":
+            if not isinstance(key, dict) or not all(is_name(n) for n in key):
+                raise ValueError(f":or takes a map of names to defaults, in {edn.writes(pattern)}")
+            defaults = dict(key)
+        elif option == "as":
+            if not is_name(key):
+                raise ValueError(f":as takes a name, in {edn.writes(pattern)}")
+            whole = key
+        else:
+            pairs.append((target, key))
+    return pairs, defaults, whole
+
+
+def pattern_parts(pattern):
+    """The patterns directly inside `pattern` and the names it binds
+    itself: ([sub-patterns], [names]). Raises ValueError if malformed."""
+    if is_name(pattern):
+        return [], [pattern]
+    if isinstance(pattern, edn.Vector):
+        items, rest, whole = sequence_parts(pattern)
+        return items + ([rest] if rest is not None else []), [whole] if whole else []
+    if isinstance(pattern, dict):
+        pairs, _, whole = map_parts(pattern)
+        return [target for target, _ in pairs], [whole] if whole else []
+    raise ValueError(f"can only bind names, [vectors] or {{maps}}, not {edn.writes(pattern)}")
+
+
+def pattern_names(pattern):
+    """The names a well-formed pattern binds, in order"""
+    subpatterns, names = pattern_parts(pattern)
+    found = list(names)
+    for sub in subpatterns:
+        found += pattern_names(sub)
+    return found
+
+
+def pattern_defaults(pattern):
+    """The :or default forms anywhere in a well-formed pattern (they are
+    evaluated, so may reference names)"""
+    found = list(map_parts(pattern)[1].values()) if isinstance(pattern, dict) else []
+    for sub in pattern_parts(pattern)[0]:
+        found += pattern_defaults(sub)
+    return found
+
+
+def pattern_names_shallow(pattern):
+    """The names a map pattern binds at its own level (what :or can default)"""
+    pairs, _, _ = map_parts(pattern)
+    return [target for target, _ in pairs if is_name(target)]
+
+
+def pattern_problem(pattern):
+    """(message, form) for the first thing wrong with a pattern, or None"""
+    try:
+        subpatterns, _ = pattern_parts(pattern)
+    except ValueError as e:
+        return str(e), pattern
+    if isinstance(pattern, dict):
+        _, defaults, _ = map_parts(pattern)
+        bound = set(map(str, pattern_names_shallow(pattern)))
+        for name in defaults:
+            if str(name) not in bound:
+                return f":or gives a default for {name}, which the map doesn't bind", name
+    for sub in subpatterns:
+        found = pattern_problem(sub)
+        if found:
+            return found
+    return None
+
+
+def params_problem(params):
+    """(message, form) for what is wrong with a fn's parameter vector, or None"""
+    if not isinstance(params, edn.Vector):
+        return "parameters must be a vector, e.g. [x y]", params
+    found = pattern_problem(params)
+    if found:
+        return found
+    if sequence_parts(params)[2] is not None:
+        return "parameters can't use :as (a fn's arguments aren't one value)", params
+    return None
+
+
+def params_arity(params):
+    """(fixed, variadic) of a parameter vector: how many arguments it
+    names, and whether it takes more after them (& rest)"""
+    items, rest, _ = sequence_parts(params)
+    return len(items), rest is not None

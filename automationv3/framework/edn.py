@@ -150,15 +150,19 @@ class List(list):
 
 
 class Vector(list):
-    pass
+    # edn values can be map keys (e.g. a destructuring pattern {[x y] :pos})
+    def __hash__(self):
+        return hash(tuple(self))
 
 
 class Map(dict):
-    pass
+    def __hash__(self):
+        return hash(frozenset(self.items()))
 
 
 class Set(set):
-    pass
+    def __hash__(self):
+        return hash(frozenset(self))
 
 
 class Duration(float):

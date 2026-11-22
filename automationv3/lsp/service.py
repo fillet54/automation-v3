@@ -158,9 +158,41 @@ def local_names(stack):
                            if isinstance(i, Frame) and i.char == "["), None)
             every = 2 if first == "let" else 1
         if vector is not None:
-            found += [name for name in vector.items[::every]
-                      if isinstance(name, str) and name not in ("&", '"')]
+            for target in vector.items[::every]:
+                found += frame_names(target)
     return found
+
+
+def frame_names(target):
+    """The names a binding pattern binds, as `scan` read it (possibly
+    cut off at the end): a name, [a b & more :as all] or
+    {a :a :keys [b] :or {b 1} :as m}"""
+    if isinstance(target, str):
+        return [] if target in ("&", '"') or target.startswith(":") else [target]
+    if target.char == "[":
+        return [name for item in target.items for name in frame_names(item)]
+    if target.char != "{":
+        return []
+    found, items = [], target.items
+    for key, value in zip(items[::2], items[1::2]):
+        if key in (":keys", ":strs", ":syms") and isinstance(value, Frame):
+            found += [n.lstrip(":") for n in value.items if isinstance(n, str) and n != '"']
+        elif key == ":as" and isinstance(value, str):
+            found += frame_names(value)
+        elif not (isinstance(key, str) and key.startswith(":")):
+            found += frame_names(key)
+    return found
+
+
+def binder_names(form):
+    """The names a let, fn or defn form binds for its body"""
+    from ..framework.language import parse_fn_arities, pattern_names, pattern_problem
+    if head(form) == "let":
+        targets = list(form[1])[::2] if len(form) > 1 and isinstance(form[1], edn.Vector) else []
+    else:
+        targets = [s[0] for s in parse_fn_arities(form)[1]
+                   if isinstance(s, list) and s and isinstance(s[0], edn.Vector)]
+    return {str(n) for t in targets if not pattern_problem(t) for n in pattern_names(t)}
 
 
 def is_literal(form):
@@ -339,13 +371,7 @@ class Service:
                     if isinstance(missing, Missing) and span is not None:
                         report(span, missing.message(ref_type.__name__))
                 if first in BINDERS:
-                    vectors = [i for i in items[1:3] if isinstance(i, edn.Vector)]
-                    arities = [a[0] for a in items[1:] if isinstance(a, list) and a
-                               and isinstance(a[0], edn.Vector)]
-                    every = 2 if first == "let" else 1
-                    names = {str(n) for v in vectors + arities for n in list(v)[::every]
-                             if isinstance(n, edn.Symbol)}
-                    bound = bound | names
+                    bound = bound | binder_names(form)
             for item in items:
                 walk(item, bound)
 
@@ -764,14 +790,15 @@ class Service:
         function = form if head(form) == "defn" else form[2] if len(form) == 3 else None
         if head(function) not in ("defn", "fn"):
             return []
-        from ..framework.language import fn_params
+        from ..framework.language import fn_params, is_name
         found = []
         for params in fn_params(function):
             labels, variadic = [], False
             for param in params:
-                if str(param) == "&":
+                if is_name(param) or isinstance(param, (edn.Vector, dict)):
+                    shown = str(param) if is_name(param) else edn.writes(param)
+                    labels.append(shown + ("..." if variadic else ""))
+                elif str(param) == "&":
                     variadic = True
-                else:
-                    labels.append(str(param) + ("..." if variadic else ""))
             found.append(Signature(f"({' '.join([name] + labels)})", labels, f"Defined in {definition.path}."))
         return found

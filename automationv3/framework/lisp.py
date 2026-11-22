@@ -261,12 +261,56 @@ def def_form(x, env):
     env[name] = named(eval(value, env), name)
 
 
+_MISSING = object()
+
+
+def bind(pattern, value, env):
+    """Bind the names of a pattern (see language.py) to the parts of
+    `value`, in `env`; :or defaults are evaluated there"""
+    from . import language
+    if language.is_name(pattern):
+        env[pattern] = value
+    elif isinstance(pattern, Vector):
+        items, rest, whole = language.sequence_parts(pattern)
+        values = [] if value is None else value if isinstance(value, list) else list(value)
+        for i, item in enumerate(items):
+            bind(item, values[i] if i < len(values) else None, env)
+        if rest is not None:
+            bind(rest, List(values[len(items):]), env)
+        if whole is not None:
+            env[whole] = value
+    elif isinstance(pattern, dict):
+        pairs, defaults, whole = language.map_parts(pattern)
+        if value is None:
+            value = {}
+        elif not isinstance(value, dict):  # key value pairs, as & {:keys [a]} takes
+            value = dict(partition(2, value))
+        for target, key in pairs:
+            found = value.get(key, _MISSING)
+            if found is _MISSING:
+                found = eval(defaults[target], env) if target in defaults else None
+            bind(target, found, env)
+        if whole is not None:
+            env[whole] = value
+    else:
+        language.pattern_parts(pattern)  # raises, saying why
+
+
+def _check(problem):
+    if problem:
+        raise ValueError(problem[0])
+
+
 @special_form("let")
 def let_form(x, env):
+    from .language import pattern_problem
     _, bindings, *body = x
+    if not isinstance(bindings, Vector) or len(bindings) % 2:
+        raise ValueError("let takes a vector of pattern value pairs: (let [name value ...] body...)")
     env = Env(outer=env)
-    for name, value in partition(2, bindings):
-        env[name] = eval(value, env)
+    for pattern, value in partition(2, bindings):
+        _check(pattern_problem(pattern))
+        bind(pattern, eval(value, env), env)
     return _do(body, env)
 
 
@@ -277,27 +321,49 @@ def quote_form(x, env):
 
 @special_form("fn")
 def fn_form(x, env):
-    """(fn name? [params] body...) or (fn name? ([params] body...) ...)"""
-    from .language import parse_fn_arities
+    """(fn name? [params] body...) or (fn name? ([params] body...) ...).
+    Parameters are patterns (see language.py); `& rest` takes the
+    arguments after the others."""
+    from .language import params_arity, params_problem, parse_fn_arities
     name, signatures = parse_fn_arities(x)
+    fixed, variadic = {}, None
     for signature in signatures:
         if not (isinstance(signature, list) and signature
                 and isinstance(signature[0], Vector)):
             raise ValueError(f"Parameter declaration {signature} should be a Vector")
-    by_arity = {len(params): (params, body) for params, *body in signatures}
+        params, *body = signature
+        _check(params_problem(params))
+        count, more = params_arity(params)
+        if more:
+            if variadic is not None:
+                raise ValueError(f"{name or 'fn'} can have only one arity with & rest")
+            variadic = (count, params, body)
+        elif count in fixed:
+            raise ValueError(f"{name or 'fn'} has two arities taking {count} arguments")
+        else:
+            fixed[count] = (params, body)
+    if variadic is not None and fixed and max(fixed) > variadic[0]:
+        raise ValueError(f"{name or 'fn'} can't have a fixed arity taking more "
+                         "arguments than its arity with & rest")
     scope = env
 
     def fn(*args):
-        if len(args) not in by_arity:
-            raise RuntimeError(f"Cannot call {name} with {len(args)} arguments")
-        params, body = by_arity[len(args)]
-        return _do(body, Env(params, args, outer=scope))
+        if len(args) in fixed:
+            params, body = fixed[len(args)]
+        elif variadic is not None and len(args) >= variadic[0]:
+            _, params, body = variadic
+        else:
+            raise RuntimeError(f"Cannot call {name or 'fn'} with {len(args)} arguments")
+        local = Env(outer=scope)
+        bind(params, args, local)
+        return _do(body, local)
 
     if name is not None:
         fn.__name__ = str(name)
         if x[0] == "fn":  # (fn f [x] ... (f ...)): its body may call it by name
             scope = Env([name], [fn], outer=env)
-    fn.signatures = [params for params, _ in by_arity.values()]  # for showing it
+    fn.signatures = [params for params, _ in fixed.values()] + \
+        ([variadic[1]] if variadic is not None else [])  # for showing it
     return fn
 
 

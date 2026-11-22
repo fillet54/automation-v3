@@ -87,7 +87,7 @@ class Definition:
     in_section: bool = False
     variations: list = None
     arities: set = None  # param counts for a defn, else None
-    variadic: bool = False
+    variadic: int = None  # for a defn with & rest, the fewest arguments it takes there
 
     @property
     def span(self):
@@ -95,9 +95,37 @@ class Definition:
 
 
 def defn_arities(form):
-    """Set of parameter counts of a fn or defn form"""
-    from .language import fn_params
-    return {len(params) for params in fn_params(form)}
+    """(fixed, variadic) of a fn or defn form: the set of argument counts
+    its fixed arities take, and the fewest its & rest arity takes (None
+    without one). Malformed parameter vectors are left out."""
+    from .language import fn_params, params_arity, params_problem
+    fixed, variadic = set(), None
+    for params in fn_params(form):
+        if params_problem(params):
+            continue
+        count, more = params_arity(params)
+        if more:
+            variadic = count
+        else:
+            fixed.add(count)
+    return fixed, variadic
+
+
+def takes(definition, count):
+    """True if a defn takes `count` arguments (or isn't known not to)"""
+    if not definition.arities and definition.variadic is None:
+        return True
+    return count in definition.arities or (
+        definition.variadic is not None and count >= definition.variadic)
+
+
+def arity_words(definition):
+    """'1 or 2', '1, or 3 or more'"""
+    words = [str(n) for n in sorted(definition.arities)]
+    if definition.variadic is not None:
+        words.append(f"{definition.variadic} or more")
+    return ", or ".join(words) if definition.variadic is not None and len(words) > 1 \
+        else " or ".join(words)
 
 
 class Names:
@@ -158,9 +186,9 @@ class Analyzer:
                 definition = Definition(str(form[1]), form, path, statement.index,
                                         statement.definitions, statement.variations)
                 if head(form) == "defn":
-                    definition.arities = defn_arities(form)
+                    definition.arities, definition.variadic = defn_arities(form)
                 elif head(form) == "def" and len(form) == 3 and head(form[2]) == "fn":
-                    definition.arities = defn_arities(form[2])
+                    definition.arities, definition.variadic = defn_arities(form[2])
                 found.append(definition)
         return found
 
@@ -503,9 +531,9 @@ class Analyzer:
         if definition is None and name in self.builtins:
             self.builtin_arity(name, form)
         if definition is not None and definition.arities is not None and \
-                definition.arities and len(rest) not in definition.arities:
-            counts = " or ".join(str(n) for n in sorted(definition.arities))
-            plural = "" if definition.arities == {1} else "s"
+                not takes(definition, len(rest)):
+            counts = arity_words(definition)
+            plural = "" if counts == "1" else "s"
             where = definition.path
             if definition.span is not None:
                 where += f":{definition.span.line}"
@@ -577,6 +605,20 @@ class Analyzer:
             else:
                 self.expression(arg, names, locals_, eager, core=core)
 
+    def pattern(self, target, names, bound, eager, core, parent, index, problem=None):
+        """Check a binding pattern, analyze its :or defaults and add the
+        names it binds to `bound`"""
+        from .language import pattern_defaults, pattern_names, pattern_problem
+        problem = problem or pattern_problem(target)
+        if problem:
+            message, where = problem  # where has no span if a literal: say the target's
+            self.error(message, where, parent=parent, index=index)
+            return
+        names_bound = {str(n) for n in pattern_names(target)}
+        for default in pattern_defaults(target):  # may use what the pattern binds
+            self.expression(default, names, frozenset(bound | names_bound), eager, core=core)
+        bound |= names_bound
+
     def let(self, form, names, locals_, eager, core):
         if len(form) < 2 or not isinstance(form[1], edn.Vector) or len(form[1]) % 2:
             self.error("let takes a vector of name value pairs, then its body: "
@@ -587,17 +629,13 @@ class Analyzer:
         for i in range(0, len(bindings), 2):
             target, value = bindings[i], bindings[i + 1]
             self.expression(value, names, frozenset(bound), eager, core=core)
-            if not isinstance(target, edn.Symbol) or isinstance(target, edn.Keyword):
-                self.error(f"let can only bind names, not {edn.writes(target)}",
-                           target, parent=bindings, index=i)
-            else:
-                bound.add(str(target))
+            self.pattern(target, names, bound, eager, core, parent=bindings, index=i)
         for item in form[2:]:
             self.expression(item, names, frozenset(bound), eager, core=core)
 
     def fn_body(self, form, names, locals_, defn, core):
         """fn or defn: parameters are bound in the body, which runs later"""
-        from .language import parse_fn_arities
+        from .language import params_arity, params_problem, parse_fn_arities
         kind = "defn" if defn else "fn"
         if defn and (len(form) < 2 or not isinstance(form[1], edn.Symbol)):
             self.error("defn needs a name: (defn name [params] body...)", form)
@@ -607,6 +645,7 @@ class Analyzer:
             self.error(f"{kind} needs parameters: ({kind} {'name ' if defn else ''}"
                        "[params] body...)", form)
             return
+        fixed, variadic = set(), None
         for signature in signatures:
             if not (isinstance(signature, list) and signature
                     and isinstance(signature[0], edn.Vector)):
@@ -615,14 +654,25 @@ class Analyzer:
                 continue
             params, *body = signature
             bound = set(locals_)
-            for i, param in enumerate(params):
-                if not isinstance(param, edn.Symbol) or isinstance(param, edn.Keyword):
-                    self.error(f"parameters must be names, not {edn.writes(param)}",
-                               param, parent=params, index=i)
-                else:
-                    bound.add(str(param))
+            problem = params_problem(params)
+            self.pattern(params, names, bound, False, core, parent=signature, index=0,
+                         problem=problem)
+            if problem is None:
+                count, more = params_arity(params)
+                if more and variadic is not None:
+                    self.error(f"{kind} can have only one arity with & rest", params)
+                elif more:
+                    variadic = count
+                elif count in fixed:
+                    self.error(f"{kind} has two arities taking {count} argument"
+                               f"{'' if count == 1 else 's'}", params)
+                if not more:
+                    fixed.add(count)
             for item in body:
                 self.expression(item, names, frozenset(bound), eager=False, core=core)
+        if variadic is not None and fixed and max(fixed) > variadic:
+            self.error(f"{kind} can't have a fixed arity taking more arguments than "
+                       "its arity with & rest", form)
 
     def discarded(self, form):
         """Warn about a top-level step whose value is all it does"""

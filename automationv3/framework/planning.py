@@ -122,6 +122,16 @@ class UnknownSymbol(Exception):
     pass
 
 
+def _pattern_symbols(pattern, local):
+    """Free symbols of a binding pattern's :or defaults; adds the names it
+    binds to `local`. A malformed pattern binds nothing."""
+    from .language import pattern_defaults, pattern_names, pattern_problem
+    if pattern_problem(pattern):
+        return set()
+    local.update(str(n) for n in pattern_names(pattern))
+    return set().union(*(symbols_in(d, frozenset(local)) for d in pattern_defaults(pattern)))
+
+
 def symbols_in(form, bound=frozenset()):
     """Free symbols referenced by `form`, respecting quote, let, fn and defn"""
     from .language import head, parse_fn_arities
@@ -152,8 +162,7 @@ def symbols_in(form, bound=frozenset()):
             bindings = form[1]
             for i in range(0, len(bindings) - 1, 2):
                 found.update(symbols_in(bindings[i + 1], frozenset(local)))
-                if isinstance(bindings[i], edn.Symbol) and not isinstance(bindings[i], edn.Keyword):
-                    local.add(str(bindings[i]))
+                found.update(_pattern_symbols(bindings[i], local))
             for item in form[2:]:
                 found.update(symbols_in(item, frozenset(local)))
             return found
@@ -164,10 +173,8 @@ def symbols_in(form, bound=frozenset()):
             for sig in signatures:
                 if isinstance(sig, list) and sig and isinstance(sig[0], edn.Vector):
                     params, *body = sig
-                    local = set(bound) | own | {
-                        str(p) for p in params
-                        if isinstance(p, edn.Symbol) and not isinstance(p, edn.Keyword)
-                    }
+                    local = set(bound) | own
+                    found.update(_pattern_symbols(params, local))
                     for item in body:
                         found.update(symbols_in(item, frozenset(local)))
             return found

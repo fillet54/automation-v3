@@ -167,6 +167,9 @@ class TestService(Rooted):
         self.assertEqual(local_names(scan("(defn f ([a] 1) ([a & more] (g ")), ["a", "more"])
         self.assertEqual(local_names(scan("(let [x 1 y (g 2)] (h ")), ["x", "y"])
         self.assertEqual(local_names(scan("(fn [a] a) (b ")), [])
+        self.assertEqual(local_names(scan("(let [[a [b] & c :as d] v {e :e :keys [f :g] :or {f 1} :as h} w] (i ")),
+                         ["a", "b", "c", "d", "e", "f", "g", "h"])
+        self.assertEqual(local_names(scan("(fn [x & {:keys [y]}] (i ")), ["x", "y"])
 
 
 REFS = """\
@@ -184,7 +187,7 @@ See :req:`R-1` and :req:`R-9`.
    (def minimum 10)
    (def low minimum)
    (def twice (double minimum))
-   (defn within? ([v lo hi] (and (>= v lo) (<= v hi))) ([v & more] true))
+   (defn within? ([v lo hi] (and (>= v lo) (<= v hi))) ([v lo hi & more] true))
 
 .. rvt::
 
@@ -284,8 +287,8 @@ class TestWhatNamesAre(Rooted):
         self.assertEqual(self.signatures(18, "   (Verify nav.time within? low 20"), 
                          (["(Verify actual predicate args...)", "(Verify value)"], 0, 2))
         self.service.texts["BRA/tc.rst"] = REFS + "   (within? 1 2 3 4"
-        self.assertEqual(self.signatures(20, "   (within? 1 "), (["(within? v lo hi)", "(within? v more...)"], 0, 1))
-        self.assertEqual(self.signatures(20, "   (within? 1 2 3 "), (["(within? v lo hi)", "(within? v more...)"], 1, 1))
+        self.assertEqual(self.signatures(20, "   (within? 1 "), (["(within? v lo hi)", "(within? v lo hi more...)"], 0, 1))
+        self.assertEqual(self.signatures(20, "   (within? 1 2 3 "), (["(within? v lo hi)", "(within? v lo hi more...)"], 1, 3))
         self.assertIsNone(self.signatures(2, "See "))
 
 

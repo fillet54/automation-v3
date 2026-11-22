@@ -104,6 +104,35 @@ class TestShapes(unittest.TestCase):
         (error,) = check(rvt("(two)"))[0]
         self.assertIn("two takes 1 or 2 arguments, not 0", error)
 
+    def test_rest_arity(self):
+        core = CORE + rvt("(defn log [fmt & args] fmt) (defn many ([] 0) ([a b & r] a))")
+        self.assertEqual(check(rvt("(log 1) (log 1 2 3) (many) (many 1 2 3)"), core)[0], [])
+        (error,) = check(rvt("(log)"), core)[0]
+        self.assertIn("log takes 1 or more arguments, not 0", error)
+        (error,) = check(rvt("(many 1)"), core)[0]
+        self.assertIn("many takes 0, or 2 or more arguments, not 1", error)
+
+    def test_destructured_names_are_bound(self):
+        script = rvt("(let [{:keys [a] [b & c] :v :or {a limit} :as m} {} [d] [1]] "
+                     "(Verify (+ a b d (count c) (count m)) = 1)) "
+                     "(defn f [[x] & {:keys [y]}] (+ x y))")
+        self.assertEqual(check(script)[0], [])
+        (error,) = check(rvt("(let [{:keys [a] :or {a limt}} {}] a)"))[0]
+        self.assertIn("unknown name limt", error)
+
+    def test_bad_patterns(self):
+        for script, message in [
+                ("(let [1 2] 1)", "can only bind names"),
+                ("(let [[a & b c] [1]] a)", "only :as can follow & rest"),
+                ("(let [{:keys [a] :or {z 1}} {}] a)", ":or gives a default for z"),
+                ("(defn f [a :as b] a)", "parameters can't use :as"),
+                ("(defn f ([& a] 1) ([& b] 2))", "only one arity with & rest"),
+                ("(defn f ([a b] 1) ([& b] 2))", "fixed arity taking more arguments"),
+                ("(defn f ([a] 1) ([b] 2))", "two arities taking 1 argument")]:
+            with self.subTest(script):
+                errors = check(rvt(script))[0]
+                self.assertTrue(any(message in e for e in errors), errors)
+
     def test_builtin_arity(self):
         (error,) = check(rvt("(Verify (not 1 2))"))[0]
         self.assertIn("not can't take 2 arguments", error)

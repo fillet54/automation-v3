@@ -69,10 +69,14 @@ Special forms
    * - ``(and forms...)``, ``(or forms...)``
      - evaluate left to right only until the result is decided, returning
        that value
-   * - ``(let [name value ...] body...)``
-     - local bindings
+   * - ``(let [pattern value ...] body...)``
+     - local bindings; each pattern is a name or takes the value apart (see
+       `Destructuring`_)
    * - ``(fn name? [params] body...)``
-     - a function; ``(fn ([a] ...) ([a b] ...))`` for several arities
+     - a function; ``(fn ([a] ...) ([a b] ...))`` for several arities.
+       ``[a & more]`` takes the arguments after ``a`` as a list (empty
+       when there are none); parameters are patterns too. A named fn can
+       call itself by its name.
    * - ``(quote form)``, ``'form``
      - the form unevaluated; vectors, maps and sets otherwise evaluate their
        items
@@ -184,6 +188,45 @@ Collection helpers
 ``keys``, ``vals``, ``vec`` and ``filter`` return EDN vectors, not iterators,
 so their results can be counted, reused and shown in reports. ``nil`` is
 treated as an empty collection by those functions and by ``reduce``.
+
+Destructuring
+-------------
+
+Wherever ``let``, ``fn`` and ``defn`` bind a name they take a pattern, as in
+Clojure, and patterns nest:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Pattern
+     - Binds
+   * - ``[a b]``
+     - the first two items; missing items, or a nil value, give nil
+   * - ``[a & more]``
+     - ``more`` to the rest as a list, empty when nothing is left
+   * - ``[a b :as all]``
+     - ``all`` to the whole value
+   * - ``{a :a, [x y] :pos}``
+     - each pattern to the value under its key
+   * - ``{:keys [a b]}``
+     - ``a`` and ``b`` to the values under ``:a`` and ``:b``. ``:strs`` and
+       ``:syms`` are the same, as keywords equal strings here
+   * - ``{:keys [a] :or {a 1}}``
+     - a default for a key the map lacks (not one that holds nil); it may
+       use earlier names
+   * - ``{:keys [a] :as m}``
+     - ``m`` to the whole map
+
+A map pattern reads a sequence as key value pairs, so ``& {:keys [scale]}``
+takes keyword arguments::
+
+    (defn scaled [x & {:keys [scale] :or {scale 1}}] (* x scale))
+    (scaled 2 :scale 3)   ; 6
+
+A function has at most one arity with ``& rest``, and no fixed arity of it
+takes more arguments than that one does before ``&``. Parameters can't use
+``:as``.
 
 Literals
 --------

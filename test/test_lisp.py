@@ -45,6 +45,50 @@ class TestLisp(unittest.TestCase):
         with self.assertRaises(lisp.UnboundName):
             run("(fn fact [n] n) (fact 1)")  # the name is the fn's own, not bound outside
 
+    def test_rest_parameters(self):
+        self.assertEqual(run("((fn [x & more] [x more]) 1 2 3)"), [1, [2, 3]])
+        self.assertEqual(run("((fn [x & more] more) 1)"), [])  # empty, not nil
+        self.assertEqual(run("(defn f ([] :none) ([x] :one) ([x & r] (count r))) [(f) (f 1) (f 1 2 3)]"),
+                         [edn.Keyword("none"), edn.Keyword("one"), 2])
+        with self.assertRaises(RuntimeError):
+            run("((fn [a b & r] a) 1)")
+        for bad in ["(fn ([& a] 1) ([& b] 2))", "(fn ([a b c] 1) ([& b] 2))",
+                    "(fn ([a] 1) ([b] 2))", "(fn [a &] a)", "(fn [a :as b] a)"]:
+            with self.subTest(bad), self.assertRaises(ValueError):
+                run(bad)
+
+    def test_sequence_destructuring(self):
+        self.assertEqual(run("(let [[a [b c] & r :as all] [1 [2 3] 4 5]] [a b c r all])"),
+                         [1, 2, 3, [4, 5], [1, [2, 3], 4, 5]])
+        self.assertEqual(run("(let [[a b] [1]] [a b])"), [1, None])
+        self.assertEqual(run("(let [[a b] nil] [a b])"), [None, None])
+        self.assertEqual(run("((fn [[x y] z] [x y z]) [1 2] 3)"), [1, 2, 3])
+        with self.assertRaises(ValueError):
+            run("(let [[a & b c] [1]] a)")
+
+    def test_map_destructuring(self):
+        self.assertEqual(run('(let [{a :a {x :x} :inner [p q] :pos} '
+                             '{:a 1 :inner {:x 2} :pos [3 4]}] [a x p q])'), [1, 2, 3, 4])
+        self.assertEqual(run('(let [{:keys [a b] :strs [c] :syms [d] :as m} {:a 1 "b" 2 :c 3 :d 4}] '
+                             '[a b c d (count m)])'), [1, 2, 3, 4, 4])
+        self.assertEqual(run("(let [{[p q] :pos} {:pos [1 2]}] (+ p q))"), 3)
+        self.assertEqual(run("(let [{:keys [a]} nil] a)"), None)
+
+    def test_or_defaults_apply_to_missing_keys_only(self):
+        self.assertEqual(run("(let [d 5 {:keys [a b] :or {a d b 2}} {:b nil}] [a b])"), [5, None])
+        with self.assertRaises(ValueError):
+            run("(let [{:keys [a] :or {z 1}} {}] a)")
+
+    def test_keyword_arguments(self):
+        self.assertEqual(run("(defn f [x & {:keys [scale] :or {scale 1}}] (* x scale)) "
+                             "[(f 2) (f 2 :scale 3)]"), [2, 6])
+
+    def test_let_binds_only_patterns(self):
+        with self.assertRaises(ValueError):
+            run("(let [1 2] 1)")
+        with self.assertRaises(ValueError):
+            run("(let [a] 1)")
+
     def test_vectors_maps_and_sets_evaluate_their_items(self):
         self.assertEqual(run("[(+ 1 2) :k]"), [3, edn.Keyword("k")])
         self.assertEqual(run("(def x 2) {:a x}"), {edn.Keyword("a"): 2})
