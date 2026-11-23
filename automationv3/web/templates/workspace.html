@@ -35,7 +35,7 @@
      data-report="{{ request.args.get('report') or '' }}" data-console="{{ 'true' if console else 'false' }}">
   <div class="ed-bar" hidden>
     <div class="ed-tabs" role="tablist" aria-label="Open files"></div>
-    {#- Three controls: File, More (⋯) and Run. editor.js enables them for the active tab. #}
+    {#- Three controls: File, Run and More (⋯). editor.js enables them for the active tab. #}
     <div class="ed-actions"><span class="ed-status ui-muted" aria-live="polite"></span>
       <details class="ed-menu ed-filemenu" hidden><summary class="ui-btn ui-btn--sm ui-btn--secondary">File</summary>
         <div class="ed-menu__items">
@@ -50,6 +50,7 @@
           {% endif %}
           <button type="button" data-ed-details>Details…</button>
         </div></details>
+      <button type="button" class="ui-btn ui-btn--sm ui-btn--primary ed-run-open" data-ed-run-open disabled>{{ ui.icon("play", 14) }}<span>Run…</span></button>
       {% if editable %}
       <details class="ed-menu ed-more"><summary class="ui-btn ui-btn--sm ui-btn--ghost" title="More" aria-label="More">⋯</summary>
         <div class="ed-menu__items">
@@ -62,7 +63,6 @@
             <div class="ed-menu__items ed-snippets__items"></div></details>
         </div></details>
       {% endif %}
-      <button type="button" class="ui-btn ui-btn--sm ui-btn--primary ed-run-open" data-ed-run-open disabled>{{ ui.icon("play", 14) }}<span>Run…</span></button>
     </div>
   </div>
   {% if editable %}<div class="ed-problems" hidden aria-label="Problems"></div>{% endif %}
