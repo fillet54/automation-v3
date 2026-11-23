@@ -40,7 +40,7 @@ LOCAL_USER = accounts.User(0, "local@localhost")
 
 # Endpoints anyone may call
 OPEN = {"auth.login", "auth.link", "auth.signed_out", "static", "paper_ui.static",
-        "automation_css", "hooks.git", "api.login_start", "api.login_poll"}
+        "automation_css", "plugins_css", "hooks.git", "api.login_start", "api.login_poll"}
 
 # Endpoints only a worker token may call
 WORKER_API = {"jobqueue.register_worker", "jobqueue.list_jobs", "jobqueue.claim_job",

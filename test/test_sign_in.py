@@ -42,9 +42,14 @@ class TestCentralSignIn(unittest.TestCase):
     def test_the_login_page_is_styled_signed_out(self):
         page = self.http.get("/auth/login").get_data(as_text=True)
         self.assertIn('href="/static/css/automation.css"', page)
-        css = self.http.get("/static/css/automation.css")
-        self.assertEqual(css.status_code, 200)
-        css.close()
+        import re
+        sheets = re.findall(r'<link rel="stylesheet" href="([^"]+)"', page)
+        self.assertIn("/plugins.css", sheets)
+        for href in sheets:  # every one loads signed out
+            with self.subTest(href):
+                css = self.http.get(href)
+                self.assertEqual(css.status_code, 200)
+                css.close()
 
     def test_sign_in_by_link(self):
         with sent_links() as sent:
