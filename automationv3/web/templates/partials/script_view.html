@@ -4,28 +4,12 @@
   {% set crumbs = [(workspace.id, url_for('workspace.index', id=workspace.id))] %}
   {% for part in path.split('/')[:-1] %}{% set _ = crumbs.append((part, None)) %}{% endfor %}
   {% set _ = crumbs.append((path.split('/')[-1], None)) %}
-  <header class="ui-page-header">{{ ui.breadcrumbs(crumbs) }}</header>
   {% set view_files = files if files != "in work" else None %}
 
-  {#- The script or a file it loads has edits that aren't checked in: show either, or what changed #}
-  {% if in_work %}
-  {% set items = [] %}
-  {% for kind, label in [("in work", "In work"), ("checked in", "Checked in"), ("changes", "Changes")] %}
-    {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=variation.name if variation else None, files=kind if kind != "in work" else None, report=target or None) %}
-    {% set _ = items.append({"label": label, "href": href, "active": files == kind,
-                             "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=variation.name if variation else None, files=kind if kind != "in work" else None, report=target or None),
-                                       "hx-target": "#content", "hx-swap": "outerHTML", "hx-push-url": href}}) %}
-  {% endfor %}
-  <div class="ui-in-work">
-    {{ ui.badge("Edited", tone="warning") }}
-    <span>{% if in_work == [path] %}This script has{% else %}{% for f in in_work %}{{ ui.ident(f) }}{% if not loop.last %}, {% endif %}{% endfor %} {{ "has" if in_work | length == 1 else "have" }}{% endif %}
-      edits that aren't checked in. Scratch runs whichever you pick; reports run what's checked in.</span>
-    <span class="ui-spacer"></span>
-    {{ ui.segmented(items, label="Which files") }}
-  </div>
-  {% endif %}
-
+  {#- One row above the document: where the file is, then its variations and run controls #}
   {% set queueable = closure and not closure.errors %}
+  <div class="ed-head">
+  {{ ui.breadcrumbs(crumbs) }}
   {% if closure and (queueable or closure.variations) %}
   <div class="ui-script-bar">
     <div class="ui-script-bar__variations">
@@ -88,6 +72,25 @@
     </form>
     {%- endif %}
     {%- endif %}
+  </div>
+  {% endif %}
+  </div>
+
+  {#- The script or a file it loads has edits that aren't checked in: show either, or what changed #}
+  {% if in_work %}
+  {% set items = [] %}
+  {% for kind, label in [("in work", "In work"), ("checked in", "Checked in"), ("changes", "Changes")] %}
+    {% set href = url_for('workspace.index', id=workspace.id, path=path, variation=variation.name if variation else None, files=kind if kind != "in work" else None, report=target or None) %}
+    {% set _ = items.append({"label": label, "href": href, "active": files == kind,
+                             "attrs": {"hx-get": url_for('workspace.view', id=workspace.id, path=path, variation=variation.name if variation else None, files=kind if kind != "in work" else None, report=target or None),
+                                       "hx-target": "#content", "hx-swap": "outerHTML", "hx-push-url": href}}) %}
+  {% endfor %}
+  <div class="ui-in-work">
+    {{ ui.badge("Edited", tone="warning") }}
+    <span>{% if in_work == [path] %}This script has{% else %}{% for f in in_work %}{{ ui.ident(f) }}{% if not loop.last %}, {% endif %}{% endfor %} {{ "has" if in_work | length == 1 else "have" }}{% endif %}
+      edits that aren't checked in. Scratch runs whichever you pick; reports run what's checked in.</span>
+    <span class="ui-spacer"></span>
+    {{ ui.segmented(items, label="Which files") }}
   </div>
   {% endif %}
 

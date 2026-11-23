@@ -152,6 +152,13 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 /* the script view's top row: the variation selector, and the Queue button at the far end */
 .ui-script-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .ui-script-details .ui-defs__body { padding-top: 4px; }
+/* in an editor tab, the file's breadcrumb shares that row: variations after it, run controls at the far end */
+.ed-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.ed-head > nav { flex: none; }
+.ed-head .ui-crumbs { margin: 0; }
+.ed-head > .ui-script-bar { flex: 1; justify-content: flex-end; }
+.ed-head .ui-script-bar__variations { margin-right: auto; }
+.ed-head .ui-script-bar__variations:empty { display: none; }
 
 /* a step's (or titled block's) duration, just left of its outcome, right-aligned so times line up */
 :is(.ui-duration, .ui-document .duration) { min-width: 5.5em; text-align: right; font-family: var(--ui-font-mono); font-size: var(--ui-text-xs); font-variant-numeric: tabular-nums; color: var(--ui-muted); white-space: nowrap; }
@@ -300,8 +307,10 @@ div.tbd strong:first-child { flex: none; font-size: var(--ui-text-xs); font-weig
 .auth-panel { max-width: 480px; }
 
 /* The workspace editor (static/js/editor.js): tabs, and a file as cards */
-.ed-bar { display: flex; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--ui-rule); margin-bottom: 16px; position: sticky; top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h)); z-index: 5; background: var(--ui-paper); padding-top: 6px; }
+.ed-bar { display: flex; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--ui-rule); margin-bottom: 10px; position: sticky; top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h)); z-index: 5; background: var(--ui-paper); padding-top: 6px; }
 .ed-bar[hidden], .ed-pane[hidden] { display: none; }
+/* the tabs say what is open: the page needs little room above them */
+.ui-main:has(.ed) { padding-top: 12px; }
 .ed-tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; gap: 2px; }
 .ed-tablist { align-self: center; flex: none; }
 .ed-tablist__items { left: 0; right: auto; max-height: 60vh; overflow-y: auto; min-width: 260px; }
