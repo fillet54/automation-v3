@@ -25,7 +25,6 @@ import jinja2
 from docutils.parsers.rst import directives
 
 from .core import directive, role
-from ..framework.markup import written
 from .template import Rst, filter, link, literal, plural, text
 
 UNASSIGNED = "Unassigned"
@@ -67,9 +66,9 @@ def outdated_label(row):
 
 def ran_on(row):
     """'fail on lm LUM131': how an outdated combination's latest run came
-    out, and on what"""
+    out ('ran' if it has no outcome yet), and on what"""
     outcome = (row.get("latest") or {}).get("outcome")
-    return f"{written(outcome)} on {versions_text(row['outdated'])}"
+    return f"{outcome or 'ran'} on {versions_text(row['outdated'])}"
 
 
 NOT_CURRENT = "not the report's versions"
