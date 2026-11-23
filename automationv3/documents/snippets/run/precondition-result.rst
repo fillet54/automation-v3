@@ -20,7 +20,7 @@
 
    .. container:: result {{ phase.state | classes }}
 
-      {% if phase.result and phase.result.duration is not none %}:duration:`{{ phase.result.duration | duration }}` {% endif %}{{ phase.state | verdict }}
+      {% if phase.result and phase.result.duration is not none %}:duration:`{{ phase.result.duration | duration }}` {% elif phase.state == "running" and phase.started %}:elapsed:`{{ phase.started }}` {% endif %}{{ phase.state | verdict }}
 % if phase.calls
 
       .. container:: calls

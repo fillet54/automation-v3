@@ -2,6 +2,8 @@
 {% set nav_current = "reports" %}
 {% block title %}{{ run.script.split('/')[-1] }} · Run{% endblock %}
 
+{% block page_head %}<script src="{{ url_for('static', filename='js/elapsed.js') }}" defer></script>{% endblock %}
+
 {% block content %}
 {% include "reports/partials/run_body.html" %}
 {% endblock %}

@@ -16,6 +16,7 @@ classes their own way.
 
 import functools
 import re
+from datetime import datetime, timezone
 from html import escape
 
 import docutils.core
@@ -128,6 +129,11 @@ class LiveTranslator(HTMLTranslator):
         super().depart_paragraph(node)
 
     def visit_inline(self, node):
+        if node.get("since"):  # :elapsed:, counted on by static/js/elapsed.js
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            self.body.append(f'<span class="duration elapsed" data-since="{escape(node["since"])}" '
+                             f'data-now="{now}">{escape(node.astext())}</span>')
+            raise nodes.SkipNode
         if node.get("verdict"):
             badge = self.hooks.verdict(node["verdict"])
             if badge is not None:

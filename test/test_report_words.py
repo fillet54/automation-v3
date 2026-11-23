@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from automationv3.documents.report import ran_on
+from automationv3.documents.run import elapsed, seconds_since
 from automationv3.web.context import cache_dir
 
 
@@ -18,6 +19,18 @@ class TestRanOn(unittest.TestCase):
             with self.subTest(latest):
                 self.assertEqual(ran_on({"latest": latest, "outdated": {"lm": "LUM131"}}),
                                  "ran on lm LUM131")
+
+
+class TestElapsed(unittest.TestCase):
+    def test_running_times(self):
+        self.assertEqual([elapsed(s) for s in (0, 7.9, 65, 3725)], ["0 s", "7 s", "1:05", "1:02:05"])
+
+    def test_seconds_since(self):
+        from datetime import datetime, timezone
+        now = datetime(2026, 11, 22, 10, 0, 30, tzinfo=timezone.utc)
+        self.assertEqual(seconds_since("2026-11-22T10:00:00+00:00", now), 30)
+        self.assertEqual(seconds_since("2026-11-22T10:00:00", now), 30)  # no zone: UTC
+        self.assertIsNone(seconds_since("soon", now))
 
 
 class TestCacheDir(unittest.TestCase):

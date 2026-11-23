@@ -4,7 +4,7 @@
 %# block's own rst, or None
 .. container:: result {{ result.state | classes }}
 
-   {% if result.duration is not none %}:duration:`{{ result.duration | duration }}` {% endif %}{{ result.state | verdict }}
+   {% if result.duration is not none %}:duration:`{{ result.duration | duration }}` {% elif result.started %}:elapsed:`{{ result.started }}` {% endif %}{{ result.state | verdict }}
 % if own
 
 {{ own | indent(3, true) }}

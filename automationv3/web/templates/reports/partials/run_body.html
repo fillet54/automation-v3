@@ -3,7 +3,7 @@
 <div id="run-body" class="ui-stack"
      {% if not finished %}
      hx-get="{{ url_for('reports.run', report_id=run.report_id, run_id=run.id, seen=seen) }}"
-     hx-trigger="every 2s"
+     hx-trigger="every 500ms"
      hx-swap="outerHTML"
      {% endif %}>
   {% set scratch = run.report_id == "scratch" %}
@@ -23,6 +23,7 @@
     </div>
     <div class="ui-toolbar">
       {% if run.non_identical %}{{ ui.badge("Not identical", "warning", outline=True) }}{% endif %}
+      {% if running_since %}<span class="duration elapsed" data-since="{{ running_since }}" data-now="{{ now }}" title="Running for">{{ running_for }}</span>{% endif %}
       {{ outcomes.outcome(status) }}
       {% if scratch %}
       {% if run.workspace %}{{ ui.button("Queue in a report…", size="sm", href=url_for('jobqueue.new', workspace=run.workspace, script=run.script)) }}{% endif %}

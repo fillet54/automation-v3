@@ -251,6 +251,27 @@ class TestDocumentPages(PagesTestCase):
         page = self.get()
         self.assertIn(f'hx-get="{self.base}/block/2"', page)
 
+    def test_a_running_step_and_call_count_up(self):
+        run = next(r for r in store.list_runs(self.root, self.report_id)
+                   if r["script"] == "ALM/tc_alm_001.rst")
+        events = store.read_events(self.root, self.report_id, run["id"])
+        step = next(i for i, e in enumerate(events) if e["kind"] == "step_start")
+        call = next(i for i, e in enumerate(events) if e["kind"] == "call_start" and i > step)
+        path = store.run_dir(self.root, self.report_id, run["id"]) / "events.jsonl"
+        path.write_text("")
+        store.append_events(self.root, self.report_id, run["id"], events[:call + 1])
+        store.update_run(self.root, self.report_id, run["id"], outcome=None,
+                         started=events[0]["ts"])
+        page = self.get(f"/runs/{run['id']}")
+        self.assertIn('hx-trigger="every 500ms"', page)
+        self.assertIn("js/elapsed.js", page)
+        counting = page.count('class="duration elapsed" data-since=')
+        self.assertGreaterEqual(counting, 3)  # the run, its step and the call in it
+        self.assertIn(f'data-since="{events[call]["ts"]}"', page)
+
+        done = self.get(f"/runs/{store.list_runs(self.root, self.report_id)[-1]['id']}")
+        self.assertNotIn("data-since=", done)  # finished: durations, nothing counting
+
     def test_a_frozen_documents_source_is_read_only(self):
         store.set_frozen(self.root, self.report_id, True)
         self.assertIn("readonly", self.get("/source"))

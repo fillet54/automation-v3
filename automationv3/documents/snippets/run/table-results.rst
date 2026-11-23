@@ -10,7 +10,7 @@
 % for row in rows
 .. container:: table-row collapsible {{ row.state | classes }}
 
-   **Row** {{ row.name }}{% if row["values"] %} · {{ row["values"] | values_text }}{% endif %}{% if row.duration is not none %} :duration:`{{ row.duration | duration }}`{% endif %} {{ row.state | verdict }}
+   **Row** {{ row.name }}{% if row["values"] %} · {{ row["values"] | values_text }}{% endif %}{% if row.duration is not none and row.state != "running" %} :duration:`{{ row.duration | duration }}`{% elif row.started %} :elapsed:`{{ row.started }}`{% endif %} {{ row.state | verdict }}
 % if row.message
 
    ::

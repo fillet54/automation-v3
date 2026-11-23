@@ -37,6 +37,7 @@ class StepResult:
 
     state: str                       # pass, fail, error, tbd, running, pending, not run
     duration: float = None
+    started: str = None              # when it started (ISO), while it runs
     stdout: str = ""
     stderr: str = ""
     error: bool = False
@@ -89,7 +90,7 @@ class RunResults:
         # the script's forms as pages show them, by index: what events count
         from .script import view
         self.statements = [view(s) for s in data.statements(run)]
-        self.started = {key(e) for e in self.events if e["kind"] == "step_start"}
+        self.started = {key(e): e.get("ts") for e in self.events if e["kind"] == "step_start"}
         self.ended = {key(e): e for e in self.events if e["kind"] == "step_end"}
         self.calls = call_trees(self.events)
         self.attachments = {}
@@ -101,8 +102,10 @@ class RunResults:
         self.rows = {}
         for event in self.events:
             if event["kind"] in ("row_start", "row_end"):
-                self.rows.setdefault((event["index"], event["row"]), {}).update(
-                    {k: v for k, v in event.items() if k not in ("seq", "ts")})
+                row = self.rows.setdefault((event["index"], event["row"]), {})
+                row.update({k: v for k, v in event.items() if k not in ("seq", "ts")})
+                if event["kind"] == "row_start":
+                    row["started"] = event.get("ts")
         self.phases = phases(self.events, self.calls)
         self.variation = (run.get("variation") or {}).get("name")
         self.own_results = None
@@ -130,6 +133,7 @@ class RunResults:
         return StepResult(
             state=state,
             duration=(ended or {}).get("duration"),
+            started=self.started.get(found) if state == "running" else None,
             stdout=(ended or {}).get("stdout") or "",
             stderr=(ended or {}).get("stderr") or "",
             error=bool((ended or {}).get("error")),
@@ -150,6 +154,13 @@ class RunResults:
         states = [r.state for r in results]
         state = min(states, key=STATE_ORDER.index) if states else None
         return state, total_duration(r.duration for r in results)
+
+    def span_started(self, first, last):
+        """When the first of the steps from `first` to `last` that started
+        did (ISO), or None"""
+        found = [self.started.get((i, None)) for i in range(first, last + 1)]
+        found = [t for t in found if t]
+        return min(found) if found else None
 
     def table(self, index):
         """A table block's rows: each with its values, state, message,
@@ -175,6 +186,7 @@ class RunResults:
             if state == "pass" and any(r.state == "tbd" for _, r in results):
                 state = "tbd"
             rows.append({"name": name, "values": event.get("values", {}), "state": state,
+                         "started": event.get("started") if state == "running" else None,
                          "message": event.get("message"), "steps": results,
                          "duration": total_duration(r.duration for _, r in results)})
         return rows
@@ -190,6 +202,8 @@ def call_trees(events):
             continue
         call = calls.setdefault((*key(event), event["call"]), {"children": []})
         call.update({k: v for k, v in event.items() if k not in ("kind", "seq", "ts")})
+        if event["kind"] == "call_start":
+            call["started"] = event.get("ts")
     for call in calls.values():
         call["state"] = call_state(call)
     trees = {}
@@ -211,6 +225,8 @@ def phases(events, calls):
         if event["kind"] in ("phase_start", "phase_end"):
             phase = found.setdefault((event["index"], event["phase"]), {})
             phase.update({k: v for k, v in event.items() if k not in ("kind", "seq", "ts")})
+            if event["kind"] == "phase_start":
+                phase["started"] = event.get("ts")
             if event["kind"] == "phase_end":
                 phase["result"] = event
     by_index = {}
@@ -265,6 +281,8 @@ def calls_rst(calls, depth=0):
             parts.append(text(call["stdout"]))
         if call.get("duration") is not None:
             parts.append(f":duration:`{duration(call['duration'])}`")
+        elif state == "running" and call.get("started"):
+            parts.append(f":elapsed:`{call['started']}`")
         lines.append(f"{pad}- " + " ".join(p for p in parts if p))
         if call.get("stderr"):
             lines += ["", f"{pad}  ::", ""]
@@ -388,8 +406,10 @@ def span_state(context, name):
     state, took = results.span_state(int(first), int(last or first))
     if state is None:
         return ""
-    return Rst(" ".join(p for p in (f":duration:`{duration(took)}`" if took is not None else "",
-                                    f":verdict:`{state}`") if p))
+    since = results.span_started(int(first), int(last or first)) if state == "running" else None
+    shown = f":elapsed:`{since}`" if since else \
+        f":duration:`{duration(took)}`" if took is not None else ""
+    return Rst(" ".join(p for p in (shown, f":verdict:`{state}`") if p))
 
 
 def duration_role(name, rawtext, value, lineno, inliner, options=None, content=None):
@@ -398,6 +418,43 @@ def duration_role(name, rawtext, value, lineno, inliner, options=None, content=N
 
 
 roles.register_local_role("duration", duration_role)
+
+
+def elapsed(seconds):
+    """Whole seconds as a running time: 7 s, 2:05, 1:02:05"""
+    seconds = max(0, int(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}:{minutes:02}:{secs:02}"
+    return f"{minutes}:{secs:02}" if minutes else f"{secs} s"
+
+
+def seconds_since(iso_time, now=None):
+    """Seconds from an ISO time to `now` (default: now), or None"""
+    from datetime import datetime, timezone
+    try:
+        start = datetime.fromisoformat(iso_time)
+    except (TypeError, ValueError):
+        return None
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    return ((now or datetime.now(timezone.utc)) - start).total_seconds()
+
+
+def elapsed_role(name, rawtext, value, lineno, inliner, options=None, content=None):
+    """:elapsed:`ISO start`: how long something still running has run, as
+    of now. The live page keeps counting (static/js/elapsed.js); anything
+    else shows it as it was."""
+    since = utils.unescape(value).strip()
+    took = seconds_since(since)
+    node = nodes.inline(rawtext, elapsed(took) if took is not None else "",
+                        classes=["duration", "elapsed"])
+    node["since"] = since
+    return [node], []
+
+
+roles.register_local_role("elapsed", elapsed_role)
 
 directive("step-result", step_result, {"row": directives.unchanged,
                                        "ended-only": directives.flag}, arguments=True)

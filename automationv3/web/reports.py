@@ -17,13 +17,14 @@ from flask import (
 )
 from werkzeug.security import safe_join
 
-from ..documents.run import duration
+from ..documents.run import duration, elapsed, seconds_since
 from ..framework.uut import uut_types
 from ..services import jobs as models
 from ..services.reports import runs as report_runs
 from ..services import scratch as scratch_service
 from ..services.reports import access, build, export, rollup, store
 from ..services.reports.data import ReportData
+from ..services.util import now_iso
 from .auth import base_url as server_url, can_change, mine_only, owner_email, safe_next
 from .context import reports_root as root, workspaces
 from .db import get_db
@@ -496,7 +497,11 @@ def run(report_id, run_id):
     frozen = store.is_frozen(report)
     stale = rollup.stale_versions(report, run) if report else {}
     current = (report or {}).get("uut_versions") or {}
+    running_since = run.get("started") if not finished else None
+    took = seconds_since(running_since) if running_since else None
     return render_template(template, run=run, status=status, finished=finished,
+                           running_since=running_since, now=now_iso(),
+                           running_for=elapsed(took) if took is not None else "",
                            document=document, seen=len(events), errors=errors,
                            files=files, frozen=frozen,
                            rerun_on=", ".join(f"{n} {current[n]['id']}" for n in sorted(stale)),
