@@ -121,9 +121,32 @@ class Recorder:
         return self.of("step_end")
 
 
-def run(script, values=VALUES, core=CORE, bench=None):
+class Lost(Exception):
+    pass
+
+
+class LostAfter(Recorder):
+    """An observer whose reporting fails from the `steps`th step_end on,
+    as a worker's does once the server takes its job back"""
+
+    def __init__(self, steps):
+        super().__init__()
+        self.steps_left = steps
+
+    def __getattr__(self, name):
+        record = super().__getattr__(name)
+
+        def report(**kw):
+            if self.steps_left <= 0:
+                raise Lost()
+            record(**kw)
+            self.steps_left -= name == "on_step_end"
+        return report
+
+
+def run(script, values=VALUES, core=CORE, bench=None, recorder=None):
     bench = bench or Bench(values)
-    recorder = Recorder()
+    recorder = recorder or Recorder()
     files = {"core.rst": rvt(core), "s.rst": rvt(script)}
     outcome = execute_closure(files, ["core.rst", "s.rst"], recorder,
                               bindings={"bench": bench}, clock=bench)
@@ -371,6 +394,15 @@ class TestWrites(unittest.TestCase):
         self.assertEqual(outcome, "pass")
         self.assertEqual(rec.of("cleanup"), [])
         self.assertEqual(bench.log.count(("clear", "sys.cpu1.cmd")), 1)
+
+    def test_every_value_is_released_when_reporting_fails(self):
+        # the server took the job back after two steps: the run stops, but
+        # the unit is still put back, every cleanup in turn
+        with self.assertRaises(Lost):
+            run("(SetFixedValue cpu1.cmd 1) (SetFixedValue cpu2.cmd 1) (Verify cpu1.cmd = 1)",
+                bench=(bench := Bench(VALUES)), recorder=LostAfter(2))
+        self.assertEqual(bench.fixed, {})
+        self.assertEqual(bench.log[-2:], [("clear", "sys.cpu2.cmd"), ("clear", "sys.cpu1.cmd")])
 
     def test_a_failing_cleanup_makes_the_run_an_error(self):
         stuck = Bench(VALUES)

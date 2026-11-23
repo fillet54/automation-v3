@@ -107,7 +107,13 @@ class ReportObserver:
         self.send("call_start", **kw)
 
     def on_attach(self, name, data, index=None, **kw):
-        stored = self.server.attach(self.job_id, name, data)
+        if self.lost is not None:
+            raise self.lost
+        try:
+            stored = self.server.attach(self.job_id, name, data)
+        except JobLost as e:  # kept, so the run stops at its next event
+            self.lost = e
+            raise
         self.send("attachment", name=stored, index=index, size=len(data), **kw)
 
     def on_table_start(self, **kw):

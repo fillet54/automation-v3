@@ -870,6 +870,20 @@ class TestWorkerAgainstServer(unittest.TestCase):
         # taken back at the first event after procedure_begin: no step runs
         self.assertEqual([kind for kind, _ in seen.events].count("step_start"), 0)
 
+    def test_a_job_taken_back_while_attaching_stops_at_the_next_event(self):
+        class Server:
+            def attach(self, job_id, name, data):
+                raise JobLost(job_id)
+
+            def post_events(self, job_id, events):
+                pass
+
+        observer = worker_module.ReportObserver(Server(), "j1")
+        with self.assertRaises(JobLost):
+            observer.on_attach("log.txt", b"x")
+        with self.assertRaises(JobLost):  # a block that caught it can't hide it
+            observer.on_call_end(passed=True)
+
     def test_events_the_server_missed_are_sent_again(self):
         ids = self.queue("plain/pass.rst")
         worker, session = self.failing_worker("/events", 500, after=1)

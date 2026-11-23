@@ -53,6 +53,7 @@ isn't ready for it. In any other mode the outcome is "blocked".
 """
 
 import copy
+import contextlib
 import time
 import traceback
 
@@ -172,14 +173,39 @@ def execute_script(text, observer, script=None, env=None, mode="normal",
         return _execute(text, observer, script, env, mode, variation, registered)
 
 
+class _Unfailing:
+    """The observer while cleanups run. They put the unit back, so all of
+    them must run even when reporting fails (e.g. the server took the
+    job back): an event that raises is dropped and the first error kept,
+    for run_cleanups to raise once they have run."""
+
+    def __init__(self, observer):
+        self.observer, self.error = observer, None
+
+    def __getattr__(self, name):
+        handler = getattr(self.observer, name)
+        if not name.startswith("on_"):
+            return handler
+
+        def report(*args, **kw):
+            try:
+                return handler(*args, **kw)
+            except Exception as e:
+                self.error = self.error or e
+        return report
+
+
 def run_cleanups(registered, observer):
     """Run the cleanups blocks registered (e.g. SetFixedValue's), last
-    first, each reported as a cleanup event. Returns whether all ran."""
+    first, each reported as a cleanup event. Returns whether all ran.
+    Every one runs even if reporting fails; the first reporting error
+    is raised after."""
+    reporting = _Unfailing(observer)
     ok = True
     for key, (description, fn) in reversed(list(registered.items())):
         started = time.monotonic()
         try:
-            with running_statement(Runtime(observer, None)):
+            with running_statement(Runtime(reporting, None)):
                 fn()
             details = dict(passed=True, message="")
         except Exception as e:
@@ -187,8 +213,10 @@ def run_cleanups(registered, observer):
             details = dict(passed=False, message=error_line(e),
                            stderr=traceback.format_exc())
         registered.pop(key, None)
-        notify(observer, "cleanup", description=description,
+        notify(reporting, "cleanup", description=description,
                duration=elapsed(started), **details)
+    if reporting.error is not None:
+        raise reporting.error
     return ok
 
 
@@ -198,7 +226,8 @@ def _execute(text, observer, script, env, mode, variation, registered):
         outcome, placeholders = _run_statements(statements, observer, script, env, mode,
                                                 variation)
     except BaseException:
-        run_cleanups(registered, observer)
+        with contextlib.suppress(Exception):  # what is being raised says more
+            run_cleanups(registered, observer)
         raise
     if not run_cleanups(registered, observer) and outcome in ("pass", "fail"):
         outcome = "error"
