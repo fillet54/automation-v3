@@ -59,7 +59,7 @@ def uuid7():
 
 
 def _read_json(path):
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def report_dir(root, report_id):
@@ -94,7 +94,7 @@ def create_run(root, report_id, script, closure):
     for relpath, text in closure.items():
         dest = path / "closure" / relpath
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(text)
+        dest.write_text(text, encoding="utf-8")
     (path / "events.jsonl").touch()
     _write_json(
         path / "run.json",
@@ -141,7 +141,7 @@ def read_closure(root, report_id, run_id):
     every platform, as scripts, load orders and traces name them."""
     base = run_dir(root, report_id, run_id) / "closure"
     return {
-        p.relative_to(base).as_posix(): p.read_text()
+        p.relative_to(base).as_posix(): p.read_text(encoding="utf-8")
         for p in sorted(base.rglob("*"))
         if p.is_file()
     }
@@ -150,12 +150,12 @@ def read_closure(root, report_id, run_id):
 def read_closure_file(root, report_id, run_id, relpath):
     """One file of a run's closure, or None"""
     path = run_dir(root, report_id, run_id) / "closure" / relpath
-    return path.read_text() if path.is_file() else None
+    return path.read_text(encoding="utf-8") if path.is_file() else None
 
 
 def append_events(root, report_id, run_id, events):
     path = run_dir(root, report_id, run_id) / "events.jsonl"
-    with path.open("a") as f:
+    with path.open("a", encoding="utf-8") as f:
         for event in events:
             f.write(json.dumps(event) + "\n")
 
@@ -164,13 +164,13 @@ def read_events(root, report_id, run_id):
     path = run_dir(root, report_id, run_id) / "events.jsonl"
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines() if line]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def reset_run(root, report_id, run_id):
     """Forget a released probe: clear its events and start time"""
     path = run_dir(root, report_id, run_id)
-    (path / "events.jsonl").write_text("")
+    (path / "events.jsonl").write_text("", encoding="utf-8")
     run = _read_json(path / "run.json")
     run.pop("started", None)
     run["probes"] = run.get("probes", 0) + 1

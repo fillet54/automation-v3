@@ -61,7 +61,7 @@ def build(conn, spec_version, cache):
         result = subprocess.run(
             [sys.executable, "-m", "sphinx", "-b", "dirhtml", "-q", "-c", str(CONF),
              "-d", str(work / "doctrees"), str(src), str(work / "out")],
-            capture_output=True, text=True, env=env)
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
         if result.returncode != 0 or not (work / "out" / "nav.json").is_file():
             raise RenderError("The spec didn't build:\n" + (result.stderr or result.stdout))
         try:
@@ -79,8 +79,8 @@ def page(out, doc):
     path = Path(out) / "index.html" if doc == "index" else Path(out) / doc / "index.html"
     if ".." in Path(doc).parts or doc.startswith("_") or not path.is_file():
         return None
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def nav(out):
-    return json.loads((Path(out) / "nav.json").read_text())
+    return json.loads((Path(out) / "nav.json").read_text(encoding="utf-8"))

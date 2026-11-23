@@ -250,7 +250,7 @@ def resolve(root, script, text=None, texts=None):
         closure.diagnostics.append(d)
         errors.append(str(d))
     if text is None:
-        text = texts[script] if script in texts else (root / script).read_text()
+        text = texts[script] if script in texts else (root / script).read_text(encoding="utf-8")
     script_statements = read_statements(script, text, errors, closure.diagnostics)
     script_forms = [statement.form for statement in script_statements]
 
@@ -263,7 +263,7 @@ def resolve(root, script, text=None, texts=None):
         errors.append(message)
     closure.load_order = chain + closure.imports + [script]
     core_paths = closure.load_order[:-1]
-    closure.files = {path: texts[path] if path in texts else (root / path).read_text()
+    closure.files = {path: texts[path] if path in texts else (root / path).read_text(encoding="utf-8")
                      for path in core_paths}
     closure.files[script] = text
 

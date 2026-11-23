@@ -56,7 +56,7 @@ def report_template(root, report_id):
 
 
 def template_settings(template):
-    settings = json.loads((Path(template) / "template.json").read_text())
+    settings = json.loads((Path(template) / "template.json").read_text(encoding="utf-8"))
     settings.setdefault("roles", [])
     return settings
 
@@ -65,9 +65,9 @@ def source(root, report_id):
     """The report's document source"""
     own = store.report_dir(root, report_id) / SOURCE
     if own.is_file():
-        return own.read_text()
+        return own.read_text(encoding="utf-8")
     found = report_template(root, report_id) / SOURCE
-    return (found if found.is_file() else BUILTIN_TEMPLATE / SOURCE).read_text()
+    return (found if found.is_file() else BUILTIN_TEMPLATE / SOURCE).read_text(encoding="utf-8")
 
 
 # Values for the PDF's template (latex.tex_t), escaped for LaTeX
@@ -106,10 +106,10 @@ def build_pdf(folder):
     result = subprocess.run(
         ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error",
          "-file-line-error", "report.tex"],
-        cwd=folder, capture_output=True, text=True)
+        cwd=folder, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0 or not (folder / "report.pdf").exists():
         log = (folder / "report.log")
-        lines = log.read_text(errors="replace").splitlines() if log.exists() else []
+        lines = log.read_text(errors="replace", encoding="utf-8").splitlines() if log.exists() else []
         errors = [line for line in lines if line.startswith("!") or ".tex:" in line]
         raise ExportError("LaTeX couldn't make the PDF: "
                           + ("; ".join(errors[:5]) or result.stdout[-500:]))
@@ -130,7 +130,7 @@ def log_path(root, report_id):
 def status(root, report_id):
     """The build's status, or None if the report hasn't been built"""
     path = build_dir(root, report_id) / "status.json"
-    return json.loads(path.read_text()) if path.is_file() else None
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
 def set_status(root, report_id, **fields):
@@ -182,7 +182,7 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
     for run in data.runs:
         (out / "runs" / f"{run['id']}.rst").write_text(
             f"{rst_heading(run_title(run))}\n"
-            + f"\n.. run-summary::\n\n.. run-document:: {run['id']}\n")
+            + f"\n.. run-summary::\n\n.. run-document:: {run['id']}\n", encoding="utf-8")
     doc_source = source(root, report_id)
     failing = [r["latest"]["id"] for r in data.combinations
                if r["state"] in ("fail", "error") and r["latest"]]
@@ -197,7 +197,7 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
             doc_source += f"\n\n.. raw:: latex\n\n   \\appendix\n\n.. toctree::\n\n{runs}\n"
     title = f"{data.name}\n{'=' * len(data.name)}\n\n" if not doc_source.lstrip().startswith(
         data.name) else ""
-    (out / "index.rst").write_text((title if target == "html" else "") + doc_source)
+    (out / "index.rst").write_text((title if target == "html" else "") + doc_source, encoding="utf-8")
     document = data.document
     settings = template_settings(template)
     names = document["signatures"]
@@ -205,7 +205,7 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
     from ...framework.plugins import plugin_css, plugin_latex
     static = out / "_plugins"
     static.mkdir()
-    (static / "plugins.css").write_text(plugin_css())
+    (static / "plugins.css").write_text(plugin_css(), encoding="utf-8")
     (out / "build.json").write_text(json.dumps({
         "title": data.name, "author": document["author"] or "",
         "root": str(Path(root).resolve()), "folder": report_id,
@@ -231,10 +231,10 @@ def project(root, report_id, out, target, base_url, exported, manifest_hash):
             "reference": numbered(document["documents"], "reference", "RD"),
             "plugins": plugin_latex(),
         },
-    }, indent=2))
+    }, indent=2), encoding="utf-8")
     (out / "conf.py").write_text(
         "from automationv3.services.reports.sphinx_conf import configure\n"
-        "configure(globals(), __file__.replace('conf.py', 'build.json'))\n")
+        "configure(globals(), __file__.replace('conf.py', 'build.json'))\n", encoding="utf-8")
     return out
 
 
@@ -242,7 +242,7 @@ def sphinx(srcdir, outdir, builder, log):
     result = subprocess.run(
         [sys.executable, "-m", "sphinx", "-b", builder, "-q", "-E",
          "-d", str(outdir.parent / f"doctrees-{builder}"), str(srcdir), str(outdir)],
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
     log.write(f"$ sphinx -b {builder}\n{result.stdout}{result.stderr}\n")
     if result.returncode != 0:
         raise ExportError(f"Sphinx couldn't build the {builder}: "
@@ -262,9 +262,9 @@ def build(root, report_id, base_url=""):
     set_status(root, report_id, state="building", started=exported, ended=None, error=None,
                framework=framework(), plugins=plugin_versions())
     manifest_text = manifest(root, report_id)
-    (folder / "MANIFEST.sha256").write_text(manifest_text)
+    (folder / "MANIFEST.sha256").write_text(manifest_text, encoding="utf-8")
     manifest_hash = hashlib.sha256(manifest_text.encode()).hexdigest()
-    with tempfile.TemporaryDirectory() as tmp, open(log_path(root, report_id), "w") as log:
+    with tempfile.TemporaryDirectory() as tmp, open(log_path(root, report_id), "w", encoding="utf-8") as log:
         work = Path(tmp)
         try:
             html = project(root, report_id, work / "html", "html", base_url, exported,
@@ -292,7 +292,9 @@ def start(root, report_id, base_url=""):
     subprocess.Popen(
         [sys.executable, "-m", "automationv3.services.reports.build", str(root), report_id,
          base_url],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+        # Windows has no sessions: a group of its own keeps Ctrl+C at the server from it
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
 
 
 def framework():

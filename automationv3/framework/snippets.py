@@ -120,7 +120,7 @@ def collect(root, path, texts=None):
             if not file.is_file():
                 continue
             try:
-                text = file.read_text()
+                text = file.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
         for snippet in read(text, found)[0]:

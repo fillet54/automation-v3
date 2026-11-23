@@ -131,7 +131,7 @@ def load(path=None, env=None):
     if path is None:
         return Settings()
     try:
-        data = tomllib.loads(Path(path).read_text())
+        data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     except OSError as e:
         raise SettingsError(f"Can't read {path}: {e}") from None
     except tomllib.TOMLDecodeError as e:

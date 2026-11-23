@@ -292,7 +292,7 @@ def read_workspace_context(root):
     if not path.is_file():
         return None, None
     try:
-        return json.loads(path.read_text()).get("requirements") or None, None
+        return json.loads(path.read_text(encoding="utf-8")).get("requirements") or None, None
     except (OSError, ValueError, AttributeError) as e:
         return None, f"{WORKSPACE_CONFIG} can't be read ({e}); showing trunk"
 

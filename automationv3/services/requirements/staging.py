@@ -27,7 +27,7 @@ def stage(root, data, name):
     token = secrets.token_urlsafe(12)
     folder = root / token
     folder.mkdir(parents=True)
-    (folder / "name").write_text(PurePath(name).name or "upload")
+    (folder / "name").write_text(PurePath(name).name or "upload", encoding="utf-8")
     (folder / "data").write_bytes(data)
     return token
 
@@ -38,7 +38,7 @@ def load(root, token):
         return None
     folder = Path(root) / token
     try:
-        return (folder / "data").read_bytes(), (folder / "name").read_text()
+        return (folder / "data").read_bytes(), (folder / "name").read_text(encoding="utf-8")
     except OSError:
         return None
 

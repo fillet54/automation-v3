@@ -165,7 +165,7 @@ def render_file(path, variation=None, diagnostics=(), variations=True):
     diagnostic_views) by the statements they are about."""
     if is_binary(path):
         return None
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     if path.suffix != ".rst":
         return None
     if has_rvt(text):  # a script or core.rst: its statements, as a run shows them
@@ -205,7 +205,7 @@ def changes(ws, files):
     out = []
     for path in files:
         before = workspaces().committed_text(ws.id, path) or ""
-        after = (ws.root / path).read_text() if (ws.root / path).is_file() else ""
+        after = (ws.root / path).read_text(encoding="utf-8") if (ws.root / path).is_file() else ""
         out.append((path, list(difflib.unified_diff(
             before.splitlines(), after.splitlines(), "checked in", "in work", lineterm="", n=3))))
     return out
@@ -220,7 +220,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
     relpath = str(node.relative_path)
     files = files if files in VIEWS else scratch_service.IN_WORK
     closure = None
-    if not is_binary(node.path) and is_script(relpath, node.path.read_text()):
+    if not is_binary(node.path) and is_script(relpath, node.path.read_text(encoding="utf-8")):
         closure = resolve(ws.root, relpath)
     edited = workspaces().edited(ws.id)
     in_work = [f for f in dict.fromkeys([relpath, *(closure.load_order if closure else [])])
@@ -255,7 +255,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         except Exception as e:  # unreadable script: show it raw
             document, errors = None, (errors or []) + [f"Could not render: {e}"]
         if document is None and not is_binary(path):
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
     return render_template(
         "partials/script_view.html",
         workspace=ws,

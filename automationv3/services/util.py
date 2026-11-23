@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -43,6 +44,19 @@ def now_iso():
 # Atomic writes
 
 
+def replace(source, target, attempts=20):
+    """os.replace, retried briefly on Windows: there it fails while
+    another thread or process has `target` open (a page reading a
+    run.json as the worker rewrites it); elsewhere it never does"""
+    for attempt in range(attempts):
+        try:
+            return os.replace(source, target)
+        except PermissionError:
+            if os.name != "nt" or attempt == attempts - 1:
+                raise
+            time.sleep(0.05)
+
+
 def atomic_write(path, content, mode=None):
     """Replace `path` with `content` (str or bytes) atomically via mkstemp."""
     path = Path(path)
@@ -58,7 +72,7 @@ def atomic_write(path, content, mode=None):
             os.chmod(tmp, path.stat().st_mode & 0o777)
         else:
             os.chmod(tmp, 0o644)
-        os.replace(tmp, path)
+        replace(tmp, path)
     except BaseException:
         try:
             os.unlink(tmp)

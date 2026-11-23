@@ -28,7 +28,7 @@ def client_config():
     if not path.is_file():
         return {}
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except ValueError as e:
         raise ValueError(f"{path} isn't valid JSON: {e}") from None
 
@@ -58,7 +58,7 @@ def state_path():
 def last_used(uut):
     path = state_path()
     try:
-        return json.loads(path.read_text()).get("last_used", {}).get(uut)
+        return json.loads(path.read_text(encoding="utf-8")).get("last_used", {}).get(uut)
     except (OSError, ValueError):
         return None
 
@@ -67,7 +67,7 @@ def remember_used(versions):
     """Remember `versions` (uut -> version id) as the ones used last"""
     path = state_path()
     try:
-        state = json.loads(path.read_text())
+        state = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         state = {}
     state.setdefault("last_used", {}).update(versions)

@@ -21,7 +21,7 @@ from ..util import framework_fingerprint  # noqa: F401
 
 def read_config(path):
     """Parse a worker's JSON config file, or {} when no path is given"""
-    return json.loads(Path(path).read_text()) if path else {}
+    return json.loads(Path(path).read_text(encoding="utf-8")) if path else {}
 
 
 class Host:

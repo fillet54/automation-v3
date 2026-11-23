@@ -17,7 +17,7 @@ def scripts(root):
     found = []
     for p in root.rglob("*.rst"):
         try:
-            if p.is_file() and is_script(p.name, p.read_text()):
+            if p.is_file() and is_script(p.name, p.read_text(encoding="utf-8")):
                 found.append(str(p.relative_to(root).as_posix()))
         except (OSError, UnicodeDecodeError):
             continue
@@ -43,7 +43,7 @@ def refresh(conn, workspace, root):
                 continue
             forget(conn, workspace, script)
             try:
-                refs = requirement_refs((root / script).read_text())
+                refs = requirement_refs((root / script).read_text(encoding="utf-8"))
             except Exception:
                 refs = []  # unreadable scripts link to nothing
             conn.executemany(

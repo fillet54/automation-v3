@@ -57,7 +57,7 @@ class LunarModule(UUT):
         found = []
         for folder in builds:
             try:
-                found.append((folder.name, R.parse((folder / self.BUILD).read_text())))
+                found.append((folder.name, R.parse((folder / self.BUILD).read_text(encoding="utf-8"))))
             except ValueError:
                 continue
         return found
@@ -74,7 +74,7 @@ class LunarModule(UUT):
         build = Path(path) / self.BUILD
         if not build.is_file():
             return None
-        found = R.digest(R.parse(build.read_text()))
+        found = R.digest(R.parse(build.read_text(encoding="utf-8")))
         return LocalBuild(self.name, build, f"local-{found[:12]}", found, build.stat().st_mtime)
 
     def upload_build(self, build):
@@ -93,14 +93,14 @@ class LunarModule(UUT):
     def load(self, env):
         path = self.path(env)
         if path.exists():
-            return json.loads(path.read_text())
+            return json.loads(path.read_text(encoding="utf-8"))
         return {"installed": None, "rope": None, "flight": None, "wall": None}
 
     def save(self, env, state):
         path = self.path(env)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(state, separators=(",", ":")))
+        tmp.write_text(json.dumps(state, separators=(",", ":")), encoding="utf-8")
         tmp.replace(path)
 
     def installed_version(self, env):
@@ -132,12 +132,12 @@ class LunarModule(UUT):
             sort_keys=True).encode()).hexdigest()[:24]
         cache = Path(env.workdir) / "lm-starts" / f"{key}.json"
         if c["start"] != "pdi" and cache.exists():
-            flight = json.loads(cache.read_text())
+            flight = json.loads(cache.read_text(encoding="utf-8"))
         else:
             flight = sim.boot(rope, {**c, "crew": "nominal"}, settings)
             if c["start"] != "pdi":
                 cache.parent.mkdir(parents=True, exist_ok=True)
-                cache.write_text(json.dumps(flight, separators=(",", ":")))
+                cache.write_text(json.dumps(flight, separators=(",", ":")), encoding="utf-8")
         return sim.with_crew(flight, c["crew"])
 
     def handle(self, version, env):

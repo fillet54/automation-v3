@@ -444,7 +444,7 @@ def build_status(report_id):
 
 def build_log(report_id):
     path = build.log_path(root(), report_id)
-    return path.read_text(errors="replace")[-4000:] if path.is_file() else ""
+    return path.read_text(errors="replace", encoding="utf-8")[-4000:] if path.is_file() else ""
 
 
 @reports.route("/<report_id>/site/", defaults={"filename": "index.html"}, methods=["GET"])

@@ -109,7 +109,7 @@ def read(path):
     problem found."""
     path = Path(path)
     try:
-        manifest = json.loads((path / "manifest.json").read_text())
+        manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
     except FileNotFoundError:
         raise ExportError(f"{path}: no manifest.json")
     except json.JSONDecodeError as e:

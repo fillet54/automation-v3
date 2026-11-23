@@ -51,7 +51,7 @@ def load_credentials():
     path = credentials_path()
     if not path.is_file():
         return {"default": None, "servers": {}}
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def save_credentials(data):

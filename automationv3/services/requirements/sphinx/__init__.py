@@ -95,7 +95,7 @@ def write_nav(app, exception):
         for id in by_doc.get(doc, ()):
             found.setdefault(id, doc)
     nav["requirements"] = found
-    Path(app.outdir, "nav.json").write_text(json.dumps(nav))
+    Path(app.outdir, "nav.json").write_text(json.dumps(nav), encoding="utf-8")
 
 
 def setup(app):

@@ -17,7 +17,7 @@ STATIC = [paper_ui.STATIC, documents.STATIC]
 
 def configure(namespace, settings_file):
     """Fill a conf.py's namespace from the build's settings"""
-    settings = json.loads(Path(settings_file).read_text())
+    settings = json.loads(Path(settings_file).read_text(encoding="utf-8"))
     namespace.update(
         project=settings["title"],
         author=settings["author"],

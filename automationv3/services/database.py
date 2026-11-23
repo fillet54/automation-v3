@@ -28,7 +28,7 @@ ADDED_COLUMNS = {"jobs": [("fingerprint_hash", "TEXT"), ("owner", "TEXT")],
 
 def init_db(conn):
     """Create any missing tables and columns"""
-    conn.executescript(SCHEMA.read_text())
+    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
     for table, columns in ADDED_COLUMNS.items():
         have = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
         for name, definition in columns:

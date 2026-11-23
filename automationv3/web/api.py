@@ -180,7 +180,7 @@ def write_files(folder, files):
     for path, text in files.items():
         dest = folder / path
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(text)
+        dest.write_text(text, encoding="utf-8")
 
 
 def run_json(run):

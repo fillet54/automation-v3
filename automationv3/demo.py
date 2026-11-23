@@ -73,7 +73,7 @@ def clear(path):
                 "--path, or delete it yourself.")
         shutil.rmtree(path)
     path.mkdir(parents=True)
-    (path / MARKER).write_text("Made by `automation-v3 demo`; rebuilt on each run.\n")
+    (path / MARKER).write_text("Made by `automation-v3 demo`; rebuilt on each run.\n", encoding="utf-8")
 
 
 def git(*args, cwd):
@@ -126,8 +126,8 @@ def write_sample_exports(out):
     """Write the example's DOORS history (examples/apollo/doors) as export folders
     under `out`, one per run, as the exporter would. Returns their paths,
     oldest first."""
-    history = json.loads((SAMPLE_EXPORTS / "history.json").read_text())
-    tree = {key: {p.relative_to(SAMPLE_EXPORTS / "specs" / key).as_posix(): p.read_text()
+    history = json.loads((SAMPLE_EXPORTS / "history.json").read_text(encoding="utf-8"))
+    tree = {key: {p.relative_to(SAMPLE_EXPORTS / "specs" / key).as_posix(): p.read_text(encoding="utf-8")
                   for p in sorted((SAMPLE_EXPORTS / "specs" / key).rglob("*.rst"))}
             for key in history["specs"]}
     folders = []
@@ -142,7 +142,7 @@ def write_sample_exports(out):
             root = f"{key}@{baseline}" if baseline else key
             for name, text in tree[key].items():
                 (folder / root / name).parent.mkdir(parents=True, exist_ok=True)
-                (folder / root / name).write_text(text)
+                (folder / root / name).write_text(text, encoding="utf-8")
             entries.append({"key": key, **history["specs"][key], "root": root,
                             "attributes": history["attributes"],
                             "doors": {"module": f"/Mission/{key}", "id_source": "Req ID"},
@@ -151,7 +151,7 @@ def write_sample_exports(out):
                     "exported_at": f"{run['name']}T02:00:00Z", "specs": entries,
                     "baseline_sets": [{"name": name, "specs": pins}
                                       for name, pins in run.get("sets", {}).items()]}
-        (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         folders.append(folder)
     return folders
 
@@ -180,7 +180,7 @@ def pin_release_branch(workspace, branch=RELEASE_BRANCH, context="set:Release 1"
     `context`"""
     root = find_worktrees(workspace)[branch]
     (root / "automation.json").write_text(
-        json.dumps({"requirements": context}, indent=2) + "\n")
+        json.dumps({"requirements": context}, indent=2) + "\n", encoding="utf-8")
     git("add", "automation.json", cwd=root)
     git("commit", "-q", "-m", f"Verify {context}", cwd=root)
 
@@ -188,11 +188,11 @@ def pin_release_branch(workspace, branch=RELEASE_BRANCH, context="set:Release 1"
 def write_worker_config(path):
     """The example's worker config (examples/apollo/worker.json), each
     environment working under `path`"""
-    config = json.loads((SAMPLES / "worker.json").read_text())
+    config = json.loads((SAMPLES / "worker.json").read_text(encoding="utf-8"))
     for name, params in config["environments"].items():
         params["workdir"] = str(path / "environments" / name)
     file = path / "worker.json"
-    file.write_text(json.dumps(config, indent=2) + "\n")
+    file.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     return file
 
 
@@ -210,7 +210,7 @@ def set_up_builds(path):
     os.environ["AUTOMATION_LM_BUILDS"] = str(repo)
     local = path / "local-build"
     local.mkdir()
-    (local / "luminary.json").write_text(json.dumps(LOCAL_BUILD, indent=2) + "\n")
+    (local / "luminary.json").write_text(json.dumps(LOCAL_BUILD, indent=2) + "\n", encoding="utf-8")
     return local
 
 
@@ -228,7 +228,7 @@ def build_docs(out):
     result = subprocess.run(
         [sys.executable, "-m", "sphinx", "-b", "html", "-q",
          "-d", str(out.parent / "doctrees"), str(DOCS_SOURCE), str(out)],
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         print("   Docs not built:\n" + (result.stderr or result.stdout).strip())
         return None

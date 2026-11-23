@@ -52,6 +52,7 @@ from docutils import nodes
 from ...documents import core
 from ...documents.template import Snippets
 from . import build, store
+from ..util import replace
 from .build import (  # noqa: F401
     BUILTIN_TEMPLATE,
     EXPORTS,
@@ -155,7 +156,7 @@ def set_source(root, report_id, text):
     """Change the report's document source; a frozen report can't"""
     if store.is_frozen(store.load_report(root, report_id)):
         raise ExportError("The report is frozen: reopen it to change its document")
-    (store.report_dir(root, report_id) / SOURCE).write_text(text)
+    (store.report_dir(root, report_id) / SOURCE).write_text(text, encoding="utf-8")
 
 
 def context(root, report_id, host=core.EXPORT, links=None, status=None, data=None, **extra):
@@ -273,7 +274,7 @@ def bundle(root, report_id, out_dir=None):
                     zf.write(path,
                              f"{name}/site/{path.relative_to(built / 'site').as_posix()}")
         os.chmod(partial, 0o644)
-        os.replace(partial, target)
+        replace(partial, target)
     except BaseException:
         Path(partial).unlink(missing_ok=True)
         raise

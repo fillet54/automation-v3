@@ -97,7 +97,7 @@ def find_worktrees(path):
 def is_binary(path, sample_length=8000):
     """True if `path` doesn't read as text"""
     try:
-        with path.open(mode="r") as f:
+        with path.open(mode="r", encoding="utf-8") as f:
             f.read(sample_length)
         return False
     except UnicodeDecodeError:
