@@ -302,7 +302,11 @@ div.tbd strong:first-child { flex: none; font-size: var(--ui-text-xs); font-weig
 /* The workspace editor (static/js/editor.js): tabs, and a file as cards */
 .ed-bar { display: flex; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--ui-rule); margin-bottom: 16px; position: sticky; top: calc(var(--ui-marking-h, 0px) + var(--ui-header-h)); z-index: 5; background: var(--ui-paper); padding-top: 6px; }
 .ed-bar[hidden], .ed-pane[hidden] { display: none; }
-.ed-tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; gap: 2px; }
+.ed-tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; gap: 2px; }
+.ed-tablist { align-self: center; flex: none; }
+.ed-tablist__items { left: 0; right: auto; max-height: 60vh; overflow-y: auto; min-width: 260px; }
+.ed-tablist__items .ed-tablist__item { font-family: var(--ui-font-mono); white-space: nowrap; }
+.ed-tablist__item.is-active { font-weight: 600; }
 .ed-tab { display: flex; align-items: center; gap: 2px; padding: 0 4px 0 0; border: 1px solid transparent; border-bottom: 0; border-radius: var(--ui-radius) var(--ui-radius) 0 0; white-space: nowrap; margin-bottom: -1px; }
 .ed-tab.is-active { border-color: var(--ui-rule); background: var(--ui-paper); border-bottom: 1px solid var(--ui-paper); }
 .ed-tab__name { border: 0; background: none; padding: 7px 4px 7px 10px; font: inherit; font-family: var(--ui-font-mono); font-size: var(--ui-text-sm); color: var(--ui-muted); cursor: pointer; }

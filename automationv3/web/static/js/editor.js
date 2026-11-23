@@ -170,7 +170,7 @@
       open.dataset.edTab = path;
       var close = el("button", "ed-tab__close", "×");
       close.type = "button";
-      close.title = "Close " + path + (st.dirty ? ": its unsaved edits are kept for when you open it again" : "");
+      close.title = "Close " + path + (st.dirty ? " (asks whether to save its edits)" : "");
       close.setAttribute("aria-label", close.title);
       close.dataset.edClose = path;
       tab.appendChild(open);
@@ -183,7 +183,52 @@
       tab.appendChild(close);
       strip.appendChild(tab);
     });
+    drawTabList();
     drawActions();
+  }
+
+  // When the tabs don't all fit: the strip scrolls (the wheel scrolls it
+  // sideways), the active tab is scrolled into view, and a menu lists
+  // every open file
+  function drawTabList() {
+    var bar = $(".ed-bar", root), strip = $(".ed-tabs", root);
+    var menu = $(".ed-tablist", bar);
+    if (!menu) {
+      menu = el("details", "ed-menu ed-tablist");
+      var summary = el("summary", "ui-btn ui-btn--sm ui-btn--ghost");
+      summary.setAttribute("aria-label", "All open files");
+      summary.title = "All open files";
+      menu.appendChild(summary);
+      menu.appendChild(el("div", "ed-menu__items ed-tablist__items"));
+      strip.after(menu);
+      strip.addEventListener("wheel", function (event) {
+        if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;  // already sideways
+        if (strip.scrollWidth <= strip.clientWidth) return;
+        event.preventDefault();
+        strip.scrollLeft += event.deltaY;
+      }, { passive: false });
+      window.addEventListener("resize", function () { drawTabList(); });
+    }
+    var items = $(".ed-tablist__items", menu);
+    items.textContent = "";
+    tabs.forEach(function (path) {
+      var st = states[path];
+      var item = el("button", "ed-tablist__item" + (path === active ? " is-active" : ""),
+                    path + (st.dirty ? " •" : ""));
+      item.type = "button";
+      item.dataset.edTab = path;
+      if (path === active) item.setAttribute("aria-current", "true");
+      items.appendChild(item);
+    });
+    $("summary", menu).textContent = tabs.length + " ▾";
+    menu.hidden = strip.scrollWidth <= strip.clientWidth;
+    if (menu.hidden) menu.open = false;
+    var current = $(".ed-tab.is-active", strip);
+    if (current) {
+      var left = current.offsetLeft - strip.offsetLeft, right = left + current.offsetWidth;
+      if (left < strip.scrollLeft) strip.scrollLeft = left;
+      else if (right > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = right - strip.clientWidth;
+    }
   }
 
   function drawActions() {
@@ -191,7 +236,7 @@
     var save = $("[data-ed-save]", root), discard = $("[data-ed-discard]", root);
     if (save) save.disabled = !(st && st.dirty);
     if (discard) { discard.hidden = !(st && st.dirty); discard.textContent = "Discard edits"; delete discard.dataset.sure; }
-    var menu = $(".ed-menu:not(.ed-snippets)", root);
+    var menu = $(".ed-menu:not(.ed-snippets):not(.ed-tablist)", root);
     if (menu) { menu.hidden = !st || !!st.isNew || !st.loaded; menu.open = false; }
     var snips = $(".ed-snippets", root);
     if (snips) { snips.hidden = !st || !st.loaded || !/\.rst$/.test(active || ""); snips.open = false; }
@@ -258,6 +303,49 @@
     say("");
     drawTabs();
     rememberTabs();
+  }
+
+  // Closing a tab with unsaved edits asks first: save them, discard
+  // them, or keep the tab open. A card still being edited counts.
+  function askClose(path) {
+    var st = states[path], doc = docOf(path);
+    if (!st) return;
+    var closing = doc ? editing(doc).map(function (card) { return closeCard(card, true); }) : [];
+    Promise.all(closing).then(function () {
+      if (!st.dirty) { closeTab(path); return; }
+      var dialog = $("#ed-dialog");
+      if (!dialog || !editable) { closeTab(path); return; }  // read-only: nothing to lose
+      dialog.textContent = "";
+      var box = el("form", "ui-form ed-dialog__form");
+      box.appendChild(el("h2", "ed-dialog__title", "Close " + label(path) + "?"));
+      box.appendChild(el("p", null, st.isNew ? "This new file hasn't been saved yet."
+                                             : "It has edits that aren't saved."));
+      var row = el("div", "ui-row ed-dialog__foot");
+      var keep = el("button", "ui-btn ui-btn--primary", "Save and close");
+      keep.type = "submit";
+      var drop = el("button", "ui-btn ui-btn--danger", "Discard edits");
+      drop.type = "button";
+      var cancel = el("button", "ui-btn ui-btn--secondary", "Cancel");
+      cancel.type = "button";
+      row.appendChild(keep);
+      row.appendChild(drop);
+      row.appendChild(cancel);
+      box.appendChild(row);
+      box.addEventListener("submit", function (event) {
+        event.preventDefault();
+        dialog.close();
+        save(path).then(function (ok) { if (ok && states[path]) closeTab(path); });
+      });
+      drop.addEventListener("click", function () {
+        dialog.close();
+        dropDraft(path);
+        closeTab(path);
+      });
+      cancel.addEventListener("click", function () { dialog.close(); });
+      dialog.appendChild(box);
+      dialog.showModal();
+      cancel.focus();
+    });
   }
 
   function closeTab(path) {
@@ -1628,7 +1716,7 @@
     }
     if (!root.contains(target)) return;
     var tab = target.closest("[data-ed-tab]"), close = target.closest("[data-ed-close]");
-    if (close) { closeTab(close.dataset.edClose); return; }
+    if (close) { askClose(close.dataset.edClose); return; }
     if (tab) { activate(tab.dataset.edTab); return; }
     if (target.closest("[data-ed-save]")) { save(active); return; }
     if (target.closest("[data-ed-undo]")) { undo(active); return; }
