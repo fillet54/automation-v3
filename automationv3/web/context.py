@@ -12,12 +12,14 @@ from .db import get_db
 
 
 def cache_dir(config, key, folder, prefix=None):
-    """A cache directory from `config[key]`, else `<folder>` beside DB_PATH,
-    else a temporary directory (memoized in `config[key]`)."""
+    """A cache directory from `config[key]`, else `folder` if absolute,
+    else `<folder>` beside DB_PATH, else a temporary directory (memoized
+    in `config[key]`)."""
     if not config.get(key):
         db = config.get("DB_PATH")
         config[key] = (
-            Path(db).resolve().parent / folder
+            Path(folder) if Path(folder).is_absolute()
+            else Path(db).resolve().parent / folder
             if db and str(db) != ":memory:"
             else Path(tempfile.mkdtemp(prefix=prefix or f"{folder}-"))
         )
