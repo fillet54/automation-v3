@@ -210,7 +210,7 @@ def unfinished(root, report_id):
 def freeze(root, report_id, snapshots=None, base_url="", template=None, wait=False):
     """Freeze the report and build its site and PDF (see build.py): in the
     background, or with `wait`, before returning its status. `snapshots`
-    (see jobs.requirement_snapshots) fill in requirements the report
+    (see runs.requirement_snapshots) fill in requirements the report
     tracked before the database knew them; `template` replaces the
     report's own; `base_url` is the server's, for links to its
     requirement pages.
