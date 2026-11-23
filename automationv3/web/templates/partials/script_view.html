@@ -6,13 +6,13 @@
   {% set _ = crumbs.append((path.split('/')[-1], None)) %}
   {% set view_files = files if files != "in work" else None %}
 
-  {#- One row above the document: where the file is, then its variations and run controls #}
+  {#- One row above the document: where the file is and its variations; editor.js adds whether it has unsaved
+      edits. The toolbar's Run button opens the run dialog below. #}
   {% set queueable = closure and not closure.errors %}
-  <div class="ed-head">
+  <div class="ed-head"{% if not queueable %} data-ed-run-why="{{ 'Fix its errors first: it can\'t run as it is' if closure else 'Only scripts run' }}"{% endif %}>
   {{ ui.breadcrumbs(crumbs) }}
-  {% if closure and (queueable or closure.variations) %}
-  <div class="ui-script-bar">
-    <div class="ui-script-bar__variations">
+  {% if closure and closure.variations %}
+    <div class="ed-head__variations">
       {%- if closure.variations and closure.variations | length <= 5 %}
       {% set items = [] %}
       {% for name in [None] + variation_names %}
@@ -29,52 +29,69 @@
                    attrs={"aria-label": "Variation", "onchange": "window.location.href = '" ~ url_for('workspace.index', id=workspace.id, path=path, files=view_files) ~ "' + (this.value ? '&variation=' + encodeURIComponent(this.value) : '')"}) }}
       {%- endif %}
     </div>
-    {%- if queueable %}
-    <form method="post" action="{{ url_for('scratch.run') }}" class="ui-toolbar" data-ed-run data-closure="{{ closure.load_order | tojson | forceescape }}">
-      <input type="hidden" name="workspace" value="{{ workspace.id }}">
-      <input type="hidden" name="script" value="{{ path }}">
-      <input type="hidden" name="files" value="{{ 'checked in' if files == 'checked in' else 'in work' }}">
-      {% if variation %}<input type="hidden" name="variation" value="{{ variation.name }}">{% endif %}
-      {% if closure.environments | length > 1 %}
-      {% set options = [("", "every environment")] %}
-      {% for e in closure.environments %}{% set _ = options.append((e, e ~ ("" if e in live else " (no worker)"))) %}{% endfor %}
-      {{ ui.select("environment", options, selected=(closure.environments | select("in", live) | first) or "", id="scratch-environment", mono=True, attrs={"aria-label": "Environment"}) }}
-      {% endif %}
-      {% for choice in builds %}
-      <label class="ui-row" for="version-{{ choice.uut }}"><span class="ui-field__label">{{ choice.uut }}</span>
-      {{ ui.select("version-" ~ choice.uut, choice.options, selected=choice.selected, id="version-" ~ choice.uut, mono=True) }}</label>
-      {% if choice.needs_upload %}{{ ui.badge("New local build", "warning", outline=True) }}{% endif %}
-      {% endfor %}
-      {% if client_mode and local_worker %}
-      {{ ui.select("where", [("central", "on the central server"), ("local", "on this machine")], selected="central", id="scratch-where", attrs={"aria-label": "Where to run"}) }}
-      {% elif client_mode %}<input type="hidden" name="where" value="central">{% endif %}
-      {{ ui.button("Run in scratch", icon="play", type="submit",
-                   attrs={"title": "Run " ~ ("the " ~ variation.name ~ " variation" if variation else "every variation") ~ " with the files " ~ ("as checked in" if files == "checked in" else "as they are on disk") ~ ", outside any report"}) }}
-    </form>
-    {%- if client_mode %}
-    <form method="get" action="{{ central_url('/runner/new') }}" class="ui-toolbar">
-      <input type="hidden" name="workspace" value="{{ workspace.id }}">
-      <input type="hidden" name="script" value="{{ path }}">
-      {{ ui.button("Queue on the central server…", variant="primary", icon="play", type="submit",
-                   attrs={"title": "Reports run what's pushed: push " ~ workspace.id ~ " first"}) }}
-    </form>
-    {%- else %}
-    <form method="get" action="{{ url_for('jobqueue.new') }}" class="ui-toolbar">
-      <input type="hidden" name="workspace" value="{{ workspace.id }}">
-      <input type="hidden" name="script" value="{{ path }}">
-      {%- if reports %}
-      {% set options = [("", "a new report")] %}
-      {% for r in reports %}{% set _ = options.append((r.id, r.name or r.id[:8])) %}{% endfor %}
-      <label class="ui-row" for="view-report"><span class="ui-field__label">Queue in</span>
-      {{ ui.select("report", options, selected=target, id="view-report") }}</label>
-      {%- endif %}
-      {{ ui.button("Queue…", variant="primary", icon="play", type="submit") }}
-    </form>
-    {%- endif %}
-    {%- endif %}
-  </div>
   {% endif %}
   </div>
+
+  {% if queueable %}
+  {% set which = ("the " ~ variation.name ~ " variation") if variation else ("every variation" if closure.variations else "the script") %}
+  <dialog class="ed-dialog ed-run-dialog" data-ed-run-dialog aria-labelledby="ed-run-title">
+    <div class="ed-dialog__form">
+      <h2 class="ed-dialog__title" id="ed-run-title">Run {{ path.split('/')[-1] }}</h2>
+      <p class="ed-dialog__note ui-muted">Runs {{ which }}{% if closure.variations %} (the choice beside the file's name){% endif %}.</p>
+
+      <form method="post" action="{{ url_for('scratch.run') }}" class="ed-run-choice" data-ed-run data-closure="{{ closure.load_order | tojson | forceescape }}">
+        <h3 class="ed-run-choice__title">Run in scratch</h3>
+        <p class="ed-dialog__note ui-muted">Now, with the files {{ "as checked in" if files == "checked in" else "as they are on disk" }}, outside any report.</p>
+        <input type="hidden" name="workspace" value="{{ workspace.id }}">
+        <input type="hidden" name="script" value="{{ path }}">
+        <input type="hidden" name="files" value="{{ 'checked in' if files == 'checked in' else 'in work' }}">
+        {% if variation %}<input type="hidden" name="variation" value="{{ variation.name }}">{% endif %}
+        {% if closure.environments | length > 1 %}
+        {% set options = [("", "every environment")] %}
+        {% for e in closure.environments %}{% set _ = options.append((e, e ~ ("" if e in live else " (no worker)"))) %}{% endfor %}
+        <label class="ed-run-choice__field"><span class="ui-field__label">Environment</span>
+        {{ ui.select("environment", options, selected=(closure.environments | select("in", live) | first) or "", mono=True) }}</label>
+        {% endif %}
+        {% for choice in builds %}
+        <label class="ed-run-choice__field"><span class="ui-field__label">{{ choice.uut }}</span>
+        {{ ui.select("version-" ~ choice.uut, choice.options, selected=choice.selected, mono=True) }}
+        {% if choice.needs_upload %}{{ ui.badge("New local build", "warning", outline=True) }}{% endif %}</label>
+        {% endfor %}
+        {% if client_mode and local_worker %}
+        <label class="ed-run-choice__field"><span class="ui-field__label">Where</span>
+        {{ ui.select("where", [("central", "on the central server"), ("local", "on this machine")], selected="central") }}</label>
+        {% elif client_mode %}<input type="hidden" name="where" value="central">{% endif %}
+        <div class="ui-row">{{ ui.button("Run in scratch", icon="play", type="submit") }}</div>
+      </form>
+
+      {% if client_mode %}
+      <form method="get" action="{{ central_url('/runner/new') }}" class="ed-run-choice">
+        <h3 class="ed-run-choice__title">Queue in a report</h3>
+        <p class="ed-dialog__note ui-muted">On the central server, from what is pushed: push {{ workspace.id }} first.</p>
+        <input type="hidden" name="workspace" value="{{ workspace.id }}">
+        <input type="hidden" name="script" value="{{ path }}">
+        <div class="ui-row">{{ ui.button("Queue on the central server…", variant="primary", icon="play", type="submit") }}</div>
+      </form>
+      {% else %}
+      <form method="get" action="{{ url_for('jobqueue.new') }}" class="ed-run-choice">
+        <h3 class="ed-run-choice__title">Queue in a report</h3>
+        <p class="ed-dialog__note ui-muted">From what is checked in. The next page picks environments, versions and variations.</p>
+        <input type="hidden" name="workspace" value="{{ workspace.id }}">
+        <input type="hidden" name="script" value="{{ path }}">
+        {%- if reports %}
+        {% set options = [("", "a new report")] %}
+        {% for r in reports %}{% set _ = options.append((r.id, r.name or r.id[:8])) %}{% endfor %}
+        <label class="ed-run-choice__field"><span class="ui-field__label">Queue in</span>
+        {{ ui.select("report", options, selected=target) }}</label>
+        {%- endif %}
+        <div class="ui-row">{{ ui.button("Queue…", variant="primary", icon="play", type="submit") }}</div>
+      </form>
+      {% endif %}
+
+      <form method="dialog" class="ui-row ed-dialog__foot"><button class="ui-btn ui-btn--secondary">Cancel</button></form>
+    </div>
+  </dialog>
+  {% endif %}
 
   {#- The script or a file it loads has edits that aren't checked in: show either, or what changed #}
   {% if in_work %}
@@ -114,7 +131,7 @@
   {% endcall %}
   {% endif %}
 
-  {#- What the script needs, collapsed: most readers only want the script #}
+  {#- What the script needs (environments, UUTs, the files it loads, its variations) #}
   {% if closure %}
   {% set facts = [] %}
   {% if closure.environments %}{% set envs %}{% for e in closure.environments %}{{ ui.ident(e) }} {% endfor %}{% endset %}{% set _ = facts.append(("Runs in", envs)) %}{% endif %}
@@ -125,9 +142,11 @@
       {%- if not loop.last %}<span class="ui-loads__sep" aria-hidden="true">→</span>{% endif %}
     {%- endfor %}</span>{% endset %}
   {% set _ = facts.append(("Loads", loads)) %}
-  <details class="ui-defs ui-script-details">
-    <summary>{{ ui.icon("chevron-right", 12) }}<span class="ui-defs__label">Details</span></summary>
-    <div class="ui-defs__body ui-stack ui-gap-small">
+  {#- Not part of the document: the File menu's Details… opens it #}
+  <dialog class="ed-dialog ed-details-dialog" data-ed-details-dialog aria-labelledby="ed-details-title">
+    <div class="ed-dialog__form">
+    <h2 class="ed-dialog__title" id="ed-details-title">{{ path.split('/')[-1] }}</h2>
+    <div class="ui-stack ui-gap-small">
       {{ ui.dl(facts) }}
       {% if closure.variations %}
       {% set rows = variation_rows | selectattr(0, "equalto", variation.name) | list if variation else variation_rows %}
@@ -138,7 +157,9 @@
       {% endcall %}
       {% endif %}
     </div>
-  </details>
+    <form method="dialog" class="ui-row ed-dialog__foot"><button class="ui-btn ui-btn--secondary">Close</button></form>
+    </div>
+  </dialog>
   {% endif %}
 
   {% if not_checked_in %}

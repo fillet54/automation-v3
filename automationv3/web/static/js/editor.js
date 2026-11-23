@@ -232,17 +232,52 @@
   }
 
   function drawActions() {
-    var st = states[active];
-    var save = $("[data-ed-save]", root), discard = $("[data-ed-discard]", root);
-    if (save) save.disabled = !(st && st.dirty);
-    if (discard) { discard.hidden = !(st && st.dirty); discard.textContent = "Discard edits"; delete discard.dataset.sure; }
-    var menu = $(".ed-menu:not(.ed-snippets):not(.ed-tablist)", root);
-    if (menu) { menu.hidden = !st || !!st.isNew || !st.loaded; menu.open = false; }
+    var st = states[active], ready = !!(st && st.loaded);
+    all("[data-ed-save]", root).forEach(function (b) { b.disabled = !(st && st.dirty); });
+    all("[data-ed-discard]", root).forEach(function (b) { b.hidden = !(st && st.dirty); });
+    var file = $(".ed-filemenu", root);
+    if (file) { file.hidden = !st; file.open = false; }
+    all("[data-ed-file]", file || root).forEach(function (b) {
+      if (b.dataset.edFile !== "new" && b.dataset.edFile !== "folder") b.disabled = !ready || !!(st && st.isNew);
+    });
+    var details = $("[data-ed-details]", root);
+    if (details) details.disabled = !(st && $("[data-ed-details-dialog]", st.pane));
     var snips = $(".ed-snippets", root);
-    if (snips) { snips.hidden = !st || !st.loaded || !/\.rst$/.test(active || ""); snips.open = false; }
+    if (snips) { snips.hidden = !ready || !/\.rst$/.test(active || ""); snips.open = false; }
     var undo = $("[data-ed-undo]", root), redo = $("[data-ed-redo]", root);
     if (undo) undo.disabled = !(st && st.undo && st.undo.length);
     if (redo) redo.disabled = !(st && st.redo && st.redo.length);
+    var run = $("[data-ed-run-open]", root);
+    if (run) {
+      var head = st && $(".ed-head", st.pane);
+      run.hidden = !st;
+      run.disabled = !(st && $("[data-ed-run-dialog]", st.pane));
+      run.title = run.disabled ? ((head && head.dataset.edRunWhy) || "Nothing to run here")
+                               : "Run it in scratch now, or queue it in a report";
+    }
+    tabs.forEach(drawUnsaved);
+  }
+
+  // Beside a file's breadcrumb: that it has unsaved edits, with Save and Discard
+  function drawUnsaved(path) {
+    var st = states[path], head = st && $(".ed-head", st.pane);
+    if (!head) return;
+    var note = $(":scope > .ed-head__unsaved", head);
+    if (!st.dirty || !editable) { if (note) note.remove(); return; }
+    if (note) return;
+    note = el("span", "ed-head__unsaved");
+    note.appendChild(el("span", "ed-tab__dot"));
+    note.appendChild(el("span", null, st.isNew ? "Not saved yet" : "Unsaved edits"));
+    var save = el("button", "ui-btn ui-btn--sm ui-btn--ghost", "Save");
+    save.type = "button";
+    save.dataset.edSave = "";
+    save.title = "Save (Ctrl+S)";
+    var drop = el("button", "ui-btn ui-btn--sm ui-btn--ghost", "Discard");
+    drop.type = "button";
+    drop.dataset.edDiscard = "";
+    note.appendChild(save);
+    note.appendChild(drop);
+    head.appendChild(note);
   }
 
   function say(text) {
@@ -492,7 +527,7 @@
     var st = states[path];
     st.dirty = true;
     keepDraft(path);
-    say("Unsaved edits");
+    say("");
     drawTabs();
     empties(docOf(path));
     lspSync(path);
@@ -520,7 +555,7 @@
     decorateAll(doc);
     st.dirty = st.isNew || kept !== st.saved;
     if (st.dirty) keepDraft(path); else dropDraft(path);
-    say(st.dirty ? "Unsaved edits" : "");
+    say("");
     drawTabs();
     lspSync(path);
   }
@@ -689,6 +724,8 @@
     });
     toggle.textContent = "Problems" + (total ? " " + total : "");
     toggle.classList.toggle("has-errors", errors > 0);
+    var more = $(".ed-more > summary", root);
+    if (more) more.classList.toggle("has-errors", errors > 0);
     toggle.setAttribute("aria-expanded", panel.hidden ? "false" : "true");
     if (panel.hidden) return;
     panel.textContent = "";
@@ -1375,6 +1412,35 @@
     return load(path).then(function () { say("Edits discarded"); });
   }
 
+  // A dialog the active tab's view holds (its run choices, its details)
+  function showPaneDialog(selector) {
+    var st = states[active], dialog = st && $(selector, st.pane);
+    if (dialog && !dialog.open) dialog.showModal();
+  }
+
+  function askDiscard(path) {
+    var st = states[path], dialog = $("#ed-dialog");
+    if (!st || !st.dirty || !dialog) return;
+    dialog.textContent = "";
+    var box = el("form", "ui-form ed-dialog__form");
+    box.appendChild(el("h2", "ed-dialog__title", "Discard the edits to " + label(path) + "?"));
+    box.appendChild(el("p", null, st.isNew ? "The new file goes away: it was never saved."
+                                           : "The file goes back to what is on disk. This can't be undone."));
+    var row = el("div", "ui-row ed-dialog__foot");
+    var drop = el("button", "ui-btn ui-btn--danger", "Discard edits");
+    drop.type = "submit";
+    var cancel = el("button", "ui-btn ui-btn--secondary", "Cancel");
+    cancel.type = "button";
+    row.appendChild(drop);
+    row.appendChild(cancel);
+    box.appendChild(row);
+    box.addEventListener("submit", function (event) { event.preventDefault(); dialog.close(); discard(path); });
+    cancel.addEventListener("click", function () { dialog.close(); });
+    dialog.appendChild(box);
+    dialog.showModal();
+    cancel.focus();
+  }
+
   // Run in scratch runs what is on disk: save first, and offer to save the
   // other unsaved files the script loads
 
@@ -1695,6 +1761,10 @@
       if (chosen) act(chosen.dataset.edAct, chosen);
       return;
     }
+    var summary = target.closest(".ed-menu > summary");
+    all(".ed-menu[open]").forEach(function (menu) {
+      if (!summary || !menu.contains(summary)) menu.open = false;
+    });
     var opener = target.closest("[data-ed-menu]");
     if (opener) { openMenu(opener.closest(".ed-card")); return; }
     var play = target.closest("[data-ed-play]");
@@ -1703,8 +1773,6 @@
     closeMenu();
     var row = target.closest(".ui-tree__row--file[data-open]");
     if (row) { open(row.dataset.open); return; }
-    var menu = $(".ed-menu[open]");
-    if (menu && !target.closest(".ed-menu > summary")) menu.open = false;
     var file = target.closest("[data-ed-file]");
     if (file) { fileDialog(file.dataset.edFile); return; }
     var snip = target.closest("[data-ed-snippet]");
@@ -1729,12 +1797,9 @@
     }
     var shown = target.closest("[data-ed-reveal]");
     if (shown) { reveal(shown.dataset.edReveal, Number(shown.dataset.line)); return; }
-    var drop = target.closest("[data-ed-discard]");
-    if (drop) {
-      if (drop.dataset.sure) discard(active);
-      else { drop.dataset.sure = "1"; drop.textContent = "Discard them?"; setTimeout(drawActions, 4000); }
-      return;
-    }
+    if (target.closest("[data-ed-discard]")) { askDiscard(active); return; }
+    if (target.closest("[data-ed-details]")) { showPaneDialog("[data-ed-details-dialog]"); return; }
+    if (target.closest("[data-ed-run-open]")) { showPaneDialog("[data-ed-run-dialog]"); return; }
     var button = target.closest("[data-ed-act]");
     if (button) { act(button.dataset.edAct, button); return; }
     // A click on a card opens it, unless it is on something of its own or selects text
@@ -2459,11 +2524,14 @@
     });
     document.addEventListener("submit", function (event) {
       var form = event.target;
+      var dialog = form.closest && form.closest("[data-ed-run-dialog]");
+      if (dialog && form.method !== "dialog" && dialog.open) dialog.close();
       if (editable && form.matches && form.matches("[data-ed-run]") && runSaved(form)) event.preventDefault();
     }, true);
     // Anything htmx redraws in a pane (another variation, the checked-in view) is scanned again
     document.body.addEventListener("htmx:afterSettle", function () {
       if (active && states[active]) scan(states[active].pane);
+      drawActions();
       var current = active && $('.ui-tree__row--file[data-open="' + window.CSS.escape(active) + '"]');
       if (current) current.setAttribute("aria-current", "true");
       drawTreeCounts();

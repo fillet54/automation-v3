@@ -936,7 +936,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertIn(b"under-limit?", page.data)
         self.assertIn(b'action="/runner/new"', page.data)
         self.assertIn(b'name="script" value="BRA/modes.rst"', page.data)
-        details = page.data.split(b"ui-script-details")[1].split(b"</details>")[0]
+        details = page.data.split(b"data-ed-details-dialog")[1].split(b"</dialog>")[0]
         self.assertIn(b"<td>low</td>", details)  # every variation, as All is shown
         self.assertIn(b"<td>high</td>", details)
 
@@ -1020,7 +1020,7 @@ class TestWorkerAgainstServer(unittest.TestCase):
         self.assertNotIn("Level is high", page)
         page = self.http.get(view + "&variation=high").get_data(True)
         self.assertNotIn("Skipped for", page)
-        details = page.split("ui-script-details")[1].split("</details>")[0]
+        details = page.split("data-ed-details-dialog")[1].split("</dialog>")[0]
         self.assertIn('<tr class="ui-row--selected"><td>high</td>', details)
         self.assertNotIn("<td>low</td>", details)  # only the selected one
         self.assertIn("<strong>Level is positive</strong>", page)

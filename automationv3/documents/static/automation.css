@@ -152,13 +152,13 @@ tr.report-target > td { background: color-mix(in srgb, var(--ui-accent) 8%, var(
 /* the script view's top row: the variation selector, and the Queue button at the far end */
 .ui-script-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .ui-script-details .ui-defs__body { padding-top: 4px; }
-/* in an editor tab, the file's breadcrumb shares that row: variations after it, run controls at the far end */
-.ed-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+/* in an editor tab, one tight row above the document: the file's breadcrumb, its variations, and whether it has
+   unsaved edits (at the far end) */
+.ed-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 28px; }
 .ed-head > nav { flex: none; }
 .ed-head .ui-crumbs { margin: 0; }
-.ed-head > .ui-script-bar { flex: 1; justify-content: flex-end; }
-.ed-head .ui-script-bar__variations { margin-right: auto; }
-.ed-head .ui-script-bar__variations:empty { display: none; }
+.ed-head__unsaved { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: var(--ui-text-sm); color: var(--ui-muted); }
+.ed-head__unsaved .ui-btn { padding-block: 2px; }
 
 /* a step's (or titled block's) duration, just left of its outcome, right-aligned so times line up */
 :is(.ui-duration, .ui-document .duration) { min-width: 5.5em; text-align: right; font-family: var(--ui-font-mono); font-size: var(--ui-text-xs); font-variant-numeric: tabular-nums; color: var(--ui-muted); white-space: nowrap; }
@@ -349,6 +349,20 @@ div.tbd strong:first-child { flex: none; font-size: var(--ui-text-xs); font-weig
 .ed-menu__items { position: absolute; right: 0; top: calc(100% + 4px); z-index: 10; min-width: 190px; display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--ui-rule); border-radius: var(--ui-radius); background: var(--ui-paper); box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); }
 .ed-menu__items button { border: 0; background: none; text-align: left; padding: 7px 10px; font: inherit; font-size: var(--ui-text-sm); color: var(--ui-ink); cursor: pointer; border-radius: var(--ui-radius); }
 .ed-menu__items button:hover { background: var(--ui-soft); }
+.ed-menu__items > button { display: flex; justify-content: space-between; gap: 16px; }
+.ed-menu__items button[disabled] { opacity: 0.45; cursor: default; background: none; }
+.ed-menu__items button[hidden] { display: none; }
+.ed-menu__items kbd { font: inherit; font-size: var(--ui-text-xs); color: var(--ui-muted); }
+.ed-menu__rule { border: 0; border-top: 1px solid var(--ui-rule); margin: 4px 2px; }
+/* the ⋯ menu: Snippets opens inside it */
+.ed-more > summary { min-width: 32px; justify-content: center; position: relative; }
+.ed-more > summary.has-errors::after { content: ""; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--ui-danger); }
+.ed-more > .ed-menu__items { min-width: 230px; }
+.ed-more .ed-snippets > summary { padding: 7px 10px; font-size: var(--ui-text-sm); border-radius: var(--ui-radius); }
+.ed-more .ed-snippets > summary:hover { background: var(--ui-soft); }
+.ed-more .ed-snippets[open] > summary { color: var(--ui-muted); }
+.ed-more .ed-snippets > .ed-menu__items { position: static; box-shadow: none; border: 0; padding: 0 0 0 8px; min-width: 0; width: 340px; max-height: 50vh; }
+.ed-run-open { gap: 6px; }
 .ed-dialog { width: min(480px, calc(100vw - 32px)); padding: 20px 22px; border: 1px solid var(--ui-rule); border-radius: var(--ui-radius); background: var(--ui-paper); color: var(--ui-ink); }
 .ed-dialog::backdrop { background: rgb(0 0 0 / 0.35); }
 .ed-dialog__form { display: flex; flex-direction: column; gap: 12px; }
@@ -407,6 +421,13 @@ div.tbd strong:first-child { flex: none; font-size: var(--ui-text-xs); font-weig
 .ed-tree-count { margin-left: auto; min-width: 16px; padding: 0 4px; border-radius: 8px; font-size: 11px; line-height: 16px; text-align: center; color: var(--ui-paper); background: var(--ui-warning); }
 .ed-tree-count.is-error { background: var(--ui-danger); }
 .ed-dialog__list { margin: 0; padding-left: 18px; font-size: var(--ui-text-sm); }
+/* the Run dialog: run in scratch now, or queue in a report */
+.ed-run-dialog { width: min(520px, calc(100vw - 32px)); }
+.ed-details-dialog { width: min(720px, calc(100vw - 32px)); }
+.ed-run-choice { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--ui-rule); }
+.ed-run-choice__title { margin: 0; font-size: var(--ui-text-md, 15px); }
+.ed-run-choice__field { display: flex; align-items: center; gap: 10px; }
+.ed-run-choice__field > .ui-field__label { min-width: 7em; }
 
 /* A clean page: nothing shows on a card until it is pointed at, and then
    only its gutter, to its left: ".." for its menu, "::" to drag it */

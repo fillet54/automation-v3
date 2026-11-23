@@ -35,21 +35,35 @@
      data-report="{{ request.args.get('report') or '' }}" data-console="{{ 'true' if console else 'false' }}">
   <div class="ed-bar" hidden>
     <div class="ed-tabs" role="tablist" aria-label="Open files"></div>
-    {% if editable %}<div class="ed-actions"><span class="ed-status ui-muted" aria-live="polite"></span>
-      {% if console %}<button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-console title="Run blocks and forms against the UUT on this machine">Console</button>{% endif %}
-      <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost ed-problems-toggle" data-ed-problems aria-expanded="false" title="Errors and warnings in the open files">Problems</button>
-      <details class="ed-menu ed-snippets" hidden><summary class="ui-btn ui-btn--sm ui-btn--ghost" title="Insert a snippet: into the open block, or a new one at the end (Ctrl+Space in a block offers them too)">Snippets</summary>
-        <div class="ed-menu__items ed-snippets__items"></div></details>
-      <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-undo disabled title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-      <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-redo disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
-      <details class="ed-menu" hidden><summary class="ui-btn ui-btn--secondary">File</summary>
+    {#- Three controls: File, More (⋯) and Run. editor.js enables them for the active tab. #}
+    <div class="ed-actions"><span class="ed-status ui-muted" aria-live="polite"></span>
+      <details class="ed-menu ed-filemenu" hidden><summary class="ui-btn ui-btn--sm ui-btn--secondary">File</summary>
         <div class="ed-menu__items">
+          {% if editable %}
+          <button type="button" data-ed-save disabled>Save<kbd>Ctrl+S</kbd></button>
+          <button type="button" data-ed-discard hidden>Discard edits…</button>
+          <hr class="ed-menu__rule">
           <button type="button" data-ed-file="clone">Clone…</button>
           <button type="button" data-ed-file="move">Rename or move…</button>
           <button type="button" data-ed-file="delete">Delete…</button>
+          <hr class="ed-menu__rule">
+          {% endif %}
+          <button type="button" data-ed-details>Details…</button>
         </div></details>
-      {{ ui.button("Discard edits", variant="secondary", attrs={"data-ed-discard": "", "hidden": "", "title": "Drop this file's unsaved edits"}) }}
-      {{ ui.button("Save", variant="primary", attrs={"data-ed-save": "", "disabled": "", "title": "Save this file (Ctrl+S)"}) }}</div>{% endif %}
+      {% if editable %}
+      <details class="ed-menu ed-more"><summary class="ui-btn ui-btn--sm ui-btn--ghost" title="More" aria-label="More">⋯</summary>
+        <div class="ed-menu__items">
+          <button type="button" data-ed-undo disabled>Undo<kbd>Ctrl+Z</kbd></button>
+          <button type="button" data-ed-redo disabled>Redo<kbd>Ctrl+Shift+Z</kbd></button>
+          <hr class="ed-menu__rule">
+          <button type="button" class="ed-problems-toggle" data-ed-problems aria-expanded="false" title="Errors and warnings in the open files">Problems</button>
+          {% if console %}<button type="button" data-ed-console title="Run blocks and forms against the UUT on this machine">Console</button>{% endif %}
+          <details class="ed-menu ed-snippets" hidden><summary title="Insert a snippet: into the open block, or a new one at the end (Ctrl+Space in a block offers them too)">Snippets</summary>
+            <div class="ed-menu__items ed-snippets__items"></div></details>
+        </div></details>
+      {% endif %}
+      <button type="button" class="ui-btn ui-btn--sm ui-btn--primary ed-run-open" data-ed-run-open disabled>{{ ui.icon("play", 14) }}<span>Run…</span></button>
+    </div>
   </div>
   {% if editable %}<div class="ed-problems" hidden aria-label="Problems"></div>{% endif %}
   <div class="ed-panes">
