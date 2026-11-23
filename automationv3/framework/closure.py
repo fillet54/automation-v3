@@ -32,6 +32,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
+from .paths import posix
+
 from . import edn, source
 from .language import (
     DECLARATIONS, DEFINITIONS, DIRECTIVES, PRECONDITION, ancestor_files, head,
@@ -237,9 +239,9 @@ def resolve(root, script, text=None, texts=None):
     """The closure of `script` (relative to `root`), using `text` if given.
     `texts` maps paths to text that stands in for those files on disk (an
     editor's unsaved documents)."""
-    texts = texts or {}
+    texts = {posix(path): text for path, text in (texts or {}).items()}
     root = Path(root).resolve()
-    script = str(PurePosixPath(script))
+    script = str(PurePosixPath(posix(script)))
     closure = Closure(script)
     errors = closure.errors
 

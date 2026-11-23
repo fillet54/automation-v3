@@ -8,6 +8,7 @@ the repository has its workspace in the same folder: git finds them.
 import subprocess
 from pathlib import Path, PurePosixPath
 
+from ..framework.paths import posix
 from .util import extract_tar_atomic, git
 
 
@@ -36,7 +37,9 @@ class FileNode:
 
     @property
     def relative_path(self):
-        return self.path.relative_to(self.root.path)
+        """Its path under the root, with "/" between folders on every
+        platform (str() of it is how the app names the file)"""
+        return PurePosixPath(self.path.relative_to(self.root.path).as_posix())
 
     @property
     def is_root(self):
@@ -215,10 +218,11 @@ def valid_entry_name(name):
 
 
 def safe_relative_path(path):
-    """Normalized POSIX relative path inside a workspace, or None if invalid."""
-    if not path or "\\" in path:
+    """Normalized POSIX relative path inside a workspace, or None if invalid.
+    A Windows path (with "\\") is taken with "/" instead."""
+    if not path:
         return None
-    parts = PurePosixPath(path)
+    parts = PurePosixPath(posix(path))
     if parts.is_absolute() or ".." in parts.parts:
         return None
     return str(parts)

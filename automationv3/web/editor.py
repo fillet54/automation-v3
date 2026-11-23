@@ -271,7 +271,7 @@ def folders(root):
     found = [""]
     for folder, names, _ in os.walk(root):
         names[:] = sorted(n for n in names if not n.startswith("."))
-        found += [str((Path(folder) / n).relative_to(root)) for n in names]
+        found += [(Path(folder) / n).relative_to(root).as_posix() for n in names]
     return sorted(found)
 
 

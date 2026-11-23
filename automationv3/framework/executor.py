@@ -59,6 +59,7 @@ import traceback
 
 from . import clock as clocks
 from . import context, edn, lisp, source
+from .paths import posix
 from .block import BlockResult
 from .language import (
     DEFINITIONS,
@@ -393,6 +394,14 @@ def run_step(form, env, observer, index, row=None):
     return result
 
 
+def _named(files, load_order, imports):
+    """The closure's files, load order and imports with every path named
+    the same way (see paths.py): a load order written on Windows may say
+    ALM\\tc.rst where the files say ALM/tc.rst"""
+    return ({posix(path): text for path, text in files.items()},
+            [posix(path) for path in load_order], [posix(path) for path in imports])
+
+
 def build_env(files, load_order, imports=(), variation=None):
     """An env holding the definitions of every core.rst in the closure,
     then the script's definitions section (as `variation`, if given).
@@ -401,6 +410,7 @@ def build_env(files, load_order, imports=(), variation=None):
     defined by the script's own core.rst chain. Only definition forms
     are evaluated, so building it never runs a step.
     """
+    files, load_order, imports = _named(files, load_order, imports)
     env = new_env()
     chain_names = set()
     for path in load_order[:-1]:
@@ -442,6 +452,7 @@ def execute_closure(files, load_order, observer, imports=(), variation=None,
     handles scripts use to reach their UUTs. `clock` is the run's clock
     (see clock.py), by default the wall clock.
     """
+    files, load_order, imports = _named(files, load_order, imports)
     env = build_env(files, load_order, imports, variation)
     env.update({edn.Symbol(name): value for name, value in (bindings or {}).items()})
     script = load_order[-1]

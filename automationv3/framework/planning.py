@@ -266,7 +266,9 @@ def build_plan(workspace, root, scripts, requirements=None, environments=None,
     plan = Plan(workspace, filter=filter_source or "")
     predicate = compile_filter(filter_source, plan.errors)
 
-    wanted = list(dict.fromkeys(
+    from .paths import posix
+    texts = {posix(path): text for path, text in texts.items()}
+    wanted = list(dict.fromkeys(posix(s) for s in
         list(scripts or []) + [s for r in requirements or [] for s in links.get(r, [])]
     ))
 

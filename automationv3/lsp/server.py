@@ -19,6 +19,7 @@ the root (the web editor's "rvt:///GDN/tc_gdn_001.rst").
 
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
+from urllib.request import url2pathname
 
 from .service import BLOCK, FUNCTION, KEYWORD, PATH, REQUIREMENT, VARIABLE, Service
 from ..framework.analysis import ERROR
@@ -129,12 +130,13 @@ class Server:
         parsed = urlparse(uri)
         path = unquote(parsed.path)
         if parsed.scheme == "file":
-            try:
-                found = str(PurePosixPath(Path(path).resolve().relative_to(self.service.root)))
+            try:  # url2pathname: file:///C:/x is C:\\x on Windows, not \\C:\\x
+                local = Path(url2pathname(parsed.path))
+                found = local.resolve().relative_to(self.service.root).as_posix()
             except ValueError:
                 return None
         else:
-            found = str(PurePosixPath(path.lstrip("/")))
+            found = str(PurePosixPath(path.replace("\\", "/").lstrip("/")))
             if found.startswith(".."):
                 return None
         self.scheme = parsed.scheme
