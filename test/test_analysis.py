@@ -120,6 +120,12 @@ class TestShapes(unittest.TestCase):
         (error,) = check(rvt("(let [{:keys [a] :or {a limt}} {}] a)"))[0]
         self.assertIn("unknown name limt", error)
 
+    def test_a_named_fn_may_call_itself(self):
+        script = rvt("(def fact (fn f [n] (if (< n 2) 1 (* n (f (- n 1)))))) (Verify (fact 3) = 6)")
+        self.assertEqual(check(script)[0], [])
+        (error,) = check(rvt("(def g (fn f [n] n)) (Verify (f 1) = 1)"))[0]
+        self.assertIn("unknown name f", error)  # only inside it
+
     def test_bad_patterns(self):
         for script, message in [
                 ("(let [1 2] 1)", "can only bind names"),

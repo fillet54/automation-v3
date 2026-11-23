@@ -640,7 +640,9 @@ class Analyzer:
         if defn and (len(form) < 2 or not isinstance(form[1], edn.Symbol)):
             self.error("defn needs a name: (defn name [params] body...)", form)
             return
-        _, signatures = parse_fn_arities(form)
+        name, signatures = parse_fn_arities(form)
+        if not defn and name is not None:  # (fn f [x] (f x)): its body may call it
+            locals_ = frozenset(locals_) | {str(name)}
         if not signatures:
             self.error(f"{kind} needs parameters: ({kind} {'name ' if defn else ''}"
                        "[params] body...)", form)

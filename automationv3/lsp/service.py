@@ -157,6 +157,9 @@ def local_names(stack):
             vector = next((i for i in frame.items[1:]
                            if isinstance(i, Frame) and i.char == "["), None)
             every = 2 if first == "let" else 1
+            if first == "fn" and len(frame.items) > 1 and isinstance(frame.items[1], str) \
+                    and frame.items[1] != '"':
+                found.append(frame.items[1])  # (fn f [x] (f ...)): its own name
         if vector is not None:
             for target in vector.items[::every]:
                 found += frame_names(target)
@@ -190,8 +193,11 @@ def binder_names(form):
     if head(form) == "let":
         targets = list(form[1])[::2] if len(form) > 1 and isinstance(form[1], edn.Vector) else []
     else:
-        targets = [s[0] for s in parse_fn_arities(form)[1]
+        name, signatures = parse_fn_arities(form)
+        targets = [s[0] for s in signatures
                    if isinstance(s, list) and s and isinstance(s[0], edn.Vector)]
+        if head(form) == "fn" and name is not None:  # its body may call it by name
+            targets.append(name)
     return {str(n) for t in targets if not pattern_problem(t) for n in pattern_names(t)}
 
 

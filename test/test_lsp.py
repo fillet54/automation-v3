@@ -170,6 +170,8 @@ class TestService(Rooted):
         self.assertEqual(local_names(scan("(let [[a [b] & c :as d] v {e :e :keys [f :g] :or {f 1} :as h} w] (i ")),
                          ["a", "b", "c", "d", "e", "f", "g", "h"])
         self.assertEqual(local_names(scan("(fn [x & {:keys [y]}] (i ")), ["x", "y"])
+        self.assertEqual(local_names(scan("(fn fact [n] (fact ")), ["fact", "n"])
+        self.assertEqual(local_names(scan("(defn f [n] (g ")), ["n"])  # a defn's is global
 
 
 REFS = """\
