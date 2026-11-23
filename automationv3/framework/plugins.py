@@ -67,16 +67,17 @@ def set_rendering_registry(backend):
     before documents/ was imported are replayed into `backend`."""
     global _rendering_backend, _backend_baseline
     with _lock:
+        # every name first, so a clash changes nothing, not even which
+        # backend is attached
+        for kind, names in (("directive", _directives), ("role", _roles),
+                            ("filter", _filters)):
+            for name in names:
+                if backend is not None and name in backend.builtins(kind):
+                    raise ValueError(f"the {kind} {name} is a built-in one")
         _rendering_backend = backend
         _backend_baseline = None
         if backend is None:
             return
-        # every name first, so a clash registers nothing
-        for kind, names in (("directive", _directives), ("role", _roles),
-                            ("filter", _filters)):
-            for name in names:
-                if name in backend.builtins(kind):
-                    raise ValueError(f"the {kind} {name} is a built-in one")
         _backend_baseline = backend.snapshot()
         for name, (resolver, option_spec, arguments) in _directives.items():
             backend.register_directive(name, resolver, option_spec, arguments)

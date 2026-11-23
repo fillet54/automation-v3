@@ -230,6 +230,7 @@ class TestPluginRendering(unittest.TestCase):
                 patch.object(plugins, "_backend_baseline", None):
             with self.assertRaisesRegex(ValueError, "results"):
                 plugins.set_rendering_registry(backend)
+            self.assertIsNone(plugins._rendering_backend)  # still not attached
         self.assertEqual(backend.registered, [])
 
     def test_a_load_that_began_before_documents_rolls_back_into_documents(self):
