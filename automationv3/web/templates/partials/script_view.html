@@ -33,11 +33,10 @@
   </div>
 
   {% if queueable %}
-  {% set which = ("the " ~ variation.name ~ " variation") if variation else ("every variation" if closure.variations else "the script") %}
   <dialog class="ed-dialog ed-run-dialog" data-ed-run-dialog aria-labelledby="ed-run-title">
     <div class="ed-dialog__form">
       <h2 class="ed-dialog__title" id="ed-run-title">Run {{ path.split('/')[-1] }}</h2>
-      <p class="ed-dialog__note ui-muted">Runs {{ which }}{% if closure.variations %} (the choice beside the file's name){% endif %}.</p>
+      {% if not closure.variations %}<p class="ed-dialog__note ui-muted">Runs the script.</p>{% endif %}
 
       <form method="post" action="{{ url_for('scratch.run') }}" class="ed-run-choice" data-ed-run data-closure="{{ closure.load_order | tojson | forceescape }}">
         <h3 class="ed-run-choice__title">Run in scratch</h3>
@@ -45,7 +44,28 @@
         <input type="hidden" name="workspace" value="{{ workspace.id }}">
         <input type="hidden" name="script" value="{{ path }}">
         <input type="hidden" name="files" value="{{ 'checked in' if files == 'checked in' else 'in work' }}">
-        {% if variation %}<input type="hidden" name="variation" value="{{ variation.name }}">{% endif %}
+        {% if closure.variations %}
+        {#- Which variations: ticked, then narrowed by the filter, if there is one. editor.js remembers the
+            last choice for the script, and keeps the count on the button. #}
+        <fieldset class="ed-run-vars" data-ed-run-vars{% if variation %} data-picked="{{ variation.name }}"{% endif %}>
+          <legend class="ui-field__label">Variations</legend>
+          <div class="ed-run-vars__tools">
+            <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-vars="all">All</button>
+            <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-ed-vars="none">None</button>
+          </div>
+          <div class="ed-run-vars__list">
+            {% for v in closure.variations %}{% set values = variation_rows[loop.index0][1] %}
+            <label class="ui-check">
+              <input type="checkbox" name="variation" value="{{ v.name }}"{% if not variation or variation.name == v.name %} checked{% endif %}>
+              <span class="ui-mono">{{ v.name }}</span>
+              <span class="ui-text-caption ui-mono">{% for sym in v.symbols %}{{ sym }}={{ values[loop.index0] }}{% if not loop.last %}, {% endif %}{% endfor %}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <label class="ed-run-choice__field"><span class="ui-field__label">Filter</span>
+          {{ ui.input("filter", "", placeholder="optional, e.g. (= mode :normal)", mono=True) }}</label>
+        </fieldset>
+        {% endif %}
         {% if closure.environments | length > 1 %}
         {% set options = [("", "every environment")] %}
         {% for e in closure.environments %}{% set _ = options.append((e, e ~ ("" if e in live else " (no worker)"))) %}{% endfor %}
@@ -61,7 +81,7 @@
         <label class="ed-run-choice__field"><span class="ui-field__label">Where</span>
         {{ ui.select("where", [("central", "on the central server"), ("local", "on this machine")], selected="central") }}</label>
         {% elif client_mode %}<input type="hidden" name="where" value="central">{% endif %}
-        <div class="ui-row">{{ ui.button("Run in scratch", icon="play", type="submit") }}</div>
+        <div class="ui-row">{{ ui.button("Run in scratch", icon="play", type="submit") }}{% if closure.variations %}<span class="ui-muted" data-ed-vars-count></span>{% endif %}</div>
       </form>
 
       {% if client_mode %}
@@ -176,7 +196,8 @@
   {#- The file as its cards (web/editor.py): static/js/editor.js makes them editable in a worktree #}
   <article class="ui-doc ui-document ed-doc" data-ed-doc data-path="{{ path }}" data-hash="{{ file_hash }}"
            data-count="{{ cards | length }}" data-plain="{{ 'false' if path.endswith('.rst') else 'true' }}"
-           data-editable="{{ 'true' if editable else 'false' }}" data-variations="{{ (variation_names or []) | tojson | forceescape }}">
+           data-editable="{{ 'true' if editable else 'false' }}" data-variations="{{ (variation_names or []) | tojson | forceescape }}"
+           {%- if goto %} data-goto="{{ goto | tojson | forceescape }}"{% endif %}>
     {%- for card in cards recursive %}
     <section class="ed-card ed-card--{{ card.kind }}" data-card="{{ card.data }}"><div class="ed-card__view">{{ card.html | safe }}</div>
     {%- if card.kind == "variant" %}<div class="ed-variant__body">{{ loop(card.children) }}</div>{% endif %}</section>

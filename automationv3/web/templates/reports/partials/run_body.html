@@ -26,6 +26,8 @@
       {% if running_since %}<span class="duration elapsed" data-since="{{ running_since }}" data-now="{{ now }}" title="Running for">{{ running_for }}</span>{% endif %}
       {{ outcomes.outcome(status) }}
       {% if scratch %}
+      {% if edit %}{{ ui.button("Edit at the failure" if edit_at else "Edit", size="sm", icon="edit", href=edit,
+                                attrs={"data-run-edit": "", "title": "Back to the editor" ~ (", at the line that failed" if edit_at else "") ~ " (E)"}) }}{% endif %}
       {% if run.workspace %}{{ ui.button("Queue in a report…", size="sm", href=url_for('jobqueue.new', workspace=run.workspace, script=run.script)) }}{% endif %}
       <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">
         {{ ui.button("Run again", icon="refresh", type="submit", size="sm") }}

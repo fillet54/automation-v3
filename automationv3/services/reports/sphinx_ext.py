@@ -45,6 +45,9 @@ class SiteLinks:
     def file(self, report_id, run_id, name):
         return f"{FILE}{run_id}/{name}"
 
+    def source(self, run, path, line, col=0):
+        return None  # an exported site has no editor to go back to
+
     def requirement(self, id, snapshot):
         from .export import ServerLinks
         return ServerLinks(self.base).requirement(id, snapshot)

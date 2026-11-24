@@ -25,6 +25,7 @@ from .auth import mine_only, owner_email
 from .client_mode import CENTRAL, central_client, central_url, resolve_versions
 from .context import checked_in_root, reports_root as root, workspace_root
 from .db import get_db
+from .documents import edit_url, failure_place
 from .reports import run_status
 
 scratch = Blueprint("scratch", __name__)
@@ -41,6 +42,10 @@ def render_page(errors=(), status=200):
     runs = scratch_service.scratch_runs(root(), owner=mine_only())
     for run in runs:
         run["status"] = run_status(run)
+        place = None
+        if run.get("outcome") not in (None, "pass"):
+            place = failure_place(run, store.read_events(root(), scratch_service.SCRATCH, run["id"]))
+        run["edit"] = (edit_url(run, *place) if place else None) or edit_url(run)
     return render_template("scratch.html", runs=runs, errors=errors,
                            central_scratch=central_url("/scratch/") if central_client() else None), status
 
@@ -52,7 +57,8 @@ def index():
 
 @scratch.route("/run", methods=["POST"])
 def run():
-    """Run scripts (every variation, or the one picked) in one
+    """Run scripts (every variation, or those ticked, narrowed by the
+    variation filter if one is given) in one
     environment, or every environment each supports, from the files in
     work or as checked in. Goes to the run, or the list when there are
     several. The local client sends them to the central server's workers
@@ -63,8 +69,8 @@ def run():
     source = files_root(workspace, files)
     if source is None:
         return render_page([f"There is no workspace {workspace!r} with files {files}"], 400)
-    scripts, variation = form.getlist("script"), form.get("variation")
-    environment = form.get("environment")
+    scripts, environment = form.getlist("script"), form.get("environment")
+    variations, filter_source = form.getlist("variation"), form.get("filter", "").strip()
     versions = {uut: form.get(f"version-{uut}") for uut in uut_types()
                 if form.get(f"version-{uut}")}
     if central_client() is not None:
@@ -73,12 +79,13 @@ def run():
         except client.ClientError as e:
             return render_page([str(e)], 400)
         if form.get("where", CENTRAL) == CENTRAL:
-            return run_on_central(workspace, source, scripts, environment, variation,
-                                  versions)
+            return run_on_central(workspace, source, scripts, environment, variations,
+                                  filter_source, versions)
     plan = build_plan(workspace, source, scripts, scratch=True,
                       environments=[environment] if environment else None,
                       versions=versions,
-                      variations={f"{s}::{variation}" for s in scripts} if variation else None)
+                      variations=scratch_service.variation_keys(scripts, variations),
+                      filter_source=filter_source)
     try:
         run_ids = scratch_service.queue_scratch(get_db(), root(), plan, files, owner=owner_email())
     except models.QueueError as e:
@@ -88,13 +95,15 @@ def run():
     return redirect(url_for("scratch.index"))
 
 
-def run_on_central(workspace, source, scripts, environment, variation, versions):
+def run_on_central(workspace, source, scripts, environment, variations, filter_source,
+                   versions):
     """Upload the scripts' files to the central server's scratch space;
     go to the run there, or to its scratch page when there are several"""
     try:
         files = client.upload_files(source, scripts)
         runs = central_client().scratch(workspace, files, scripts, environment=environment,
-                                        variation=variation, uut_versions=versions)
+                                        variations=variations, filter=filter_source,
+                                        uut_versions=versions)
     except client.ClientError as e:
         return render_page(str(e).splitlines(), 400)
     if len(runs) == 1:

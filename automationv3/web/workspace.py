@@ -109,8 +109,16 @@ def index(id):
     path = request.args.get("path")
     if path:  # a link to a file: it opens in a tab of its own
         tabs, active = (tabs if path in tabs else tabs + [path]), path
+    from_run = None
+    if re.fullmatch(r"[\w-]+", request.args.get("run", "")):  # back from a scratch run (its Edit)
+        from .reports import run_status
+        from_run = store.load_run(current_app.config["REPORTS_PATH"], scratch_service.SCRATCH,
+                                  request.args["run"])
+        if from_run is not None and from_run.get("workspace") != ws.id:
+            from_run = None
     return render_template(
         "workspace.html", workspaces=list(worktrees()), workspace=ws,
+        from_run=from_run, from_run_status=run_status(from_run) if from_run else None,
         report=target_report(), tabs=tabs, active_tab=active if active in tabs else None,
         editable=editor.editable(), editor_version=editor.script_version(),
         console=editor.editable() and console.console() is not None,
@@ -211,7 +219,7 @@ def changes(ws, files):
     return out
 
 
-def render_view(ws, node, errors=None, variation=None, files=None):
+def render_view(ws, node, errors=None, variation=None, files=None, at=None):
     """The script viewer. `variation` (a name the script declares) narrows
     the script to what that variation runs; None shows every variation.
     `files` shows the script in work (on disk, the default), as checked
@@ -241,13 +249,14 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         if closure else None
     text = None
     diagnostics = diagnostic_views(closure, relpath) if closure else []
-    cards = file_hash = document = None
+    cards = file_hash = document = goto = None
     if files == scratch_service.IN_WORK and selected is None and not is_binary(path):
         # The file as it is on disk, whole: its cards, which a worktree can edit
         documents.ready()
         raw = editor.read(path)
         file_hash = editor.text_hash(raw)
         cards = editor.card_views(path, raw, diagnostics)
+        goto = editor.locate(path, raw, *at) if at else None
     else:
         try:
             document = render_file(path, selected.name if selected else None, diagnostics,
@@ -267,6 +276,7 @@ def render_view(ws, node, errors=None, variation=None, files=None):
         document=document,
         text=text,
         cards=cards,
+        goto=goto,
         file_hash=file_hash,
         editable=editor.editable(),
         closure=closure,
@@ -303,8 +313,10 @@ def view(id):
             files=scratch_service.IN_WORK, in_work=[], closure=None, document=None, text=None,
             errors=[], diagnostics=[], live=[], variation=None, cards=[], file_hash="",
             editable=True, unsaved=True)
+    line = request.args.get("line", type=int)
     return render_view(ws, node, variation=request.args.get("variation"),
-                       files=request.args.get("files"))
+                       files=request.args.get("files"),
+                       at=(line, request.args.get("col", 0, type=int)) if line else None)
 
 
 @bp.route("/<path:id>/snippets", methods=["GET"])

@@ -13,6 +13,13 @@ from .reports.store import SCRATCH
 IN_WORK, CHECKED_IN, UPLOADED = "in work", "checked in", "uploaded"
 
 
+def variation_keys(scripts, names):
+    """The planner's "script::name" selection for variation `names` of
+    each of `scripts`; None (every variation) when no name is given"""
+    names = [n for n in names or [] if n]
+    return {f"{s}::{n}" for s in scripts for n in names} if names else None
+
+
 def queue_scratch(conn, root, plan, files=IN_WORK, owner=None, **run_fields):
     """Queue every run of `plan` in the scratch space. `files` says which
     of the workspace's files the plan was built from: IN_WORK (on disk),

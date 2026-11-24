@@ -118,8 +118,11 @@ class RunResults:
     def failure(self, ended):
         if not ended or ended.get("passed") or "message" not in ended:
             return None
-        return failure_view(self.closure, ended["message"], ended.get("trace"),
-                            ended.get("stderr", "") if ended.get("error") else "")
+        found = failure_view(self.closure, ended["message"], ended.get("trace"),
+                             ended.get("stderr", "") if ended.get("error") else "")
+        for ex in found["excerpts"]:
+            ex["url"] = self.data.links.source(self.run, ex["path"], ex["line"], ex["col"])
+        return found
 
     def step(self, index, row=None):
         found = (index, row)

@@ -39,10 +39,14 @@
       <td>{{ outcomes.outcome(run.status) }}</td>
       <td>{{ ui.timestamp(run.created) }}</td>
       <td class="ui-end">
+        <div class="ui-row" style="justify-content: flex-end; gap: 4px;">
+        {% if run.edit %}{{ ui.button("Edit", size="sm", variant="ghost", icon="edit", href=run.edit,
+                                      attrs={"title": "In the editor" ~ (", at the line that failed" if run.outcome and run.outcome != "pass" else "")}) }}{% endif %}
         <form method="post" action="{{ url_for('scratch.again', run_id=run.id) }}">
           {{ ui.button("Run again", size="sm", icon="refresh", type="submit",
                        attrs={"title": "With the same files: they were uploaded from someone's worktree"} if run.source == "uploaded" else None) }}
         </form>
+        </div>
       </td>
     </tr>
     {% else %}

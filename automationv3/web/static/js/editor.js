@@ -452,6 +452,25 @@
     }
     lspSync(path);
     drawTabs();
+    if (doc.dataset.goto) {
+      var place = null;
+      try { place = JSON.parse(doc.dataset.goto); } catch (e) { place = null; }
+      doc.removeAttribute("data-goto");
+      if (place) requestAnimationFrame(function () { goToPlace(doc, place); });
+    }
+  }
+
+  // Show a place the server found for a file line (a link from a run):
+  // its card, opened with the cursor on the line when it is a block
+  function goToPlace(doc, place) {
+    var card = walkCards(doc)[place.card];
+    if (!card) return;
+    for (var d = card.closest("details"); d; d = d.parentNode.closest("details")) d.open = true;
+    if (card._card.kind === "rvt" && editable && doc.dataset.editable === "true") jumpTo(card, place);
+    else card.scrollIntoView({ block: "center" });
+    card.classList.remove("is-flashing");
+    void card.offsetWidth;
+    card.classList.add("is-flashing");
   }
 
   function section(data, html) {
@@ -811,8 +830,11 @@
 
   // What the name under the pointer is
   function hovers(card) {
+    return hoverer(function (doc, offset) { return lspRequest("hover", card, doc, offset); });
+  }
+  function hoverer(ask) {
     return function (view, offset) {
-      return lspRequest("hover", card, view.state.doc, offset).then(function (found) {
+      return ask(view.state.doc, offset).then(function (found) {
         if (!found || !found.contents || !found.contents.value) return null;
         var line = view.state.doc.lineAt(offset);
         return {
@@ -828,28 +850,41 @@
   // with the argument being typed marked
   function sign(card, view, bar) {
     if (!card._edit) return;
-    lspRequest("signature", card, view.state.doc, view.state.selection.main.head).then(function (found) {
-      bar.textContent = "";
-      bar.hidden = !found || !found.signatures.length;
-      if (bar.hidden) return;
-      found.signatures.forEach(function (signature, n) {
-        var row = el("div", "ed-signature__row" + (n === found.activeSignature ? " is-active" : ""));
-        var rest = signature.label, at = 0;
-        signature.parameters.forEach(function (parameter, index) {
-          var start = rest.indexOf(parameter.label, at);
-          if (start < 0) return;
-          row.appendChild(document.createTextNode(rest.slice(at, start)));
-          row.appendChild(el(n === found.activeSignature && index === found.activeParameter ? "strong" : "span", null, parameter.label));
-          at = start + parameter.label.length;
-        });
-        row.appendChild(document.createTextNode(rest.slice(at)));
-        bar.appendChild(row);
+    lspRequest("signature", card, view.state.doc, view.state.selection.main.head).then(function (found) { drawSignature(bar, found); });
+  }
+  function drawSignature(bar, found) {
+    bar.textContent = "";
+    bar.hidden = !found || !found.signatures.length;
+    if (bar.hidden) return;
+    found.signatures.forEach(function (signature, n) {
+      var row = el("div", "ed-signature__row" + (n === found.activeSignature ? " is-active" : ""));
+      var rest = signature.label, at = 0;
+      signature.parameters.forEach(function (parameter, index) {
+        var start = rest.indexOf(parameter.label, at);
+        if (start < 0) return;
+        row.appendChild(document.createTextNode(rest.slice(at, start)));
+        row.appendChild(el(n === found.activeSignature && index === found.activeParameter ? "strong" : "span", null, parameter.label));
+        at = start + parameter.label.length;
       });
+      row.appendChild(document.createTextNode(rest.slice(at)));
+      bar.appendChild(row);
     });
   }
 
   // The names that complete where the cursor is in a block's editor
   function completions(card) {
+    return completer({
+      ask: function (doc, pos) { return lspRequest("completion", card, doc, pos); },
+      path: function () { return pathOf(card); },
+      prose: function () { return card._card.kind === "prose"; },
+    });
+  }
+
+  // A CodeMirror completion source: `how.ask(doc, pos)` gives the language
+  // server's completion, `how.path()` the file whose snippets to offer,
+  // `how.prose()` whether the text is prose (only :req: ids complete there),
+  // `how.more(word)` (optional) more options, as a Promise
+  function completer(how) {
     return function (context) {
       var req = context.matchBefore(REQ_OPEN), valid = /^[^\s()\[\]{}"';,]*$/;
       var word = context.matchBefore(NAME) || { from: context.pos, to: context.pos };
@@ -857,18 +892,22 @@
         word = { from: req.from + 6, to: context.pos };
         valid = /^[^`]*$/;
       } else {
-        if (card._card.kind === "prose") return null;
+        if (how.prose && how.prose()) return null;
         var before = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
         if (!context.explicit && word.from === word.to && before !== "(" && before !== '"') return null;
       }
       // Snippets only where a whole form can go: not right after "(" or in a string
       var at = context.state.sliceDoc(Math.max(0, word.from - 1), word.from);
-      var offer = !req && at !== "(" && at !== '"' ? snippetsFor(pathOf(card)) : Promise.resolve([]);
-      return Promise.all([lspRequest("completion", card, context.state.doc, context.pos), offer]).then(function (got) {
-        var found = got[0], options = (found && found.items || []).map(function (item) {
+      var path = how.path();
+      var offer = !req && at !== "(" && at !== '"' && path ? snippetsFor(path) : Promise.resolve([]);
+      var more = !req && how.more ? how.more(context.state.sliceDoc(word.from, word.to)) : Promise.resolve([]);
+      return Promise.all([how.ask(context.state.doc, context.pos), offer, more]).then(function (got) {
+        var found = got[0], seen = {}, options = (found && found.items || []).map(function (item) {
+          seen[item.label] = true;
           return { label: item.label, type: TYPES[item.kind], detail: item.detail, info: item.documentation ? function () { return prose(item.documentation); } : null,
                    boost: 5 - Number((item.sortText || "5")[0]) };
-        }).concat(got[1].map(snippetOption));
+        });
+        options = options.concat(got[2].filter(function (o) { return !seen[o.label]; })).concat(got[1].map(snippetOption));
         if (!options.length) return null;
         return { from: word.from, validFor: valid, options: options };
       });
@@ -1415,7 +1454,46 @@
   // A dialog the active tab's view holds (its run choices, its details)
   function showPaneDialog(selector) {
     var st = states[active], dialog = st && $(selector, st.pane);
-    if (dialog && !dialog.open) dialog.showModal();
+    if (!dialog || dialog.open) return;
+    var vars = $("[data-ed-run-vars]", dialog);
+    if (vars) recallVariations(vars);
+    dialog.showModal();
+  }
+
+  // The run dialog's variations: the ones ticked last time for this script
+  // (kept in this browser), unless one is picked beside the file's name
+  function varsKey(vars) { return "ed-run-vars:" + ws + ":" + pathOf(vars); }
+  function recallVariations(vars) {
+    var kept = null;
+    if (!vars.dataset.picked) {
+      try { kept = JSON.parse(localStorage.getItem(varsKey(vars)) || "null"); } catch (e) { kept = null; }
+    }
+    var boxes = all('input[name="variation"]', vars);
+    if (kept && Array.isArray(kept.names)) {
+      var known = boxes.filter(function (b) { return kept.names.indexOf(b.value) >= 0; });
+      if (known.length || !kept.names.length) boxes.forEach(function (b) { b.checked = known.indexOf(b) >= 0; });
+      var filter = $('input[name="filter"]', vars);
+      if (filter) filter.value = kept.filter || "";
+    }
+    countVariations(vars);
+  }
+  function keepVariations(vars) {
+    if (vars.dataset.picked) return;
+    var names = all('input[name="variation"]', vars).filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+    var filter = $('input[name="filter"]', vars);
+    try { localStorage.setItem(varsKey(vars), JSON.stringify({ names: names, filter: filter ? filter.value : "" })); } catch (e) { /* this time only */ }
+  }
+  function countVariations(vars) {
+    var boxes = all('input[name="variation"]', vars);
+    var ticked = boxes.filter(function (b) { return b.checked; }).length;
+    var form = vars.closest("form"), count = form && $("[data-ed-vars-count]", form);
+    var filter = $('input[name="filter"]', vars), filtered = filter && filter.value.trim();
+    if (count) {
+      count.textContent = ticked === boxes.length && !filtered ? "every variation"
+        : (filtered ? "the filter's pick of " : "") + ticked + " of " + boxes.length + " variation" + (boxes.length === 1 ? "" : "s");
+    }
+    var go = form && $('button[type="submit"]', form);
+    if (go) go.disabled = !ticked;
   }
 
   function askDiscard(path) {
@@ -1445,9 +1523,16 @@
   // other unsaved files the script loads
 
   function runSaved(form) {
-    var path = pathOf(form);
+    var path = form.dataset.path || pathOf(form);
     var closure = [];
     try { closure = JSON.parse(form.dataset.closure || "[]"); } catch (e) { closure = []; }
+    // A block still open for editing holds edits the tab doesn't have yet:
+    // take them (each tab is marked unsaved now; saving waits for the redraws)
+    var closing = [];
+    closure.concat(path ? [path] : []).forEach(function (p) {
+      var doc = states[p] && docOf(p);
+      if (doc) editing(doc).forEach(function (card) { closing.push(closeCard(card, true)); });
+    });
     var unsaved = closure.filter(function (p) { return states[p] && states[p].dirty; });
     if (path && states[path] && states[path].dirty && unsaved.indexOf(path) < 0) unsaved.push(path);
     if (!unsaved.length) return false;
@@ -1458,7 +1543,7 @@
     function run(paths) {
       return paths.reduce(function (done, p) {
         return done.then(function (ok) { return ok && save(p); });
-      }, Promise.resolve(true)).then(function (ok) {
+      }, Promise.all(closing).then(function () { return true; })).then(function (ok) {
         if (!ok) { say("Not run: a file couldn't be saved"); return; }
         document.body.appendChild(copy);
         copy.submit();
@@ -1800,6 +1885,14 @@
     if (target.closest("[data-ed-discard]")) { askDiscard(active); return; }
     if (target.closest("[data-ed-details]")) { showPaneDialog("[data-ed-details-dialog]"); return; }
     if (target.closest("[data-ed-run-open]")) { showPaneDialog("[data-ed-run-dialog]"); return; }
+    if (target.closest("[data-ed-from-run-close]")) { $("[data-ed-from-run]", root).remove(); return; }
+    var pick = target.closest("[data-ed-vars]");
+    if (pick) {
+      var vars = pick.closest("[data-ed-run-vars]");
+      all('input[name="variation"]', vars).forEach(function (b) { b.checked = pick.dataset.edVars === "all"; });
+      countVariations(vars);
+      return;
+    }
     var button = target.closest("[data-ed-act]");
     if (button) { act(button.dataset.edAct, button); return; }
     // A click on a card opens it, unless it is on something of its own or selects text
@@ -1840,11 +1933,19 @@
     return target.closest && target.closest("input, textarea, select, .cm-editor, dialog, [contenteditable]");
   }
 
+  // Ctrl+Shift+Enter: the scratch run come back from, again; else the Run dialog
+  function runAgain() {
+    var again = $("[data-ed-from-run] form[data-ed-run]", root);
+    if (again) { if (again.requestSubmit) again.requestSubmit(); else again.submit(); return; }
+    showPaneDialog("[data-ed-run-dialog]");
+  }
+
   function onKey(event) {
     if (!active || !editable) return;
     var key = event.key.toLowerCase(), mod = event.ctrlKey || event.metaKey;
     if (key === "escape" && pop) { closeMenu(); return; }
     if (mod && key === "s") { event.preventDefault(); save(active); return; }
+    if (mod && event.shiftKey && key === "enter") { event.preventDefault(); runAgain(); return; }
     if (!mod || typingIn(event.target)) return;
     if (key === "z" && !event.shiftKey) { event.preventDefault(); undo(active); }
     else if ((key === "z" && event.shiftKey) || key === "y") { event.preventDefault(); undo(active, true); }
@@ -1989,14 +2090,28 @@
             side: side, historyList: historyList, namesList: namesList, filter: filter, snippetList: snippetList,
             state: null, last: 0, cards: {}, entries: {}, polling: null, at: -1, names: [],
             history: stored("history:" + ws, []).filter(function (h) { return h && h.payload; }) };
+    var signature = el("div", "ed-signature ed-console__signature");
+    signature.hidden = true;
+    body.insertBefore(signature, prompt);
+    var signing;
     con.input = window.CM.editor(holder, {
-      language: "rvt", placeholder: "A form to run: Enter runs it, Shift+Enter starts a new line, Up goes back",
+      language: "rvt", placeholder: "A form to run: Enter runs it, Shift+Enter starts a new line, Up goes back, Ctrl+Space completes",
       keys: [
         { key: "Enter", run: function (view) { promptRun(view); return true; } },
         { key: "Shift-Enter", run: function (view) { view.dispatch(view.state.replaceSelection("\n")); return true; } },
         { key: "ArrowUp", run: function (view) { return promptHistory(view, -1); } },
         { key: "ArrowDown", run: function (view) { return promptHistory(view, 1); } },
       ],
+      extensions: [
+        window.CM.autocompletion({ override: [completer({ ask: function (doc, pos) { return promptAsk("completion", doc, pos); },
+                                                          path: function () { return con.state && con.state.script; },
+                                                          more: consoleNameOptions })] }),
+        window.CM.hoverTooltip(hoverer(function (doc, pos) { return promptAsk("hover", doc, pos); })),
+      ],
+      onMove: function (moved) {
+        clearTimeout(signing);
+        signing = setTimeout(function () { promptSign(moved, signature); }, 150);
+      },
     });
     panel.addEventListener("click", consoleClick);
     grip.addEventListener("pointerdown", function (event) { dragSize(event, "height"); });
@@ -2088,6 +2203,7 @@
       return r.json().then(function (found) {
         if (!r.ok) { consoleSay(found.error || "The console couldn't " + name); return; }
         if (name === "close") { consoleClosed(); return; }
+        con.namesAsked = null;
         consoleState(found.state);
         consolePoll(true);
       });
@@ -2099,6 +2215,7 @@
     con.list.textContent = "";
     con.last = 0;
     con.names = [];
+    con.namesAsked = null;
     drawNames();
     con.panel.hidden = true;
     document.documentElement.classList.remove("ed-workbench");
@@ -2140,7 +2257,7 @@
       if (entry && entry.outcome !== outcome) { entry.outcome = outcome; changed = true; }
     });
     if (changed) { saveHistory(); drawHistory(); }
-    if (was && was.busy && !state.busy) fetchNames();  // a command ended: names may have changed
+    if (was && was.busy && !state.busy) { con.namesAsked = null; fetchNames(); }  // a command ended: names may have changed
   }
 
   // Ask for new lines; keep asking while the kernel is busy
@@ -2239,6 +2356,39 @@
                    variations: scopesOf(card), table: table }, card);
     }
     return true;
+  }
+
+  // The prompt's language help: asked of the language server as if what is
+  // typed were a block at the end of the console's script (web/editor.py:
+  // PageSession.prompt_request), so it knows what the script's blocks know
+  function promptAsk(method, doc, pos) {
+    var path = con && con.state && con.state.script;
+    if (!path || !editable) return Promise.resolve(null);
+    var line = doc.lineAt(pos);
+    return lspSync(path).then(function () {
+      return lspPost({ request: { method: method, path: path, code: doc.toString(), line: line.number - 1, character: pos - line.from } });
+    }).then(function (found) { return found && !found.reset ? found.result : null; });
+  }
+
+  function promptSign(view, bar) {
+    if (!view.state.doc.length) { bar.hidden = true; return; }
+    promptAsk("signature", view.state.doc, view.state.selection.main.head).then(function (found) { drawSignature(bar, found); });
+  }
+
+  // What the console itself holds that the script doesn't say: names defined
+  // or changed at the prompt (asked of the kernel once after each command)
+  function consoleNameOptions() {
+    if (!con || !con.state) return Promise.resolve([]);
+    if (!con.namesAsked) {
+      con.namesAsked = fetch(consoleBase() + "/names").then(function (r) { return r.ok ? r.json() : { names: [] }; })
+        .then(function (found) { return found.names || []; })
+        .catch(function () { con.namesAsked = null; return []; });
+    }
+    return con.namesAsked.then(function (names) {
+      return names.filter(function (n) { return n.source === "console"; }).map(function (n) {
+        return { label: n.name, type: n.kind === "fn" ? "function" : "variable", detail: "in the console", info: n.value, boost: 3 };
+      });
+    });
   }
 
   function promptRun(view) {
@@ -2512,7 +2662,8 @@
     var asked = new URLSearchParams(location.search);  // read before a tab rewrites the address
     var given = JSON.parse(root.dataset.tabs || "[]");
     var first = root.dataset.active || null;
-    if (first) firstLoad[first] = { variation: root.dataset.variation, files: root.dataset.files };
+    if (first) firstLoad[first] = { variation: root.dataset.variation, files: root.dataset.files,
+                                    line: root.dataset.line, col: root.dataset.col };
     given.forEach(addTab);
     if (editable) unsavedFiles().forEach(addTab);
     document.addEventListener("click", onClick);
@@ -2526,8 +2677,16 @@
       var form = event.target;
       var dialog = form.closest && form.closest("[data-ed-run-dialog]");
       if (dialog && form.method !== "dialog" && dialog.open) dialog.close();
+      var vars = form.matches && form.matches("[data-ed-run]") && $("[data-ed-run-vars]", form);
+      if (vars) keepVariations(vars);
       if (editable && form.matches && form.matches("[data-ed-run]") && runSaved(form)) event.preventDefault();
     }, true);
+    function varsChanged(event) {
+      var vars = event.target.closest && event.target.closest("[data-ed-run-vars]");
+      if (vars) countVariations(vars);
+    }
+    document.addEventListener("change", varsChanged);
+    document.addEventListener("input", varsChanged);
     // Anything htmx redraws in a pane (another variation, the checked-in view) is scanned again
     document.body.addEventListener("htmx:afterSettle", function () {
       if (active && states[active]) scan(states[active].pane);

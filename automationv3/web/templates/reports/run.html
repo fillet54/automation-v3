@@ -2,7 +2,17 @@
 {% set nav_current = "reports" %}
 {% block title %}{{ run.script.split('/')[-1] }} · Run{% endblock %}
 
-{% block page_head %}<script src="{{ url_for('static', filename='js/elapsed.js') }}" defer></script>{% endblock %}
+{% block page_head %}<script src="{{ url_for('static', filename='js/elapsed.js') }}" defer></script>
+<script>
+  // E: back to the editor (a scratch run's Edit), unless typing
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "e" && event.key !== "E") return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return;
+    if (event.target.closest && event.target.closest("input, textarea, select, [contenteditable]")) return;
+    var edit = document.querySelector("[data-run-edit]");
+    if (edit) { event.preventDefault(); window.location.href = edit.href; }
+  });
+</script>{% endblock %}
 
 {% block content %}
 {% include "reports/partials/run_body.html" %}

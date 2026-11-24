@@ -12,8 +12,9 @@ av3u_...`), except the two calls that get one:
     GET  /api/requirements?id=..&context=..   -> {id: requirement or null}
     GET  /api/environments                    -> {environment: [live worker urls]}
     GET  /api/uuts                            -> {uut: [{id, digest}], oldest first}
-    POST /api/scratch       {workspace, files, scripts, environment, variation,
-                             uut_versions, device}
+    POST /api/scratch       {workspace, files, scripts, environment, variations,
+                             filter, uut_versions, device}  (variation: one name,
+                             as older clients send)
                             -> {runs: [{id, script, environment, variation, url}]}
     GET  /api/scratch/<id>                    -> the run: outcome, status, ...
     GET  /api/scratch/<id>/events?after=N     -> {events: [...], finished}
@@ -213,7 +214,13 @@ def scratch():
     if any(safe_path(s) not in clean for s in scripts):
         return error("Every script must be among the files")
 
-    environment, variation = data.get("environment"), data.get("variation")
+    environment = data.get("environment")
+    names = data.get("variations") or []
+    if not isinstance(names, list) or not all(isinstance(n, str) for n in names) \
+            or not isinstance(data.get("filter") or "", str):
+        return error("variations must be a list of names, filter a string")
+    if data.get("variation") and data["variation"] not in names:
+        names.append(data["variation"])
     folder = Path(tempfile.mkdtemp(prefix="upload-"))
     try:
         write_files(folder, clean)
@@ -222,7 +229,8 @@ def scratch():
             scratch=True,
             environments=[environment] if environment else None,
             versions=data.get("uut_versions") or {},
-            variations={f"{s}::{variation}" for s in scripts} if variation else None)
+            variations=scratch_service.variation_keys([safe_path(s) for s in scripts], names),
+            filter_source=(data.get("filter") or "").strip())
         try:
             run_ids = scratch_service.queue_scratch(
                 get_db(), current_app.config["REPORTS_PATH"], plan, scratch_service.UPLOADED,

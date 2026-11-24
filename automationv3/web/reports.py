@@ -497,6 +497,10 @@ def run(report_id, run_id):
     frozen = store.is_frozen(report)
     stale = rollup.stale_versions(report, run) if report else {}
     current = (report or {}).get("uut_versions") or {}
+    place = documents.failure_place(run, events) if run.get("report_id") == "scratch" else None
+    edit = documents.edit_url(run, *place) if place else None
+    edit_at = bool(edit)
+    edit = edit or documents.edit_url(run)
     running_since = run.get("started") if not finished else None
     took = seconds_since(running_since) if running_since else None
     return render_template(template, run=run, status=status, finished=finished,
@@ -505,7 +509,8 @@ def run(report_id, run_id):
                            document=document, seen=len(events), errors=errors,
                            files=files, frozen=frozen,
                            rerun_on=", ".join(f"{n} {current[n]['id']}" for n in sorted(stale)),
-                           touched=rollup.touched(events), cleanups=cleanups)
+                           touched=rollup.touched(events), cleanups=cleanups,
+                           edit=edit, edit_at=edit_at)
 
 
 @reports.route("/<report_id>/runs/<run_id>/files/<name>", methods=["GET"])

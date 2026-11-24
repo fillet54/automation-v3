@@ -26,7 +26,7 @@
 
       .. container:: excerpt
 
-         {% if not loop.first %}called from {% endif %}{{ ex.where | literal }}
+         {% if not loop.first %}called from {% endif %}{{ ex.where | link(ex.url, true) }}
 
          ::
 

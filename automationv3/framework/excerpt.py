@@ -31,7 +31,7 @@ def location(span):
 
 def excerpt(files, span, context=1):
     """The lines of `span` in `files` (path -> text), with `context` lines
-    before it: {"where", "path", "line", "rows": [{"no", "text", "mark"}]},
+    before it: {"where", "path", "line", "col", "rows": [{"no", "text", "mark"}]},
     where a row's mark is (start col, end col) for the part of the line
     the span covers, or None. None if the span's file isn't in `files`."""
     if span is None:
@@ -68,7 +68,7 @@ def excerpt(files, span, context=1):
             row["before"] = row["text"][:row["mark"][0] - cut]
             row["marked"] = row["text"][row["mark"][0] - cut:row["mark"][1] - cut]
             row["after"] = row["text"][row["mark"][1] - cut:]
-    return {"where": location(span), "path": path, "line": line, "rows": rows}
+    return {"where": location(span), "path": path, "line": line, "col": col, "rows": rows}
 
 
 def _contains(outer, inner):

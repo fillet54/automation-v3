@@ -32,6 +32,7 @@
      data-base="{{ url_for('workspace.index', id=workspace.id) }}"
      data-tabs='{{ tabs | tojson }}' data-active="{{ active_tab or '' }}"
      data-variation="{{ request.args.get('variation') or '' }}" data-files="{{ request.args.get('files') or '' }}"
+     data-line="{{ request.args.get('line') or '' }}" data-col="{{ request.args.get('col') or '' }}"
      data-report="{{ request.args.get('report') or '' }}" data-console="{{ 'true' if console else 'false' }}">
   <div class="ed-bar" hidden>
     <div class="ed-tabs" role="tablist" aria-label="Open files"></div>
@@ -65,6 +66,22 @@
       {% endif %}
     </div>
   </div>
+  {% if from_run %}
+  {#- Came back from a scratch run (its Edit): go back to it, or run it again with the files as they are now #}
+  <div class="ed-from-run" data-ed-from-run>
+    {{ outcomes.outcome(from_run_status) }}
+    <span>Scratch run of {{ ui.ident(from_run.script) }}{% if from_run.variation %} · <span class="ui-mono">{{ from_run.variation.name }}</span>{% endif %}{% if from_run.environment %} · {{ ui.ident(from_run.environment) }}{% endif %}</span>
+    <span class="ui-spacer"></span>
+    {{ ui.button("Back to the run", size="sm", variant="ghost", href=url_for('reports.run', report_id=from_run.report_id, run_id=from_run.id)) }}
+    {% if from_run.source != "uploaded" %}
+    <form method="post" action="{{ url_for('scratch.again', run_id=from_run.id) }}" data-ed-run data-path="{{ from_run.script }}"
+          data-closure="{{ (from_run.load_order or [from_run.script]) | tojson | forceescape }}">
+      {{ ui.button("Run again", size="sm", icon="refresh", type="submit", attrs={"title": "The same run, with the files as they are now: unsaved edits are saved first (Ctrl+Shift+Enter)"}) }}
+    </form>
+    {% endif %}
+    {{ ui.icon_button("x", "Dismiss", size="sm", attrs={"data-ed-from-run-close": ""}) }}
+  </div>
+  {% endif %}
   {% if editable %}<div class="ed-problems" hidden aria-label="Problems"></div>{% endif %}
   <div class="ed-panes">
     <div class="ed-pane ed-pane--home">

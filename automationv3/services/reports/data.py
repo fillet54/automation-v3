@@ -55,6 +55,10 @@ class Links:
     def file(self, report_id, run_id, name):
         return None
 
+    def source(self, run, path, line, col=0):
+        """Where to edit file `path` of `run` at `line` (1-based), `col`"""
+        return None
+
 
 class ReportData:
     def __init__(self, root, folder, status=unfinished, links=None, report=None):

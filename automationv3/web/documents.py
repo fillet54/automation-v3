@@ -25,6 +25,58 @@ class LiveLinks(Links):
     def file(self, report_id, run_id, name):
         return url_for("reports.run_file", report_id=report_id, run_id=run_id, name=name)
 
+    def source(self, run, path, line, col=0):
+        return edit_url(run, path, line, col)
+
+
+def edit_url(run, path=None, line=None, col=0):
+    """The editor at file `path` (the run's script by default) of a scratch
+    run's workspace, at `line` (1-based) and `col`, with the run to go
+    back to; None for a run that isn't scratch or whose workspace isn't
+    here, or a file that isn't in it"""
+    from ..services.scratch import SCRATCH, UPLOADED
+    from .context import workspace_root
+    workspace = run.get("workspace")
+    if run.get("report_id") != SCRATCH or not workspace or run.get("source") == UPLOADED:
+        return None
+    found = workspace_root(workspace)
+    path = path or run.get("script")
+    if found is None or not path or not (found / path).is_file():
+        return None
+    return url_for("workspace.index", id=workspace, path=path, line=line or None,
+                   col=col or None if line else None, run=run["id"])
+
+
+def failure_place(run, events):
+    """(path, line, col) of where a run's first failing step failed: in
+    the script itself if its trace goes through it, else where the trace
+    starts; the step's own line if it has no trace. None if no step
+    failed."""
+    from ..framework import excerpt, source
+    from ..framework.paths import posix
+    ended = next((e for e in events if e["kind"] == "step_end" and not e.get("passed")), None)
+    if ended is None:
+        return None
+    spans = [excerpt._as_span(s) for s in excerpt.frames(ended.get("trace"))]
+    spans = [s for s in spans if s.source]
+    script = posix(run.get("script") or "")
+    mine = [s for s in spans if posix(s.source) == script]
+    if mine or spans:
+        span = (mine or spans)[0]
+        return posix(span.source), span.line, span.col
+    if ended.get("index") is None:
+        return None
+    try:  # the statement the event counts, in the script as it is now
+        found = source.statements(source.parse(edit_text(run)))[ended["index"]]
+    except Exception:
+        return None
+    return script, found.span.line, found.span.col
+
+
+def edit_text(run):
+    from .context import workspace_root
+    return (workspace_root(run["workspace"]) / run["script"]).read_text(encoding="utf-8")
+
 
 class LiveHooks(html.Hooks):
     """The app's outcome badges and chevrons in documents; with `poll`

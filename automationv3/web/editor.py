@@ -184,6 +184,25 @@ def card_views(path, text, diagnostics=()):
     return as_json(views(file_cards(path, text), path.suffix != ".rst", diagnostics))
 
 
+def locate(path, text, line, col=0):
+    """Where file line `line` (1-based) and column `col` of a file's text
+    are among its cards, as the page counts them: {card (its place in
+    walk order), line, character (in what the card's editor holds)}; None
+    past the cards. The innermost card wins, as for the language server's
+    positions (PageSession.card_at)."""
+    found = file_cards(path, text)
+    _, places = card_model.placed(found, len(found))
+    at, best = line - 1, None
+    for index, place in enumerate(places):
+        if place is not None and place.start <= at < place.end:
+            best = (index, place)
+    if best is None:
+        return None
+    index, place = best
+    return {"card": index, "line": max(at - place.code_start, 0),
+            "character": max(col - place.code_indent, 0)}
+
+
 def as_card(data, depth=0):
     """The Card of what the page sent, or abort(400)"""
     if not isinstance(data, dict) or data.get("kind") not in KINDS or depth > DEEPEST:
@@ -431,6 +450,12 @@ class PageSession:
                    "signature": "textDocument/signatureHelp"}
         path, index = data.get("path"), data.get("card")
         method = methods.get(data.get("method"))
+        if isinstance(data.get("code"), str):
+            if method is None or not isinstance(path, str) or not isinstance(data.get("line"), int) \
+                    or not isinstance(data.get("character"), int):
+                abort(400)
+            return self.prompt_request(method, path, data["code"], data["line"],
+                                       data["character"]), False
         places = self.places.get(path)
         if method is None or not isinstance(index, int) or not isinstance(data.get("line"), int) \
                 or not isinstance(data.get("character"), int):
@@ -454,6 +479,43 @@ class PageSession:
             for item in result.get("items", []):
                 item.pop("textEdit", None)  # the page replaces the word it completes
         return {"result": result}, False
+
+    def prompt_request(self, method, path, code, line, character):
+        """A request about the console's prompt (`code`, at `line` and
+        `character` of it), asked as if it were a block at the end of
+        `path`, the console's script, so it sees what the script's blocks
+        see. The script stays as the server had it."""
+        service = self.server.service
+        had = path in service.texts
+        before = service.text(path) or ""
+        if path not in service.resolved and before:  # what it loads and declares: check it once
+            service.texts[path] = before
+            try:
+                service.check(path)
+            except Exception:
+                pass
+        kept = before.rstrip("\n")
+        first = len(kept.splitlines()) + 3 if kept else 2  # "", ".. rvt::", "", code
+        block = "\n".join("   " + row if row else "" for row in code.split("\n"))
+        service.texts[path] = (kept + "\n\n" if kept else "") + ".. rvt::\n\n" + block + "\n"
+        try:
+            self.next += 1
+            answers = self.server.handle({"jsonrpc": "2.0", "id": self.next, "method": method, "params": {
+                "textDocument": {"uri": self.uri(path)},
+                "position": {"line": first + line, "character": 3 + character}}})
+        finally:
+            if had:
+                service.texts[path] = before
+            else:
+                service.texts.pop(path, None)
+        result = next((a.get("result") for a in answers if a.get("id") == self.next), None)
+        if result and method == "textDocument/hover" and result.get("range"):
+            result["range"] = {key: {"line": at["line"] - first, "character": at["character"] - 3}
+                               for key, at in result["range"].items()}
+        if result and method == "textDocument/completion":
+            for item in result.get("items", []):
+                item.pop("textEdit", None)
+        return {"result": result}
 
 
 def lsp_session(ws, session):

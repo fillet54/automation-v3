@@ -180,10 +180,14 @@ class CentralClient:
     # Scratch runs
 
     def scratch(self, workspace, files, scripts, environment=None, variation=None,
-                uut_versions=None, device=None):
+                uut_versions=None, device=None, variations=None, filter=""):
+        """Run uploaded files in scratch: every variation, or `variation`
+        or `variations` (names), narrowed by `filter` (an EDN predicate)"""
+        names = list(variations or []) + ([variation] if variation else [])
         response = self.call("POST", "/scratch", {
             "workspace": workspace, "files": files, "scripts": scripts,
-            "environment": environment, "variation": variation,
+            "environment": environment, "variations": names, "filter": filter or "",
+            "variation": names[0] if len(names) == 1 else None,  # what older servers read
             "uut_versions": uut_versions or {}, "device": device or device_name()})
         return response.json()["runs"]
 
