@@ -54,6 +54,33 @@ class TestRepo(unittest.TestCase):
         self.assertEqual(found, {"a.rst", "GDN/b.rst", "new/deep/c.rst", "staged.rst"})
         self.assertEqual(found, self.cli_edited(self.rvts))
 
+    def test_only_the_folder_is_looked_at(self):
+        sibling = self.top / "tests" / "rvts-old"        # shares the folder's name as a prefix
+        sibling.mkdir()
+        (sibling / "x.rst").write_text("x\n")
+        (self.top / "tests" / "elsewhere").mkdir()
+        (self.top / "tests" / "elsewhere" / "y.rst").write_text("y\n")
+        self.assertEqual(workspace.edited_files(self.rvts), set())
+        # a folder whose name reads as a pattern is taken as it is
+        odd = self.top / "t[1]"
+        odd.mkdir()
+        (odd / "a.rst").write_text("a\n")
+        (self.top / "t1").mkdir()
+        (self.top / "t1" / "b.rst").write_text("b\n")
+        self.assertEqual(workspace.edited_files(odd), {"a.rst"})
+        self.assertEqual(workspace.edited_files(odd), self.cli_edited(odd))
+        # the top of the worktree: everything
+        self.assertEqual(workspace.edited_files(self.top), self.cli_edited(self.top))
+
+    def test_with_nothing_checked_in_everything_is_edited(self):
+        empty = self.tmp / "empty"
+        git(self.tmp, "init", "-q", str(empty))
+        (empty / "s").mkdir()
+        (empty / "s" / "a.rst").write_text("a\n")
+        (empty / "s" / "b.rst").write_text("b\n")
+        git(empty, "add", "s/a.rst")
+        self.assertEqual(workspace.edited_files(empty / "s"), {"a.rst", "b.rst"})
+
     def test_committed_text_and_checked_in(self):
         (self.rvts / "a.rst").write_text("in work\n")
         self.assertEqual(workspace.committed_text(self.rvts, "a.rst"), "a\n")

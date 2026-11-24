@@ -103,13 +103,47 @@ def worktrees(path):
 CHANGED = ~(pygit2.enums.FileStatus.CURRENT | pygit2.enums.FileStatus.IGNORED)
 
 
+def _diff(repo, under, tree=None):
+    """libgit2's diff of `tree` (an id; None for none) to the index, or of
+    the index to the files on disk (untracked ones too) when `tree` is
+    False, looking only at folder `under`. pygit2 has no pathspec for
+    these, so this calls libgit2 as pygit2's Index.diff_to_* do."""
+    from pygit2 import C, Diff, ffi
+    from pygit2.errors import check_error
+    from pygit2.utils import StrArray
+    options = ffi.new("git_diff_options *")
+    check_error(C.git_diff_options_init(options, 1))
+    flags = pygit2.enums.DiffOption.DISABLE_PATHSPEC_MATCH  # a folder, not a pattern
+    if tree is False:
+        flags |= (pygit2.enums.DiffOption.INCLUDE_UNTRACKED
+                  | pygit2.enums.DiffOption.RECURSE_UNTRACKED_DIRS)
+    options.flags = int(flags)
+    options.context_lines = 0
+    index = repo.index
+    found = ffi.new("git_diff **")
+    with StrArray([under] if under else None) as paths:
+        paths.assign_to(options.pathspec)
+        if tree is False:
+            check_error(C.git_diff_index_to_workdir(found, repo._repo, index._index, options))
+        else:
+            ctree = ffi.new("git_tree **")
+            if tree is not None:
+                ffi.buffer(ctree)[:] = repo[tree].peel(pygit2.Tree)._pointer[:]
+            check_error(C.git_diff_tree_to_index(found, repo._repo, ctree[0], index._index, options))
+    return Diff.from_c(bytes(ffi.buffer(found)[:]), repo)
+
+
 def changed_paths(repo, under=""):
     """Paths under folder `under` (relative to it, "/" between folders)
     whose files differ from HEAD: modified, staged, deleted or new and not
-    ignored"""
-    start = under.strip("/") + "/" if under.strip("/") else ""
-    return {path[len(start):] for path, flags in repo.status(untracked_files="all").items()
-            if flags & CHANGED and path.startswith(start)}
+    ignored. Only that folder is looked at, however big the repository."""
+    under = under.strip("/")
+    start = under + "/" if under else ""
+    found = set()
+    for diff in (_diff(repo, under, head_commit(repo)), _diff(repo, under, False)):
+        for delta in diff.deltas:
+            found.update((delta.old_file.path, delta.new_file.path))
+    return {path[len(start):] for path in found if path.startswith(start)}
 
 
 def is_dirty(repo):
