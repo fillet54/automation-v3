@@ -6,9 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
-from automationv3.services import mirror as mirror_module
 from automationv3.services.mirror import MirrorError, MirrorWorkspaces
 from automationv3.services.reports import store
 from automationv3.services.settings import Git, Settings
@@ -146,11 +144,10 @@ class TestMirrorScriptsFolder(unittest.TestCase):
     def test_a_branch_without_the_folder_is_left_out(self):
         self.assertEqual(self.mirror("elsewhere").branches(), {})
 
-    def test_a_timed_out_extract_is_not_remembered_as_empty(self):
+    def test_a_failed_extract_is_not_remembered_as_empty(self):
         mirror = self.mirror("tests/scripts")
-        commit = mirror.commit("master")
-        timeout = subprocess.TimeoutExpired(["git", "archive"], 300)
-        with mock.patch.object(mirror_module, "run_git", side_effect=timeout):
-            with self.assertRaises(MirrorError):
-                mirror.extract(commit)
+        missing = "0" * 40  # not fetched (yet): says nothing about its scripts folder
+        with self.assertRaises(MirrorError):
+            mirror.extract(missing)
+        self.assertEqual(list(mirror.cache.glob(f"{missing}*")), [])
         self.assertEqual(sorted(p.name for p in mirror.root("master").iterdir()), ["a.rst"])

@@ -12,14 +12,13 @@ CentralClient wraps the server's /api (see web/api.py).
 import json
 import os
 import socket
-import subprocess
 import time
 from pathlib import Path
 
 import requests
 
 from ..framework.closure import resolve
-from .util import git, write_json
+from .util import write_json
 
 
 class ClientError(Exception):
@@ -231,11 +230,15 @@ def upload_files(root, scripts):
 
 
 def current_branch(root):
-    """The git branch checked out at `root`, or "" """
+    """The git branch checked out at `root` ("HEAD" when detached), or ""
+    when it isn't in a repository"""
+    from . import repo
     try:
-        return git(root, "rev-parse", "--abbrev-ref", "HEAD", timeout=10).strip()
-    except (OSError, subprocess.SubprocessError):
+        found = repo.open_repo(root)
+    except repo.GitError:
         return ""
+    branch = repo.head_branch(found)
+    return branch[len("refs/heads/"):] if branch else "HEAD"
 
 
 def replay(observer, event):

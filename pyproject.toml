@@ -20,6 +20,7 @@ dependencies = [
     "sphinx",  # the docs, and a frozen report's site and PDF
     "openpyxl",  # importing requirements from Excel workbooks
     "quickjs-ng",  # the vendored mermaid-diag's JavaScript engine when Node isn't on PATH
+    "pygit2",  # reads the workspaces' repositories in process (git itself is slow to start on Windows)
     # paper-ui (the UI's look) and mermaid-diag (the docs' diagrams) are
     # vendored: automationv3/vendor
 ]

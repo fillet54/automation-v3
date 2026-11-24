@@ -1,12 +1,9 @@
 """Shared service primitives: UTC timestamps, atomic writes, and git helpers."""
 
 import functools
-import io
 import json
 import os
-import shutil
 import subprocess
-import tarfile
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -86,7 +83,7 @@ def write_json(path, data, mode=None):
     atomic_write(path, json.dumps(data, indent=2), mode=mode)
 
 
-# Git and archive extraction
+# Git (the mirror's clone and fetch; everything else reads through services/repo.py)
 
 
 def git(cwd, *args, binary=False, timeout=None):
@@ -97,40 +94,20 @@ def git(cwd, *args, binary=False, timeout=None):
     return result.stdout if binary else result.stdout.decode("utf-8")
 
 
-def extract_tar_atomic(archive, out, cache, prefix="extract-"):
-    """Extract tar `archive` bytes (or create an empty dir if falsy) into `out`
-    atomically under `cache`, tolerating a concurrent writer finishing first."""
-    out = Path(out)
-    cache = Path(cache)
-    cache.mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix=prefix, dir=cache))
-    try:
-        if archive:
-            with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-                if hasattr(tarfile, "data_filter"):
-                    tar.extractall(work, filter="data")
-                else:
-                    tar.extractall(work)
-        try:
-            os.replace(work, out)
-        except OSError:
-            if not out.is_dir():
-                raise
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
-    return out
-
-
 @functools.lru_cache(maxsize=1)
 def framework_fingerprint():
     """The framework's version; for a git checkout, its commit and
     whether it has uncommitted changes (a dev install)"""
+    from . import repo
     try:
-        head = git(PACKAGE, "rev-parse", "HEAD", timeout=10).strip()
-    except (OSError, subprocess.SubprocessError):
+        found = repo.open_repo(PACKAGE)
+        head = repo.head_commit(found)
+    except repo.GitError:
+        head = None
+    if head is None:
         return {"version": __version__, "git": None, "dev": False}
     try:
-        dirty = git(PACKAGE, "status", "--porcelain", "--untracked-files=no", timeout=10).strip()
-    except (OSError, subprocess.SubprocessError):
-        dirty = ""
-    return {"version": __version__, "git": head, "dev": bool(dirty)}
+        dirty = repo.is_dirty(found)
+    except Exception:
+        dirty = False
+    return {"version": __version__, "git": head, "dev": dirty}

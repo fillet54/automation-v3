@@ -9,6 +9,11 @@ says something was pushed, and again before a report is queued, so a
 report never runs a stale commit (see web/hooks.py and web/jobs.py).
 
 Same interface as services.workspace.LocalWorktrees.
+
+Reading the mirror (its branches, a file, a commit's scripts folder) is
+done in process with libgit2 (services/repo.py); cloning and fetching
+stay with the git command, which has the user's credential helpers and
+SSH setup, and only run when something was pushed.
 """
 
 import shutil
@@ -16,7 +21,11 @@ import subprocess
 import threading
 from pathlib import Path, PurePosixPath
 
-from .util import extract_tar_atomic, git as run_git
+import pygit2
+
+from . import repo as gitrepo
+from .util import git as run_git
+
 
 class MirrorError(RuntimeError):
     pass
@@ -66,13 +75,27 @@ class MirrorWorkspaces:
             self.ensure()
             self.git("remote", "update", "--prune")
 
+    def repository(self):
+        """The mirror, opened for one question (see services/repo.py)"""
+        try:
+            return pygit2.Repository(str(self.path))
+        except pygit2.GitError as e:
+            raise MirrorError(f"{self.path}: {e}") from None
+
     def commits(self):
         """branch -> the commit at its tip"""
         if not (self.path / "HEAD").exists():
             return {}
-        out = self.git("for-each-ref", "--format=%(refname:short) %(objectname)",
-                       "refs/heads")
-        return dict(line.split(" ", 1) for line in out.splitlines() if line)
+        found = {}
+        repository = self.repository()
+        for name in repository.references:
+            if not name.startswith("refs/heads/"):
+                continue
+            try:
+                found[name[len("refs/heads/"):]] = str(repository.references[name].resolve().target)
+            except (KeyError, pygit2.GitError):
+                continue  # a symbolic ref to nothing
+        return found
 
     def commit(self, name):
         return self.commits().get(name) if name else None
@@ -99,10 +122,7 @@ class MirrorWorkspaces:
         commit = self.commit(name)
         if commit is None:
             return None
-        try:
-            return self.git("show", f"{commit}:{PurePosixPath(self.scripts, path)}")
-        except MirrorError:
-            return None
+        return gitrepo.file_text(self.repository(), commit, PurePosixPath(self.scripts, path))
 
     def extract(self, commit):
         """The scripts folder of `commit`, extracted once under the cache;
@@ -112,12 +132,11 @@ class MirrorWorkspaces:
         scripts = out / self.scripts if self.scripts else out
         if out.is_dir():
             return scripts if scripts.is_dir() else None
-        try:
-            archive = self.git("archive", "--format=tar", commit,
-                               *([self.scripts] if self.scripts else []), binary=True)
-        except MirrorTimeout:
-            raise  # says nothing about the commit: never cache it as empty
-        except MirrorError:  # no scripts folder in that commit
-            archive = None
-        extract_tar_atomic(archive, out, self.cache, prefix="mirror-")
+        repository = self.repository()
+        if commit not in repository:
+            raise MirrorError(f"{commit} isn't in the mirror")  # never cache it as empty
+        # as git archive laid it out: the scripts folder at its path in the commit
+        # (no tree: the commit has no scripts folder, cached as empty)
+        gitrepo.extract_atomic(repository, gitrepo.tree_at(repository, commit, self.scripts),
+                               out, self.cache, prefix="mirror-", under=self.scripts)
         return scripts if scripts.is_dir() else None

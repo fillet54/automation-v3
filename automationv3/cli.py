@@ -176,7 +176,6 @@ __banner__ = (
 
 import os
 import socket
-import subprocess
 import sys
 from contextlib import closing
 from pathlib import Path
@@ -475,12 +474,13 @@ class ConsoleObserver:
 
 def check_workspace(path):
     """Exit unless `path` is a folder in a git worktree"""
+    from .services.repo import GitError
     from .services.workspace import scripts_folder
     if not path.is_dir():
         sys.exit(f"--workspace-path={path} should be an existing folder")
     try:
         scripts_folder(path)
-    except (OSError, subprocess.CalledProcessError):
+    except (OSError, GitError):
         sys.exit(f"--workspace-path={path} should be in a git worktree")
 
 

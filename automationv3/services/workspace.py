@@ -5,11 +5,10 @@ the repository (its top, or a folder below it). Every other worktree of
 the repository has its workspace in the same folder: git finds them.
 """
 
-import subprocess
 from pathlib import Path, PurePosixPath
 
 from ..framework.paths import posix
-from .util import extract_tar_atomic, git
+from . import repo
 
 
 class FileNode:
@@ -71,8 +70,9 @@ class FileNode:
 
 def scripts_folder(path):
     """Where `path` is in its git worktree: its folder relative to the
-    worktree's top, with "/" between folders ("" for the top itself)"""
-    return git(path, "rev-parse", "--show-prefix").strip().rstrip("/")
+    worktree's top, with "/" between folders ("" for the top itself).
+    Raises GitError if it isn't in one."""
+    return repo.prefix(path)
 
 
 def find_worktrees(path):
@@ -80,15 +80,12 @@ def find_worktrees(path):
     folder in one of its worktrees) to the same folder in that branch's
     worktree. Branches whose worktree has no such folder are left out,
     as are worktrees on no branch."""
-    path = Path(path)
     folder = scripts_folder(path)
     worktrees = {}
-    for entry in git(path, "worktree", "list", "--porcelain").split("\n\n"):
-        fields = dict(line.partition(" ")[::2] for line in entry.splitlines())
-        branch = fields.get("branch", "")
-        if "worktree" not in fields or not branch.startswith("refs/heads/"):
-            continue  # a bare repository, or a detached HEAD
-        root = Path(fields["worktree"]) / folder
+    for top, branch in repo.worktrees(path):
+        if not branch:
+            continue  # a detached HEAD
+        root = top / folder if folder else top
         if root.is_dir():
             worktrees[branch[len("refs/heads/"):]] = root
     return worktrees
@@ -112,45 +109,45 @@ def is_binary(path, sample_length=8000):
 def head_commit(root):
     """The commit checked out at `root`, or None if there is none yet"""
     try:
-        return git(root, "rev-parse", "--verify", "-q", "HEAD").strip() or None
-    except subprocess.CalledProcessError:
+        return repo.head_commit(repo.open_repo(root))
+    except repo.GitError:
         return None
 
 
 def edited_files(root):
     """Paths (relative to `root`) whose files differ from what is checked
     in: modified, staged, deleted or new"""
-    if head_commit(root) is None:
-        changed = ""
-    else:
-        changed = git(root, "diff", "--name-only", "--relative", "-z", "HEAD", "--", ".")
-    untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z", "--", ".")
-    return {p for p in (changed + untracked).split("\0") if p}
+    found = repo.open_repo(root)
+    return repo.changed_paths(found, repo.prefix(root, found))
 
 
 def committed_text(root, path):
     """The checked-in text of `path` (relative to `root`), or None if it
     isn't checked in"""
     try:
-        return git(root, "show", f"HEAD:./{PurePosixPath(path)}")
-    except subprocess.CalledProcessError:
+        found = repo.open_repo(root)
+    except repo.GitError:
         return None
+    commit = repo.head_commit(found)
+    if commit is None:
+        return None
+    return repo.file_text(found, commit, PurePosixPath(repo.prefix(root, found), path))
 
 
 def checked_in(root, cache):
     """A folder holding `root` as it is checked in (at HEAD), kept under
     `cache` by commit so it is written once. Raises ValueError if nothing
     is checked in yet."""
-    commit = head_commit(root)
+    found = repo.open_repo(root)
+    commit = repo.head_commit(found)
     if commit is None:
         raise ValueError(f"{root}: nothing is checked in yet")
-    prefix = git(root, "rev-parse", "--show-prefix").strip()
-    out = Path(cache) / f"{commit}-{prefix.strip('/').replace('/', '_') or 'root'}"
+    folder = repo.prefix(root, found)
+    out = Path(cache) / f"{commit}-{folder.replace('/', '_') or 'root'}"
     if out.is_dir():
         return out
-    # Run in `root`, archive holds just its folder, paths relative to it
-    archive = git(root, "archive", "--format=tar", commit, binary=True)
-    return extract_tar_atomic(archive, out, cache, prefix="checkout-")
+    return repo.extract_atomic(found, repo.tree_at(found, commit, folder), out, cache,
+                               prefix="checkout-")
 
 
 # Workspace sources: where a server's branches and their files come from.
